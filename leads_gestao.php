@@ -33,32 +33,17 @@ include 'includes/header.php';
                 <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Leads quentes</div><div id="kpiHot" class="h4">0</div></div></div>
             </div>
 
-            <!-- Kanban -->
+            <!-- Kanban (loaded from funil_stages table) -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div id="pipelineSummary" class="small text-muted">Pipeline total: <strong id="pipelineTotal">R$ 0,00</strong></div>
+                <div class="d-flex gap-2">
+                    <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
+                    <button id="bulkActionsBtn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#bulkModal">Ações em massa</button>
+                    <button id="darkToggle" class="btn btn-sm btn-outline-secondary">Modo Escuro</button>
+                </div>
+            </div>
             <div id="kanbanWrap" class="kanban-wrap">
-                <div class="kanban-column" data-stage="Novo">
-                    <div class="kanban-header">Novo Lead <span class="badge bg-light text-muted" id="count-Novo">0</span></div>
-                    <div class="column-content" id="col-Novo"></div>
-                </div>
-                <div class="kanban-column" data-stage="Contato Feito">
-                    <div class="kanban-header">Contato Feito <span class="badge bg-light text-muted" id="count-Contato Feito">0</span></div>
-                    <div class="column-content" id="col-Contato Feito"></div>
-                </div>
-                <div class="kanban-column" data-stage="Proposta Enviada">
-                    <div class="kanban-header">Proposta Enviada <span class="badge bg-light text-muted" id="count-Proposta Enviada">0</span></div>
-                    <div class="column-content" id="col-Proposta Enviada"></div>
-                </div>
-                <div class="kanban-column" data-stage="Negociação">
-                    <div class="kanban-header">Negociação <span class="badge bg-light text-muted" id="count-Negociação">0</span></div>
-                    <div class="column-content" id="col-Negociação"></div>
-                </div>
-                <div class="kanban-column" data-stage="Ganhou">
-                    <div class="kanban-header">Ganhou <span class="badge bg-light text-muted" id="count-Ganhou">0</span></div>
-                    <div class="column-content" id="col-Ganhou"></div>
-                </div>
-                <div class="kanban-column" data-stage="Perdeu">
-                    <div class="kanban-header">Perdeu <span class="badge bg-light text-muted" id="count-Perdeu">0</span></div>
-                    <div class="column-content" id="col-Perdeu"></div>
-                </div>
+                <div id="kanbanLoading" class="p-4 text-muted">Carregando etapas do funil...</div>
             </div>
 
             <!-- Detalhes do Lead (painel lateral) -->
@@ -68,6 +53,25 @@ include 'includes/header.php';
                     <div id="leadDetailContent" class="p-3"></div>
                 </div>
             </aside>
+
+            <!-- Modal: Ações em massa -->
+            <div id="bulkModal" class="modal fade" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header"><h5 class="modal-title">Ações em massa</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                        <div class="modal-body">
+                            <div class="mb-2"><label class="form-label">Mover selecionados para</label>
+                                <select id="bulkTargetStage" class="form-select">
+                                    <option value="">Escolher etapa</option>
+                                </select>
+                            </div>
+                            <div class="mb-2"><label class="form-label">Atribuir responsável (opcional)</label><input id="bulkAssign" class="form-control" placeholder="Nome do responsável"></div>
+                            <div class="small text-muted">Selecione os cards marcando a caixa ao lado deles.</div>
+                        </div>
+                        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button id="bulkApply" type="button" class="btn btn-primary">Aplicar</button></div>
+                    </div>
+                </div>
+            </div>
 
         </div>
     </main>

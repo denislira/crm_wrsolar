@@ -7,6 +7,8 @@ body{background:transparent}
 .column-content{min-height:160px;padding:10px;display:flex;flex-direction:column;gap:8px}
 .lead-card{background:linear-gradient(180deg,#fff,#fbfdff);padding:10px;border-radius:8px;border:1px solid rgba(11,26,49,0.04);cursor:grab;transition:transform .12s ease,box-shadow .12s ease}
 .lead-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(11,26,49,0.06)}
+.lead-card .lead-select{transform:scale(1.05)}
+.lead-card.selected{box-shadow:0 12px 36px rgba(11,26,49,0.06);border-color:rgba(11,106,193,0.08)}
 .lead-card .title{font-weight:600}
 .lead-meta{font-size:.85rem;color:var(--muted);display:flex;gap:8px;align-items:center;margin-top:6px}
 .badge-score{padding:4px 8px;border-radius:999px;font-weight:700;color:#fff}
@@ -22,5 +24,20 @@ body{background:transparent}
 .kpi-row .card{background:var(--card)}
 .loading{opacity:.6}
 
+.stage-sum{font-size:.82rem;color:var(--muted);margin-left:8px}
+.stalled-icon{margin-left:6px;color:#f59e0b;font-size:0.9rem}
+.lead-card.stalled{outline:2px dashed rgba(245,158,11,0.08)}
+.largest-stage{border:2px solid rgba(11,106,193,0.08)}
+
+.movement-row{padding:8px 0;border-bottom:1px dashed rgba(0,0,0,0.03);}
+.movement-row:last-child{border-bottom:none}
+
+/* dark mode */
+body.dark-mode{background:#0b1220}
+body.dark-mode .kanban-column{background:#071427;color:#dbeafe;border-color:rgba(255,255,255,0.03)}
+body.dark-mode .lead-card{background:linear-gradient(180deg,#071427,#051025);box-shadow:none;border:1px solid rgba(255,255,255,0.03)}
+body.dark-mode .kanban-header{border-bottom:1px solid rgba(255,255,255,0.03)}
+
 /* nice microinteraction for dragging */
 .column-content.drag-over{background:linear-gradient(90deg, rgba(11,106,193,0.03), rgba(75,191,75,0.02));border-radius:6px}
+

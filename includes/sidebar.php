@@ -29,6 +29,9 @@ $current = basename($_SERVER['PHP_SELF']);
             <a href="funil.php" class="nav-link <?php echo $current=='funil.php' ? 'active':''; ?>"><span class="icon"><i class="fa-solid fa-project-diagram"></i></span><span class="label">Funil</span></a>
         </li>
         <li>
+            <a href="funil_config.php" class="nav-link <?php echo $current=='funil_config.php' ? 'active':''; ?>"><span class="icon"><i class="fa-solid fa-sliders"></i></span><span class="label">Personalizar Funil</span></a>
+        </li>
+        <li>
             <a href="projetos.php" class="nav-link <?php echo $current=='projetos.php' ? 'active':''; ?>" title="Organiza informações de clientes, histórico de interações e andamento de projetos. Facilita o acompanhamento de contratos, entregas e comunicação.">
                 <span class="icon"><i class="fa-solid fa-folder-open"></i></span>
                 <span class="label">Projetos</span>

@@ -90,6 +90,38 @@ try {
     // ignore, non-critical
 }
 
+// Ensure lead_movements table exists (audit trail of stage/status changes)
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS lead_movements (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        lead_id INT NOT NULL,
+        user_id INT NOT NULL,
+        from_stage_id INT NULL,
+        to_stage_id INT NULL,
+        from_status VARCHAR(255) NULL,
+        to_status VARCHAR(255) NULL,
+        changed_by INT NULL,
+        note TEXT NULL,
+        is_alert TINYINT(1) DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX (lead_id), INDEX (user_id), INDEX (from_stage_id), INDEX (to_stage_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+} catch (Exception $e) {
+    // not critical — if creation fails we'll still proceed without movements logging
+}
+
+// Helper: inserts a movement record (best-effort, swallow errors)
+function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $fromStatus, $toStatus, $changedBy = null, $note = null, $isAlert = 0) {
+    try {
+        $ins = $pdo->prepare('INSERT INTO lead_movements (lead_id, user_id, from_stage_id, to_stage_id, from_status, to_status, changed_by, note, is_alert, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())');
+        $ins->execute([$leadId, $userId, $fromStageId, $toStageId, $fromStatus, $toStatus, $changedBy, $note, $isAlert]);
+    } catch (Exception $e) {
+        // log but don't break main flow
+        @file_put_contents(__DIR__ . '/../logs/lead_movements.log', "[".date('Y-m-d H:i:s')."] movement log failed: " . $e->getMessage() . "\n", FILE_APPEND | LOCK_EX);
+    }
+}
+
+
 try {
     if ($action === 'list') {
         // Excluir o campo LONGBLOB 'anexos' da listagem para evitar problemas com JSON
@@ -208,8 +240,15 @@ try {
     if ($action === 'update') {
         if (empty($data['id'])) { throw new Exception('Missing id'); }
 
+        // Fetch previous state to detect changes
+        $pre = $pdo->prepare('SELECT id, status, stage_id FROM leads WHERE id = ? AND user_id = ? LIMIT 1');
+        $pre->execute([$data['id'], $userId]);
+        $prev = $pre->fetch(PDO::FETCH_ASSOC);
+        $fromStatus = $prev['status'] ?? null;
+        $fromStageId = isset($prev['stage_id']) ? (int)$prev['stage_id'] : null;
+
         // Resolve stage_id and status similar to add action so both stay in sync
-        $resolvedStatus = isset($data['status']) && trim($data['status']) !== '' ? $data['status'] : 'Novo';
+        $resolvedStatus = isset($data['status']) && trim($data['status']) !== '' ? $data['status'] : ($fromStatus ?? 'Novo');
         $resolvedStageId = null;
         if (!empty($data['stage_id'])) {
             $s = $pdo->prepare("SELECT id, {$FS_NAME_COL} AS name FROM funil_stages WHERE id = ? AND user_id = ? LIMIT 1");
@@ -255,6 +294,15 @@ try {
         // Include stage_id column in the update SQL
         $stmt = $pdo->prepare('UPDATE leads SET name=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=? AND user_id=?');
         $stmt->execute($params);
+
+        // If status or stage changed, log movement
+        try {
+            if ($fromStatus !== $resolvedStatus || $fromStageId !== $resolvedStageId) {
+                $changedBy = $_SESSION['user_id'] ?? null;
+                _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $resolvedStatus, $changedBy, 'Atualização via edit', 0);
+            }
+        } catch (Exception $e) { /* swallow */ }
+
         echo json_encode(['ok' => true]);
         exit;
     }
@@ -269,6 +317,13 @@ try {
 
     if ($action === 'update_status') {
         if (empty($data['id']) || !isset($data['status'])) { throw new Exception('Missing id or status'); }
+
+        // Fetch previous state to record movement
+        $pre = $pdo->prepare('SELECT id, status, stage_id, user_id FROM leads WHERE id = ? AND user_id = ? LIMIT 1');
+        $pre->execute([$data['id'], $userId]);
+        $prev = $pre->fetch(PDO::FETCH_ASSOC);
+        $fromStatus = $prev['status'] ?? null;
+        $fromStageId = isset($prev['stage_id']) ? (int)$prev['stage_id'] : null;
 
         // Try to resolve a stage_id for the provided status or explicit stage_id
         $resolvedStageId = null;
@@ -287,6 +342,14 @@ try {
 
         $stmt = $pdo->prepare('UPDATE leads SET status=?, stage_id=?, updated_at=NOW() WHERE id=? AND user_id=?');
         $stmt->execute([$data['status'], $resolvedStageId, $data['id'], $userId]);
+
+        // Log immutable movement for audit & metrics (best-effort)
+        try {
+            // use session user_id as changed_by if available
+            $changedBy = $_SESSION['user_id'] ?? null;
+            _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $data['status'], $changedBy, null, 0);
+        } catch (Exception $e) { /* swallow */ }
+
         echo json_encode(['ok' => true]);
         exit;
     }
@@ -307,6 +370,17 @@ try {
         header('Content-Disposition: attachment; filename="' . ($lead['anexos_filename'] ?: 'anexo') . '"');
         header('Content-Length: ' . strlen($lead['anexos']));
         echo $lead['anexos'];
+        exit;
+    }
+
+    // Movements listing for a lead (audit trail)
+    if ($action === 'movements') {
+        $leadId = $_GET['lead_id'] ?? ($_POST['lead_id'] ?? null);
+        if (empty($leadId)) { throw new Exception('Missing lead_id'); }
+        $m = $pdo->prepare('SELECT id, lead_id, from_stage_id, to_stage_id, from_status, to_status, changed_by, note, is_alert, created_at FROM lead_movements WHERE lead_id = ? AND user_id = ? ORDER BY created_at ASC');
+        $m->execute([$leadId, $userId]);
+        $rows = $m->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode($rows);
         exit;
     }
 
