@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="80" viewBox="0 0 300 80">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1">
+      <stop offset="0%" stop-color="#0b6ac1"/>
+      <stop offset="100%" stop-color="#073b6b"/>
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="none" />
+  <!-- sun -->
+  <circle cx="32" cy="24" r="16" fill="#ffd24a" />
+  <!-- panel stylized -->
+  <path d="M10 50 L60 16 L72 28 L22 62 Z" fill="#0b6ac1" />
+  <path d="M22 62 L72 28 L82 38 L32 72 Z" fill="#4bbf4b" opacity="0.9" />
+  <!-- text -->
+  <text x="110" y="36" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="700" fill="#073b6b">WR</text>
+  <text x="150" y="36" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="600" fill="#0b6ac1">Solare</text>
+  <text x="110" y="56" font-family="Inter, Arial, sans-serif" font-size="12" fill="#073b6b">Energia Solar</text>
+</svg>

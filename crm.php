@@ -153,176 +153,65 @@
                                 </tr>
                             </thead>
                             <tbody id="pos-venda-table-body">
-                                <!-- After-sales items will be injected here -->
-                            </tbody>
-                        </table>
-                         <div id="pos-venda-empty-state" class="hidden empty-state">
-                            <i data-lucide="award" class="mx-auto w-12 h-12 text-gray-400"></i>
-                            <h3 class="mt-4 text-lg font-semibold">Nenhum projeto finalizado</h3>
-                            <p class="text-gray-500">Finalize um projeto no funil para gerenciar o pós-venda.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
+                                <?php include 'includes/header.php'; ?>
 
-    <!-- Modals (Lead, Project, Pos-Venda) are the same as before -->
-    <!-- Modal for Lead -->
-    <div id="lead-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-30 p-4">
-        <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-             <div class="flex justify-between items-center mb-6">
-                <h2 id="lead-modal-title" class="text-2xl font-bold">Novo Lead</h2>
-                <button id="cancel-lead-x" class="text-gray-400 hover:text-gray-600">&times;</button>
-            </div>
-            <form id="lead-form">
-                <input type="hidden" id="lead-id">
-                <div class="space-y-4">
-                    <input id="lead-name" type="text" placeholder="Nome do Lead" class="w-full px-4 py-2 border rounded-lg" required>
-                    <input id="lead-email" type="email" placeholder="E-mail" class="w-full px-4 py-2 border rounded-lg">
-                    <input id="lead-phone" type="tel" placeholder="Telefone" class="w-full px-4 py-2 border rounded-lg">
-                    <select id="lead-source" class="w-full px-4 py-2 border rounded-lg">
-                        <option>Indicação</option><option>Site</option><option>Redes Sociais</option><option>Outro</option>
-                    </select>
-                    <select id="lead-status" class="w-full px-4 py-2 border rounded-lg">
-                        <option value="Novo">Novo</option><option value="Qualificado">Qualificado</option><option value="Contato Realizado">Contato Realizado</option><option value="Perdido">Perdido</option>
-                    </select>
-                </div>
-                <div class="flex justify-end space-x-4 mt-6">
-                    <button type="button" id="cancel-lead" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Cancelar</button>
-                    <button type="submit" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600">Salvar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Modal for Project -->
-    <div id="project-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-30 p-4">
-        <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-2xl">
-            <div class="flex justify-between items-center mb-6">
-                <h2 id="project-modal-title" class="text-2xl font-bold">Detalhes do Projeto</h2>
-                <button id="cancel-project-x" class="text-gray-400 hover:text-gray-600">&times;</button>
-            </div>
-            <form id="project-form">
-                <input type="hidden" id="project-id">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input id="project-clientName" type="text" placeholder="Nome do Cliente" class="w-full px-4 py-2 border rounded-lg" required>
-                    <input id="project-clientEmail" type="email" placeholder="E-mail" class="w-full px-4 py-2 border rounded-lg">
-                    <input id="project-clientPhone" type="tel" placeholder="Telefone" class="w-full px-4 py-2 border rounded-lg">
-                    <input id="project-address" type="text" placeholder="Endereço Completo" class="w-full px-4 py-2 border rounded-lg">
-                    <input id="project-proposalValue" type="number" step="0.01" placeholder="Valor da Proposta (R$)" class="w-full px-4 py-2 border rounded-lg">
-                    <select id="project-status" class="w-full px-4 py-2 border rounded-lg"></select>
-                </div>
-                <div class="flex justify-end space-x-4 mt-6">
-                    <button type="button" id="cancel-project" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Cancelar</button>
-                    <button type="submit" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600">Salvar Projeto</button>
-                </div>
-            </form>
-        </div>
-    </div>
+                                <div class="d-flex">
+                                    <?php include 'includes/sidebar.php'; ?>
+                                    <main class="flex-grow-1 p-4">
+                                        <div class="container-fluid">
+                                            <!-- Views -->
+                                            <div id="dashboard" class="mb-4">
+                                                <h1 class="h4 mb-3">Relatórios e Análises</h1>
+                                                <div class="row g-3">
+                                                    <div class="col-12 col-md-6 col-lg-3"><div class="card p-3 card-shadow"> <div class="text-muted">Leads Ativos</div><div id="total-leads" class="h5">0</div></div></div>
+                                                    <div class="col-12 col-md-6 col-lg-3"><div class="card p-3 card-shadow"> <div class="text-muted">Projetos em Andamento</div><div id="total-projetos" class="h5">0</div></div></div>
+                                                    <div class="col-12 col-md-6 col-lg-3"><div class="card p-3 card-shadow"> <div class="text-muted">Valor em Negociação</div><div id="valor-negociacao" class="h5">R$ 0,00</div></div></div>
+                                                    <div class="col-12 col-md-6 col-lg-3"><div class="card p-3 card-shadow"> <div class="text-muted">Projetos Finalizados</div><div id="projetos-finalizados" class="h5">0</div></div></div>
+                                                </div>
+                                            </div>
 
-    <!-- Modal Pós-Venda -->
-    <div id="pos-venda-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-30 p-4">
-        <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold">Detalhes Pós-venda</h2>
-                <button id="cancel-pos-venda-x" class="text-gray-400 hover:text-gray-600">&times;</button>
-            </div>
-            <form id="pos-venda-form">
-                <input type="hidden" id="pos-venda-id">
-                <input type="hidden" id="pos-venda-projectId">
-                <div class="space-y-4">
-                    <p><strong>Cliente:</strong> <span id="pos-venda-clientName"></span></p>
-                    <div><label class="font-medium text-sm">Data de Instalação</label><input id="pos-venda-installationDate" type="date" class="w-full px-4 py-2 border rounded-lg mt-1"></div>
-                     <div><label class="font-medium text-sm">Próxima Manutenção</label><input id="pos-venda-nextMaintenance" type="date" class="w-full px-4 py-2 border rounded-lg mt-1"></div>
-                     <div><label class="font-medium text-sm">Fim da Garantia</label><input id="pos-venda-warrantyEndDate" type="date" class="w-full px-4 py-2 border rounded-lg mt-1"></div>
-                </div>
-                <div class="flex justify-end space-x-4 mt-6">
-                    <button type="button" id="cancel-pos-venda" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Cancelar</button>
-                    <button type="submit" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600">Salvar</button>
-                </div>
-            </form>
-    </div>
+                                            <div id="visualizacao" class="mb-4">
+                                                <h2 class="h5 mb-3">Visualização de Dados</h2>
+                                                <div class="row g-3">
+                                                    <div class="col-12 col-lg-6"><div class="card p-3 card-shadow"><canvas id="funnelChart"></canvas></div></div>
+                                                    <div class="col-12 col-lg-6"><div class="card p-3 card-shadow"><canvas id="leadSourceChart"></canvas></div></div>
+                                                    <div class="col-12"><div class="card p-3 card-shadow mt-3"><canvas id="salesChart"></canvas></div></div>
+                                                </div>
+                                            </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, collection, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+                                            <div id="leads" class="mb-4">
+                                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                                    <h2 class="h5 mb-0">Gestão de Leads</h2>
+                                                    <button id="add-lead-btn" class="btn btn-primary">Novo Lead</button>
+                                                </div>
+                                                <div class="card card-shadow p-3">
+                                                    <div id="leads-table-container" class="table-responsive"></div>
+                                                </div>
+                                            </div>
 
-        // --- CONFIG & INITIALIZATION ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "YOUR_API_KEY", authDomain: "YOUR_AUTH_DOMAIN", projectId: "YOUR_PROJECT_ID" };
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        
-        let userId;
-        let leadsCollection, projectsCollection, posVendaCollection;
-        let unsubscribeLeads, unsubscribeProjects, unsubscribePosVenda;
+                                            <div id="funil" class="mb-4">
+                                                <h2 class="h5 mb-3">Funil de Vendas</h2>
+                                                <div id="kanban-container" class="d-flex overflow-auto gap-3 pb-3"></div>
+                                            </div>
 
-        const FUNNEL_STAGES = ['Prospecção', 'Visita Técnica', 'Proposta Enviada', 'Negociação', 'Fechado', 'Instalação', 'Finalizado', 'Perdido'];
-        let allLeads = [], allProjects = [], allPosVenda = [];
+                                            <div id="projetos" class="mb-4">
+                                                <h2 class="h5 mb-3">Clientes e Projetos</h2>
+                                                <div class="card card-shadow p-3">
+                                                    <div id="projects-table-container" class="table-responsive"></div>
+                                                </div>
+                                            </div>
 
-        // --- AUTH & COLLECTION SETUP ---
-        onAuthStateChanged(auth, user => {
-            if (user) {
-                userId = user.uid;
-                document.getElementById('userIdDisplay').textContent = userId;
-                leadsCollection = collection(db, `/artifacts/${appId}/users/${userId}/leads`);
-                projectsCollection = collection(db, `/artifacts/${appId}/users/${userId}/projects`);
-                posVendaCollection = collection(db, `/artifacts/${appId}/users/${userId}/pos-venda`);
-                setupListeners();
-            }
-        });
-        
-        async function initAuth() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) { console.error("Authentication Error:", error); }
-        }
-        
-        // --- REAL-TIME LISTENERS ---
-        function setupListeners() {
-            if (unsubscribeLeads) unsubscribeLeads();
-            unsubscribeLeads = onSnapshot(query(leadsCollection), snapshot => {
-                allLeads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderLeads(allLeads);
-                updateAllViews();
-            });
+                                            <div id="pos-venda" class="mb-4">
+                                                <h2 class="h5 mb-3">Acompanhamento Pós-venda</h2>
+                                                <div class="card card-shadow p-3">
+                                                    <div id="pos-venda-table-container" class="table-responsive"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </main>
+                                </div>
 
-            if (unsubscribeProjects) unsubscribeProjects();
-            unsubscribeProjects = onSnapshot(query(projectsCollection), snapshot => {
-                allProjects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                updateAllViews();
-            });
-            
-            if (unsubscribePosVenda) unsubscribePosVenda();
-            unsubscribePosVenda = onSnapshot(query(posVendaCollection), snapshot => {
-                allPosVenda = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                updateAllViews();
-            });
-        }
-        
-        function updateAllViews() {
-            renderProjects(allProjects);
-            renderFunil(allProjects);
-            renderPosVenda(allProjects, allPosVenda);
-            updateDashboard(allLeads, allProjects);
-            renderVisualizacoes(allProjects, allLeads);
-        }
-
-        // --- UI RENDERING ---
-        function renderLeads(leads) {
-            const tableBody = document.getElementById('leads-table-body');
-            const emptyState = document.getElementById('leads-empty-state');
-            if (leads.length === 0) {
-                tableBody.innerHTML = '';
-                emptyState.classList.remove('hidden');
+                                <?php include 'includes/footer.php'; ?>
             } else {
                 emptyState.classList.add('hidden');
                 tableBody.innerHTML = leads.map(lead => `

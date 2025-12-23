@@ -1,0 +1,26 @@
+/* Minimal modern styles for Gestão de Leads */
+:root{--bg:#f8fafc;--card:#fff;--muted:#6b7280;--accent:#0b6ac1;--danger:#ef4444}
+body{background:transparent}
+.kanban-wrap{display:flex;gap:16px;overflow:auto;padding:8px 2px}
+.kanban-column{flex:0 0 320px;background:var(--card);border-radius:8px;padding:8px;border:1px solid rgba(11,26,49,0.06);box-shadow:0 6px 18px rgba(11,26,49,0.04);min-height:240px}
+.kanban-header{font-weight:600;padding:8px 10px;border-bottom:1px solid rgba(0,0,0,0.04);display:flex;justify-content:space-between;align-items:center}
+.column-content{min-height:160px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.lead-card{background:linear-gradient(180deg,#fff,#fbfdff);padding:10px;border-radius:8px;border:1px solid rgba(11,26,49,0.04);cursor:grab;transition:transform .12s ease,box-shadow .12s ease}
+.lead-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(11,26,49,0.06)}
+.lead-card .title{font-weight:600}
+.lead-meta{font-size:.85rem;color:var(--muted);display:flex;gap:8px;align-items:center;margin-top:6px}
+.badge-score{padding:4px 8px;border-radius:999px;font-weight:700;color:#fff}
+.badge-score.hot{background:#ef4444}
+.badge-score.warm{background:#f59e0b}
+.badge-score.cold{background:#06b6d4}
+.lead-panel{position:fixed;right:0;top:56px;width:420px;height:calc(100vh - 56px);background:var(--card);border-left:1px solid rgba(11,26,49,0.04);box-shadow:-8px 0 28px rgba(11,26,49,0.06);z-index:1200;overflow:auto;transition:transform .2s ease}
+.lead-panel.hidden{transform:translateX(100%)}
+.lead-panel-inner{padding:18px}
+.close-panel{position:absolute;right:8px;top:8px}
+@media (max-width: 900px){ .kanban-column{flex:0 0 260px} .lead-panel{width:100%;top:56px;height:calc(100vh - 56px)} }
+/* small helpers */
+.kpi-row .card{background:var(--card)}
+.loading{opacity:.6}
+
+/* nice microinteraction for dragging */
+.column-content.drag-over{background:linear-gradient(90deg, rgba(11,106,193,0.03), rgba(75,191,75,0.02));border-radius:6px}
