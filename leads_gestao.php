@@ -39,7 +39,6 @@ include 'includes/header.php';
                 <div class="d-flex gap-2">
                     <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
                     <button id="bulkActionsBtn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#bulkModal">Ações em massa</button>
-                    <button id="darkToggle" class="btn btn-sm btn-outline-secondary">Modo Escuro</button>
                 </div>
             </div>
             <div id="kanbanWrap" class="kanban-wrap">
@@ -77,22 +76,86 @@ include 'includes/header.php';
     </main>
 </div>
 
-<!-- Modal: criar/editar lead -->
-<div id="leadModal" class="modal fade" tabindex="-1">
-    <div class="modal-dialog">
+<!-- Modal: criar/editar lead (reused from leads.php) -->
+<div class="modal fade" id="leadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
-            <form id="leadForm">
-                <div class="modal-header"><h5 id="leadModalTitle" class="modal-title">Novo Lead</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body">
-                    <input type="hidden" id="leadId">
-                    <div class="mb-2"><label class="form-label">Nome</label><input id="leadName" class="form-control" required></div>
-                    <div class="mb-2"><label class="form-label">Empresa</label><input id="leadCompany" class="form-control"></div>
-                    <div class="row g-2"><div class="col"><label class="form-label">Email</label><input id="leadEmail" class="form-control" type="email"></div><div class="col"><label class="form-label">Telefone</label><input id="leadPhone" class="form-control"></div></div>
-                    <div class="mb-2"><label class="form-label">Valor estimado (R$)</label><input id="leadValue" class="form-control" type="number" step="0.01"></div>
-                    <div class="mb-2"><label class="form-label">Notas</label><textarea id="leadNotes" class="form-control" rows="3"></textarea></div>
-                </div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
-            </form>
+            <div class="modal-header bg-light border-bottom">
+                <h5 class="modal-title d-flex align-items-center gap-2" id="leadModalTitle">
+                    <i class="fa-solid fa-user-plus text-primary"></i> <span>Novo Lead</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="leadForm" enctype="multipart/form-data">
+                    <input type="hidden" id="lead-id">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label class="form-label">Nome <i class="fa fa-user text-muted"></i></label>
+                                    <input id="lead-name" class="form-control" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Status</label>
+                                    <select id="lead-status" class="form-select">
+                                        <option value="">Novo</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <label class="form-label">Email <i class="fa fa-envelope text-muted"></i></label>
+                                    <input id="lead-email" class="form-control" type="email">
+                                    <label class="form-label mt-2">Telefone <i class="fa fa-phone text-muted"></i></label>
+                                    <input id="lead-phone" class="form-control" type="tel">
+                                    <label class="form-label mt-2">CPF / CNPJ <i class="fa fa-id-card text-muted"></i></label>
+                                    <input id="lead-cpf-cnpj" class="form-control" placeholder="000.000.000-00 ou 00.000.000/0000-00">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <label class="form-label">Consumo do Cliente (R$) <i class="fa fa-bolt text-warning"></i></label>
+                                    <input id="lead-consumo" class="form-control" type="number" step="0.01" placeholder="0,00">
+                                    <label class="form-label mt-2">Estimativa do Projeto (kWh) <i class="fa fa-solar-panel text-info"></i></label>
+                                    <input id="lead-estimativa-kwh" class="form-control" type="number" step="0.01" placeholder="0,00">
+                                    <label class="form-label mt-2">Fonte <i class="fa fa-globe text-muted"></i></label>
+                                    <input id="lead-source" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <label class="form-label">Anexar Arquivos <i class="fa fa-paperclip text-muted"></i></label>
+                                    <input id="lead-anexos" class="form-control" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                    <div class="form-text">Formatos aceitos: PDF, DOC, DOCX, JPG, PNG</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3 h-100">
+                                <div class="card-body d-flex flex-column h-100">
+                                    <label class="form-label">Notas de Observação <i class="fa fa-sticky-note text-muted"></i></label>
+                                    <textarea id="lead-notes" class="form-control" rows="4" placeholder="Digite suas observações sobre este lead..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" form="leadForm" class="btn btn-primary"><i class="fa fa-save"></i> Salvar</button>
+            </div>
         </div>
     </div>
 </div>

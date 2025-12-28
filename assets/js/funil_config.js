@@ -51,8 +51,21 @@
 
   function renderPreview(s){
     const p = $('#stagePreview'); p.innerHTML = '';
-    const col = document.createElement('div'); col.style.padding = '10px'; col.style.borderRadius='6px'; col.style.background = s.color || '#f1f5f9'; col.style.color = '#111';
-    col.innerHTML = `<div style="font-weight:700">${s.name}</div><div style="margin-top:8px;padding:8px;border-radius:6px;background:${s.card_color||'#fff'};">Ex: Nome do lead — <small class="text-muted">R$ 10.000</small></div>`;
+    const col = document.createElement('div');
+    col.style.padding = '8px';
+    col.style.borderRadius = '12px';
+    col.style.background = '#fff';
+    col.style.border = '1px solid rgba(11,26,49,0.06)';
+    // top line representing stage color
+    col.style.borderTop = '6px solid ' + (s.color || '#6c757d');
+    col.style.overflow = 'hidden';
+    col.innerHTML = `<div style="font-weight:700;padding:8px 6px">${s.name} <span class="small text-muted" style="float:right">0</span></div>`;
+    const card = document.createElement('div');
+    card.style.marginTop = '8px'; card.style.padding = '10px'; card.style.borderRadius = '10px';
+    card.style.borderLeft = '4px solid ' + (s.color || '#6c757d');
+    card.style.background = s.card_color || '#fff'; card.style.color = '#111';
+    card.innerHTML = 'Ex: Nome do lead — <small class="text-muted">R$ 10.000</small>';
+    col.appendChild(card);
     p.appendChild(col);
   }
 
