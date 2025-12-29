@@ -25,12 +25,8 @@ $current = basename($_SERVER['PHP_SELF']);
         <li>
             <a href="leads_gestao.php" class="nav-link <?php echo $current=='leads_gestao.php' ? 'active':''; ?>"><span class="icon"><i class="fa-solid fa-list"></i></span><span class="label">Gestão de Leads</span></a>
         </li>
-        <li>
-            <a href="funil.php" class="nav-link <?php echo $current=='funil.php' ? 'active':''; ?>"><span class="icon"><i class="fa-solid fa-project-diagram"></i></span><span class="label">Funil</span></a>
-        </li>
-        <li>
-            <a href="funil_config.php" class="nav-link <?php echo $current=='funil_config.php' ? 'active':''; ?>"><span class="icon"><i class="fa-solid fa-sliders"></i></span><span class="label">Personalizar Funil</span></a>
-        </li>
+        <!-- Funil menu removed per request -->
+        <!-- `funil_config.php` removed from sidebar; moved to Gestão de Leads -->
         <li>
             <a href="projetos.php" class="nav-link <?php echo $current=='projetos.php' ? 'active':''; ?>" title="Organiza informações de clientes, histórico de interações e andamento de projetos. Facilita o acompanhamento de contratos, entregas e comunicação.">
                 <span class="icon"><i class="fa-solid fa-folder-open"></i></span>

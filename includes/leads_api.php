@@ -124,19 +124,42 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
 try {
     if ($action === 'list') {
-        // Excluir o campo LONGBLOB 'anexos' da listagem para evitar problemas com JSON
-        $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE user_id = ? ORDER BY created_at DESC');
-        $stmt->execute([$userId]);
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Try to include proposal_value from projetos (sum per lead). If projetos table missing, fallback to simple leads select.
+        try {
+            $sql = 'SELECT l.id, l.user_id, l.name, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.anexos_filename, l.anexos_mimetype, COALESCE(p_sum.proposal_value,0) AS proposal_value, l.created_at, l.updated_at '
+                 . 'FROM leads l LEFT JOIN (SELECT lead_id, SUM(COALESCE(proposal_value,0)) AS proposal_value FROM projetos WHERE user_id = ? GROUP BY lead_id) p_sum ON p_sum.lead_id = l.id '
+                 . 'WHERE l.user_id = ? ORDER BY l.created_at DESC';
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$userId, $userId]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            // fallback to basic leads select if projetos table or columns are not available
+            $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE user_id = ? ORDER BY created_at DESC');
+            $stmt->execute([$userId]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // ensure proposal_value exists for compatibility
+            foreach ($rows as &$r) { if (!isset($r['proposal_value'])) $r['proposal_value'] = 0; }
+            unset($r);
+        }
         echo json_encode($rows);
         exit;
     }
 
     if ($action === 'get') {
         if (empty($_GET['id'])) { throw new Exception('Missing id'); }
-        $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE id = ? AND user_id = ?');
-        $stmt->execute([$_GET['id'], $userId]);
-        $lead = $stmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            $sql = 'SELECT l.id, l.user_id, l.name, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.anexos_filename, l.anexos_mimetype, COALESCE(p_sum.proposal_value,0) AS proposal_value, l.created_at, l.updated_at '
+                 . 'FROM leads l LEFT JOIN (SELECT lead_id, SUM(COALESCE(proposal_value,0)) AS proposal_value FROM projetos WHERE user_id = ? GROUP BY lead_id) p_sum ON p_sum.lead_id = l.id '
+                 . 'WHERE l.id = ? AND l.user_id = ? LIMIT 1';
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$userId, $_GET['id'], $userId]);
+            $lead = $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE id = ? AND user_id = ?');
+            $stmt->execute([$_GET['id'], $userId]);
+            $lead = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($lead && !isset($lead['proposal_value'])) $lead['proposal_value'] = 0;
+        }
         if (!$lead) {
             http_response_code(404);
             echo json_encode(['error' => 'Lead not found']);

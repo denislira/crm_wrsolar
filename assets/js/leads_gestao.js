@@ -124,6 +124,12 @@
 
     function toCurrency(v){ return 'R$ ' + (Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
+    function formatDateBR(dt){
+        if (!dt) return '—';
+        try { const d = new Date(String(dt).replace(' ', 'T')); return d.toLocaleDateString('pt-BR'); } catch(e){ return String(dt); }
+    }
+    function daysSince(dt){ if (!dt) return null; try { const d = new Date(String(dt).replace(' ', 'T')); const diff = Date.now() - d.getTime(); return Math.floor(diff / (1000*60*60*24)); } catch(e){ return null; } }
+
     function renderKpis(){
         const active = allLeads.filter(l=>!['Perdido','Ganhou'].includes(l.status));
         const hot = allLeads.filter(l=>l.score>=80).length;
@@ -163,6 +169,18 @@
         const score = document.createElement('span'); score.className = 'badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')); score.textContent = lead.score;
         meta.appendChild(value); meta.appendChild(owner); meta.appendChild(score);
         el.appendChild(head); el.appendChild(company); el.appendChild(meta);
+
+        // created date and days active
+        const createdText = formatDateBR(lead.created_at || lead.createdAt || lead.created);
+        const daysActive = daysSince(lead.created_at || lead.createdAt || lead.created);
+        const noMovement = leadUpdatedDaysAgo(lead);
+        const createdDiv = document.createElement('div'); createdDiv.className = 'lead-created small text-muted mt-1';
+        createdDiv.textContent = 'Criado: ' + createdText + (daysActive !== null ? (' • ' + daysActive + ' dias') : '');
+        // days without movement badge
+        const daysBox = document.createElement('span'); daysBox.className = 'lead-days-box'; daysBox.textContent = (noMovement !== Infinity && noMovement !== null) ? (noMovement + ' dias') : '—';
+        daysBox.title = 'Dias sem movimento';
+        createdDiv.appendChild(daysBox);
+        el.appendChild(createdDiv);
 
         // inactivity indicator
         const days = leadUpdatedDaysAgo(lead);
@@ -242,53 +260,59 @@
     }
 
     function setupDragDrop(){
-        $all('.column-content').forEach(col=>{
-            col.addEventListener('dragover', (e)=>{
-                e.preventDefault(); col.classList.add('drag-over'); e.dataTransfer.dropEffect='move';
-                // make dragging card show the target column color as left line
-                const dragging = document.querySelector('.lead-card.dragging');
-                if (dragging) {
-                    const colWrap = col.closest('.kanban-column');
-                    const colColor = colWrap?.dataset?.color || '#6c757d';
-                    if (colColor) {
-                        // remember previous border to restore later
-                        if (!dragging.dataset._prevBorder) dragging.dataset._prevBorder = dragging.style.borderLeft || '';
-                        dragging.style.borderLeft = '4px solid ' + colColor;
-                    }
-                }
-            });
-            col.addEventListener('dragleave', ()=>{
-                col.classList.remove('drag-over');
-                const dragging = document.querySelector('.lead-card.dragging');
-                if (dragging) {
-                    // restore previous border
-                    dragging.style.borderLeft = dragging.dataset._prevBorder || dragging.dataset.originalBorder || '4px solid transparent';
-                    dragging.dataset._prevBorder = '';
-                }
-            });
-            col.addEventListener('drop', async (e)=>{
-                e.preventDefault(); col.classList.remove('drag-over');
-                const id = e.dataTransfer.getData('text/plain');
-                const container = col.closest('.kanban-column');
-                const stageId = container?.dataset?.stageId;
-                const stageName = container?.dataset?.stageName;
-                try {
-                    await updateStatus(id, stageName, { stage_id: stageId });
-                    const item = allLeads.find(x=>String(x.id)===String(id)); if (item) { item.status = stageName; item.stage_id = stageId; item.updated_at = (new Date()).toISOString(); }
-                    // ensure dragging element shows new column color briefly
-                    const dragging = document.querySelector('.lead-card.dragging');
-                    if (dragging) {
-                        const newColor = container?.dataset?.color || '#6c757d';
-                        dragging.style.borderLeft = '6px solid ' + newColor;
-                        dragging.dataset._prevBorder = '';
-                    }
-                    renderAll();
-                    flashFeedback(col, true);
-                } catch(err){ flashFeedback(col, false); console.error(err); }
-            });
+        const wrap = document.getElementById('kanbanWrap');
+        if (!wrap) return;
+
+        // delegated handlers on the wrap so empty column areas accept drops
+        wrap.addEventListener('dragover', (e)=>{
+            e.preventDefault(); e.dataTransfer.dropEffect='move';
+            const colWrap = e.target.closest('.kanban-column');
+            if (!colWrap) return;
+            const colContent = colWrap.querySelector('.column-content');
+            colWrap.classList.add('drag-over-column');
+            const dragging = document.querySelector('.lead-card.dragging');
+            if (dragging) {
+                const colColor = colWrap?.dataset?.color || '#6c757d';
+                if (colColor && !dragging.dataset._prevBorder) dragging.dataset._prevBorder = dragging.style.borderLeft || '';
+                if (colColor) dragging.style.borderLeft = '4px solid ' + colColor;
+            }
         });
 
-        // global cleanup on dragend in case something wasn't reset
+        wrap.addEventListener('dragleave', (e)=>{
+            const colWrap = e.target.closest('.kanban-column');
+            if (!colWrap) return;
+            colWrap.classList.remove('drag-over-column');
+            const dragging = document.querySelector('.lead-card.dragging');
+            if (dragging) {
+                dragging.style.borderLeft = dragging.dataset._prevBorder || dragging.dataset.originalBorder || '4px solid transparent';
+                dragging.dataset._prevBorder = '';
+            }
+        });
+
+        wrap.addEventListener('drop', async (e)=>{
+            e.preventDefault();
+            const colWrap = e.target.closest('.kanban-column');
+            if (!colWrap) return;
+            colWrap.classList.remove('drag-over-column');
+            const colContent = colWrap.querySelector('.column-content');
+            const id = e.dataTransfer.getData('text/plain');
+            const stageId = colWrap?.dataset?.stageId;
+            const stageName = colWrap?.dataset?.stageName;
+            try {
+                await updateStatus(id, stageName, { stage_id: stageId });
+                const item = allLeads.find(x=>String(x.id)===String(id)); if (item) { item.status = stageName; item.stage_id = stageId; item.updated_at = (new Date()).toISOString(); }
+                const dragging = document.querySelector('.lead-card.dragging');
+                if (dragging) {
+                    const newColor = container?.dataset?.color || '#6c757d';
+                    dragging.style.borderLeft = '6px solid ' + newColor;
+                    dragging.dataset._prevBorder = '';
+                }
+                renderAll();
+                flashFeedback(colContent, true);
+            } catch(err){ flashFeedback(colContent, false); console.error(err); }
+        });
+
+        // cleanup
         document.addEventListener('dragend', ()=>{
             const d = document.querySelector('.lead-card.dragging');
             if (d) {
@@ -296,6 +320,8 @@
                 d.style.borderLeft = d.dataset.originalBorder || '4px solid transparent';
                 d.dataset._prevBorder = '';
             }
+            // remove any lingering overlays
+            $all('.kanban-column.drag-over-column').forEach(c=>c.classList.remove('drag-over-column'));
         });
     }
 
@@ -330,6 +356,9 @@
         const email = document.createElement('div'); email.innerHTML = 'Email: ' + (lead.email? `<a href="mailto:${encodeURIComponent(lead.email)}">${lead.email}</a>` : '—');
         const phone = document.createElement('div'); phone.innerHTML = 'Telefone: ' + (lead.phone? `<a href="tel:${encodeURIComponent(lead.phone)}">${lead.phone}</a>` : '—');
         const value = document.createElement('div'); value.textContent = 'Valor estimado: ' + toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
+        const createdText = formatDateBR(lead.created_at || lead.createdAt || lead.created);
+        const daysActive = daysSince(lead.created_at || lead.createdAt || lead.created);
+        const createdDiv = document.createElement('div'); createdDiv.className = 'small text-muted'; createdDiv.textContent = 'Criado: ' + createdText + (daysActive !== null ? (' • ' + daysActive + ' dias') : '');
         const notes = document.createElement('div'); notes.className='mt-3'; notes.textContent = 'Notas: ' + (lead.notes || '—');
         const btns = document.createElement('div'); btns.className='mt-3 d-flex gap-2';
         const editBtn = document.createElement('button'); editBtn.className='btn btn-sm btn-outline-primary'; editBtn.type='button'; editBtn.textContent='Editar';
@@ -340,7 +369,7 @@
 
         // Movement timeline
         const timelineWrap = document.createElement('div'); timelineWrap.className = 'mt-3'; timelineWrap.innerHTML = '<h6>Histórico de movimentações</h6><div id="timeline"></div>';
-        p.appendChild(title); p.appendChild(status); p.appendChild(company); p.appendChild(email); p.appendChild(phone); p.appendChild(value); p.appendChild(notes); p.appendChild(btns); p.appendChild(timelineWrap);
+        p.appendChild(title); p.appendChild(status); p.appendChild(company); p.appendChild(email); p.appendChild(phone); p.appendChild(value); p.appendChild(createdDiv); p.appendChild(notes); p.appendChild(btns); p.appendChild(timelineWrap);
 
         // fetch and render movements
         const timeline = timelineWrap.querySelector('#timeline'); timeline.innerHTML = '<div class="small text-muted">Carregando...</div>';

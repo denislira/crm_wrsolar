@@ -33,6 +33,12 @@ body{background:#e9eef5}
 .movement-row{padding:8px 0;border-bottom:1px dashed rgba(0,0,0,0.03);}
 .movement-row:last-child{border-bottom:none}
 
+/* days without movement badge on cards */
+.lead-days-box{display:inline-block;background:#e9ecef;color:#1f2937;padding:4px 8px;border-radius:6px;font-size:.82rem;font-weight:700;margin-left:8px}
+.lead-created{display:flex;align-items:center;gap:8px}
+/* make "Criado: ..." in cards slightly smaller for less visual weight */
+.lead-card .lead-created{font-size:0.75rem}
+
 /* Modern modal for Novo Lead */
 .lead-modal-content{border-radius:14px;overflow:hidden;box-shadow:0 24px 60px rgba(11,26,49,0.12)}
 .lead-modal-content .modal-header{background:transparent;padding:18px 22px;border-bottom:none;font-weight:700}
@@ -54,4 +60,10 @@ body.dark-mode .kanban-header{border-bottom:1px solid rgba(255,255,255,0.03)}
 
 /* nice microinteraction for dragging */
 .column-content.drag-over{background:linear-gradient(90deg, rgba(11,106,193,0.03), rgba(75,191,75,0.02));border-radius:6px}
+
+/* full-column drag overlay */
+.kanban-column.drag-over-column{position:relative}
+.kanban-column.drag-over-column::before{content:'';position:absolute;inset:0;border-radius:12px;background:linear-gradient(180deg, rgba(11,106,193,0.06), rgba(75,191,75,0.03));pointer-events:none;z-index:0}
+.kanban-column.drag-over-column > .kanban-header,
+.kanban-column.drag-over-column > .column-content{position:relative;z-index:1}
 
