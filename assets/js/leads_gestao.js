@@ -822,6 +822,50 @@
             if (e.target.closest && e.target.closest('.lead-card')) return;
             closePanel();
         });
+
+        // Horizontal scroll: drag with mouse + scroll wheel
+        setupHorizontalScroll();
+    }
+
+    function setupHorizontalScroll() {
+        const wrap = $('#kanbanWrap');
+        if (!wrap) return;
+
+        let isDown = false;
+        let startX, scrollLeft;
+
+        // Drag to scroll
+        wrap.addEventListener('mousedown', (e) => {
+            // Only drag if clicking on the wrap itself (not on cards or inputs)
+            if (e.target.closest('.lead-card') || e.target.closest('input') || e.target.closest('button') || e.target.closest('select')) return;
+            
+            isDown = true;
+            wrap.classList.add('dragging');
+            wrap.style.cursor = 'grabbing';
+            startX = e.pageX - wrap.offsetLeft;
+            scrollLeft = wrap.scrollLeft;
+            e.preventDefault();
+        });
+
+        wrap.addEventListener('mouseleave', () => {
+            isDown = false;
+            wrap.classList.remove('dragging');
+            wrap.style.cursor = '';
+        });
+
+        wrap.addEventListener('mouseup', () => {
+            isDown = false;
+            wrap.classList.remove('dragging');
+            wrap.style.cursor = '';
+        });
+
+        wrap.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - wrap.offsetLeft;
+            const walk = (x - startX) * 2; // scroll-speed multiplier
+            wrap.scrollLeft = scrollLeft - walk;
+        });
     }
 
     // initial
