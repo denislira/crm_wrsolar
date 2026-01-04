@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer" />
   <!-- Site theme (overrides and design system) -->
   <link rel="stylesheet" href="assets/css/theme.css">
+  <link rel="stylesheet" href="assets/css/leads_gestao.css">
   <style>
     /* Theme derived from WR Solare logo: blues, green and yellow accents */
     :root{

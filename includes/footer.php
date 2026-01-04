@@ -9,26 +9,7 @@
     })();
   </script>
 
-  <!-- Explicação dinâmica da tela -->
-  <div class="container-fluid mt-5">
-    <div id="pageExplanation" class="alert alert-info text-center small" style="max-width:800px;margin:auto;">
-    </div>
-  </div>
-  <script>
-    // Explicação por página (definido de forma idempotente no objeto global para evitar redeclaração)
-    window.__pageExplanations = window.__pageExplanations || {
-      'leads.php': 'Gestão de Leads: Esta tela permite registrar, editar e acompanhar todos os potenciais clientes do seu negócio. É essencial para organizar contatos, entender o perfil de consumo e monitorar o avanço de cada lead no funil de vendas. O uso eficiente desta tela aumenta as chances de conversão, reduz perdas e traz clareza sobre oportunidades reais, beneficiando diretamente o crescimento comercial.',
-      'funil.php': 'Funil de Vendas: Aqui você personaliza os estágios do processo comercial, define cores e organiza o fluxo dos leads. O funil é fundamental para visualizar pontos críticos, identificar pontos de melhoria e garantir que cada oportunidade seja tratada conforme sua maturidade. Utilizar bem esta tela traz mais controle, previsibilidade e eficiência para a equipe de vendas.',
-      'projetos.php': 'Projetos: Gerencie todas as informações dos clientes, histórico de interações, contratos e andamento dos projetos. Esta tela é importante para garantir que cada etapa do projeto seja acompanhada, evitando atrasos e melhorando a comunicação com o cliente. O benefício é a entrega de projetos mais organizados, com maior satisfação e fidelização.',
-      'integracao-equipes.php': 'Integração de Equipes: Centraliza tarefas, atividades e comunicação entre os times de marketing, vendas, técnica e financeiro. Facilita o alinhamento, reduz falhas de comunicação e aumenta a produtividade coletiva. O uso desta tela promove colaboração, agilidade e resultados mais consistentes para toda a empresa.',
-      'relatorios.php': 'Relatórios: Visualize KPIs, gráficos avançados, funil pirâmide, timeline e métricas essenciais para a tomada de decisão. Esta tela é crucial para analisar resultados, identificar tendências e embasar estratégias. O benefício é a gestão orientada por dados, com mais segurança e assertividade nas decisões.',
-      'pos-venda.php': 'Pós-venda: Acompanhe instalações, manutenções, garantias e o relacionamento após a conclusão dos projetos. Esta tela é importante para garantir a satisfação do cliente, prevenir problemas futuros e fortalecer a reputação da empresa. O uso contínuo traz mais fidelização e oportunidades de novos negócios.',
-      'customers.php': 'Clientes: Lista e detalhes dos clientes cadastrados, facilitando o acesso rápido às informações e histórico. É essencial para manter o relacionamento ativo, personalizar abordagens e garantir que nenhum cliente seja esquecido. O benefício é uma base sólida para vendas recorrentes e indicações.',
-    };
-    const path = window.location.pathname.split('/').pop();
-    const el = document.getElementById('pageExplanation');
-    if (el && window.__pageExplanations[path]) el.textContent = window.__pageExplanations[path];
-  </script>
+  <!-- pageExplanation removed -->
   <script>
     // Sidebar collapse toggle
     (function(){

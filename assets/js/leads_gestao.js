@@ -66,11 +66,34 @@
     }
 
     async function fetchLeads(){
-        const res = await fetch(apiBase + '?action=list');
-        if (!res.ok) throw new Error('Falha ao carregar leads');
-        const json = await res.json();
-        allLeads = json.map(l => ({...l, score: l.score ?? computeScore(l)}));
-        renderAll();
+        try {
+            console.log('Fetching leads from:', apiBase + '?action=list');
+            const res = await fetch(apiBase + '?action=list');
+            console.log('Fetch leads response status:', res.status);
+            if (!res.ok) throw new Error('Falha ao carregar leads');
+            const json = await res.json();
+            console.log('Leads loaded:', json.length);
+            allLeads = json.map(l => ({...l, score: l.score ?? computeScore(l)}));
+            renderAll();
+        } catch (err) {
+            console.error('fetchLeads error:', err);
+            throw err;
+        }
+    }
+
+    let REMINDER_TEMPLATES = [];
+    async function fetchReminderTemplates(){
+        try{
+            const res = await fetch('includes/reminder_templates_api.php?action=list');
+            if (!res.ok) return;
+            const rows = await res.json();
+            REMINDER_TEMPLATES = Array.isArray(rows) ? rows : [];
+            const sel = document.getElementById('reminderTemplateSelect'); if (!sel) return;
+            sel.innerHTML = '<option value="">-- nenhum --</option>';
+            REMINDER_TEMPLATES.forEach(t=>{
+                const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; sel.appendChild(o);
+            });
+        } catch(e){ console.warn('Failed loading reminder templates', e); }
     }
 
     // Stages loaded from DB (funil_stages)
@@ -162,7 +185,7 @@
         const title = document.createElement('div'); title.className='title'; title.textContent = escapeText(lead.name || '(sem nome)'); left.appendChild(title);
         head.appendChild(left);
 
-        const company = document.createElement('div'); company.className='lead-meta'; company.textContent = (lead.client_name || lead.company || '—');
+        const company = document.createElement('div'); company.className='lead-meta'; company.textContent = 'Fonte: ' + (lead.source || lead.client_name || lead.company || '—');
         const meta = document.createElement('div'); meta.className='lead-meta';
         const value = document.createElement('span'); value.className='lead-value'; value.textContent = toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
         const owner = document.createElement('span'); owner.className='lead-owner'; owner.textContent = lead.responsavel || '';
@@ -202,7 +225,54 @@
         return el;
     }
 
+    function getViewMode(){ return localStorage.getItem('leadsView') || 'kanban'; }
+    function setViewMode(mode){
+        localStorage.setItem('leadsView', mode);
+        const kanban = document.getElementById('kanbanWrap');
+        const list = document.getElementById('listWrap');
+        const btn = document.getElementById('toggleViewBtn');
+        if (mode === 'grid') {
+            if (kanban) kanban.classList.add('d-none');
+            if (list) list.classList.remove('d-none');
+            if (btn) btn.innerHTML = '<i class="fa fa-columns"></i>';
+        } else {
+            if (kanban) kanban.classList.remove('d-none');
+            if (list) list.classList.add('d-none');
+            if (btn) btn.innerHTML = '<i class="fa fa-list"></i>';
+        }
+    }
+
+    function renderGrid(){
+        const container = document.getElementById('leadsTableContainer'); if (!container) return;
+        container.innerHTML = '';
+        const table = document.createElement('table'); table.className = 'table table-sm table-hover';
+        const thead = document.createElement('thead'); thead.innerHTML = '<tr><th></th><th>Nome</th><th>Fonte</th><th>Status</th><th>Valor</th><th>Responsável</th><th>Score</th><th>Criado</th><th></th></tr>';
+        const tbody = document.createElement('tbody');
+        // rows
+        allLeads.forEach(lead => {
+            const tr = document.createElement('tr'); tr.dataset.id = lead.id;
+            const chkTd = document.createElement('td'); chkTd.innerHTML = '<input class="lead-select" type="checkbox">';
+            const nameTd = document.createElement('td'); nameTd.textContent = lead.name || '(sem nome)';
+            const compTd = document.createElement('td'); compTd.textContent = lead.source || lead.client_name || lead.company || '—';
+            const statusTd = document.createElement('td'); statusTd.textContent = lead.status || '';
+            const valTd = document.createElement('td'); valTd.textContent = toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
+            const ownerTd = document.createElement('td'); ownerTd.textContent = lead.responsavel || '';
+            const scoreTd = document.createElement('td'); scoreTd.innerHTML = '<span class="badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')) + '">' + (lead.score||0) + '</span>';
+            const createdTd = document.createElement('td'); createdTd.className='small text-muted'; createdTd.textContent = formatDateBR(lead.created_at || lead.createdAt || lead.created);
+            const actTd = document.createElement('td');
+            const openBtn = document.createElement('button'); openBtn.className='btn btn-sm btn-outline-secondary'; openBtn.type='button'; openBtn.textContent='Abrir';
+            openBtn.addEventListener('click', ()=> openPanel(lead.id));
+            actTd.appendChild(openBtn);
+
+            tr.appendChild(chkTd); tr.appendChild(nameTd); tr.appendChild(compTd); tr.appendChild(statusTd); tr.appendChild(valTd); tr.appendChild(ownerTd); tr.appendChild(scoreTd); tr.appendChild(createdTd); tr.appendChild(actTd);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(thead); table.appendChild(tbody); container.appendChild(table);
+    }
+
     function renderAll(){
+        // switch to grid view if requested
+        if (getViewMode() === 'grid') { renderGrid(); return; }
         clearColumns();
         // compute sums per stage id
         const sums = {};
@@ -352,7 +422,7 @@
         const p = $('#leadDetailContent'); p.innerHTML = '';
         const title = document.createElement('h4'); title.textContent = lead.name || '(sem nome)';
         const status = document.createElement('div'); status.className='mb-2 small text-muted'; status.textContent = 'Status: ' + (lead.status||'Novo');
-        const company = document.createElement('div'); company.textContent = 'Empresa: ' + (lead.client_name|| lead.company|| '—');
+        const company = document.createElement('div'); company.textContent = 'Fonte: ' + (lead.source || lead.client_name || lead.company || '—');
         const email = document.createElement('div'); email.innerHTML = 'Email: ' + (lead.email? `<a href="mailto:${encodeURIComponent(lead.email)}">${lead.email}</a>` : '—');
         const phone = document.createElement('div'); phone.innerHTML = 'Telefone: ' + (lead.phone? `<a href="tel:${encodeURIComponent(lead.phone)}">${lead.phone}</a>` : '—');
         const value = document.createElement('div'); value.textContent = 'Valor estimado: ' + toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
@@ -360,16 +430,62 @@
         const daysActive = daysSince(lead.created_at || lead.createdAt || lead.created);
         const createdDiv = document.createElement('div'); createdDiv.className = 'small text-muted'; createdDiv.textContent = 'Criado: ' + createdText + (daysActive !== null ? (' • ' + daysActive + ' dias') : '');
         const notes = document.createElement('div'); notes.className='mt-3'; notes.textContent = 'Notas: ' + (lead.notes || '—');
-        const btns = document.createElement('div'); btns.className='mt-3 d-flex gap-2';
+            const btns = document.createElement('div'); btns.className='mt-3 d-flex gap-2';
+            // compact reminders placeholder (filled after panel open)
+            const remindersWrap = document.createElement('div');
+            remindersWrap.className = 'mb-3'; remindersWrap.id = 'leadReminders';
+            p.appendChild(remindersWrap);
+                // create reminder button (icon + label) and wire click to open modal
+                const reminderBtn = document.createElement('button');
+                reminderBtn.className = 'btn btn-sm btn-outline-info';
+                reminderBtn.type = 'button';
+                reminderBtn.innerHTML = '<i class="fa fa-clock"></i> Lembrete';
+                reminderBtn.addEventListener('click', (e)=>{
+                    e.stopPropagation();
+                    const leadId = lead.id || '';
+                    const leadIdInput = document.getElementById('reminderLeadId'); if (leadIdInput) leadIdInput.value = leadId;
+                    const reminderMessage = document.getElementById('reminderMessage'); if (reminderMessage) reminderMessage.value = '';
+                    const reminderDate = document.getElementById('reminderDate'); if (reminderDate) reminderDate.value = '';
+                    const reminderTime = document.getElementById('reminderTime'); if (reminderTime) reminderTime.value = '';
+                    // close details panel first so modal appears on top
+                    closePanel();
+                    const modalEl = document.getElementById('reminderModal');
+                    const m = new bootstrap.Modal(modalEl);
+                    // ensure modal is a child of body to avoid stacking/z-index issues
+                    try { if (modalEl && modalEl.parentNode !== document.body) document.body.appendChild(modalEl); } catch(e){}
+                    // small delay to allow panel hide animation/remove stacking context
+                    setTimeout(()=>{ console.debug('Showing reminder modal'); m.show(); }, 120);
+                    // populate templates when opening
+                    fetchReminderTemplates().then(()=>{
+                        const sel = document.getElementById('reminderTemplateSelect'); if (!sel) return;
+                        sel.value = '';
+                        sel.addEventListener('change', ()=>{
+                            const id = sel.value; if (!id) return;
+                            const tmpl = REMINDER_TEMPLATES.find(x=>String(x.id)===String(id)); if (!tmpl) return;
+                            const msgEl = document.getElementById('reminderMessage'); if (msgEl) msgEl.value = tmpl.message || '';
+                            // compute default date
+                            const days = Number(tmpl.default_days_offset || 0);
+                            const dt = new Date(); dt.setDate(dt.getDate() + days);
+                            const y = dt.getFullYear(); const mth = String(dt.getMonth()+1).padStart(2,'0'); const d = String(dt.getDate()).padStart(2,'0');
+                            const time = tmpl.default_time ? tmpl.default_time.substring(0,5) : '';
+                            const dateEl = document.getElementById('reminderDate'); if (dateEl) dateEl.value = `${y}-${mth}-${d}`;
+                            const timeEl = document.getElementById('reminderTime'); if (timeEl) timeEl.value = time;
+                        }, {once:true});
+                    });
+                });
         const editBtn = document.createElement('button'); editBtn.className='btn btn-sm btn-outline-primary'; editBtn.type='button'; editBtn.textContent='Editar';
         editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); populateLeadForm(lead); });
         const whatsappBtn = document.createElement('a'); whatsappBtn.className='btn btn-sm btn-outline-success'; whatsappBtn.href = lead.phone? 'https://wa.me/'+lead.phone.replace(/\D/g,''):'#'; whatsappBtn.target='_blank'; whatsappBtn.textContent='WhatsApp';
         const proposalBtn = document.createElement('button'); proposalBtn.className='btn btn-sm btn-primary'; proposalBtn.type='button'; proposalBtn.textContent='Enviar proposta';
-        btns.appendChild(editBtn); btns.appendChild(whatsappBtn); btns.appendChild(proposalBtn);
+        proposalBtn.classList.add('d-none');
+        btns.appendChild(reminderBtn); btns.appendChild(editBtn); btns.appendChild(whatsappBtn); btns.appendChild(proposalBtn);
 
         // Movement timeline
         const timelineWrap = document.createElement('div'); timelineWrap.className = 'mt-3'; timelineWrap.innerHTML = '<h6>Histórico de movimentações</h6><div id="timeline"></div>';
         p.appendChild(title); p.appendChild(status); p.appendChild(company); p.appendChild(email); p.appendChild(phone); p.appendChild(value); p.appendChild(createdDiv); p.appendChild(notes); p.appendChild(btns); p.appendChild(timelineWrap);
+
+            // load compact reminders for this lead
+            try { fetchRemindersForLead(id); } catch(e){ console.warn('failed loading reminders', e); }
 
         // fetch and render movements
         const timeline = timelineWrap.querySelector('#timeline'); timeline.innerHTML = '<div class="small text-muted">Carregando...</div>';
@@ -390,6 +506,59 @@
     }
 
     function closePanel(){ $('#leadDetailsPanel').classList.add('hidden'); }
+
+    // fetch and render a compact reminders block inside the lead details panel
+    function fetchRemindersForLead(leadId) {
+        const wrap = document.getElementById('leadReminders'); if (!wrap) return;
+        wrap.innerHTML = '<strong>Lembretes:</strong> carregando...';
+        fetch('includes/reminders_api.php?action=list&lead_id=' + encodeURIComponent(leadId))
+            .then(r => r.json())
+            .then(rows => {
+                wrap.innerHTML = '';
+                const header = document.createElement('div'); header.className = 'd-flex align-items-center mb-1';
+                const title = document.createElement('strong'); title.textContent = 'Lembretes:';
+                const badge = document.createElement('span'); badge.className = 'badge bg-secondary ms-2'; badge.textContent = rows.length;
+                header.appendChild(title); header.appendChild(badge);
+                const reminderBtn = document.createElement('button'); reminderBtn.className='btn btn-sm btn-outline-info'; reminderBtn.type='button'; reminderBtn.innerHTML = '<i class="fa fa-clock"></i> Lembrete';
+                wrap.appendChild(header);
+                if (!rows || rows.length === 0) { const empty = document.createElement('div'); empty.className='text-muted small'; empty.textContent='Nenhum lembrete para este lead.'; wrap.appendChild(empty); return; }
+                const list = document.createElement('div'); list.className = 'list-group list-group-flush';
+                rows.slice(0,3).forEach(r=>{
+                    const it = document.createElement('div'); it.className='list-group-item py-1 d-flex align-items-start';
+                    const left = document.createElement('div'); left.className='small text-muted me-2'; left.style.minWidth='120px'; left.textContent = new Date(r.remind_at).toLocaleString();
+                    const mid = document.createElement('div'); mid.className='small text-truncate'; mid.style.maxWidth='220px'; mid.textContent = r.message;
+                    const actions = document.createElement('div'); actions.className='ms-auto';
+                    const editBtn = document.createElement('button'); editBtn.className='btn btn-sm btn-link p-0'; editBtn.textContent='Editar';
+                    editBtn.onclick = ()=> { editReminder(r.id); };
+                    actions.appendChild(editBtn);
+                    it.appendChild(left); it.appendChild(mid); it.appendChild(actions); list.appendChild(it);
+                });
+                if (rows.length > 3) { const more = document.createElement('div'); more.className='small text-muted mt-1'; more.textContent='Ver todos em Integração → Lembretes'; list.appendChild(more); }
+                wrap.appendChild(list);
+            }).catch(err=>{ wrap.innerHTML = '<div class="text-danger small">Erro ao carregar lembretes</div>'; console.error(err); });
+    }
+
+    function openReminderModalForLead(leadId){
+        document.getElementById('reminderId').value = '';
+        document.getElementById('reminderLeadId').value = leadId;
+        const msg = document.getElementById('reminderMessage'); if (msg) msg.value='';
+        const dateEl = document.getElementById('reminderDate'); if (dateEl) dateEl.value = (new Date()).toISOString().slice(0,10);
+        const timeEl = document.getElementById('reminderTime'); if (timeEl) timeEl.value = (new Date()).toTimeString().slice(0,5);
+        const sel = document.getElementById('reminderTemplateSelect'); if (sel) sel.value='';
+        const modalEl = document.getElementById('reminderModal'); if (modalEl) new bootstrap.Modal(modalEl).show();
+    }
+
+    function editReminder(reminderId){
+        fetch('includes/reminders_api.php?action=get&id=' + encodeURIComponent(reminderId)).then(r=>r.json()).then(r=>{
+            if (!r || !r.id) return;
+            document.getElementById('reminderId').value = r.id;
+            document.getElementById('reminderLeadId').value = r.lead_id;
+            const msg = document.getElementById('reminderMessage'); if (msg) msg.value = r.message || '';
+            try { const dt = new Date(r.remind_at); document.getElementById('reminderDate').value = dt.toISOString().slice(0,10); document.getElementById('reminderTime').value = dt.toTimeString().slice(0,5); } catch(e){}
+            const sel = document.getElementById('reminderTemplateSelect'); if (sel) sel.value = r.template_id || '';
+            const modalEl = document.getElementById('reminderModal'); if (modalEl) new bootstrap.Modal(modalEl).show();
+        }).catch(err=>console.error(err));
+    }
 
     function populateLeadForm(lead){
         if (!lead) return;
@@ -441,25 +610,70 @@
     }
 
     function setupHandlers(){
+        // initialize view toggle (kanban / grid)
+        const toggleBtn = $('#toggleViewBtn');
+        if (toggleBtn) {
+            // apply saved view
+            setViewMode(localStorage.getItem('leadsView') || 'kanban');
+            toggleBtn.addEventListener('click', ()=>{
+                const next = getViewMode() === 'grid' ? 'kanban' : 'grid';
+                setViewMode(next);
+                renderAll();
+            });
+        }
         $('#closeLeadPanel').addEventListener('click', closePanel);
-        $('#newLeadBtn').addEventListener('click', ()=>{ const m = new bootstrap.Modal($('#leadModal')); $('#leadModalTitle').textContent='Novo Lead'; $('#leadForm').reset(); m.show(); });
+        $('#newLeadBtn').addEventListener('click', ()=>{ 
+            const m = new bootstrap.Modal($('#leadModal')); 
+            $('#leadModalTitle').textContent='Novo Lead'; 
+            $('#leadForm').reset(); 
+            const idEl = F('leadId') || $('#lead-id'); 
+            if (idEl) idEl.value = '';
+            m.show(); 
+        });
+        
+        // Add event listener to clean up backdrop when modal is hidden
+        $('#leadModal').addEventListener('hidden.bs.modal', function () {
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(bd => bd.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        });
+        
         (F('leadForm') || $('#leadForm')).addEventListener('submit', async (e)=>{
             e.preventDefault();
-            const idEl = F('leadId') || $('#leadId');
+            console.log('Form submit triggered');
+            const idEl = F('leadId') || $('#lead-id');
             const id = idEl ? idEl.value : '';
+            console.log('Lead ID:', id);
             // Use FormData to support file uploads (anexos)
             const fd = new FormData();
-            fd.append('name', (F('leadName')||$('#leadName')).value || '');
-            fd.append('email', (F('leadEmail')||$('#leadEmail')).value || '');
-            fd.append('phone', (F('leadPhone')||$('#leadPhone')).value || '');
-            fd.append('cpf_cnpj', (F('leadCpf')||$('#leadCpf')) ? (F('leadCpf')||$('#leadCpf')).value : '');
-            fd.append('source', (F('leadSource')||$('#leadSource')) ? (F('leadSource')||$('#leadSource')).value : 'web');
-            fd.append('status', (F('leadStatus')||$('#leadStatus')) ? (F('leadStatus')||$('#leadStatus')).value : 'Novo');
-            const stageVal = (F('leadStage')||$('#leadStage')) ? (F('leadStage')||$('#leadStage')).value : '';
+            const nameValue = (F('leadName')||$('#lead-name')).value || '';
+            const emailValue = (F('leadEmail')||$('#lead-email')).value || '';
+            const phoneValue = (F('leadPhone')||$('#lead-phone')).value || '';
+            const cpfValue = (F('leadCpf')||$('#lead-cpf-cnpj')) ? (F('leadCpf')||$('#lead-cpf-cnpj')).value : '';
+            const sourceValue = (F('leadSource')||$('#lead-source')) ? (F('leadSource')||$('#lead-source')).value : 'web';
+            const statusEl = (F('leadStatus')||$('#lead-status'));
+            const statusValue = statusEl ? statusEl.value : 'Novo';
+            const stageVal = (F('leadStage')||$('#lead-stage')) ? (F('leadStage')||$('#lead-stage')).value : '';
+            const notesValue = (F('leadNotes')||$('#lead-notes')) ? (F('leadNotes')||$('#lead-notes')).value : '';
+            const consumoValue = (F('leadConsumo')||$('#lead-consumo')) ? (F('leadConsumo')||$('#lead-consumo')).value : '';
+            const estimativaValue = (F('leadEstimativa')||$('#lead-estimativa-kwh')) ? (F('leadEstimativa')||$('#lead-estimativa-kwh')).value : '';
+            
+            console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, stageVal, notesValue, consumoValue, estimativaValue});
+            console.log('Status element:', statusEl, 'Status value:', statusValue);
+            
+            fd.append('name', nameValue);
+            fd.append('email', emailValue);
+            fd.append('phone', phoneValue);
+            fd.append('cpf_cnpj', cpfValue);
+            fd.append('source', sourceValue);
+            fd.append('status', statusValue);
             if (stageVal) fd.append('stage_id', stageVal);
-            fd.append('notes', (F('leadNotes')||$('#leadNotes')) ? (F('leadNotes')||$('#leadNotes')).value : '');
-            fd.append('consumo_cliente', (F('leadConsumo')||$('#leadConsumo')) ? (F('leadConsumo')||$('#leadConsumo')).value : '');
-            fd.append('estimativa_projeto_kwh', (F('leadEstimativa')||$('#leadEstimativa')) ? (F('leadEstimativa')||$('#leadEstimativa')).value : '');
+            else if (statusValue) fd.append('stage_id', statusValue); // Fallback: use status as stage_id if stage not set
+            fd.append('notes', notesValue);
+            fd.append('consumo_cliente', consumoValue);
+            fd.append('estimativa_projeto_kwh', estimativaValue);
             fd.append('action', id? 'update' : 'add');
             if (id) fd.append('id', id);
             // append files
@@ -471,20 +685,78 @@
             }
 
             try {
+                console.log('Sending request to:', apiBase);
+                console.log('Action:', id ? 'update' : 'add', 'ID:', id);
                 const res = await fetch(apiBase, { method: 'POST', body: fd });
+                console.log('Response status:', res.status);
                 const txt = await res.text();
+                console.log('Response text:', txt);
                 let payload = null;
-                try { payload = JSON.parse(txt); } catch(e) { payload = null; }
+                try { payload = JSON.parse(txt); } catch(e) { 
+                    console.warn('Failed to parse JSON:', e); 
+                    payload = null; 
+                }
                 if (!res.ok || (payload && payload.error)) {
                     const msg = (payload && (payload.error || payload.message)) || txt || 'Erro ao salvar';
                     console.error('Save failed', res.status, msg);
                     return alert('Falha ao salvar: ' + msg);
                 }
-                await fetchLeads();
+                console.log('Save successful, reloading leads...');
+                try {
+                    await fetchLeads();
+                } catch (reloadErr) {
+                    console.warn('Failed to reload leads, will continue anyway:', reloadErr);
+                }
                 const modalInst = bootstrap.Modal.getInstance($('#leadModal')) || new bootstrap.Modal($('#leadModal'));
                 modalInst.hide();
-            } catch (err) { console.error(err); alert('Falha ao salvar: ' + (err.message || err)); }
+                // Force remove backdrop if it persists
+                setTimeout(() => {
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    backdrops.forEach(bd => bd.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                }, 300);
+            } catch (err) { 
+                console.error('Fetch error:', err); 
+                alert('Falha ao salvar: ' + (err.message || err)); 
+            }
         });
+
+        // reminder form submit (supports create + update)
+        const reminderForm = document.getElementById('reminderForm');
+        if (reminderForm) {
+            reminderForm.addEventListener('submit', async (e)=>{
+                e.preventDefault();
+                const reminderId = (document.getElementById('reminderId') || {}).value || '';
+                const leadId = (document.getElementById('reminderLeadId') || {}).value;
+                const message = (document.getElementById('reminderMessage') || {}).value;
+                const date = (document.getElementById('reminderDate') || {}).value;
+                const time = (document.getElementById('reminderTime') || {}).value || '00:00';
+                if (!leadId || !message || !date) return alert('Preencha data e mensagem');
+                const dt = date + ' ' + time;
+                try {
+                    const templateId = (document.getElementById('reminderTemplateSelect') || {}).value || '';
+                    const body = new URLSearchParams();
+                    if (reminderId) {
+                        body.append('action','update'); body.append('id', reminderId);
+                        body.append('message', message); body.append('datetime', dt);
+                        if (templateId) body.append('template_id', templateId);
+                    } else {
+                        body.append('action','add'); body.append('lead_id', leadId); body.append('message', message); body.append('datetime', dt);
+                        if (templateId) body.append('template_id', templateId);
+                    }
+                    const res = await fetch('includes/reminders_api.php', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString() });
+                    const json = await res.json();
+                    if (!res.ok || json.error) return alert('Falha ao salvar lembrete: ' + (json && json.error ? json.error : 'erro'));
+                    bootstrap.Modal.getInstance(document.getElementById('reminderModal')).hide();
+                    // refresh details panel reminders and global leads
+                    try { fetchLeads(); } catch(e){}
+                    try { fetchRemindersForLead(leadId); } catch(e){}
+                    alert(reminderId ? 'Lembrete atualizado' : 'Lembrete criado');
+                } catch (err) { console.error(err); alert('Falha ao salvar lembrete'); }
+            });
+        }
 
         $('#searchInput').addEventListener('input', (e)=>{ const v = e.target.value.toLowerCase(); if (!v) {renderAll();return;} allLeads = allLeads.sort(); // noop to keep reference
             const filtered = allLeads.filter(l => (l.name||'').toLowerCase().includes(v) || (l.client_name||'').toLowerCase().includes(v)); clearColumns(); filtered.forEach(l=>{ const stageKey = l.stage_id ? String(l.stage_id) : (STAGES.find(s=>s.name === (l.status||''))||{id:'0'}).id; const col = document.getElementById('col-' + stageKey); if(col) col.appendChild(makeCard(l)); });
@@ -554,7 +826,11 @@
 
     // initial
     document.addEventListener('DOMContentLoaded', async ()=>{
-        try{ await fetchStages(); await fetchLeads(); setupDragDrop(); setupHandlers(); }catch(err){ console.error(err); alert('Erro inicial: '+err.message); }
+        try{
+            await fetchStages(); await fetchLeads(); setupDragDrop(); setupHandlers();
+            // ensure view mode applied after initial data load
+            renderAll();
+        }catch(err){ console.error(err); alert('Erro inicial: '+err.message); }
     });
 
 })();

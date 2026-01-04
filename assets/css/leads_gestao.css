@@ -67,3 +67,225 @@ body.dark-mode .kanban-header{border-bottom:1px solid rgba(255,255,255,0.03)}
 .kanban-column.drag-over-column > .kanban-header,
 .kanban-column.drag-over-column > .column-content{position:relative;z-index:1}
 
+/* ensure modals appear above the lead details panel */
+.modal{z-index:1400 !important}
+.modal-backdrop{z-index:1350 !important}
+
+/* Modern Reminders Design (integracao-equipes.php) */
+.reminder-card-modern{
+    background:#fff;
+    border-radius:10px;
+    padding:12px;
+    margin-bottom:10px;
+    border-left:3px solid #5b21b6;
+    box-shadow:0 1px 4px rgba(0,0,0,0.06);
+    transition:all 0.2s ease;
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+.reminder-card-modern:hover{
+    box-shadow:0 2px 8px rgba(0,0,0,0.1);
+    transform:translateY(-1px);
+}
+.reminder-icon-circle{
+    width:36px;
+    height:36px;
+    border-radius:50%;
+    background:linear-gradient(135deg, #5b21b6, #7c3aed);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#fff;
+    font-size:16px;
+    flex-shrink:0;
+    box-shadow:0 2px 8px rgba(91,33,182,0.2);
+}
+.reminder-content-modern{
+    flex:1;
+    min-width:0;
+}
+.reminder-title-modern{
+    font-weight:700;
+    font-size:14px;
+    color:#1e293b;
+    margin:0 0 2px 0;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    line-height:1.3;
+}
+.reminder-time-modern{
+    font-size:12px;
+    color:#64748b;
+    font-weight:500;
+}
+.reminder-badge-hoje{
+    background:#f59e0b;
+    color:#fff;
+    padding:3px 10px;
+    border-radius:6px;
+    font-size:11px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+}
+
+/* Próximos Eventos layout cronológico */
+.proximos-eventos-list{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+}
+.evento-card-modern{
+    display:flex;
+    gap:16px;
+    padding:18px;
+    background:#fff;
+    border-radius:12px;
+    border:1px solid rgba(0,0,0,0.06);
+    transition:all 0.2s ease;
+    cursor:pointer;
+}
+.evento-card-modern:hover{
+    box-shadow:0 4px 16px rgba(0,0,0,0.08);
+    transform:translateX(4px);
+    border-color:#5b21b6;
+}
+.evento-date-box{
+    flex-shrink:0;
+    width:56px;
+    text-align:center;
+    padding:10px 6px;
+    background:#f1f5f9;
+    border-radius:10px;
+}
+.evento-date-month{
+    font-size:11px;
+    text-transform:uppercase;
+    color:#64748b;
+    font-weight:600;
+    letter-spacing:0.5px;
+}
+.evento-date-day{
+    font-size:28px;
+    font-weight:800;
+    color:#1e293b;
+    line-height:1;
+    margin-top:2px;
+}
+.evento-content-modern{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+}
+.evento-title-modern{
+    font-weight:700;
+    font-size:15px;
+    color:#1e293b;
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+.evento-time-icon{
+    font-size:13px;
+    color:#64748b;
+    display:flex;
+    align-items:center;
+    gap:6px;
+}
+.evento-message{
+    font-size:13px;
+    color:#64748b;
+    margin-top:4px;
+    line-height:1.5;
+}
+
+/* Form Card Modern */
+.form-card-modern{
+    background:#fff;
+    border-radius:14px;
+    padding:22px;
+    box-shadow:0 2px 12px rgba(0,0,0,0.04);
+    border:1px solid rgba(0,0,0,0.04);
+}
+.form-card-modern h6{
+    font-weight:700;
+    font-size:16px;
+    margin-bottom:16px;
+    color:#1e293b;
+}
+.form-card-modern .form-label{
+    font-weight:600;
+    font-size:13px;
+    color:#475569;
+    margin-bottom:6px;
+}
+.form-card-modern .form-control, .form-card-modern .form-select{
+    border-radius:8px;
+    border:1px solid #e2e8f0;
+    padding:10px 12px;
+    font-size:14px;
+    transition:all 0.2s ease;
+}
+.form-card-modern .form-control:focus, .form-card-modern .form-select:focus{
+    border-color:#5b21b6;
+    box-shadow:0 0 0 3px rgba(91,33,182,0.1);
+    outline:none;
+}
+.form-card-modern .btn-primary{
+    background:linear-gradient(135deg, #5b21b6, #7c3aed);
+    border:none;
+    border-radius:8px;
+    padding:10px 20px;
+    font-weight:600;
+    transition:all 0.2s ease;
+}
+.form-card-modern .btn-primary:hover{
+    transform:translateY(-2px);
+    box-shadow:0 4px 12px rgba(91,33,182,0.3);
+}
+
+/* Heading with icon */
+.heading-with-icon{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:16px;
+}
+.heading-with-icon i{
+    color:#5b21b6;
+    font-size:20px;
+}
+.heading-with-icon h6{
+    margin:0;
+    font-weight:700;
+    color:#1e293b;
+}
+
+/* Status badge in cards */
+.status-badge-modern{
+    padding:4px 10px;
+    border-radius:6px;
+    font-size:11px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+}
+.status-badge-modern.pending{
+    background:#fef3c7;
+    color:#92400e;
+}
+.status-badge-modern.completed{
+    background:#d1fae5;
+    color:#065f46;
+}
+
+/* Clean background for reminders page */
+#lembretesArea{
+    background:transparent;
+}
+
+
+

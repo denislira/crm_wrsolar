@@ -29,6 +29,16 @@ include 'includes/header.php';
                 </div>
             </div>
 
+            <!-- Abas principais: Tarefas / Lembretes -->
+            <div class="mb-3">
+                <div class="btn-group" role="group" aria-label="view-tabs">
+                    <button id="tabTarefas" type="button" class="btn btn-primary active">Tarefas de Equipe</button>
+                    <button id="tabLembretesBtn" type="button" class="btn btn-outline-primary">Lembretes</button>
+                </div>
+            </div>
+
+            <!-- Aba: Tarefas de Equipe -->
+            <div id="tarefasArea">
             <div class="row g-3">
                 <div class="col-lg-8">
                     <div class="card card-shadow p-3 mb-3">
@@ -51,8 +61,8 @@ include 'includes/header.php';
                             <input type="search" id="filtroBusca" class="form-control form-control-sm w-50" placeholder="Buscar tarefa...">
                             <button class="btn btn-success btn-sm" id="btnNovaTarefa"><i class="fa fa-plus"></i> Nova tarefa</button>
                         </div>
-                                                <div id="tasksList"></div>
-                                                <!-- Modal Editar Tarefa -->
+                        <div id="tasksList"></div>
+                        <!-- Modal Editar Tarefa -->
                                                 <div class="modal fade" id="modalEditarTarefa" tabindex="-1" aria-labelledby="modalEditarTarefaLabel" aria-hidden="true">
                                                     <div class="modal-dialog modal-lg">
                                                         <div class="modal-content">
@@ -190,6 +200,75 @@ include 'includes/header.php';
                     </div>
                 </div>
             </div>
+            </div>
+            <!-- Fim Aba Tarefas -->
+
+            <!-- Aba: Lembretes -->
+            <div id="lembretesArea" style="display:none;">
+                <div class="row g-3">
+                    <div class="col-lg-4">
+                        <div class="form-card-modern mb-3">
+                            <div class="heading-with-icon">
+                                <i class="fa fa-calendar-check-o"></i>
+                                <h6>Agenda para Hoje</h6>
+                            </div>
+                            <div id="agendaHoje" class="list-unstyled small text-muted">Carregando...</div>
+                        </div>
+                        <div class="form-card-modern">
+                            <div class="heading-with-icon">
+                                <i class="fa fa-bell-o"></i>
+                                <h6>Agendar Lembrete</h6>
+                            </div>
+                            <form id="formNovoLembrete">
+                                <div class="mb-2">
+                                    <label class="form-label">Identificação do Lead</label>
+                                    <input type="text" name="lead_ident" id="rem-lead-ident" class="form-control form-control-sm" placeholder="Ex: Ana Souza - Follow-up Proposta" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Lead ID (número)</label>
+                                    <input type="text" name="lead_id" id="rem-lead-id" class="form-control form-control-sm" placeholder="Opcional, apenas se souber o ID">
+                                </div>
+                                <div class="mb-2 d-flex gap-2">
+                                    <div class="flex-fill">
+                                        <label class="form-label">Data</label>
+                                        <input type="date" name="date" id="rem-date" class="form-control form-control-sm" required>
+                                    </div>
+                                    <div style="width:110px;">
+                                        <label class="form-label">Hora</label>
+                                        <input type="time" name="time" id="rem-time" class="form-control form-control-sm" required>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Modelo</label>
+                                    <select id="rem-template" name="template_id" class="form-select form-select-sm">
+                                        <option value="">(Nenhum)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Mensagem</label>
+                                    <textarea name="message" id="rem-message" class="form-control form-control-sm" rows="3" required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm">Salvar Lembrete</button>
+                                <div id="remMsg" class="mt-2"></div>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="col-lg-8">
+                        <div class="form-card-modern">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="heading-with-icon mb-0">
+                                    <i class="fa fa-calendar"></i>
+                                    <h6 class="mb-0">Próximos Lembretes</h6>
+                                </div>
+                                <span id="totalLeadsBtn" class="badge" style="background:#5b21b6;color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;">0 LEADS</span>
+                            </div>
+                            <p class="text-muted small mb-3" style="font-size:13px;">Lista cronológica de atividades</p>
+                            <div id="proximosLembretes">Carregando...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Fim Aba Lembretes -->
 
         </div>
     </main>
@@ -204,6 +283,11 @@ const equipes = <?php echo json_encode($equipes); ?>;
 const responsaveis = <?php echo json_encode($responsaveis); ?>;
 const userId = <?php echo json_encode($_SESSION['user_id']); ?>;
 
+function escapeHtmlGlobal(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, function (s) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s]; });
+}
+
 // Funções para atualizar a lista de tarefas e a linha do tempo
 async function atualizarTarefas() {
     const equipeFiltro = document.getElementById('filtroEquipe').value;
@@ -211,9 +295,35 @@ async function atualizarTarefas() {
     const statusFiltro = document.getElementById('filtroStatus').value;
     const buscaFiltro = document.getElementById('filtroBusca').value;
 
-    const tarefas = await fetchTasks({equipe: equipeFiltro, responsavel: respFiltro, status: statusFiltro});
     const list = document.getElementById('tasksList');
     list.innerHTML = '';
+    if (statusFiltro === 'Lembretes') {
+        // load reminders instead of tasks
+        try {
+            const res = await fetch('includes/reminders_api.php?action=list');
+            if (!res.ok) throw new Error('Falha ao carregar lembretes');
+            const reminders = await res.json();
+            if (!reminders.length) { list.innerHTML = '<div class="text-muted">Nenhum lembrete encontrado.</div>'; }
+            reminders.forEach(r => {
+                const card = document.createElement('div');
+                card.className = 'mb-2 p-2 border rounded d-flex align-items-center gap-3 bg-white';
+                const avatar = document.createElement('div'); avatar.className = 'rounded-circle d-flex align-items-center justify-content-center me-2'; avatar.style.width = '38px'; avatar.style.height = '38px'; avatar.style.background = '#0b6ac1'; avatar.style.color = '#fff'; avatar.style.fontWeight = 'bold'; avatar.style.fontSize = '1.1rem'; avatar.textContent = 'L';
+                card.appendChild(avatar);
+                const content = document.createElement('div'); content.className = 'flex-grow-1';
+                content.innerHTML = `<div class="fw-semibold">${escapeHtml(r.lead_name || ('Lead #' + r.lead_id))} <span class="badge ms-2" style="background:#0b6ac1;color:#fff;">Lembrete</span></div>
+                    <div class="small text-muted">Agendado: ${r.remind_at} • Status: ${escapeHtml(r.status)}</div>
+                    <div class="mt-1">${escapeHtml(r.message || '')}</div>`;
+                card.appendChild(content);
+                const actions = document.createElement('div'); actions.className = 'd-flex flex-column gap-1';
+                actions.innerHTML = `<button class="btn btn-sm btn-outline-primary" title="Editar"><i class="fa fa-edit"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa fa-trash"></i></button>`;
+                card.appendChild(actions);
+                list.appendChild(card);
+            });
+        } catch (e) { console.error(e); list.innerHTML = '<div class="text-danger">Erro carregando lembretes</div>'; }
+        return;
+    }
+    const tarefas = await fetchTasks({equipe: equipeFiltro, responsavel: respFiltro, status: statusFiltro});
     if (!tarefas.length) {
         list.innerHTML = '<div class="text-muted">Nenhuma tarefa encontrada.</div>';
     } else {
@@ -304,4 +414,158 @@ formNovaTarefa.addEventListener('submit', async function(e) {
 
 // Carregar tarefas iniciais
 atualizarTarefas();
+
+// --- Abas: Tarefas / Lembretes ---
+const tabTarefas = document.getElementById('tabTarefas');
+const tabLembretesBtn = document.getElementById('tabLembretesBtn');
+const tarefasArea = document.getElementById('tarefasArea');
+const lembretesArea = document.getElementById('lembretesArea');
+
+tabTarefas.addEventListener('click', () => { showTab('tarefas'); });
+tabLembretesBtn.addEventListener('click', () => { showTab('lembretes'); });
+
+function showTab(name) {
+    if (name === 'tarefas') {
+        tabTarefas.classList.remove('btn-outline-primary');
+        tabTarefas.classList.add('btn-primary','active');
+        tabLembretesBtn.classList.remove('btn-primary','active');
+        tabLembretesBtn.classList.add('btn-outline-primary');
+        tarefasArea.style.display = '';
+        lembretesArea.style.display = 'none';
+        atualizarTarefas();
+    } else {
+        tabLembretesBtn.classList.remove('btn-outline-primary');
+        tabLembretesBtn.classList.add('btn-primary','active');
+        tabTarefas.classList.remove('btn-primary','active');
+        tabTarefas.classList.add('btn-outline-primary');
+        tarefasArea.style.display = 'none';
+        lembretesArea.style.display = '';
+        loadRemindersLayout();
+    }
+}
+
+async function fetchReminderTemplates() {
+    try {
+        const res = await fetch('includes/reminder_templates_api.php?action=list');
+        if (!res.ok) return [];
+        return await res.json();
+    } catch (e) { return []; }
+}
+
+async function loadRemindersLayout() {
+    const agendaEl = document.getElementById('agendaHoje');
+    const proximosEl = document.getElementById('proximosLembretes');
+    agendaEl.textContent = 'Carregando...'; proximosEl.textContent = 'Carregando...';
+    try {
+        const res = await fetch('includes/reminders_api.php?action=list');
+        if (!res.ok) throw new Error('Erro');
+        const reminders = await res.json();
+        const now = new Date();
+        const today = now.toISOString().slice(0,10);
+        const todayItems = reminders.filter(r => r.remind_at && r.remind_at.slice(0,10) === today);
+        const upcoming = reminders.filter(r => r.remind_at && r.remind_at.slice(0,10) >= today).sort((a,b)=> a.remind_at.localeCompare(b.remind_at));
+
+        if (!todayItems.length) agendaEl.innerHTML = '<div class="text-muted small" style="padding:12px;">Nenhum lembrete para hoje.</div>'; else {
+            agendaEl.innerHTML = '';
+            todayItems.forEach(r=>{
+                const timeStr = r.remind_at ? r.remind_at.split(' ')[1]?.substring(0,5) || '' : '';
+                const it = document.createElement('div');
+                it.className = 'reminder-card-modern';
+                it.innerHTML = `
+                    <div class="reminder-icon-circle">
+                        <i class="fa fa-clock-o"></i>
+                    </div>
+                    <div class="reminder-content-modern">
+                        <div class="reminder-title-modern">
+                            ${escapeHtmlGlobal(r.lead_name||('Lead #'+r.lead_id))}
+                        </div>
+                        <div class="reminder-time-modern">${timeStr}</div>
+                    </div>`;
+                agendaEl.appendChild(it);
+            });
+        }
+
+        if (!upcoming.length) proximosEl.innerHTML = '<div class="text-muted" style="padding:12px;">Nenhum lembrete agendado.</div>'; else {
+            proximosEl.innerHTML = '<div class="proximos-eventos-list"></div>';
+            const list = proximosEl.querySelector('.proximos-eventos-list');
+            // Contar leads únicos
+            const uniqueLeads = new Set(upcoming.map(r => r.lead_id).filter(id => id && id > 0));
+            const totalLeadsBtn = document.getElementById('totalLeadsBtn');
+            if (totalLeadsBtn) {
+                totalLeadsBtn.textContent = `${uniqueLeads.size} LEADS`;
+            }
+            upcoming.forEach(r => {
+                const dt = new Date(r.remind_at.replace(' ','T'));
+                const isToday = r.remind_at && r.remind_at.slice(0,10) === today;
+                const monthNames = ['JAN.','FEV.','MAR.','ABR.','MAI.','JUN.','JUL.','AGO.','SET.','OUT.','NOV.','DEZ.'];
+                const month = monthNames[dt.getMonth()];
+                const day = dt.getDate();
+                const timeStr = r.remind_at ? r.remind_at.split(' ')[1]?.substring(0,5) || '' : '';
+                
+                const card = document.createElement('div');
+                card.className = 'evento-card-modern';
+                card.innerHTML = `
+                    <div class="evento-date-box">
+                        <div class="evento-date-month">${month}</div>
+                        <div class="evento-date-day">${day}</div>
+                    </div>
+                    <div class="evento-content-modern">
+                        <div class="evento-title-modern">
+                            ${escapeHtmlGlobal(r.lead_name||('Lead #'+r.lead_id))}
+                            ${isToday ? '<span class="reminder-badge-hoje">HOJE</span>' : ''}
+                        </div>
+                        <div class="evento-time-icon">
+                            <i class="fa fa-clock-o"></i> ${timeStr}
+                        </div>
+                        ${r.message ? `<div class="evento-message">${escapeHtmlGlobal(r.message)}</div>` : ''}
+                    </div>`;
+                list.appendChild(card);
+            });
+        }
+
+        // preencher templates
+        const templates = await fetchReminderTemplates();
+        const sel = document.getElementById('rem-template');
+        sel.innerHTML = '<option value="">(Nenhum)</option>';
+        templates.forEach(t=>{ const o = document.createElement('option'); o.value = t.id; o.textContent = t.name || t.title || ('template '+t.id); sel.appendChild(o); });
+
+    } catch (e) {
+        agendaEl.innerHTML = '<div class="text-danger">Erro ao carregar</div>';
+        proximosEl.innerHTML = '<div class="text-danger">Erro ao carregar</div>';
+    }
+}
+
+// submissão do novo lembrete
+const formNovoLembrete = document.getElementById('formNovoLembrete');
+if (formNovoLembrete) {
+    formNovoLembrete.addEventListener('submit', async function(e){
+        e.preventDefault();
+        const leadIdRaw = document.getElementById('rem-lead-id').value.trim();
+        const leadId = leadIdRaw && !isNaN(Number(leadIdRaw)) ? Number(leadIdRaw) : null;
+        if (!document.getElementById('rem-message').value.trim()) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Mensagem obrigatória</div>'; return; }
+        if (!document.getElementById('rem-date').value || !document.getElementById('rem-time').value) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Data e hora obrigatórias</div>'; return; }
+        if (!leadId) { document.getElementById('remMsg').innerHTML = '<div class="text-warning">Recomenda-se informar o Lead ID numérico. Use o campo opcional se souber o ID.</div>'; }
+        const datetime = document.getElementById('rem-date').value + ' ' + document.getElementById('rem-time').value;
+        const payload = new URLSearchParams();
+        payload.append('action','add');
+        payload.append('datetime', datetime);
+        payload.append('message', document.getElementById('rem-message').value.trim());
+        payload.append('template_id', document.getElementById('rem-template').value || '');
+        payload.append('lead_ident', document.getElementById('rem-lead-ident').value.trim());
+        if (leadId) payload.append('lead_id', String(leadId)); else payload.append('lead_id','0');
+        try {
+            const res = await fetch('includes/reminders_api.php', { method: 'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: payload.toString() });
+            const data = await res.json();
+            if (data.ok) {
+                document.getElementById('remMsg').innerHTML = '<div class="alert alert-success">Lembrete salvo</div>';
+                this.reset();
+                loadRemindersLayout();
+                setTimeout(()=>{ document.getElementById('remMsg').innerHTML=''; }, 2500);
+            } else {
+                document.getElementById('remMsg').innerHTML = '<div class="text-danger">Erro ao salvar</div>';
+            }
+        } catch (e) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Erro ao salvar</div>'; }
+    });
+}
+
 </script>
