@@ -16,12 +16,14 @@ $current = basename($_SERVER['PHP_SELF']);
                     <span class="label">Dashboard</span>
                 </a>
             </li>
+            <!-- Leads menu hidden
             <li class="nav-item">
                 <a href="leads.php" class="nav-link <?php echo $current=='leads.php' ? 'active':''; ?>" data-tooltip="Leads">
                     <span class="icon"><i class="fa-solid fa-user"></i></span>
                     <span class="label">Leads</span>
                 </a>
             </li>
+            -->
             <li class="nav-item">
                 <a href="leads_gestao.php" class="nav-link <?php echo $current=='leads_gestao.php' ? 'active':''; ?>" data-tooltip="Gestão de Leads">
                     <span class="icon"><i class="fa-solid fa-list"></i></span>
