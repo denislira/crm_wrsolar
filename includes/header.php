@@ -84,6 +84,19 @@
         <?php $displayName = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username']) : 'Usuário'; ?>
         <div class="me-2 d-none d-md-inline text-dark">Olá, <strong><?php echo $displayName; ?></strong></div>
         <button id="themeToggle" class="btn btn-outline-secondary me-2" title="Alternar tema" aria-label="Alternar tema">🌓</button>
+        <!-- Reminder bell -->
+        <div class="dropdown me-2">
+          <button id="reminderBellBtn" class="btn btn-outline-secondary position-relative dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Lembretes" aria-label="Lembretes">
+            <i class="fa-regular fa-bell"></i>
+            <span id="reminderBellCount" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:.65rem;">0</span>
+          </button>
+          <ul id="reminderBellMenu" class="dropdown-menu dropdown-menu-end" style="min-width:280px;">
+            <li><h6 class="dropdown-header">Lembretes</h6></li>
+            <li><div id="reminderBellList" class="px-2 py-1 small text-muted">Carregando...</div></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-center" href="integracao-equipes.php">Ver todos os lembretes</a></li>
+          </ul>
+        </div>
         <a href="logout.php" class="btn btn-outline-secondary" title="Sair" aria-label="Sair">
           <i class="fa-solid fa-right-from-bracket"></i>
         </a>

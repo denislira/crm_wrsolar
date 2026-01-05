@@ -146,11 +146,12 @@
                 ind.title = 'Cria tarefa ao entrar';
                 header.appendChild(ind);
             }
-            // apply a thin colored line on top of the column instead of full header background
+            // apply a thin colored stripe on top of the column for better cross-theme visibility
             if (s.color) {
-                colWrap.style.borderTop = '6px solid ' + s.color;
-                colWrap.style.borderTopLeftRadius = '12px';
-                colWrap.style.borderTopRightRadius = '12px';
+                const stripe = document.createElement('div');
+                stripe.className = 'kanban-top-stripe';
+                stripe.style.background = s.color;
+                colWrap.appendChild(stripe);
             }
             const content = document.createElement('div'); content.className='column-content'; content.id = 'col-' + s.id;
             colWrap.appendChild(header); colWrap.appendChild(content);
@@ -473,6 +474,8 @@
                     const reminderMessage = document.getElementById('reminderMessage'); if (reminderMessage) reminderMessage.value = '';
                     const reminderDate = document.getElementById('reminderDate'); if (reminderDate) reminderDate.value = '';
                     const reminderTime = document.getElementById('reminderTime'); if (reminderTime) reminderTime.value = '';
+                    const saveCb = document.getElementById('saveAsTemplateCheckbox'); if (saveCb) { saveCb.checked = false; }
+                    const saveWrap = document.getElementById('saveTemplateNameWrap'); if (saveWrap) saveWrap.style.display = 'none';
                     // close details panel first so modal appears on top
                     closePanel();
                     const modalEl = document.getElementById('reminderModal');
@@ -571,6 +574,8 @@
         const dateEl = document.getElementById('reminderDate'); if (dateEl) dateEl.value = (new Date()).toISOString().slice(0,10);
         const timeEl = document.getElementById('reminderTime'); if (timeEl) timeEl.value = (new Date()).toTimeString().slice(0,5);
         const sel = document.getElementById('reminderTemplateSelect'); if (sel) sel.value='';
+        const saveCb = document.getElementById('saveAsTemplateCheckbox'); if (saveCb) saveCb.checked = false;
+        const saveWrap = document.getElementById('saveTemplateNameWrap'); if (saveWrap) saveWrap.style.display = 'none';
         const modalEl = document.getElementById('reminderModal'); if (modalEl) new bootstrap.Modal(modalEl).show();
     }
 
@@ -752,6 +757,13 @@
         // reminder form submit (supports create + update)
         const reminderForm = document.getElementById('reminderForm');
         if (reminderForm) {
+            // toggle visibility for optional template name field
+            const saveCheckbox = document.getElementById('saveAsTemplateCheckbox');
+            const saveWrap = document.getElementById('saveTemplateNameWrap');
+            if (saveCheckbox && saveWrap) {
+                saveCheckbox.addEventListener('change', ()=>{ saveWrap.style.display = saveCheckbox.checked ? 'block' : 'none'; });
+            }
+
             reminderForm.addEventListener('submit', async (e)=>{
                 e.preventDefault();
                 const reminderId = (document.getElementById('reminderId') || {}).value || '';
@@ -762,7 +774,40 @@
                 if (!leadId || !message || !date) return alert('Preencha data e mensagem');
                 const dt = date + ' ' + time;
                 try {
-                    const templateId = (document.getElementById('reminderTemplateSelect') || {}).value || '';
+                    let templateId = (document.getElementById('reminderTemplateSelect') || {}).value || '';
+
+                    // if user chose to save as template, create it first and use returned id
+                    const saveAsTemplate = (document.getElementById('saveAsTemplateCheckbox') || {}).checked;
+                    if (saveAsTemplate) {
+                        const tplNameInput = document.getElementById('saveTemplateName');
+                        let tplName = tplNameInput && tplNameInput.value ? tplNameInput.value.trim() : '';
+                        if (!tplName) tplName = message.length > 40 ? message.substring(0,40) + '...' : message.substring(0,40);
+                        // compute days offset from today
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        const target = new Date(date + 'T00:00:00');
+                        const msPerDay = 1000*60*60*24;
+                        const daysOffset = Math.round((target.getTime() - today.getTime())/msPerDay);
+                        const defaultTime = (time ? (time.length===5 ? time + ':00' : time) : '09:00:00');
+                        try {
+                            const tplBody = new URLSearchParams();
+                            tplBody.append('name', tplName);
+                            tplBody.append('message', message);
+                            tplBody.append('default_days_offset', String(daysOffset));
+                            tplBody.append('default_time', defaultTime);
+                            tplBody.append('channel', 'in-app');
+                            const tplRes = await fetch('includes/reminder_templates_api.php?action=create', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: tplBody.toString() });
+                            const tplJson = await tplRes.json();
+                            if (tplRes.ok && tplJson && tplJson.id) {
+                                templateId = String(tplJson.id);
+                                // refresh templates list so select is up-to-date
+                                try { await fetchReminderTemplates(); } catch(e){}
+                            } else {
+                                console.warn('Failed creating template', tplJson);
+                                alert('Não foi possível salvar modelo, continuando sem modelo.');
+                            }
+                        } catch(tplErr) { console.error('Template create error', tplErr); alert('Erro ao criar modelo'); }
+                    }
+
                     const body = new URLSearchParams();
                     if (reminderId) {
                         body.append('action','update'); body.append('id', reminderId);

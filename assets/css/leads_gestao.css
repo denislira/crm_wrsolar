@@ -4,6 +4,7 @@ body{background:#e9eef5}
 .kanban-wrap{display:flex;gap:16px;overflow:auto;padding:8px 2px}
 .kanban-column{flex:0 0 320px;background:var(--card);border-radius:12px;padding:8px;border:1px solid rgba(11,26,49,0.06);box-shadow:0 10px 30px rgba(11,26,49,0.06);min-height:240px;overflow:hidden}
 .kanban-header{font-weight:700;padding:10px 12px;background:transparent;border-bottom:1px solid rgba(11,26,49,0.04);display:flex;justify-content:space-between;align-items:center}
+.kanban-top-stripe{height:6px;border-top-left-radius:12px;border-top-right-radius:12px;margin:-8px -8px 6px -8px}
 .column-content{min-height:160px;padding:12px;display:flex;flex-direction:column;gap:10px}
 .lead-card{background:#fff;padding:12px;border-radius:12px;border:1px solid rgba(11,26,49,0.06);border-left:6px solid transparent;cursor:grab;transition:transform .12s ease,box-shadow .12s ease,border-left .12s ease;box-shadow:0 6px 18px rgba(11,26,49,0.06)}
 .lead-card:hover{transform:translateY(-4px);box-shadow:0 12px 36px rgba(11,26,49,0.08)}

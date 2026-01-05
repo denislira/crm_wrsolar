@@ -184,6 +184,14 @@ include 'includes/header.php';
                             <select id="reminderTemplateSelect" class="form-select mb-2"><option value="">-- nenhum --</option></select>
                             <label class="form-label">Mensagem</label>
                             <textarea id="reminderMessage" name="message" class="form-control" rows="3" required></textarea>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="saveAsTemplateCheckbox">
+                                <label class="form-check-label small" for="saveAsTemplateCheckbox">Salvar este lembrete como modelo</label>
+                            </div>
+                            <div class="mt-2" id="saveTemplateNameWrap" style="display:none;">
+                                <label class="form-label small">Nome do modelo (opcional)</label>
+                                <input id="saveTemplateName" class="form-control form-control-sm" placeholder="Ex: Ligar em 3 dias">
+                            </div>
                         </div>
                         <div class="row g-2">
                             <div class="col-7">
