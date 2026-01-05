@@ -34,6 +34,33 @@
         try{ if(a.getAttribute('href') === window.location.pathname || a.getAttribute('href') === window.location.hash) a.classList.add('active'); }catch(e){}
       });
     })();
+    
+    // Theme toggle (Light/Dark) - persist choice in localStorage
+    (function(){
+      const toggle = document.getElementById('themeToggle');
+      const apply = (mode)=>{
+        document.body.classList.remove('theme-dark','theme-light');
+        if(mode === 'dark') document.body.classList.add('theme-dark');
+        else document.body.classList.add('theme-light');
+        try{ localStorage.setItem('theme.mode', mode); }catch(e){}
+      };
+      // initialize from storage or prefers-color-scheme
+      let stored = null; try{ stored = localStorage.getItem('theme.mode'); }catch(e){}
+      if(stored) apply(stored);
+      else {
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        apply(prefersDark ? 'dark' : 'light');
+      }
+      if(!toggle) return;
+      toggle.addEventListener('click', ()=>{
+        const isDark = document.body.classList.contains('theme-dark');
+        apply(isDark ? 'light' : 'dark');
+        // change toggle icon (simple) to reflect mode
+        toggle.textContent = document.body.classList.contains('theme-dark') ? '🌙' : '☀️';
+      });
+      // set initial icon
+      if(toggle) toggle.textContent = document.body.classList.contains('theme-dark') ? '🌙' : '☀️';
+    })();
   </script>
 
   <!-- pageExplanation removed -->

@@ -22,6 +22,37 @@
   --sidebar-collapsed-w: 64px;
 }
 
+/* Dark theme variables (applied when body.theme-dark is present) */
+body.theme-dark {
+  --primary-500: #0a58a8;
+  --primary-700: #083d73;
+  --accent-500: #f59e0b;
+  --surface: #0b1220;
+  --muted: #071024;
+  --muted-2: #0f1724;
+  --text-900: #e6eef8;
+  --text-700: #c3d5ea;
+  --glass: rgba(255,255,255,0.06);
+  --radius-md: 12px;
+}
+
+/* Light theme explicit class (optional) */
+body.theme-light {
+  --primary-500: #0b6ac1;
+  --primary-700: #055293;
+  --accent-500: #f59e0b;
+  --surface: #ffffff;
+  --muted: #f6f8fb;
+  --muted-2: #eef3f8;
+  --text-900: #0f1724;
+  --text-700: #374151;
+  --glass: rgba(255,255,255,0.6);
+  --radius-md: 12px;
+}
+
+/* Transition for theme change */
+body, .app-sidebar, .card, .modal-content, .navbar { transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease; }
+
 /* Base typography */
 html,body{height:100%;}
 body{font-family: 'Segoe UI', 'Segoe UI Variable', system-ui, -apple-system, 'Inter', Roboto, 'Helvetica Neue', Arial; color:var(--text-900); background:var(--muted); -webkit-font-smoothing:antialiased;}
@@ -60,7 +91,7 @@ input.form-control:focus, textarea.form-control:focus, select.form-select:focus{
 
 /* Sidebar polish (keeps existing layout but modernizes visuals) */
 .app-sidebar{ background: linear-gradient(180deg,var(--primary-700),var(--primary-500)); color:#fff; }
-.app-sidebar .nav-link{ color:rgba(255,255,255,0.95); padding:.6rem .75rem; border-radius:8px; margin:6px 6px; }
+.app-sidebar .nav-link{ color:rgba(255,255,255,0.95); padding:.55rem .6rem; border-radius:8px; margin:4px 4px; }
 .app-sidebar .nav-link:hover{ background: rgba(255,255,255,0.06); }
 .app-sidebar .nav-link.active{ background: rgba(255,255,255,0.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02); }
 
@@ -95,5 +126,203 @@ i[class^="fa-"], i[class*=" fa-"] { font-size: var(--icon-size); }
 /* Specific adjustments for funil cards (matches earlier JS changes) */
 .stage-title{ font-weight:700; font-size:.95rem; }
 .stage-count{ padding:.3rem .5rem; border-radius:8px; color:#fff; }
+
+/* Dark mode component adjustments for better contrast */
+body.theme-dark {
+  background: var(--muted) !important;
+  color: var(--text-900) !important;
+}
+
+body.theme-dark .app-sidebar { 
+  background: linear-gradient(180deg, #052840 0%, #074a6b 100%) !important; 
+  color: #e6eef8 !important; 
+}
+
+body.theme-dark .navbar { 
+  background: #0b1220 !important; 
+  border-bottom: 1px solid rgba(255,255,255,0.06) !important; 
+}
+
+body.theme-dark .card { 
+  background: var(--surface) !important; 
+  color: var(--text-900) !important; 
+  border: 1px solid rgba(255,255,255,0.06) !important; 
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4) !important; 
+}
+
+body.theme-dark .modal-content { 
+  background: var(--surface) !important; 
+  color: var(--text-900) !important; 
+  border: 1px solid rgba(255,255,255,0.06) !important; 
+}
+
+body.theme-dark .modal-header,
+body.theme-dark .modal-footer {
+  border-color: rgba(255,255,255,0.06) !important;
+  background: rgba(255,255,255,0.02) !important;
+}
+
+body.theme-dark .table thead th { 
+  color: var(--text-700) !important; 
+  border-bottom: 1px solid rgba(255,255,255,0.06) !important; 
+}
+
+body.theme-dark .table tbody tr { 
+  background: rgba(255,255,255,0.02) !important; 
+  color: var(--text-900) !important;
+}
+
+body.theme-dark .form-control, 
+body.theme-dark .form-select, 
+body.theme-dark input:not([type="checkbox"]):not([type="radio"]), 
+body.theme-dark textarea,
+body.theme-dark select { 
+  background: rgba(255,255,255,0.03) !important; 
+  color: var(--text-900) !important; 
+  border: 1px solid rgba(255,255,255,0.08) !important; 
+}
+
+body.theme-dark .form-control:focus,
+body.theme-dark .form-select:focus,
+body.theme-dark input:focus,
+body.theme-dark textarea:focus {
+  border-color: var(--primary-500) !important;
+  box-shadow: 0 0 0 0.2rem rgba(10, 88, 168, 0.25) !important;
+}
+
+body.theme-dark .btn-outline-secondary { 
+  border-color: rgba(255,255,255,0.1) !important; 
+  color: var(--text-900) !important; 
+  background: transparent !important; 
+}
+
+body.theme-dark .btn-outline-secondary:hover {
+  background: rgba(255,255,255,0.05) !important;
+}
+
+body.theme-dark .btn-outline-primary { 
+  border-color: var(--primary-500) !important; 
+  color: var(--primary-500) !important; 
+  background: transparent !important; 
+}
+
+body.theme-dark .btn-outline-primary:hover {
+  background: rgba(10, 88, 168, 0.1) !important;
+}
+
+body.theme-dark .btn-primary { 
+  background: linear-gradient(180deg,var(--primary-500),var(--primary-700)) !important; 
+  color: #fff !important; 
+  box-shadow: 0 8px 20px rgba(3,10,18,0.5) !important; 
+  border: none !important;
+}
+
+body.theme-dark .app-sidebar .nav-link { 
+  color: rgba(230,238,248,0.9) !important; 
+}
+
+body.theme-dark .app-sidebar .nav-link:hover { 
+  background: rgba(255,255,255,0.05) !important; 
+  color: #fff !important; 
+}
+
+body.theme-dark .app-sidebar .nav-link.active { 
+  background: rgba(255,255,255,0.08) !important; 
+  color: #fff !important; 
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05) !important; 
+}
+
+body.theme-dark .sidebar-footer { 
+  border-top-color: rgba(255,255,255,0.05) !important; 
+}
+
+body.theme-dark .page-loading-overlay { 
+  background: rgba(7,10,16,0.8) !important; 
+}
+
+body.theme-dark .text-dark,
+body.theme-dark .text-muted {
+  color: var(--text-700) !important;
+}
+
+body.theme-dark h1,
+body.theme-dark h2,
+body.theme-dark h3,
+body.theme-dark h4,
+body.theme-dark h5,
+body.theme-dark h6 {
+  color: var(--text-900) !important;
+}
+
+body.theme-dark .lead-card {
+  background: var(--surface) !important;
+  color: var(--text-900) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+}
+
+/* Dashboard modern cards */
+body.theme-dark .dashboard-modern-card {
+  background: var(--surface) !important;
+  color: var(--text-900) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4) !important;
+}
+
+/* Integracao-equipes specific elements */
+body.theme-dark .form-card-modern,
+body.theme-dark .card-shadow,
+body.theme-dark .reminder-card-modern,
+body.theme-dark .task-card {
+  background: var(--surface) !important;
+  color: var(--text-900) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4) !important;
+}
+
+body.theme-dark .bg-white {
+  background: var(--surface) !important;
+  color: var(--text-900) !important;
+}
+
+body.theme-dark .border {
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+body.theme-dark .rounded {
+  background: var(--surface) !important;
+}
+
+/* Additional elements that need dark mode */
+body.theme-dark .text-center,
+body.theme-dark .p-4,
+body.theme-dark .p-3,
+body.theme-dark .p-2,
+body.theme-dark .mb-2,
+body.theme-dark .mb-3,
+body.theme-dark .mb-4 {
+  color: var(--text-900) !important;
+}
+
+body.theme-dark small,
+body.theme-dark .small {
+  color: var(--text-700) !important;
+}
+
+body.theme-dark .list-group-item {
+  background: var(--surface) !important;
+  color: var(--text-900) !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+body.theme-dark hr {
+  border-color: rgba(255,255,255,0.06) !important;
+  opacity: 1 !important;
+}
+
+/* Ensure focus outlines are visible in dark mode */
+body.theme-dark :focus { 
+  outline: 3px solid rgba(10, 88, 168, 0.3) !important; 
+  outline-offset:3px; 
+}
 
 /* End of theme.css */

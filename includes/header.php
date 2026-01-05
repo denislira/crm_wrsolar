@@ -83,6 +83,7 @@
         <?php if (session_status() === PHP_SESSION_NONE) session_start(); ?>
         <?php $displayName = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username']) : 'Usuário'; ?>
         <div class="me-2 d-none d-md-inline text-dark">Olá, <strong><?php echo $displayName; ?></strong></div>
+        <button id="themeToggle" class="btn btn-outline-secondary me-2" title="Alternar tema" aria-label="Alternar tema">🌓</button>
         <a href="logout.php" class="btn btn-outline-secondary" title="Sair" aria-label="Sair">
           <i class="fa-solid fa-right-from-bracket"></i>
         </a>
@@ -174,28 +175,28 @@
     }
     
     .sidebar-content {
-      padding: 1rem 0.5rem;
+      padding: 0.5rem 0.25rem;
       flex: 1;
     }
     
     .sidebar-footer {
-      padding: 1rem 0.5rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 0.5rem 0.25rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
     }
     
     .app-sidebar .nav-link { 
       display: flex; 
       align-items: center; 
-      gap: 0.75rem; 
-      padding: 0.75rem 1rem; 
-      margin: 0.25rem 0.5rem;
-      border-radius: 10px;
-      color: rgba(255, 255, 255, 0.85);
+      gap: 0.6rem; 
+      padding: 0.6rem 0.6rem; 
+      margin: 0.15rem 0.25rem;
+      border-radius: 8px;
+      color: rgba(255, 255, 255, 0.88);
       text-decoration: none;
-      transition: all 0.2s ease;
+      transition: all 0.16s ease;
       position: relative;
       font-weight: 500;
-      font-size: 0.95rem;
+      font-size: 0.92rem;
     }
     
     .app-sidebar .nav-link:hover { 
@@ -245,10 +246,11 @@
     }
     
     .app-sidebar .nav-link .label { 
-      transition: all 0.2s ease; 
+      transition: all 0.16s ease; 
       display: inline-block;
       white-space: nowrap;
       overflow: hidden;
+      font-size: 0.92rem;
     }
     
     .app-sidebar.collapsed .nav-link .label { 

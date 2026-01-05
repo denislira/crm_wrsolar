@@ -21,7 +21,7 @@ include 'includes/header.php';
                         <option value="warm">⚡ Morno (50-79)</option>
                         <option value="cold">❄️ Frio (0-49)</option>
                     </select>
-                    <button id="newLeadBtn" class="btn btn-primary btn-sm">Novo lead</button>
+                    <button id="newLeadBtn" class="btn btn-primary btn-sm" style="min-width:160px;">Novo lead</button>
                     <button id="funilConfigBtn" class="btn btn-sm btn-outline-primary" title="Personalizar estágios do funil" onclick="location.href='funil_config.php'">Personalizar Funil</button>
                 </div>
             </div>
