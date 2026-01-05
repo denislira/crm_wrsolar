@@ -168,7 +168,6 @@ if (count($stages) > 0) {
                         </div>
 
                         <div id="chartFunnel" class="mb-3"></div>
-                        <div id="timeline" class="mb-3"></div>
                     </div>
                 </div>
             </div>
@@ -185,9 +184,7 @@ const REPORT_STAGES = <?php echo json_encode($stages, JSON_HEX_TAG|JSON_HEX_APOS
 const REPORT_STAGE_COUNTS = <?php echo json_encode($stageCounts, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_MONTHS = <?php echo json_encode($monthsRows, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_MONTHS_CLOSED = <?php echo json_encode($monthsClosedRows, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
-const REPORT_TIMELINE = <?php echo json_encode($timeline, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
-const REPORT_TIMELINE_USERS = <?php echo json_encode($timelineUsers, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
-const REPORT_TIMELINE_TYPES = <?php echo json_encode($timelineTypes, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+// Timeline data removed from reports page
 const REPORT_LEADS_TOTAL = <?php echo json_encode($leadsTotal, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_FINAL_STAGE_COUNT = <?php echo json_encode($finalStageCount, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_CONVERSION_RATE = <?php echo json_encode($conversionRate, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
@@ -296,61 +293,13 @@ function renderReports(){
     pairs.sort((a,b)=>b.value-a.value);
     renderPyramid('chartFunnel', pairs);
 
-    // Timeline with basic filters
-    const tl = document.getElementById('timeline'); if(!tl) return; tl.innerHTML = '';
-    const filters = document.createElement('div'); filters.className='d-flex gap-2 mb-2 flex-wrap';
-    const userSelect = document.createElement('select'); userSelect.className='form-select form-select-sm w-auto'; userSelect.id='tlUserFilter'; const optAll=document.createElement('option'); optAll.value=''; optAll.text='Todos usuários'; userSelect.appendChild(optAll);
-    REPORT_TIMELINE_USERS.forEach(u=>{ const o=document.createElement('option'); o.value=u.id; o.text=u.username; userSelect.appendChild(o); }); filters.appendChild(userSelect);
-    const typeSelect = document.createElement('select'); typeSelect.className='form-select form-select-sm w-auto'; typeSelect.id='tlTypeFilter'; const oAllT=document.createElement('option'); oAllT.value=''; oAllT.text='Todos tipos'; typeSelect.appendChild(oAllT); REPORT_TIMELINE_TYPES.forEach(t=>{ const o=document.createElement('option'); o.value=t; o.text=t; typeSelect.appendChild(o); }); filters.appendChild(typeSelect);
-    const search = document.createElement('input'); search.type='search'; search.className='form-control form-control-sm w-50'; search.placeholder='Buscar no histórico...'; search.id='tlSearch'; filters.appendChild(search);
-    tl.appendChild(filters);
-    const results = document.createElement('div'); results.id='tlResults'; tl.appendChild(results);
-
-    function drawTimeline(rows){ results.innerHTML=''; if(rows.length===0){ results.innerHTML='<div class="text-muted">Sem atividades.</div>'; return; }
-        const groups = {}; rows.forEach(it=>{ const d=it.created_at?it.created_at.substr(0,10):'unknown'; (groups[d]=groups[d]||[]).push(it); }); Object.keys(groups).sort((a,b)=>b.localeCompare(a)).forEach(day=>{ const h=document.createElement('div'); h.className='fw-semibold mt-2 mb-1'; h.textContent = (new Date(day)).toLocaleDateString(); results.appendChild(h); groups[day].forEach(it=>{ const n=document.createElement('div'); n.className='mb-2 p-2 border rounded bg-white'; const who = it.username?`<strong>${escapeHtml(it.username)}</strong>`:''; const type = it.event_type?` <span class="badge rounded-pill bg-secondary ms-2">${escapeHtml(it.event_type)}</span>`:''; n.innerHTML = `<div class="small text-muted">${new Date(it.created_at).toLocaleTimeString()}</div><div>${who}${type} <span class="ms-1">${escapeHtml(it.message)}</span></div>`; results.appendChild(n); }); }); }
-
-    function filterAndRender(){ const uid=document.getElementById('tlUserFilter').value; const ttype=document.getElementById('tlTypeFilter').value; const q=document.getElementById('tlSearch').value.trim().toLowerCase(); const filtered = REPORT_TIMELINE.filter(item=>{ if(uid && String(item.user_id||'')!==String(uid)) return false; if(ttype && String(item.event_type||'')!==String(ttype)) return false; if(q){ const hay = ((item.message||'') + ' ' + (item.username||'') + ' ' + (item.event_type||'')).toLowerCase(); return hay.indexOf(q) !== -1; } return true; }); drawTimeline(filtered); }
-
-    userSelect.addEventListener('change', filterAndRender); typeSelect.addEventListener('change', filterAndRender); search.addEventListener('input', debounce(filterAndRender, 300)); filterAndRender();
+    // Timeline removed from reports page
 }
 
 document.addEventListener('DOMContentLoaded', function(){ try{ renderReports(); }catch(e){ console.error('Render reports failed', e); } });
 
 // debounce
 function debounce(fn, wait){ let t=null; return function(){ const args = arguments; clearTimeout(t); t = setTimeout(()=>fn.apply(null,args), wait); } }
-</script>
-
-<?php include 'includes/footer.php'; ?>
-                if (hay.indexOf(q) === -1) return false;
-            }
-            return true;
-        });
-        // group by date
-        const groups = {};
-        rows.forEach(item => { const dateKey = item.created_at ? item.created_at.substr(0,10) : 'unknown'; groups[dateKey] = groups[dateKey] || []; groups[dateKey].push(item); });
-        const sortedDates = Object.keys(groups).sort((a,b) => b.localeCompare(a));
-        results.innerHTML = '';
-        if (sortedDates.length === 0) { results.innerHTML = '<div class="text-muted">Sem atividades encontradas.</div>'; return; }
-        sortedDates.forEach(dateKey => {
-            const header = document.createElement('div'); header.className = 'fw-semibold mt-2 mb-1'; header.textContent = (new Date(dateKey)).toLocaleDateString(); results.appendChild(header);
-            groups[dateKey].forEach(item => {
-                const d = new Date(item.created_at);
-                const node = document.createElement('div'); node.className = 'mb-2 p-2 border rounded bg-white';
-                const who = item.username ? `<strong>${escapeHtml(item.username)}</strong>` : '';
-                const typeBadge = item.event_type ? `<span class="badge rounded-pill bg-secondary ms-2">${escapeHtml(item.event_type)}</span>` : '';
-                node.innerHTML = `<div class="small text-muted">${d.toLocaleTimeString()}</div><div>${who} ${typeBadge} <span class="ms-1">${escapeHtml(item.message)}</span></div>`;
-                results.appendChild(node);
-            });
-        });
-    }
-
-    // wire events
-    userSelect.addEventListener('change', filterAndRender);
-    typeSelect.addEventListener('change', filterAndRender);
-    search.addEventListener('input', debounce(filterAndRender, 250));
-    // initial render
-    filterAndRender();
-}
 </script>
 
 <?php include 'includes/footer.php'; ?>
