@@ -1,5 +1,32 @@
   <script src="assets/js/bootstrap.bundle.min.js"></script>
   <script>
+    // Page loading overlay on navigation
+    (function(){
+      const overlay = document.getElementById('pageLoadingOverlay');
+      if (!overlay) return;
+      
+      // Show loading on sidebar link clicks
+      document.querySelectorAll('.app-sidebar a.nav-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+          const href = this.getAttribute('href');
+          // Don't show for logout or external links or same page
+          if (href && href !== '#' && !href.startsWith('javascript:') && href !== window.location.pathname) {
+            overlay.classList.add('active');
+          }
+        });
+      });
+      
+      // Hide loading when page fully loaded
+      window.addEventListener('load', function() {
+        overlay.classList.remove('active');
+      });
+      
+      // Fallback: hide after 5 seconds in case something goes wrong
+      setTimeout(function() {
+        overlay.classList.remove('active');
+      }, 5000);
+    })();
+    
     // small helper to toggle active nav based on current path or hash
     (function(){
       const links = document.querySelectorAll('.app-sidebar a.nav-link');

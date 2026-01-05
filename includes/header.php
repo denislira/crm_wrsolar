@@ -90,28 +90,244 @@
   </nav>
   <?php endif; ?>
 
+  <!-- Page Loading Overlay -->
+  <div id="pageLoadingOverlay" class="page-loading-overlay">
+    <div class="loading-spinner">
+      <div class="spinner-border text-light" role="status">
+        <span class="visually-hidden">Carregando...</span>
+      </div>
+      <p class="mt-3 text-dark">Carregando página...</p>
+    </div>
+  </div>
+
   <style>
-    /* Collapsible sidebar styles - single authoritative definition */
-    .app-sidebar { transition: width .22s ease; box-sizing: border-box; width: 260px; min-width: 260px; max-width: 260px; flex: 0 0 260px; position: fixed; top: 56px; left: 0; height: calc(100vh - 56px); overflow-y: auto; z-index:1030; background: linear-gradient(180deg,var(--blue-900),var(--blue-700)); color: #fff; }
-    .app-sidebar.collapsed { width: 64px !important; min-width: 64px; max-width: 64px; flex: 0 0 64px; }
-    /* Prevent width jumping from padding/margins when active/hover */
-    .app-sidebar .nav-link { display:flex; align-items:center; gap: .5rem; padding: .5rem 0.5rem; }
-    .app-sidebar .nav-link.active, .app-sidebar .nav-link:hover { padding: .5rem 0.5rem; }
-    .app-sidebar.collapsed .nav-link { justify-content: center; padding: .5rem 0; }
-    /* Icon alignment: left-aligned when expanded, centered when collapsed */
-    .app-sidebar .nav-link .icon { width:24px; text-align:left; font-size:16px; display:inline-block; margin-left:0; }
-    .app-sidebar.collapsed .nav-link .icon { text-align:center; width: 100%; }
-    .app-sidebar .nav-link .label { transition: all .15s ease; display: inline-block; }
-    .app-sidebar.collapsed .nav-link .label { opacity:0; visibility:hidden; width:0; margin:0; padding:0; transform: translateX(-10px); }
-    /* Ensure Font Awesome icons are visible in the sidebar */
-    .app-sidebar .icon i { color: #fff; }
+    /* Page loading overlay - limited to main content area so it doesn't cover sidebar/navbar */
+    .page-loading-overlay {
+      position: fixed;
+      top: 56px; /* below navbar */
+      left: var(--sidebar-w, 280px); /* start after the sidebar */
+      width: calc(100% - var(--sidebar-w, 280px));
+      height: calc(100vh - 56px);
+      background: var(--muted-bg); /* match main content background (cinza fosco) */
+      z-index: 1020; /* below sidebar (1030) and navbar (1040) */
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: none; /* matte effect */
+      pointer-events: auto;
+    }
+
+    .page-loading-overlay.active {
+      display: flex;
+    }
+    /* When the sidebar is collapsed we persist a smaller left offset */
+    body.sidebar-collapsed .page-loading-overlay {
+      left: 72px;
+      width: calc(100% - 72px);
+    }
+    /* Ensure spinner and text are visible on light background */
+    .page-loading-overlay .loading-spinner {
+      color: var(--blue-900);
+    }
+    .page-loading-overlay .loading-spinner .spinner-border {
+      border-width: 0.3rem;
+      color: var(--blue-900);
+    }
+    
+    .loading-spinner {
+      text-align: center;
+    }
+    
+    .loading-spinner .spinner-border {
+      width: 3rem;
+      height: 3rem;
+      border-width: 0.3rem;
+    }
+    
+    /* Modern collapsible sidebar */
+    .app-sidebar { 
+      transition: width .3s cubic-bezier(0.4, 0, 0.2, 1); 
+      box-sizing: border-box; 
+      width: 280px; 
+      min-width: 280px; 
+      max-width: 280px; 
+      flex: 0 0 280px; 
+      position: fixed; 
+      top: 56px; 
+      left: 0; 
+      height: calc(100vh - 56px); 
+      overflow-y: auto; 
+      overflow-x: hidden;
+      z-index:1030; 
+      background: linear-gradient(180deg, #001f3f 0%, #003d7a 100%);
+      box-shadow: 2px 0 12px rgba(0, 0, 0, 0.08);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .app-sidebar.collapsed { 
+      width: 72px !important; 
+      min-width: 72px; 
+      max-width: 72px; 
+      flex: 0 0 72px; 
+    }
+    
+    .sidebar-content {
+      padding: 1rem 0.5rem;
+      flex: 1;
+    }
+    
+    .sidebar-footer {
+      padding: 1rem 0.5rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .app-sidebar .nav-link { 
+      display: flex; 
+      align-items: center; 
+      gap: 0.75rem; 
+      padding: 0.75rem 1rem; 
+      margin: 0.25rem 0.5rem;
+      border-radius: 10px;
+      color: rgba(255, 255, 255, 0.85);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      position: relative;
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    
+    .app-sidebar .nav-link:hover { 
+      background: rgba(255, 255, 255, 0.1); 
+      color: #fff;
+      transform: translateX(4px);
+    }
+    
+    .app-sidebar .nav-link.active { 
+      background: rgba(255, 255, 255, 0.15); 
+      color: #fff;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    }
+    
+    .app-sidebar.collapsed .nav-link { 
+      justify-content: center; 
+      padding: 0.75rem 0; 
+      margin: 0.25rem 0.25rem;
+      transform: none;
+    }
+    
+    .app-sidebar.collapsed .nav-link:hover {
+      transform: scale(1.05);
+    }
+    
+    .app-sidebar .nav-link .icon { 
+      width: 20px; 
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    
+    .app-sidebar.collapsed .nav-link .icon { 
+      justify-content: center; 
+      width: 100%; 
+    }
+    
+    .app-sidebar .nav-link .label { 
+      transition: all 0.2s ease; 
+      display: inline-block;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    
+    .app-sidebar.collapsed .nav-link .label { 
+      opacity: 0; 
+      visibility: hidden; 
+      width: 0; 
+      margin: 0; 
+      padding: 0; 
+    }
+    
+    .app-sidebar .icon i { 
+      color: currentColor; 
+    }
+    
+    /* Tooltip for collapsed state */
+    .app-sidebar.collapsed .nav-link::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 100%;
+      top: 50%;
+      transform: translateY(-50%);
+      margin-left: 1rem;
+      padding: 0.5rem 0.75rem;
+      background: rgba(0, 0, 0, 0.9);
+      color: #fff;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      z-index: 1050;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    .app-sidebar.collapsed .nav-link:hover::after {
+      opacity: 1;
+    }
+    
+    /* Logout link special styling */
+    .logout-link {
+      color: rgba(255, 100, 100, 0.9) !important;
+    }
+    
+    .logout-link:hover {
+      background: rgba(255, 100, 100, 0.1) !important;
+      color: #ff6b6b !important;
+    }
+    
+    /* Scrollbar styling for sidebar */
+    .app-sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .app-sidebar::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .app-sidebar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+    
+    .app-sidebar::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
 
   /* Main content offset to avoid overlap with fixed sidebar */
-  main.flex-grow-1, .main-content-scroll { margin-left: var(--sidebar-w); padding: 1.5rem; transition: margin-left .22s ease, width .22s ease; }
-  /* Ensure container spans remaining width */
-  .main-content-scroll > .container-fluid { width: 100%; padding-left: 1rem; padding-right: 1rem; }
+  main.flex-grow-1, .main-content-scroll { 
+    margin-left: 280px; 
+    padding: 1.5rem; 
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+  }
+  
+  .main-content-scroll > .container-fluid { 
+    width: 100%; 
+    padding-left: 1rem; 
+    padding-right: 1rem; 
+  }
+  
   /* When sidebar is collapsed, reduce left margin so content resizes */
-  body.sidebar-collapsed .app-sidebar { width: var(--sidebar-collapsed-w); min-width: var(--sidebar-collapsed-w); max-width: var(--sidebar-collapsed-w); }
-  body.sidebar-collapsed main.flex-grow-1, body.sidebar-collapsed .main-content-scroll { margin-left: var(--sidebar-collapsed-w); width: calc(100% - var(--sidebar-collapsed-w)); }
-  body.sidebar-collapsed .main-content-scroll > .container-fluid { width: 100%; }
+  body.sidebar-collapsed main.flex-grow-1, 
+  body.sidebar-collapsed .main-content-scroll { 
+    margin-left: 72px; 
+    width: calc(100% - 72px); 
+  }
+  
+  body.sidebar-collapsed .main-content-scroll > .container-fluid { 
+    width: 100%; 
+  }
   </style>
