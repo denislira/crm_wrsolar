@@ -15,6 +15,7 @@
   --text-700: #374151;
   --glass: rgba(255,255,255,0.6);
   --radius-md: 12px;
+  --icon-size: 16px; /* Windows 11 smaller icons */
   --shadow-soft: 0 6px 20px rgba(15,23,42,0.06);
   --shadow-strong: 0 14px 40px rgba(15,23,42,0.12);
   --sidebar-w: 260px;
@@ -23,7 +24,7 @@
 
 /* Base typography */
 html,body{height:100%;}
-body{font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color:var(--text-900); background:var(--muted); -webkit-font-smoothing:antialiased;}
+body{font-family: 'Segoe UI', 'Segoe UI Variable', system-ui, -apple-system, 'Inter', Roboto, 'Helvetica Neue', Arial; color:var(--text-900); background:var(--muted); -webkit-font-smoothing:antialiased;}
 h1,h2,h3,h4{color:var(--text-900); margin:0 0 .5rem 0;}
 p{color:var(--text-700); margin:0 0 .75rem 0;}
 
@@ -31,7 +32,7 @@ p{color:var(--text-700); margin:0 0 .75rem 0;}
 .container-fluid{max-width:1200px; margin:0 auto;}
 
 /* Buttons — modern styles while keeping .btn classes compatible */
-.btn{border-radius:10px; padding:.5rem .8rem; font-weight:600;}
+.btn{border-radius:12px; padding:.5rem .8rem; font-weight:600;}
 .btn-primary{background:linear-gradient(180deg,var(--primary-500),var(--primary-700)); border: none; color:#fff; box-shadow: var(--shadow-soft);}
 .btn-primary:hover{transform:translateY(-1px); box-shadow:var(--shadow-strong);}
 .btn-outline-secondary{border-radius:10px; border-color:rgba(15,23,42,0.08); background:#fff; color:var(--text-700);}
@@ -63,6 +64,13 @@ input.form-control:focus, textarea.form-control:focus, select.form-select:focus{
 .app-sidebar .nav-link:hover{ background: rgba(255,255,255,0.06); }
 .app-sidebar .nav-link.active{ background: rgba(255,255,255,0.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02); }
 
+/* Smaller icons to match Windows 11 aesthetics */
+.app-sidebar .nav-link .icon { font-size: var(--icon-size); width: var(--icon-size); height: var(--icon-size); display:flex; align-items:center; justify-content:center; }
+
+/* Slightly softer, larger UI radii and subtle shadows for Win11 look */
+.card{ border-radius:var(--radius-md); box-shadow: 0 8px 24px rgba(3,10,18,0.06); }
+.modal-content{ border-radius:14px; box-shadow: 0 8px 30px rgba(3,10,18,0.08); }
+
 /* Small helpers */
 .badge-stage{ display:inline-block; padding:.25rem .5rem; border-radius:8px; font-weight:600; font-size:.8rem; }
 .lead-card{ background:#fff; border-radius:10px; padding:.75rem; margin-bottom:.6rem; }
@@ -78,6 +86,11 @@ input.form-control:focus, textarea.form-control:focus, select.form-select:focus{
 
 /* Utilities */
 .muted-small{ color:var(--text-700); font-size:.9rem; }
+
+/* Global icon sizing for Windows 11 consistency */
+i[class^="fa-"], i[class*=" fa-"] { font-size: var(--icon-size); }
+.btn i[class^="fa-"], .btn i[class*=" fa-"] { font-size: var(--icon-size); }
+.card i[class^="fa-"], .card i[class*=" fa-"] { font-size: var(--icon-size); }
 
 /* Specific adjustments for funil cards (matches earlier JS changes) */
 .stage-title{ font-weight:700; font-size:.95rem; }

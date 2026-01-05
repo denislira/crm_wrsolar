@@ -90,7 +90,7 @@ include 'includes/header.php';
             <div class="modal-content">
                 <div class="modal-header bg-light border-bottom">
                     <h5 class="modal-title d-flex align-items-center gap-2" id="leadModalTitle">
-                        <i class="fa-solid fa-user-plus text-primary"></i> <span>Novo Lead</span>
+                        <i class="fa-regular fa-user-plus text-primary"></i> <span>Novo Lead</span>
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                 </div>

@@ -19,26 +19,26 @@ $current = basename($_SERVER['PHP_SELF']);
             <!-- Leads menu hidden
             <li class="nav-item">
                 <a href="leads.php" class="nav-link <?php echo $current=='leads.php' ? 'active':''; ?>" data-tooltip="Leads">
-                    <span class="icon"><i class="fa-solid fa-user"></i></span>
+                    <span class="icon"><i class="fa-regular fa-user"></i></span>
                     <span class="label">Leads</span>
                 </a>
             </li>
             -->
             <li class="nav-item">
                 <a href="leads_gestao.php" class="nav-link <?php echo $current=='leads_gestao.php' ? 'active':''; ?>" data-tooltip="Gestão de Leads">
-                    <span class="icon"><i class="fa-solid fa-list"></i></span>
+                    <span class="icon"><i class="fa-regular fa-rectangle-list"></i></span>
                     <span class="label">Gestão de Leads</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="projetos.php" class="nav-link <?php echo $current=='projetos.php' ? 'active':''; ?>" data-tooltip="Projetos">
-                    <span class="icon"><i class="fa-solid fa-folder-open"></i></span>
+                    <span class="icon"><i class="fa-regular fa-folder-open"></i></span>
                     <span class="label">Projetos</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="integracao-equipes.php" class="nav-link <?php echo $current=='integracao-equipes.php' ? 'active':''; ?>" data-tooltip="Integração de Equipes">
-                    <span class="icon"><i class="fa-solid fa-address-book"></i></span>
+                    <span class="icon"><i class="fa-regular fa-address-book"></i></span>
                     <span class="label">Integração de Equipes</span>
                 </a>
             </li>
@@ -50,7 +50,7 @@ $current = basename($_SERVER['PHP_SELF']);
             </li>
             <li class="nav-item">
                 <a href="relatorios.php" class="nav-link <?php echo $current=='relatorios.php' ? 'active':''; ?>" data-tooltip="Relatórios">
-                    <span class="icon"><i class="fa-solid fa-chart-line"></i></span>
+                    <span class="icon"><i class="fa-regular fa-chart-bar"></i></span>
                     <span class="label">Relatórios</span>
                 </a>
             </li>

@@ -24,10 +24,11 @@
   --muted-bg: #e9eef5;
         --sidebar-w: 260px;
         --sidebar-collapsed-w: 64px;
+        --icon-size: 16px;
     }
   /* Remove default browser page margin and set base font/background
     Add top padding so fixed navbar doesn't cover content. */
-  body{ margin: 0; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:var(--muted-bg); overflow-x: hidden; padding-top:56px; }
+  body{ margin: 0; font-family: 'Segoe UI', 'Segoe UI Variable', system-ui, -apple-system, 'Inter', Roboto, 'Helvetica Neue', Arial; background:var(--muted-bg); overflow-x: hidden; padding-top:48px; }
   /* Keep navbar always visible: fixed at top */
   .navbar { position: fixed; top: 0; z-index: 1040; width:100%; }
   /* Reduce the default container padding so brand sits closer to the left edge.
@@ -35,7 +36,7 @@
   html, body { width: 100%; }
   .navbar { padding-left: 0; padding-right: 0; width: 100%; }
   .navbar .container-fluid { padding-left: 6px; padding-right: 6px; max-width: 100%; margin: 0; }
-  .app-sidebar { position: fixed; top: 56px; left: 0; height: calc(100vh - 56px); overflow-y: auto; z-index: 1030; box-shadow: 2px 0 12px rgba(7,59,107,0.08); }
+  .app-sidebar { position: fixed; top: 48px; left: 0; height: calc(100vh - 48px); overflow-y: auto; z-index: 1030; box-shadow: 2px 0 12px rgba(7,59,107,0.08); }
   /* Main uses CSS variables so it can resize based on sidebar width */
   .app-sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); max-width: var(--sidebar-w); }
   .main-content-scroll, main.flex-grow-1 { margin-left: var(--sidebar-w); padding-left: 1rem; padding-right: 1rem; width: calc(100% - var(--sidebar-w)); transition: margin-left .22s ease, width .22s ease; }
@@ -104,10 +105,10 @@
     /* Page loading overlay - limited to main content area so it doesn't cover sidebar/navbar */
     .page-loading-overlay {
       position: fixed;
-      top: 56px; /* below navbar */
-      left: var(--sidebar-w, 280px); /* start after the sidebar */
-      width: calc(100% - var(--sidebar-w, 280px));
-      height: calc(100vh - 56px);
+      top: 48px; /* below navbar */
+      left: var(--sidebar-w, 220px); /* start after the sidebar */
+      width: calc(100% - var(--sidebar-w, 220px));
+      height: calc(100vh - 48px);
       background: var(--muted-bg); /* match main content background (cinza fosco) */
       z-index: 1020; /* below sidebar (1030) and navbar (1040) */
       display: none;
@@ -122,8 +123,8 @@
     }
     /* When the sidebar is collapsed we persist a smaller left offset */
     body.sidebar-collapsed .page-loading-overlay {
-      left: 72px;
-      width: calc(100% - 72px);
+      left: 60px;
+      width: calc(100% - 60px);
     }
     /* Ensure spinner and text are visible on light background */
     .page-loading-overlay .loading-spinner {
@@ -148,14 +149,14 @@
     .app-sidebar { 
       transition: width .3s cubic-bezier(0.4, 0, 0.2, 1); 
       box-sizing: border-box; 
-      width: 280px; 
-      min-width: 280px; 
-      max-width: 280px; 
-      flex: 0 0 280px; 
+      width: 220px; 
+      min-width: 220px; 
+      max-width: 220px; 
+      flex: 0 0 220px; 
       position: fixed; 
-      top: 56px; 
+      top: 48px; 
       left: 0; 
-      height: calc(100vh - 56px); 
+      height: calc(100vh - 48px); 
       overflow-y: auto; 
       overflow-x: hidden;
       z-index:1030; 
@@ -166,10 +167,10 @@
     }
     
     .app-sidebar.collapsed { 
-      width: 72px !important; 
-      min-width: 72px; 
-      max-width: 72px; 
-      flex: 0 0 72px; 
+      width: 60px !important; 
+      min-width: 60px; 
+      max-width: 60px; 
+      flex: 0 0 60px; 
     }
     
     .sidebar-content {
@@ -212,8 +213,16 @@
     .app-sidebar.collapsed .nav-link { 
       justify-content: center; 
       padding: 0.75rem 0; 
-      margin: 0.25rem 0.25rem;
+      margin: 0.25rem 0; 
+      margin-left: -0.5rem;
+      margin-right: -0.5rem;
+      width: calc(100% + 1rem);
       transform: none;
+      border-radius: 0;
+    }
+    .app-sidebar.collapsed .nav-link:hover,
+    .app-sidebar.collapsed .nav-link.active {
+      border-radius: 0;
     }
     
     .app-sidebar.collapsed .nav-link:hover {
@@ -221,18 +230,18 @@
     }
     
     .app-sidebar .nav-link .icon { 
-      width: 20px; 
-      height: 20px;
+      width: var(--icon-size); 
+      height: var(--icon-size);
       display: flex;
       align-items: center;
       justify-content: flex-start;
-      font-size: 18px;
+      font-size: var(--icon-size);
       flex-shrink: 0;
     }
     
     .app-sidebar.collapsed .nav-link .icon { 
       justify-content: center; 
-      width: 100%; 
+      width: var(--icon-size); 
     }
     
     .app-sidebar .nav-link .label { 
@@ -309,7 +318,7 @@
 
   /* Main content offset to avoid overlap with fixed sidebar */
   main.flex-grow-1, .main-content-scroll { 
-    margin-left: 280px; 
+    margin-left: 220px; 
     padding: 1.5rem; 
     transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
   }
@@ -323,8 +332,8 @@
   /* When sidebar is collapsed, reduce left margin so content resizes */
   body.sidebar-collapsed main.flex-grow-1, 
   body.sidebar-collapsed .main-content-scroll { 
-    margin-left: 72px; 
-    width: calc(100% - 72px); 
+    margin-left: 60px; 
+    width: calc(100% - 60px); 
   }
   
   body.sidebar-collapsed .main-content-scroll > .container-fluid { 

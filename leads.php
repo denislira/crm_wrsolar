@@ -79,7 +79,7 @@ include 'includes/header.php';
                                                         <td class="text-center">
                                                             <?php if (!empty($lead['anexos_filename'])): ?>
                                                                 <a href="includes/leads_api.php?action=download_anexo&id=<?= $lead['id'] ?>" class="btn btn-sm btn-outline-primary" title="Download: <?= htmlspecialchars($lead['anexos_filename']) ?>">
-                                                                    <i class="fa-solid fa-download"></i>
+                                                                    <i class="fa-regular fa-circle-down"></i>
                                                                 </a>
                                                             <?php else: ?>
                                                                 -
@@ -104,7 +104,7 @@ include 'includes/header.php';
             <div class="modal-content">
             <div class="modal-header bg-light border-bottom">
                 <h5 class="modal-title d-flex align-items-center gap-2" id="leadModalTitle">
-                    <i class="fa-solid fa-user-plus text-primary"></i> <span>Novo Lead</span>
+                    <i class="fa-regular fa-user-plus text-primary"></i> <span>Novo Lead</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
@@ -308,7 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const infoDiv = document.createElement('div');
                         infoDiv.id = 'anexo-current-info';
                         infoDiv.className = 'alert alert-info mt-2';
-                        infoDiv.innerHTML = `<small><i class="fa-solid fa-paperclip"></i> Arquivo atual: ${lead.anexos_filename}</small>`;
+                        infoDiv.innerHTML = `<small><i class="fa-regular fa-paperclip"></i> Arquivo atual: ${lead.anexos_filename}</small>`;
                         document.getElementById('lead-anexos').parentNode.appendChild(infoDiv);
                     }
                     
