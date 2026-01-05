@@ -268,6 +268,18 @@
             tbody.appendChild(tr);
         });
         table.appendChild(thead); table.appendChild(tbody); container.appendChild(table);
+        // ensure the list container mirrors the global theme class so tables adopt dark styling
+        const prefersDark = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
+        container.classList.toggle('theme-dark', prefersDark);
+        // observe body class changes once so the container stays in sync
+        if (!window.__leadsThemeObserverSetup) {
+            const bodyObserver = new MutationObserver(()=>{
+                const isDark = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
+                const c = document.getElementById('leadsTableContainer'); if (c) c.classList.toggle('theme-dark', isDark);
+            });
+            bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+            window.__leadsThemeObserverSetup = true;
+        }
     }
 
     function renderAll(){

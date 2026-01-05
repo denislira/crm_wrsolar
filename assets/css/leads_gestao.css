@@ -314,5 +314,44 @@ body.theme-dark .kanban-header .badge { color: #0b1220 !important; }
     background:transparent;
 }
 
+/* List / table dark-mode support for leads table */
+body.theme-dark #leadsTableContainer table,
+body.dark-mode #leadsTableContainer table,
+#leadsTableContainer.theme-dark .table {
+    background-color: transparent !important;
+    color: #e6eef8 !important;
+}
+
+/* ensure table cells, rows and headers use dark backgrounds or transparent to avoid white boxes */
+#leadsTableContainer.theme-dark table thead,
+#leadsTableContainer.theme-dark thead th,
+body.theme-dark #leadsTableContainer thead th,
+body.dark-mode #leadsTableContainer thead th {
+    background-color: #071427 !important;
+    color: #cfe7ff !important;
+    border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+}
+
+#leadsTableContainer.theme-dark table tbody tr,
+#leadsTableContainer.theme-dark table tbody td,
+body.theme-dark #leadsTableContainer table tbody tr,
+body.dark-mode #leadsTableContainer table tbody tr,
+#leadsTableContainer.theme-dark .table td,
+#leadsTableContainer.theme-dark .table th {
+    background-color: transparent !important;
+    color: #dbeafe !important;
+    border-color: rgba(255,255,255,0.03) !important;
+}
+
+#leadsTableContainer.theme-dark table.table-hover tbody tr:hover,
+body.theme-dark #leadsTableContainer table.table-hover tbody tr:hover {
+    background: rgba(255,255,255,0.03) !important;
+}
+
+#leadsTableContainer.theme-dark .badge-score.hot { background:#ef4444 !important; }
+#leadsTableContainer.theme-dark .badge-score.warm { background:#f59e0b !important; }
+#leadsTableContainer.theme-dark .badge-score.cold { background:#06b6d4 !important; }
+#leadsTableContainer.theme-dark .btn-outline-secondary { color: #e6eef8 !important; border-color: rgba(255,255,255,0.06) !important; }
+
 
 
