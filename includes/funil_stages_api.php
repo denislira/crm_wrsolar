@@ -67,7 +67,23 @@ try {
     } catch (Exception $e) { /* ignore */ }
 
     if ($action === 'list') {
-        $sql = "SELECT id, {$nameCol} AS name, {$positionCol} AS position, {$colorCol} AS color FROM funil_stages WHERE user_id = ? ORDER BY {$positionCol} ASC, id ASC";
+        // Build SELECT with all available columns
+        $cols = ["id", "{$nameCol} AS name", "{$positionCol} AS position", "{$colorCol} AS color"];
+        if ($cardColorCol) $cols[] = "{$cardColorCol} AS card_color";
+        if ($iconCol) $cols[] = "{$iconCol} AS icon";
+        if ($finalCol) $cols[] = "{$finalCol} AS is_final";
+        if ($finalTypeCol) $cols[] = "{$finalTypeCol} AS final_type";
+        if ($generateTaskCol) $cols[] = "{$generateTaskCol} AS generate_task_on_enter";
+        if ($alertInactivityCol) $cols[] = "{$alertInactivityCol} AS alert_on_inactivity";
+        if ($requiredFieldsCol) $cols[] = "{$requiredFieldsCol} AS required_fields";
+        if ($slaDaysCol) $cols[] = "{$slaDaysCol} AS sla_days";
+        if ($blockAdvanceCol) $cols[] = "{$blockAdvanceCol} AS block_advance";
+        if ($includeForecastCol) $cols[] = "{$includeForecastCol} AS include_in_forecast";
+        if ($qualifyCol) $cols[] = "{$qualifyCol} AS is_qualification";
+        if ($conversionCol) $cols[] = "{$conversionCol} AS is_conversion";
+        if ($trackTimeCol) $cols[] = "{$trackTimeCol} AS track_time_in_stage";
+        
+        $sql = "SELECT " . implode(', ', $cols) . " FROM funil_stages WHERE user_id = ? ORDER BY {$positionCol} ASC, id ASC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$userId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);

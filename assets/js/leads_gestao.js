@@ -131,7 +131,21 @@
             // expose colors to the DOM for later use
             if (s.color) colWrap.dataset.color = s.color;
             if (s.card_color) colWrap.dataset.cardColor = s.card_color;
-            const header = document.createElement('div'); header.className='kanban-header'; header.innerHTML = `${s.name} <span class="badge bg-light text-muted" id="count-${s.id}">0</span> <div id="sum-${s.id}" class="small text-muted stage-sum"></div>`;
+            // normalize generate task flag (support different API shapes)
+            s.generate_task = (typeof s.generate_task_on_enter !== 'undefined') ? Number(s.generate_task_on_enter) : (typeof s.generate_task !== 'undefined' ? Number(s.generate_task) : 0);
+            const header = document.createElement('div'); header.className='kanban-header';
+            // name + count
+            const titleHtml = document.createElement('span'); titleHtml.className = 'kanban-title'; titleHtml.textContent = s.name;
+            const countBadge = document.createElement('span'); countBadge.className = 'badge bg-light text-muted ms-2'; countBadge.id = 'count-' + s.id; countBadge.textContent = '0';
+            const sumDiv = document.createElement('div'); sumDiv.id = 'sum-' + s.id; sumDiv.className = 'small text-muted stage-sum';
+            header.appendChild(titleHtml); header.appendChild(countBadge); header.appendChild(sumDiv);
+            // compact, discreet indicator for "Criar tarefa ao entrar"
+            if (s.generate_task) {
+                const ind = document.createElement('i');
+                ind.className = 'fa fa-tasks task-indicator ms-2';
+                ind.title = 'Cria tarefa ao entrar';
+                header.appendChild(ind);
+            }
             // apply a thin colored line on top of the column instead of full header background
             if (s.color) {
                 colWrap.style.borderTop = '6px solid ' + s.color;

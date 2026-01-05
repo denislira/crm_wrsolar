@@ -63,7 +63,7 @@ include 'includes/header.php';
                   </div>
                 </div>
 
-                <div class="mt-3">
+                <div class="mt-3 d-none">
                   <label class="form-label">Campos obrigatórios (JSON array) <i class="fa fa-info-circle ms-1 text-muted" data-bs-toggle="tooltip" title="JSON array com campos que devem estar preenchidos (ex: [\"email\"])."></i></label>
                   <textarea id="requiredFields" class="form-control" rows="2" placeholder='ex: ["email","phone"]'></textarea>
                 </div>

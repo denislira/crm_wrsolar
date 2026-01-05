@@ -373,7 +373,56 @@ try {
             _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $data['status'], $changedBy, null, 0);
         } catch (Exception $e) { /* swallow */ }
 
-        echo json_encode(['ok' => true]);
+        // Auto-create task if stage has generate_task_on_enter enabled
+        $taskCreated = false;
+        if ($resolvedStageId) {
+            try {
+                // Fetch full stage row and support legacy column names (name / stage_name, generate_task_on_enter)
+                $stageCheck = $pdo->prepare('SELECT * FROM funil_stages WHERE id = ? AND user_id = ? LIMIT 1');
+                $stageCheck->execute([$resolvedStageId, $userId]);
+                $stageData = $stageCheck->fetch(PDO::FETCH_ASSOC);
+
+                // write debug snapshot to logs for diagnosis
+                try {
+                    $dbg = ['ts'=>date('c'),'lead_id'=>$data['id'],'resolvedStageId'=>$resolvedStageId,'stage_row'=>$stageData];
+                    file_put_contents(__DIR__ . '/../logs/auto_task_debug.log', json_encode($dbg, JSON_UNESCAPED_UNICODE) . PHP_EOL, FILE_APPEND);
+                } catch (Exception $e) { /* ignore */ }
+
+                // normalize possible column names
+                $stageName = $stageData['name'] ?? ($stageData['stage_name'] ?? null);
+                $generateFlag = null;
+                if (array_key_exists('generate_task_on_enter', $stageData)) $generateFlag = $stageData['generate_task_on_enter'];
+                elseif (array_key_exists('generate_task', $stageData)) $generateFlag = $stageData['generate_task'];
+
+                if ($stageData && !empty($generateFlag)) {
+                    // Fetch lead info for task title
+                    $leadInfo = $pdo->prepare('SELECT name, email, phone FROM leads WHERE id = ? AND user_id = ? LIMIT 1');
+                    $leadInfo->execute([$data['id'], $userId]);
+                    $lead = $leadInfo->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Create task
+                    $taskTitle = "Ação necessária: " . ($lead['name'] ?? 'Lead') . " entrou em " . ($stageName ?? 'estágio');
+                    $taskDesc = "Lead movido para o estágio '" . ($stageName ?? '') . "'.\n";
+                    $taskDesc .= "Contato: " . ($lead['email'] ?? '') . " " . ($lead['phone'] ?? '');
+                    
+                    $taskInsert = $pdo->prepare('INSERT INTO team_tasks (user_id, equipe, titulo, descricao, status, data_vencimento) VALUES (?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 3 DAY))');
+                    $taskInsert->execute([
+                        $userId,
+                        'Vendas',
+                        $taskTitle,
+                        $taskDesc,
+                        'Pendente'
+                    ]);
+                    $taskCreated = (bool)$pdo->lastInsertId();
+                    error_log("Auto-task created for lead {$data['id']} -> task_id=" . $pdo->lastInsertId());
+                }
+            } catch (Exception $e) { 
+                error_log("Auto-task creation failed: " . $e->getMessage());
+            }
+        }
+
+        // Return whether a task was created for easier debugging on client
+        echo json_encode(['ok' => true, 'task_created' => $taskCreated]);
         exit;
     }
 

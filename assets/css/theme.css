@@ -190,6 +190,17 @@ body.theme-dark textarea:focus {
   box-shadow: 0 0 0 0.2rem rgba(10, 88, 168, 0.25) !important;
 }
 
+/* Ensure select dropdown options follow dark theme */
+body.theme-dark select option {
+  background: #0b1a31 !important;
+  color: #e6eef8 !important;
+}
+
+body.theme-dark .form-select option {
+  background: #0b1a31 !important;
+  color: #e6eef8 !important;
+}
+
 body.theme-dark .btn-outline-secondary { 
   border-color: rgba(255,255,255,0.1) !important; 
   color: var(--text-900) !important; 
@@ -324,5 +335,13 @@ body.theme-dark :focus {
   outline: 3px solid rgba(10, 88, 168, 0.3) !important; 
   outline-offset:3px; 
 }
+
+/* Compact indicator for stages that auto-create tasks */
+.kanban-header .task-indicator {
+  font-size: 0.8rem;
+  opacity: 0.65;
+  vertical-align: middle;
+}
+.kanban-header .task-indicator:hover { opacity: 1; }
 
 /* End of theme.css */
