@@ -20,9 +20,7 @@ include 'includes/header.php';
     <main class="flex-grow-1 p-4">
         <div id="projetos">
             <h1 class="h4 mb-2">Projetos</h1>
-            <div class="alert alert-info mb-4 text-center" style="max-width:700px;margin:auto;">
-                <strong>Como funciona:</strong> Quando um lead avança por todas as etapas do funil e a venda é concluída, ele se transforma em um projeto. Aqui você acompanha todos os projetos gerados a partir dos leads convertidos, com informações detalhadas, status e histórico.
-            </div>
+            <!-- Informational blurb removed as requested -->
             <!-- KPIs -->
             <div class="row g-3 mb-4 justify-content-center">
                 <div class="col-md-3">

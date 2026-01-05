@@ -301,22 +301,42 @@
     }
     
     /* Scrollbar styling for sidebar */
-    .app-sidebar::-webkit-scrollbar {
-      width: 6px;
+    /* Scrollbar styling for sidebar (thinner + transparent) */
+    .app-sidebar::-webkit-scrollbar { width: 5px; }
+    .app-sidebar::-webkit-scrollbar-track { background: rgba(255,255,255,0.06); }
+    .app-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.28); border-radius: 4px; }
+    .app-sidebar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.36); }
+
+    /* Main content scrollbar (thinner + subtle) */
+    main.flex-grow-1::-webkit-scrollbar, .main-content-scroll::-webkit-scrollbar { height: 8px; }
+    main.flex-grow-1::-webkit-scrollbar-track, .main-content-scroll::-webkit-scrollbar-track { background: rgba(11,26,49,0.06); }
+    main.flex-grow-1::-webkit-scrollbar-thumb, .main-content-scroll::-webkit-scrollbar-thumb { background: rgba(11,26,49,0.16); border-radius: 6px; }
+    main.flex-grow-1::-webkit-scrollbar-thumb:hover, .main-content-scroll::-webkit-scrollbar-thumb:hover { background: rgba(11,26,49,0.22); }
+
+    /* Firefox scrollbar support */
+    .app-sidebar, main.flex-grow-1, .main-content-scroll { scrollbar-width: thin; }
+
+    /* Theme-aware sidebar overrides */
+    body.theme-dark .app-sidebar {
+      background: linear-gradient(180deg,#071427 0%, #0b1220 100%) !important;
+      color: #e6eef8 !important;
+      box-shadow: 2px 0 18px rgba(0,0,0,0.6) !important;
     }
-    
-    .app-sidebar::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.05);
+    body.theme-dark .app-sidebar .nav-link { color: rgba(230,238,248,0.95) !important; }
+    body.theme-dark .app-sidebar .nav-link:hover,
+    body.theme-dark .app-sidebar .nav-link.active { background: rgba(255,255,255,0.03) !important; color: #e6eef8 !important; }
+    body.theme-dark .app-sidebar .me-2 { background: rgba(255,255,255,0.06) !important; color: var(--blue-700) !important; }
+    body.theme-dark .sidebar-footer { border-top-color: rgba(255,255,255,0.06) !important; }
+
+    body.theme-light .app-sidebar {
+      background: linear-gradient(180deg,var(--blue-900),var(--blue-700)) !important;
+      color: #fff !important;
+      box-shadow: 2px 0 12px rgba(7,59,107,0.08) !important;
     }
-    
-    .app-sidebar::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 3px;
-    }
-    
-    .app-sidebar::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.3);
-    }
+    body.theme-light .app-sidebar .nav-link { color: rgba(255,255,255,0.95) !important; }
+    body.theme-light .app-sidebar .nav-link:hover,
+    body.theme-light .app-sidebar .nav-link.active { background: rgba(255,255,255,0.06) !important; color: #fff !important; }
+    body.theme-light .app-sidebar .me-2 { background:#fff !important;color:var(--blue-700) !important; }
 
   /* Main content offset to avoid overlap with fixed sidebar */
   main.flex-grow-1, .main-content-scroll { 
@@ -341,4 +361,40 @@
   body.sidebar-collapsed .main-content-scroll > .container-fluid { 
     width: 100%; 
   }
+  </style>
+
+  <style>
+    /* Theme specific scrollbar tweaks */
+    body.theme-dark .app-sidebar::-webkit-scrollbar-track { background: rgba(230,238,248,0.04); }
+    body.theme-dark .app-sidebar::-webkit-scrollbar-thumb { background: rgba(230,238,248,0.20); }
+    body.theme-dark main.flex-grow-1::-webkit-scrollbar-track, body.theme-dark .main-content-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); }
+    body.theme-dark main.flex-grow-1::-webkit-scrollbar-thumb, body.theme-dark .main-content-scroll::-webkit-scrollbar-thumb { background: rgba(230,238,248,0.16); }
+
+    body.theme-light .app-sidebar::-webkit-scrollbar-track { background: rgba(255,255,255,0.08); }
+    body.theme-light .app-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.24); }
+    body.theme-light main.flex-grow-1::-webkit-scrollbar-track, body.theme-light .main-content-scroll::-webkit-scrollbar-track { background: rgba(11,26,49,0.06); }
+    body.theme-light main.flex-grow-1::-webkit-scrollbar-thumb, body.theme-light .main-content-scroll::-webkit-scrollbar-thumb { background: rgba(11,26,49,0.16); }
+  </style>
+
+  <style>
+    /* Global scrollbars for the whole app (webkit browsers) */
+    html::-webkit-scrollbar, body::-webkit-scrollbar, .modal::-webkit-scrollbar, .dropdown-menu::-webkit-scrollbar { height: 8px; width: 8px; }
+    html::-webkit-scrollbar-track, body::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track, .dropdown-menu::-webkit-scrollbar-track { background: transparent; }
+    html::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb, .dropdown-menu::-webkit-scrollbar-thumb { background: rgba(11,26,49,0.16); border-radius: 6px; }
+    html::-webkit-scrollbar-thumb:hover, body::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover, .dropdown-menu::-webkit-scrollbar-thumb:hover { background: rgba(11,26,49,0.22); }
+
+    /* Firefox global scrollbar color shorthand */
+    html, body, .modal, .dropdown-menu { scrollbar-width: thin; scrollbar-color: rgba(11,26,49,0.08) transparent; }
+
+    /* Theme variants for global scrollbars */
+    body.theme-dark html::-webkit-scrollbar-thumb, body.theme-dark body::-webkit-scrollbar-thumb, body.theme-dark .modal::-webkit-scrollbar-thumb { background: rgba(230,238,248,0.16); }
+    body.theme-dark html::-webkit-scrollbar-track, body.theme-dark body::-webkit-scrollbar-track, body.theme-dark .modal::-webkit-scrollbar-track { background: rgba(230,238,248,0.04); }
+    body.theme-dark html, body.theme-dark body, body.theme-dark .modal { scrollbar-color: rgba(230,238,248,0.08) rgba(230,238,248,0.02); }
+
+    body.theme-light html::-webkit-scrollbar-thumb, body.theme-light body::-webkit-scrollbar-thumb, body.theme-light .modal::-webkit-scrollbar-thumb { background: rgba(11,26,49,0.16); }
+    body.theme-light html::-webkit-scrollbar-track, body.theme-light body::-webkit-scrollbar-track, body.theme-light .modal::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); }
+    body.theme-light html, body.theme-light body, body.theme-light .modal { scrollbar-color: rgba(11,26,49,0.08) rgba(255,255,255,0.02); }
+
+    /* Make dropdowns and other small scrollables slightly thinner */
+    .dropdown-menu::-webkit-scrollbar, .modal-body::-webkit-scrollbar { height:6px; width:6px; }
   </style>
