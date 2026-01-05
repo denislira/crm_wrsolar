@@ -84,7 +84,6 @@ try {
     }
 
     if ($action === 'add') {
-        if (!_is_admin()) { http_response_code(403); echo json_encode(['error'=>'Not permitted']); exit; }
         if (empty($data['name'])) throw new Exception('Missing name');
         $color = !empty($data['color']) ? $data['color'] : '#6c757d';
         $cardColor = $data['card_color'] ?? null;
@@ -135,7 +134,6 @@ try {
     }
 
     if ($action === 'update') {
-        if (!_is_admin()) { http_response_code(403); echo json_encode(['error'=>'Not permitted']); exit; }
         if (empty($data['id']) || !isset($data['name'])) throw new Exception('Missing id or name');
 
         // fetch previous for diff
@@ -196,7 +194,6 @@ try {
     }
 
     if ($action === 'delete') {
-        if (!_is_admin()) { http_response_code(403); echo json_encode(['error'=>'Not permitted']); exit; }
         if (empty($data['id'])) throw new Exception('Missing id');
         // check leads associated
         $c = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE user_id = ? AND (stage_id = ? OR status = ?)');
@@ -225,7 +222,6 @@ try {
     }
 
     if ($action === 'reorder') {
-        if (!_is_admin()) { http_response_code(403); echo json_encode(['error'=>'Not permitted']); exit; }
         // Expecting data.positions = [{id:..., position:...}, ...]
         if (empty($data['positions']) || !is_array($data['positions'])) throw new Exception('Missing positions');
         $upd = $pdo->prepare("UPDATE funil_stages SET {$positionCol} = ? WHERE id = ? AND user_id = ?");
