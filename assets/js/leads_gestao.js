@@ -19,6 +19,7 @@
         leadStage: ['#leadStage','#lead-stage'],
         leadConsumo: ['#leadConsumo','#lead-consumo'],
         leadEstimativa: ['#leadEstimativa','#lead-estimativa-kwh'],
+        leadOrcamento: ['#leadOrcamento','#lead-orcamento'],
         leadAnexos: ['#leadAnexos','#lead-anexos'],
         leadNotes: ['#leadNotes','#lead-notes'],
         leadForm: ['#leadForm','form#leadForm'],
@@ -171,7 +172,7 @@
     function renderKpis(){
         const active = allLeads.filter(l=>!['Perdido','Ganhou'].includes(l.status));
         const hot = allLeads.filter(l=>l.score>=80).length;
-        const totalValue = allLeads.reduce((s,l)=>s + (parseFloat(l.proposal_value||l.estimativa_projeto_kwh||l.value||0) || 0), 0);
+        const totalValue = allLeads.reduce((s,l)=>s + (parseFloat(l.orcamento_value||0) || 0), 0);
         const conv = allLeads.length ? (allLeads.filter(l=>l.status==='Ganhou').length / allLeads.length * 100).toFixed(1) : '0.0';
         $('#kpiActive').textContent = active.length;
         $('#kpiHot').textContent = hot;
@@ -191,15 +192,31 @@
     }
 
     function updateBulkDeleteVisibility(){
+        const selected = getSelectedLeadIds();
         const btn = $('#bulkDeleteBtn');
-        if (btn) btn.classList.toggle('d-none', getSelectedLeadIds().length === 0);
+        if (btn) btn.classList.toggle('d-none', selected.length === 0);
+        const uncheckBtn = $('#bulkUncheckBtn');
+        if (uncheckBtn) uncheckBtn.classList.toggle('d-none', selected.length <= 1);
     }
 
     function makeCard(lead){
         const el = document.createElement('div'); el.className='lead-card'; el.draggable = true; el.dataset.id = lead.id;
         // selection checkbox for bulk actions
         const chk = document.createElement('input'); chk.type='checkbox'; chk.className = 'lead-select me-2'; chk.title = 'Selecionar para ações em massa';
-        chk.addEventListener('click', (e)=>{ e.stopPropagation(); el.classList.toggle('selected', chk.checked); });
+        chk.addEventListener('click', (e)=>{
+            e.stopPropagation();
+            el.classList.toggle('selected', chk.checked);
+            // set border color to column color when selected
+            const colWrap = el.closest('.kanban-column');
+            const colColor = colWrap?.dataset?.color || '#6c757d';
+            if (chk.checked) {
+                el.style.borderColor = colColor;
+                el.style.borderWidth = '2px';
+            } else {
+                el.style.borderColor = '';
+                el.style.borderWidth = '';
+            }
+        });
         chk.addEventListener('change', updateBulkDeleteVisibility);
         const head = document.createElement('div'); head.className = 'd-flex align-items-center justify-content-between';
         const left = document.createElement('div'); left.className = 'd-flex align-items-center'; left.appendChild(chk);
@@ -208,7 +225,7 @@
 
         const company = document.createElement('div'); company.className='lead-meta'; company.textContent = 'Fonte: ' + (lead.source || lead.client_name || lead.company || '—');
         const meta = document.createElement('div'); meta.className='lead-meta';
-        const value = document.createElement('span'); value.className='lead-value'; value.textContent = toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
+        const value = document.createElement('span'); value.className='lead-value'; value.textContent = toCurrency(lead.orcamento_value || 0);
         const owner = document.createElement('span'); owner.className='lead-owner'; owner.textContent = lead.responsavel || '';
         const score = document.createElement('span'); score.className = 'badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')); score.textContent = lead.score;
         meta.appendChild(value); meta.appendChild(owner); meta.appendChild(score);
@@ -338,7 +355,7 @@
                 card.dataset.originalBorder = card.style.borderLeft || '6px solid transparent';
                 col.appendChild(card);
             }
-            const val = parseFloat(l.proposal_value || l.estimativa_projeto_kwh || l.value || 0) || 0;
+            const val = parseFloat(l.orcamento_value || 0) || 0;
             sums[stageKey] = (sums[stageKey] || 0) + val;
         });
 
@@ -461,7 +478,7 @@
         const company = document.createElement('div'); company.textContent = 'Fonte: ' + (lead.source || lead.client_name || lead.company || '—');
         const email = document.createElement('div'); email.innerHTML = 'Email: ' + (lead.email? `<a href="mailto:${encodeURIComponent(lead.email)}">${lead.email}</a>` : '—');
         const phone = document.createElement('div'); phone.innerHTML = 'Telefone: ' + (lead.phone? `<a href="tel:${encodeURIComponent(lead.phone)}">${lead.phone}</a>` : '—');
-        const value = document.createElement('div'); value.textContent = 'Valor estimado: ' + toCurrency(lead.orcamento_value || lead.estimativa_projeto_kwh || 0);
+        const value = document.createElement('div'); value.textContent = 'Valor estimado: ' + toCurrency(lead.orcamento_value || 0);
         const createdText = formatDateBR(lead.created_at || lead.createdAt || lead.created);
         const daysActive = daysSince(lead.created_at || lead.createdAt || lead.created);
         const createdDiv = document.createElement('div'); createdDiv.className = 'small text-muted'; createdDiv.textContent = 'Criado: ' + createdText + (daysActive !== null ? (' • ' + daysActive + ' dias') : '');
@@ -469,7 +486,7 @@
             const btns = document.createElement('div'); btns.className='mt-3 d-flex gap-2';
             // compact reminders placeholder (filled after panel open)
             const remindersWrap = document.createElement('div');
-            remindersWrap.className = 'mb-3'; remindersWrap.id = 'leadReminders';
+            remindersWrap.className = 'mt-3 mb-3'; remindersWrap.id = 'leadReminders';
             // prepare columns
             const leftCol = document.createElement('div'); leftCol.className = 'lead-col';
             const rightCol = document.createElement('div'); rightCol.className = 'lead-col';
@@ -477,7 +494,8 @@
                 const reminderBtn = document.createElement('button');
                 reminderBtn.className = 'btn btn-sm btn-outline-info';
                 reminderBtn.type = 'button';
-                reminderBtn.innerHTML = '<i class="fa fa-clock"></i> Lembrete';
+                reminderBtn.innerHTML = '<i class="fa fa-clock"></i>';
+                reminderBtn.title = 'Lembrete';
                 reminderBtn.addEventListener('click', (e)=>{
                     e.stopPropagation();
                     const leadId = lead.id || '';
@@ -513,9 +531,9 @@
                         }, {once:true});
                     });
                 });
-        const editBtn = document.createElement('button'); editBtn.className='btn btn-sm btn-outline-primary'; editBtn.type='button'; editBtn.textContent='Editar';
+        const editBtn = document.createElement('button'); editBtn.className='btn btn-sm btn-outline-primary'; editBtn.type='button'; editBtn.innerHTML='<i class="fa fa-edit"></i>'; editBtn.title='Editar';
         editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); populateLeadForm(lead); });
-        const deleteBtn = document.createElement('button'); deleteBtn.className='btn btn-sm btn-outline-danger'; deleteBtn.type='button'; deleteBtn.textContent='Excluir';
+        const deleteBtn = document.createElement('button'); deleteBtn.className='btn btn-sm btn-outline-danger'; deleteBtn.type='button'; deleteBtn.innerHTML='<i class="fa fa-trash"></i>'; deleteBtn.title='Excluir';
         deleteBtn.addEventListener('click', async (e)=>{
             e.stopPropagation();
             if (!confirm('Tem certeza que deseja excluir este lead?')) return;
@@ -534,13 +552,13 @@
                 alert('Erro ao excluir lead');
             }
         });
-        const whatsappBtn = document.createElement('a'); whatsappBtn.className='btn btn-sm btn-outline-success'; whatsappBtn.href = lead.phone? 'https://wa.me/'+lead.phone.replace(/\D/g,''):'#'; whatsappBtn.target='_blank'; whatsappBtn.textContent='WhatsApp';
-        const proposalBtn = document.createElement('button'); proposalBtn.className='btn btn-sm btn-primary'; proposalBtn.type='button'; proposalBtn.textContent='Enviar proposta';
+        const whatsappBtn = document.createElement('a'); whatsappBtn.className='btn btn-sm btn-outline-success'; whatsappBtn.href = lead.phone? 'https://wa.me/'+lead.phone.replace(/\D/g,''):'#'; whatsappBtn.target='_blank'; whatsappBtn.innerHTML='<i class="fa fa-whatsapp"></i>'; whatsappBtn.title='WhatsApp';
+        const proposalBtn = document.createElement('button'); proposalBtn.className='btn btn-sm btn-primary'; proposalBtn.type='button'; proposalBtn.innerHTML='<i class="fa fa-paper-plane"></i>'; proposalBtn.title='Enviar proposta';
         proposalBtn.classList.add('d-none');
         btns.appendChild(reminderBtn); btns.appendChild(editBtn); btns.appendChild(deleteBtn); btns.appendChild(whatsappBtn); btns.appendChild(proposalBtn);
 
         // Movement timeline
-        const timelineWrap = document.createElement('div'); timelineWrap.className = 'mt-3'; timelineWrap.innerHTML = '<h6>Histórico de movimentações</h6><div id="timeline"></div>';
+        const timelineWrap = document.createElement('div'); timelineWrap.className = 'my-5'; timelineWrap.innerHTML = '<h6>Histórico de movimentações</h6><div id="timeline"></div>';
         // assemble columns: left = basic info + notes + actions, right = reminders + timeline
         leftCol.appendChild(title); leftCol.appendChild(status); leftCol.appendChild(company); leftCol.appendChild(email); leftCol.appendChild(phone); leftCol.appendChild(value); leftCol.appendChild(createdDiv); leftCol.appendChild(notes); leftCol.appendChild(btns);
             rightCol.appendChild(remindersWrap); rightCol.appendChild(timelineWrap); 
@@ -566,12 +584,18 @@
         }
 
         const panel = $('#leadDetailsPanel'); panel.classList.remove('hidden');
+        // add margin to kanban when panel is open
+        const kanbanWrap = $('#kanbanWrap'); if (kanbanWrap) kanbanWrap.classList.add('panel-open');
         // if panel already expanded, ensure two-column class present
         const detail = document.getElementById('leadDetailContent');
         if (panel.classList.contains('expanded')) { if (detail) detail.classList.add('columns-2'); }
     }
 
-    function closePanel(){ $('#leadDetailsPanel').classList.add('hidden'); }
+    function closePanel(){ 
+        $('#leadDetailsPanel').classList.add('hidden'); 
+        // remove margin from kanban when panel is closed
+        const kanbanWrap = $('#kanbanWrap'); if (kanbanWrap) kanbanWrap.classList.remove('panel-open');
+    }
 
     // fetch and render a compact reminders block inside the lead details panel
     function fetchRemindersForLead(leadId) {
@@ -658,7 +682,12 @@
         const stageEl = F('leadStage') || $('#leadStage'); if (stageEl) stageEl.value = lead.stage_id || '';
         const consumoEl = F('leadConsumo') || $('#leadConsumo'); if (consumoEl) consumoEl.value = lead.consumo_cliente || '';
         const estEl = F('leadEstimativa') || $('#leadEstimativa'); if (estEl) estEl.value = lead.estimativa_projeto_kwh || '';
-        const orcEl = F('leadOrcamento') || $('#leadOrcamento'); if (orcEl) orcEl.value = lead.orcamento_value || '';
+        const orcEl = F('leadOrcamento') || $('#leadOrcamento'); if (orcEl) {
+            let val = parseFloat(lead.orcamento_value || 0).toFixed(2);
+            val = val.replace('.', ',');
+            val = val.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+            orcEl.value = val;
+        }
         const notesEl = F('leadNotes') || $('#leadNotes'); if (notesEl) notesEl.value = lead.notes || '';
         // reset file input
         const f = F('leadAnexos') || $('#leadAnexos'); if (f) f.value = '';
@@ -696,10 +725,14 @@
             expandBtn.addEventListener('click', ()=>{
                 const panel = document.getElementById('leadDetailsPanel');
                 const detail = document.getElementById('leadDetailContent');
+                const kanbanWrap = document.getElementById('kanbanWrap');
                 if (!panel) return;
                 const expanded = panel.classList.toggle('expanded');
                 if (detail) {
                     detail.classList.toggle('columns-2', expanded);
+                }
+                if (kanbanWrap) {
+                    kanbanWrap.classList.toggle('panel-expanded', expanded);
                 }
                 expandBtn.setAttribute('aria-pressed', expanded ? 'true' : 'false');
                 expandBtn.textContent = expanded ? '⇤' : '⇔';
@@ -906,6 +939,16 @@
         // populate bulk stages when modal opens
         const bulkBtn = $('#bulkActionsBtn'); if (bulkBtn) {
             bulkBtn.addEventListener('click', ()=> populateBulkStages());
+        }
+
+        // uncheck all selected leads
+        const uncheckBtn = $('#bulkUncheckBtn'); if (uncheckBtn) {
+            uncheckBtn.addEventListener('click', ()=>{
+                $all('.lead-select:checked').forEach(chk => {
+                    chk.checked = false;
+                    chk.dispatchEvent(new Event('change'));
+                });
+            });
         }
 
         // bulk apply

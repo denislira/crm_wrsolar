@@ -122,25 +122,31 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 }
 
 
-try {
+    if ($action === 'search') {
+        $query = $_GET['q'] ?? '';
+        if (strlen($query) < 2) { 
+            echo json_encode([]); 
+            exit; 
+        }
+        $stmt = $pdo->prepare("SELECT id, name, email, phone FROM leads WHERE user_id = ? AND (name LIKE ? OR email LIKE ? OR phone LIKE ?) LIMIT 10");
+        $like = '%' . $query . '%';
+        $stmt->execute([$userId, $like, $like, $like]);
+        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        exit;
+    }
+
     if ($action === 'list') {
-        // Try to include proposal_value from projetos (sum per lead). If projetos table missing, fallback to simple leads select.
         try {
-            $sql = 'SELECT l.id, l.user_id, l.name, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.orcamento_value, l.anexos_filename, l.anexos_mimetype, l.created_at, l.updated_at '
-                 . 'FROM leads l '
-                 . 'WHERE l.user_id = ? ORDER BY l.created_at DESC';
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$userId]);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            // fallback to basic leads select if column not available
             $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE user_id = ? ORDER BY created_at DESC');
             $stmt->execute([$userId]);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            // ensure orcamento_value exists for compatibility
-            foreach ($rows as &$r) { if (!isset($r['orcamento_value'])) $r['orcamento_value'] = 0; }
-            unset($r);
+        } catch (Exception $e) {
+            // fallback if error
+            $rows = [];
         }
+        // ensure orcamento_value exists for compatibility
+        foreach ($rows as &$r) { if (!isset($r['orcamento_value'])) $r['orcamento_value'] = 0; }
+        unset($r);
         echo json_encode($rows);
         exit;
     }
@@ -460,24 +466,4 @@ try {
 
     http_response_code(400);
     echo json_encode(['error' => 'Unknown action']);
-} catch (Exception $e) {
-    // Log detailed info for debugging (avoid logging raw file contents)
-    try {
-        $summary = [];
-        $summary['action'] = $action;
-        $summary['user_id'] = $userId ?? 'unknown';
-        $summary['request_method'] = $_SERVER['REQUEST_METHOD'] ?? 'N/A';
-        $summary['post_keys'] = array_keys($_POST);
-        $summary['files'] = array_map(function($f){ return ['name'=>$f['name'] ?? null, 'size'=>isset($f['size'])?$f['size']:null]; }, $_FILES ?: []);
-        $summary['remote_addr'] = $_SERVER['REMOTE_ADDR'] ?? 'cli';
-        $summary['error'] = $e->getMessage();
-        $summary['trace'] = $e->getTraceAsString();
-        _leads_api_log(json_encode($summary));
-    } catch (Exception $inner) {
-        // swallow
-        @file_put_contents(__DIR__ . '/../logs/leads_api_errors.log', "[".date('c')."] log failure: " . $inner->getMessage() . "\n", FILE_APPEND | LOCK_EX);
-    }
-    http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
-}
 

@@ -58,13 +58,23 @@ switch ($action) {
         ]);
         echo json_encode(['success'=>true]);
         break;
-    case 'delete':
-        $id = $_GET['id'] ?? 0;
-        $stmt = $pdo->prepare("DELETE FROM team_tasks WHERE id=? AND user_id=?");
-        $stmt->execute([$id, $userId]);
-        echo json_encode(['success'=>true]);
+    case 'recent_activities':
+        $sql = "SELECT id, equipe, titulo, responsavel, criado_em, atualizado_em FROM team_tasks WHERE user_id = ? AND (criado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY) OR atualizado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)) ORDER BY GREATEST(criado_em, atualizado_em) DESC LIMIT 10";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$userId]);
+        $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $activities = [];
+        foreach ($tasks as $t) {
+            $isNew = $t['criado_em'] == $t['atualizado_em'];
+            $timestamp = $isNew ? $t['criado_em'] : $t['atualizado_em'];
+            $activities[] = [
+                'type' => $isNew ? 'created' : 'updated',
+                'titulo' => $t['titulo'],
+                'equipe' => $t['equipe'],
+                'responsavel' => $t['responsavel'],
+                'timestamp' => $timestamp
+            ];
+        }
+        echo json_encode($activities);
         break;
-    default:
-        http_response_code(400);
-        echo json_encode(['error'=>'Ação inválida']);
 }

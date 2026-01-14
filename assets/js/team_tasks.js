@@ -23,6 +23,11 @@ export async function updateTask(id, data) {
   return await res.json();
 }
 
+export async function fetchRecentActivities() {
+  const res = await fetch('includes/team_tasks_api.php?action=recent_activities');
+  return await res.json();
+}
+
 export async function deleteTask(id) {
   const res = await fetch('includes/team_tasks_api.php?action=delete&id=' + id, {method:'POST'});
   return await res.json();

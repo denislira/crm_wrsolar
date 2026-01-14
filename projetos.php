@@ -8,6 +8,12 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/permissions.php';
+
+if (!hasPermission('projetos')) {
+    echo "Acesso negado.";
+    exit;
+}
 
 $stmt = $pdo->prepare('SELECT * FROM projetos WHERE user_id = ? ORDER BY id DESC');
 $stmt->execute([$_SESSION['user_id']]);

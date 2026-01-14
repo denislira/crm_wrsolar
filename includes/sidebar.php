@@ -54,6 +54,14 @@ $current = basename($_SERVER['PHP_SELF']);
                     <span class="label">Relatórios</span>
                 </a>
             </li>
+            <?php if (hasPermission('configuracoes')): ?>
+            <li class="nav-item">
+                <a href="configuracoes.php" class="nav-link <?php echo $current=='configuracoes.php' ? 'active':''; ?>" data-tooltip="Configurações">
+                    <span class="icon"><i class="fa-solid fa-cog"></i></span>
+                    <span class="label">Configurações</span>
+                </a>
+            </li>
+            <?php endif; ?>
         </ul>
     </div>
     

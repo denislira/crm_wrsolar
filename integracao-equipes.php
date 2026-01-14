@@ -3,6 +3,12 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 include 'includes/config.php';
+include 'includes/permissions.php';
+
+if (!hasPermission('integracao-equipes')) {
+    echo "Acesso negado.";
+    exit;
+}
 
 
 // Buscar equipes e responsáveis distintos para filtros
@@ -124,26 +130,6 @@ include 'includes/header.php';
                     <div class="card card-shadow p-3">
                         <h6 class="mb-2">Atividades recentes</h6>
                         <ul id="teamTimeline" class="list-unstyled mb-0">
-                            <li class="mb-2 d-flex align-items-center gap-2">
-                                <span class="badge bg-primary"><i class="fa fa-check"></i></span>
-                                <span><strong>João Silva</strong> concluiu tarefa <span class="text-success">"Revisar campanha de marketing"</span> <span class="text-muted">(Marketing)</span></span>
-                                <span class="ms-auto small text-muted">Hoje, 09:15</span>
-                            </li>
-                            <li class="mb-2 d-flex align-items-center gap-2">
-                                <span class="badge bg-warning"><i class="fa fa-hourglass-half"></i></span>
-                                <span><strong>Maria Souza</strong> iniciou tarefa <span class="text-info">"Contato com cliente X"</span> <span class="text-muted">(Vendas)</span></span>
-                                <span class="ms-auto small text-muted">Ontem, 16:40</span>
-                            </li>
-                            <li class="mb-2 d-flex align-items-center gap-2">
-                                <span class="badge bg-danger"><i class="fa fa-exclamation-triangle"></i></span>
-                                <span><strong>Equipe Técnica</strong> reportou atraso em <span class="text-danger">"Instalação sistema Y"</span></span>
-                                <span class="ms-auto small text-muted">24/10, 11:20</span>
-                            </li>
-                            <li class="mb-2 d-flex align-items-center gap-2">
-                                <span class="badge bg-success"><i class="fa fa-user-plus"></i></span>
-                                <span><strong>Financeiro</strong> adicionou nova tarefa <span class="text-success">"Emitir nota fiscal"</span></span>
-                                <span class="ms-auto small text-muted">23/10, 14:05</span>
-                            </li>
                         </ul>
                     </div>
                 </div>
@@ -220,13 +206,14 @@ include 'includes/header.php';
                                 <h6>Agendar Lembrete</h6>
                             </div>
                             <form id="formNovoLembrete">
-                                <div class="mb-2">
+                                <div class="mb-2 position-relative">
                                     <label class="form-label">Identificação do Lead</label>
-                                    <input type="text" name="lead_ident" id="rem-lead-ident" class="form-control form-control-sm" placeholder="Ex: Ana Souza - Follow-up Proposta" required>
+                                    <input type="text" name="lead_ident" id="rem-lead-ident" class="form-control form-control-sm" placeholder="Digite nome, email ou telefone do lead" autocomplete="off">
+                                    <div id="leadSuggestions" class="list-group position-absolute bg-white border" style="display:none; z-index:1000; max-height:200px; overflow-y:auto; width:100%;"></div>
                                 </div>
                                 <div class="mb-2">
-                                    <label class="form-label">Lead ID (número)</label>
-                                    <input type="text" name="lead_id" id="rem-lead-id" class="form-control form-control-sm" placeholder="Opcional, apenas se souber o ID">
+                                    <label class="form-label">Lead ID (automático)</label>
+                                    <input type="text" name="lead_id" id="rem-lead-id" class="form-control form-control-sm" readonly placeholder="Será preenchido automaticamente">
                                 </div>
                                 <div class="mb-2 d-flex gap-2">
                                     <div class="flex-fill">
@@ -277,7 +264,7 @@ include 'includes/header.php';
 <?php include 'includes/footer.php'; ?>
 
 <script type="module">
-import { fetchTasks, addTask, updateTask, deleteTask } from './assets/js/team_tasks.js';
+import { fetchTasks, addTask, updateTask, deleteTask, fetchRecentActivities } from './assets/js/team_tasks.js';
 
 const equipes = <?php echo json_encode($equipes); ?>;
 const responsaveis = <?php echo json_encode($responsaveis); ?>;
@@ -287,6 +274,9 @@ function escapeHtmlGlobal(str) {
     if (!str) return '';
     return String(str).replace(/[&<>"']/g, function (s) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s]; });
 }
+
+// Alias para compatibilidade
+const escapeHtml = escapeHtmlGlobal;
 
 // Funções para atualizar a lista de tarefas e a linha do tempo
 async function atualizarTarefas() {
@@ -353,17 +343,26 @@ async function atualizarTarefas() {
             actions.className = 'd-flex flex-column gap-1';
             actions.innerHTML = `<button class="btn btn-sm btn-outline-primary" title="Editar"><i class="fa fa-edit"></i></button>
                 <button class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa fa-trash"></i></button>`;
-            // ...eventos de editar/excluir podem ser adicionados aqui...
+            // Adicionar eventos de editar/excluir
+            const editBtn = actions.querySelector('.btn-outline-primary');
+            const deleteBtn = actions.querySelector('.btn-outline-danger');
+            editBtn.addEventListener('click', () => openEditModal(t));
+            deleteBtn.addEventListener('click', () => deleteTaskConfirm(t.id));
             card.appendChild(actions);
             list.appendChild(card);
         });
     }
+    // Adicionar eventos aos checkboxes
+    document.querySelectorAll('.task-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateBulkActions);
+    });
     // Atualizar contadores de tarefas por equipe
     <?php foreach ($equipes as $eq): ?>
         document.getElementById('count_<?php echo strtolower($eq); ?>').innerText = tarefas.filter(t => t.equipe === '<?php echo $eq; ?>').length;
     <?php endforeach; ?>
 
-    // Funções auxiliares
+    // Carregar atividades recentes
+    loadRecentActivities();
     function initials(nome) {
         return nome.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2);
     }
@@ -389,40 +388,85 @@ function showNotification(msg, tipo='success') {
   setTimeout(()=>{el.textContent='';el.className='';}, 3000);
 }
 
-// Evento de mudança nos filtros
-document.getElementById('filtroEquipe').addEventListener('change', atualizarTarefas);
-document.getElementById('filtroResp').addEventListener('change', atualizarTarefas);
-document.getElementById('filtroStatus').addEventListener('change', atualizarTarefas);
-document.getElementById('filtroBusca').addEventListener('input', atualizarTarefas);
-
-// Evento de submissão do formulário de nova tarefa
-const formNovaTarefa = document.getElementById('formNovaTarefa');
-formNovaTarefa.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    const novaTarefa = Object.fromEntries(formData);
-    novaTarefa.user_id = userId;
-    const resposta = await addTask(novaTarefa);
-    if (resposta.success) {
-      showNotification('Tarefa criada com sucesso!','success');
-      this.reset();
-      atualizarTarefas();
-    } else {
-      showNotification('Erro ao criar tarefa','danger');
-    }
-});
-
 // Carregar tarefas iniciais
 atualizarTarefas();
+
+// Função para carregar atividades recentes
+async function loadRecentActivities() {
+    const list = document.getElementById('teamTimeline');
+    list.innerHTML = '';
+    try {
+        const activities = await fetchRecentActivities();
+        if (!activities.length) {
+            list.innerHTML = '<li class="text-muted small">Nenhuma atividade recente.</li>';
+            return;
+        }
+        activities.forEach(a => {
+            const li = document.createElement('li');
+            li.className = 'mb-2 d-flex align-items-center gap-2';
+            const badgeClass = a.type === 'created' ? 'bg-success' : 'bg-warning';
+            const icon = a.type === 'created' ? 'fa-user-plus' : 'fa-edit';
+            const actionText = a.type === 'created' ? 'adicionou nova tarefa' : 'atualizou tarefa';
+            const name = a.responsavel || a.equipe;
+            li.innerHTML = `
+                <span class="badge ${badgeClass}"><i class="fa ${icon}"></i></span>
+                <span><strong>${escapeHtml(name)}</strong> ${actionText} <span class="text-info">"${escapeHtml(a.titulo)}"</span> <span class="text-muted">(${escapeHtml(a.equipe)})</span></span>
+                <span class="ms-auto small text-muted">${formatDate(a.timestamp)}</span>
+            `;
+            list.appendChild(li);
+        });
+    } catch (e) {
+        console.error(e);
+        list.innerHTML = '<li class="text-danger small">Erro ao carregar atividades.</li>';
+    }
+}
+
+function updateBulkActions() {
+    const checked = document.querySelectorAll('.task-checkbox:checked');
+    console.log('Checkboxes marcadas:', checked.length);
+    const bulkDiv = document.getElementById('bulkActions');
+    bulkDiv.style.display = checked.length > 0 ? 'block' : 'none';
+}
+
+function formatDate(ts) {
+    const date = new Date(ts);
+    const now = new Date();
+    const diff = now - date;
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    if (days === 0) return 'Hoje, ' + date.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    if (days === 1) return 'Ontem, ' + date.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    return date.toLocaleDateString('pt-BR') + ', ' + date.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+}
+
+// Funções para editar e excluir tarefas
+function openEditModal(task) {
+    document.getElementById('edit-id').value = task.id;
+    document.getElementById('edit-equipe').value = task.equipe;
+    document.getElementById('edit-responsavel').value = task.responsavel;
+    document.getElementById('edit-titulo').value = task.titulo;
+    document.getElementById('edit-status').value = task.status;
+    document.getElementById('edit-data-vencimento').value = task.data_vencimento;
+    document.getElementById('edit-descricao').value = task.descricao;
+    const modal = new bootstrap.Modal(document.getElementById('modalEditarTarefa'));
+    modal.show();
+}
+
+async function deleteTaskConfirm(id) {
+    if (confirm('Tem certeza que deseja excluir esta tarefa?')) {
+        const resposta = await deleteTask(id);
+        if (resposta.success) {
+            atualizarTarefas();
+        } else {
+            alert('Erro ao excluir tarefa');
+        }
+    }
+}
 
 // --- Abas: Tarefas / Lembretes ---
 const tabTarefas = document.getElementById('tabTarefas');
 const tabLembretesBtn = document.getElementById('tabLembretesBtn');
 const tarefasArea = document.getElementById('tarefasArea');
 const lembretesArea = document.getElementById('lembretesArea');
-
-tabTarefas.addEventListener('click', () => { showTab('tarefas'); });
-tabLembretesBtn.addEventListener('click', () => { showTab('lembretes'); });
 
 function showTab(name) {
     if (name === 'tarefas') {
@@ -461,9 +505,9 @@ async function loadRemindersLayout() {
         if (!res.ok) throw new Error('Erro');
         const reminders = await res.json();
         const now = new Date();
-        const today = now.toISOString().slice(0,10);
+        const today = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
         const todayItems = reminders.filter(r => r.remind_at && r.remind_at.slice(0,10) === today);
-        const upcoming = reminders.filter(r => r.remind_at && r.remind_at.slice(0,10) >= today).sort((a,b)=> a.remind_at.localeCompare(b.remind_at));
+        const upcoming = reminders.filter(r => r.remind_at && r.remind_at.slice(0,10) > today).sort((a,b)=> a.remind_at.localeCompare(b.remind_at));
 
         if (!todayItems.length) agendaEl.innerHTML = '<div class="text-muted small" style="padding:12px;">Nenhum lembrete para hoje.</div>'; else {
             agendaEl.innerHTML = '';
@@ -511,7 +555,7 @@ async function loadRemindersLayout() {
                     </div>
                     <div class="evento-content-modern">
                         <div class="evento-title-modern">
-                            ${escapeHtmlGlobal(r.lead_name||('Lead #'+r.lead_id))}
+                            ${escapeHtmlGlobal(r.lead_name ? r.lead_name + ' (#' + r.lead_id + ')' : 'Lead #' + r.lead_id)}
                             ${isToday ? '<span class="reminder-badge-hoje">HOJE</span>' : ''}
                         </div>
                         <div class="evento-time-icon">
@@ -535,37 +579,183 @@ async function loadRemindersLayout() {
     }
 }
 
-// submissão do novo lembrete
-const formNovoLembrete = document.getElementById('formNovoLembrete');
-if (formNovoLembrete) {
-    formNovoLembrete.addEventListener('submit', async function(e){
-        e.preventDefault();
-        const leadIdRaw = document.getElementById('rem-lead-id').value.trim();
-        const leadId = leadIdRaw && !isNaN(Number(leadIdRaw)) ? Number(leadIdRaw) : null;
-        if (!document.getElementById('rem-message').value.trim()) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Mensagem obrigatória</div>'; return; }
-        if (!document.getElementById('rem-date').value || !document.getElementById('rem-time').value) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Data e hora obrigatórias</div>'; return; }
-        if (!leadId) { document.getElementById('remMsg').innerHTML = '<div class="text-warning">Recomenda-se informar o Lead ID numérico. Use o campo opcional se souber o ID.</div>'; }
-        const datetime = document.getElementById('rem-date').value + ' ' + document.getElementById('rem-time').value;
-        const payload = new URLSearchParams();
-        payload.append('action','add');
-        payload.append('datetime', datetime);
-        payload.append('message', document.getElementById('rem-message').value.trim());
-        payload.append('template_id', document.getElementById('rem-template').value || '');
-        payload.append('lead_ident', document.getElementById('rem-lead-ident').value.trim());
-        if (leadId) payload.append('lead_id', String(leadId)); else payload.append('lead_id','0');
-        try {
-            const res = await fetch('includes/reminders_api.php', { method: 'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: payload.toString() });
-            const data = await res.json();
-            if (data.ok) {
-                document.getElementById('remMsg').innerHTML = '<div class="alert alert-success">Lembrete salvo</div>';
+// Adicionar event listeners após o DOM carregar
+document.addEventListener('DOMContentLoaded', () => {
+    // Evento de mudança nos filtros
+    const filtroEquipe = document.getElementById('filtroEquipe');
+    if (filtroEquipe) filtroEquipe.addEventListener('change', atualizarTarefas);
+    const filtroResp = document.getElementById('filtroResp');
+    if (filtroResp) filtroResp.addEventListener('change', atualizarTarefas);
+    const filtroStatus = document.getElementById('filtroStatus');
+    if (filtroStatus) filtroStatus.addEventListener('change', atualizarTarefas);
+    const filtroBusca = document.getElementById('filtroBusca');
+    if (filtroBusca) filtroBusca.addEventListener('input', atualizarTarefas);
+    // Evento de submissão do formulário de nova tarefa
+    const formNovaTarefa = document.getElementById('formNovaTarefa');
+    if (formNovaTarefa) {
+        formNovaTarefa.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const novaTarefa = Object.fromEntries(formData);
+            novaTarefa.user_id = userId;
+            const resposta = await addTask(novaTarefa);
+            if (resposta.success) {
+                showNotification('Tarefa criada com sucesso!','success');
                 this.reset();
-                loadRemindersLayout();
-                setTimeout(()=>{ document.getElementById('remMsg').innerHTML=''; }, 2500);
+                atualizarTarefas();
             } else {
-                document.getElementById('remMsg').innerHTML = '<div class="text-danger">Erro ao salvar</div>';
+                showNotification('Erro ao criar tarefa','danger');
             }
-        } catch (e) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Erro ao salvar</div>'; }
+        });
+    }
+    // submissão do novo lembrete
+    const formNovoLembrete = document.getElementById('formNovoLembrete');
+    if (formNovoLembrete) {
+        formNovoLembrete.addEventListener('submit', async function(e){
+            e.preventDefault();
+            const leadIdRaw = document.getElementById('rem-lead-id').value.trim();
+            const leadId = leadIdRaw && !isNaN(Number(leadIdRaw)) ? Number(leadIdRaw) : null;
+            if (!document.getElementById('rem-message').value.trim()) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Mensagem obrigatória</div>'; return; }
+            if (!document.getElementById('rem-date').value || !document.getElementById('rem-time').value) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Data e hora obrigatórias</div>'; return; }
+            if (!leadId) { document.getElementById('remMsg').innerHTML = '<div class="text-warning">Recomenda-se informar o Lead ID numérico. Use o campo opcional se souber o ID.</div>'; }
+            const datetime = document.getElementById('rem-date').value + ' ' + document.getElementById('rem-time').value;
+            const payload = new URLSearchParams();
+            payload.append('action','add');
+            payload.append('datetime', datetime);
+            payload.append('message', document.getElementById('rem-message').value.trim());
+            payload.append('template_id', document.getElementById('rem-template').value || '');
+            payload.append('lead_ident', document.getElementById('rem-lead-ident').value.trim());
+            if (leadId) payload.append('lead_id', String(leadId)); else payload.append('lead_id','0');
+            try {
+                const res = await fetch('includes/reminders_api.php', { method: 'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: payload.toString() });
+                const data = await res.json();
+                if (data.ok) {
+                    document.getElementById('remMsg').innerHTML = '<div class="alert alert-success">Lembrete salvo</div>';
+                    this.reset();
+                    loadRemindersLayout();
+                    setTimeout(()=>{ document.getElementById('remMsg').innerHTML=''; }, 2500);
+                } else {
+                    document.getElementById('remMsg').innerHTML = '<div class="text-danger">Erro ao salvar</div>';
+                }
+            } catch (e) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Erro ao salvar</div>'; }
+        });
+    }
+
+    // Busca automática de leads para lembretes
+    const leadIdentInput = document.getElementById('rem-lead-ident');
+    const leadIdInput = document.getElementById('rem-lead-id');
+    const suggestionsDiv = document.getElementById('leadSuggestions');
+    let searchTimeout;
+
+    if (leadIdentInput) {
+        leadIdentInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const query = this.value.trim();
+            if (query.length < 2) {
+                if (suggestionsDiv) suggestionsDiv.style.display = 'none';
+                return;
+            }
+            searchTimeout = setTimeout(async () => {
+                console.log('Buscando leads para:', query);
+                try {
+                    const res = await fetch(`includes/leads_api.php?action=search&q=${encodeURIComponent(query)}`);
+                    console.log('Resposta da API:', res.status);
+                    const leads = await res.json();
+                    console.log('Leads encontrados:', leads);
+                    if (suggestionsDiv) {
+                        suggestionsDiv.innerHTML = '';
+                        if (leads.length) {
+                            leads.forEach(lead => {
+                                const item = document.createElement('a');
+                                item.className = 'list-group-item list-group-item-action py-2';
+                                item.style.cursor = 'pointer';
+                                item.innerHTML = `<strong>${escapeHtml(lead.name)}</strong> - ${escapeHtml(lead.email)} - ${escapeHtml(lead.phone)}`;
+                                item.addEventListener('click', () => {
+                                    if (leadIdentInput) leadIdentInput.value = lead.name;
+                                    if (leadIdInput) leadIdInput.value = lead.id;
+                                    if (suggestionsDiv) suggestionsDiv.style.display = 'none';
+                                    console.log('Lead selecionado:', lead);
+                                });
+                                suggestionsDiv.appendChild(item);
+                            });
+                            suggestionsDiv.style.display = 'block';
+                        } else {
+                            suggestionsDiv.style.display = 'none';
+                        }
+                    }
+                } catch (e) {
+                    console.error('Erro na busca:', e);
+                }
+            }, 300);
+        });
+    }
+
+    // Esconder sugestões ao clicar fora
+    document.addEventListener('click', (e) => {
+        if (leadIdentInput && suggestionsDiv && !leadIdentInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+            suggestionsDiv.style.display = 'none';
+        }
     });
-}
+
+    // Evento para carregar mensagem do template
+    const templateSel = document.getElementById('rem-template');
+    if (templateSel) {
+        templateSel.addEventListener('change', async function() {
+            const templateId = this.value;
+            if (!templateId) {
+                const msgEl = document.getElementById('rem-message');
+                if (msgEl) msgEl.value = '';
+                return;
+            }
+            try {
+                const res = await fetch(`includes/reminder_templates_api.php?action=get&id=${templateId}`);
+                const template = await res.json();
+                const msgEl = document.getElementById('rem-message');
+                if (msgEl) msgEl.value = template.message || '';
+            } catch (e) {
+                console.error('Erro ao carregar template:', e);
+            }
+        });
+    }
+
+    // Desmarcar todos
+    const desmarcarTodos = document.getElementById('desmarcarTodos');
+    if (desmarcarTodos) {
+        desmarcarTodos.addEventListener('click', () => {
+            document.querySelectorAll('.task-checkbox').forEach(cb => cb.checked = false);
+            updateBulkActions();
+        });
+    }
+
+    // Evento para salvar edição
+    const btnSalvarEdicao = document.getElementById('btnSalvarEdicao');
+    if (btnSalvarEdicao) {
+        btnSalvarEdicao.addEventListener('click', async function() {
+            const form = document.getElementById('formEditarTarefa');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+            const id = data.id;
+            delete data.id;
+            const resposta = await updateTask(id, data);
+            if (resposta.success) {
+                document.getElementById('editarTarefaMsg').innerHTML = '<div class="alert alert-success">Tarefa atualizada com sucesso!</div>';
+                setTimeout(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('modalEditarTarefa'));
+                    modal.hide();
+                    document.getElementById('editarTarefaMsg').innerHTML = '';
+                    atualizarTarefas();
+                }, 1000);
+            } else {
+                document.getElementById('editarTarefaMsg').innerHTML = '<div class="alert alert-danger">Erro ao atualizar tarefa</div>';
+            }
+        });
+    }
+
+    // Abas: Tarefas / Lembretes
+    const tabTarefas = document.getElementById('tabTarefas');
+    const tabLembretesBtn = document.getElementById('tabLembretesBtn');
+    if (tabTarefas) tabTarefas.addEventListener('click', () => { showTab('tarefas'); });
+    if (tabLembretesBtn) tabLembretesBtn.addEventListener('click', () => { showTab('lembretes'); });
+});
 
 </script>

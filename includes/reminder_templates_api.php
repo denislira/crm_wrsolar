@@ -13,6 +13,15 @@ try {
         echo json_encode($rows);
         exit;
     }
+    if ($action === 'get') {
+        $id = $_GET['id'] ?? 0;
+        $stmt = $pdo->prepare('SELECT * FROM reminder_templates WHERE id = ? AND active = 1');
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) { http_response_code(404); echo json_encode(['error'=>'Template not found']); exit; }
+        echo json_encode($row);
+        exit;
+    }
     if ($action === 'create' || $action === 'add') {
         // create a new reminder template
         $name = trim($_POST['name'] ?? '');

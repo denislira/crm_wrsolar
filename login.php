@@ -11,12 +11,19 @@ $noNavbar = true;
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'];
     $password = $_POST['password'];
-    $stmt = $pdo->prepare('SELECT id, username, password FROM users WHERE username = ?');
+    $stmt = $pdo->prepare('SELECT id, username, password, role_id FROM users WHERE username = ?');
     $stmt->execute([$username]);
     $user = $stmt->fetch();
     if ($user && password_verify($password, $user['password'])) {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
+        $_SESSION['role_id'] = $user['role_id'];
+        
+        // Load permissions
+        $stmt_perm = $pdo->prepare('SELECT screen FROM role_permissions WHERE role_id = ? AND allowed = 1');
+        $stmt_perm->execute([$user['role_id']]);
+        $_SESSION['permissions'] = $stmt_perm->fetchAll(PDO::FETCH_COLUMN);
+        
         header('Location: index.php'); exit;
     } else { $error = 'Usuário ou senha incorretos!'; }
 }

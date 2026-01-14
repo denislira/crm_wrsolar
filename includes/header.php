@@ -1,10 +1,14 @@
-<?php if (session_status() === PHP_SESSION_NONE) session_start(); ?>
+<?php 
+if (session_status() === PHP_SESSION_NONE) session_start(); 
+include_once 'includes/permissions.php';
+?>
 <!doctype html>
 <html lang="pt-br">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SolarCRM</title>
+  <link rel="icon" type="image/png" href="assets/img/favicon.png">
   <link rel="stylesheet" href="assets/css/bootstrap.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

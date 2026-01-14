@@ -3,6 +3,13 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/permissions.php';
+
+if (!hasPermission('leads_gestao')) {
+    echo "Acesso negado.";
+    exit;
+}
+
 $pageTitle = 'Gestão de Leads';
 include 'includes/header.php';
 ?>
@@ -38,8 +45,9 @@ include 'includes/header.php';
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <div id="pipelineSummary" class="small text-muted">Pipeline total: <strong id="pipelineTotal">R$ 0,00</strong></div>
                 <div class="d-flex gap-2 align-items-center">
-                    <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
                     <button id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger d-none" title="Excluir selecionados"><i class="fa fa-trash"></i></button>
+                    <button id="bulkUncheckBtn" class="btn btn-sm btn-outline-secondary d-none" title="Desmarcar todos"><i class="fa fa-times"></i></button>
+                    <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
                     <button id="bulkActionsBtn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#bulkModal">Ações em massa</button>
                     <button id="toggleViewBtn" class="btn btn-sm btn-outline-secondary" title="Alternar visualização Kanban / Grade"><i class="fa fa-columns"></i></button>
                 </div>

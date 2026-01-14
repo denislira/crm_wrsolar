@@ -6,6 +6,12 @@ if (session_status() === PHP_SESSION_NONE) {
 if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
 require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/permissions.php';
+
+if (!hasPermission('pos-venda')) {
+    echo "Acesso negado.";
+    exit;
+}
 
 $stmt = $pdo->prepare('SELECT p.client_name, pv.* FROM pos_venda pv JOIN projetos p ON pv.project_id=p.id WHERE pv.user_id = ?');
 $stmt->execute([$_SESSION['user_id']]);
@@ -52,89 +58,32 @@ include 'includes/header.php';
                 </div>
             </div>
             <div class="row g-3" id="cardsPosVenda">
-                <?php if(count($posVendas) === 0): ?>
-                    <!-- Dados fictícios -->
-                    <?php $demo = [
-                        ['client_name'=>'Empresa SolarTech','installation_date'=>'2025-09-10','next_maintenance'=>'2026-03-10','warranty_end'=>'2030-09-10','notes'=>'Sistema funcionando perfeitamente.'],
-                        ['client_name'=>'João Silva','installation_date'=>'2025-07-22','next_maintenance'=>'2025-12-22','warranty_end'=>'2030-07-22','notes'=>'Agendar manutenção preventiva.'],
-                        ['client_name'=>'Maria Souza','installation_date'=>'2025-08-05','next_maintenance'=>'2026-02-05','warranty_end'=>'2030-08-05','notes'=>'Cliente solicitou revisão.'],
-                    ]; ?>
-                    <?php foreach($demo as $pv): ?>
-                    <div class="col-md-6 col-lg-4">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="badge bg-primary">Instalação</span>
-                                    <span class="badge bg-success">Garantia ativa</span>
-                                </div>
-                                <h5 class="mb-1"><i class="fa fa-user text-muted"></i> <?= htmlspecialchars($pv['client_name']) ?></h5>
-                                <div class="mb-1"><i class="fa fa-calendar-check text-success"></i> Instalação: <?= date('d/m/Y', strtotime($pv['installation_date'])) ?></div>
-                                <div class="mb-1"><i class="fa fa-calendar-alt text-warning"></i> Próx. manutenção: <?= date('d/m/Y', strtotime($pv['next_maintenance'])) ?></div>
-                                <div class="mb-1"><i class="fa fa-shield-alt text-info"></i> Garantia até <?= date('d/m/Y', strtotime($pv['warranty_end'])) ?></div>
-                                <div class="mb-2"><i class="fa fa-sticky-note text-muted"></i> <span class="small">Notas: <?= htmlspecialchars($pv['notes']) ?></span></div>
-                                <div class="d-flex gap-2 mt-2">
-                                    <button class="btn btn-sm btn-outline-primary"><i class="fa fa-edit"></i> Editar</button>
-                                    <button class="btn btn-sm btn-outline-success"><i class="fa fa-calendar-check"></i> Marcar manutenção</button>
-                                    <button class="btn btn-sm btn-outline-info"><i class="fa fa-history"></i> Histórico</button>
-                                </div>
+                <?php foreach($posVendas as $pv): ?>
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="badge bg-primary">Instalação</span>
+                                <span class="badge bg-success">Garantia ativa</span>
+                            </div>
+                            <h5 class="mb-1"><i class="fa fa-user text-muted"></i> <?= htmlspecialchars($pv['client_name']) ?></h5>
+                            <div class="mb-1"><i class="fa fa-calendar-check text-success"></i> Instalação: <?= date('d/m/Y', strtotime($pv['installation_date'])) ?></div>
+                            <div class="mb-1"><i class="fa fa-calendar-alt text-warning"></i> Próx. manutenção: <?= date('d/m/Y', strtotime($pv['next_maintenance'])) ?></div>
+                            <div class="mb-1"><i class="fa fa-shield-alt text-info"></i> Garantia até <?= date('d/m/Y', strtotime($pv['warranty_end'])) ?></div>
+                            <div class="mb-2"><i class="fa fa-sticky-note text-muted"></i> <span class="small">Notas: <?= !empty($pv['notes']) ? htmlspecialchars($pv['notes']) : '—' ?></span></div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-sm btn-outline-primary"><i class="fa fa-edit"></i> Editar</button>
+                                <button class="btn btn-sm btn-outline-success"><i class="fa fa-calendar-check"></i> Marcar manutenção</button>
+                                <button class="btn btn-sm btn-outline-info"><i class="fa fa-history"></i> Histórico</button>
                             </div>
                         </div>
                     </div>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <?php foreach($posVendas as $pv): ?>
-                    <div class="col-md-6 col-lg-4">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="badge bg-primary">Instalação</span>
-                                    <span class="badge bg-success">Garantia ativa</span>
-                                </div>
-                                <h5 class="mb-1"><i class="fa fa-user text-muted"></i> <?= htmlspecialchars($pv['client_name']) ?></h5>
-                                <div class="mb-1"><i class="fa fa-calendar-check text-success"></i> Instalação: <?= date('d/m/Y', strtotime($pv['installation_date'])) ?></div>
-                                <div class="mb-1"><i class="fa fa-calendar-alt text-warning"></i> Próx. manutenção: <?= date('d/m/Y', strtotime($pv['next_maintenance'])) ?></div>
-                                <div class="mb-1"><i class="fa fa-shield-alt text-info"></i> Garantia até <?= date('d/m/Y', strtotime($pv['warranty_end'])) ?></div>
-                                <div class="mb-2"><i class="fa fa-sticky-note text-muted"></i> <span class="small">Notas: <?= !empty($pv['notes']) ? htmlspecialchars($pv['notes']) : '—' ?></span></div>
-                                <div class="d-flex gap-2 mt-2">
-                                    <button class="btn btn-sm btn-outline-primary"><i class="fa fa-edit"></i> Editar</button>
-                                    <button class="btn btn-sm btn-outline-success"><i class="fa fa-calendar-check"></i> Marcar manutenção</button>
-                                    <button class="btn btn-sm btn-outline-info"><i class="fa fa-history"></i> Histórico</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                </div>
+                <?php endforeach; ?>
             </div>
                 </div>
                 <div class="tab-pane fade" id="tabFeedback" role="tabpanel">
-                    <div class="row g-3">
-                        <!-- Dados fictícios de feedback -->
-                        <?php $feedbacks = [
-                            ['cliente'=>'Empresa SolarTech','nota'=>5,'comentario'=>'Excelente atendimento e pós-venda. Recomendo!','data'=>'2025-09-20'],
-                            ['cliente'=>'João Silva','nota'=>4,'comentario'=>'Equipe técnica muito prestativa.','data'=>'2025-08-01'],
-                            ['cliente'=>'Maria Souza','nota'=>3,'comentario'=>'Demorou um pouco para agendar manutenção, mas resolveram.','data'=>'2025-08-15'],
-                        ]; ?>
-                        <?php foreach($feedbacks as $fb): ?>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="card h-100 shadow-sm">
-                                <div class="card-body">
-                                    <div class="d-flex align-items-center mb-2">
-                                        <i class="fa fa-user-circle fa-2x text-primary me-2"></i>
-                                        <strong><?= htmlspecialchars($fb['cliente']) ?></strong>
-                                    </div>
-                                    <div class="mb-2">
-                                        <?php for($i=1;$i<=5;$i++): ?>
-                                            <i class="fa fa-star<?= $i <= $fb['nota'] ? ' text-warning' : ' text-secondary' ?>"></i>
-                                        <?php endfor; ?>
-                                        <span class="ms-2 small text-muted"><?= date('d/m/Y', strtotime($fb['data'])) ?></span>
-                                    </div>
-                                    <div class="mb-2"><i class="fa fa-comment-dots text-info"></i> <span class="small">"<?= htmlspecialchars($fb['comentario']) ?>"</span></div>
-                                </div>
-                            </div>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
+                    <p>Nenhum feedback de clientes disponível no momento.</p>
                 </div>
             </div>
     </main>

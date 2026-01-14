@@ -2,6 +2,8 @@
 :root{--bg:#f8fafc;--card:#fff;--muted:#6b7280;--accent:#0b6ac1;--danger:#ef4444}
 body{background:#e9eef5}
 .kanban-wrap{display:flex;gap:16px;overflow:auto;padding:8px 2px}
+.kanban-wrap.panel-open{margin-right:420px}
+.kanban-wrap.panel-open.panel-expanded{margin-right:820px}
 .kanban-column{flex:0 0 320px;background:var(--card);border-radius:12px;padding:8px;border:1px solid rgba(11,26,49,0.06);box-shadow:0 10px 30px rgba(11,26,49,0.06);min-height:240px;overflow:hidden}
 .kanban-header{font-weight:700;padding:10px 12px;background:transparent;border-bottom:1px solid rgba(11,26,49,0.04);display:flex;justify-content:space-between;align-items:center}
 .kanban-top-stripe{height:6px;border-top-left-radius:12px;border-top-right-radius:12px;margin:-8px -8px 6px -8px}
@@ -17,7 +19,7 @@ body{background:#e9eef5}
 .badge-score.hot{background:#ef4444}
 .badge-score.warm{background:#f59e0b}
 .badge-score.cold{background:#06b6d4}
-.lead-panel{position:fixed;right:0;top:56px;width:420px;height:calc(100vh - 56px);background:var(--card);border-left:1px solid rgba(11,26,49,0.04);box-shadow:-8px 0 28px rgba(11,26,49,0.06);z-index:1200;overflow:auto;transition:transform .2s ease}
+.lead-panel{position:fixed;right:0;top:56px;width:420px;height:calc(100vh - 56px);background:var(--card);border-left:1px solid rgba(11,26,49,0.04);box-shadow:-8px 0 40px rgba(11,26,49,0.12), 0 0 20px rgba(0,0,0,0.1);z-index:1200;overflow:auto;transition:transform .2s ease}
 .lead-panel.hidden{transform:translateX(100%)}
 .lead-panel-inner{padding:18px}
 .close-panel{position:absolute;right:8px;top:8px}

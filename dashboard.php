@@ -6,6 +6,12 @@ if (session_status() === PHP_SESSION_NONE) {
 if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
 require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/permissions.php';
+
+if (!hasPermission('dashboard')) {
+    echo "Acesso negado.";
+    exit;
+}
 
 // Active leads (not converted/lost)
 $totalLeads = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE user_id = ? AND status NOT IN ('Convertido','Perdido')");

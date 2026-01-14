@@ -3,6 +3,13 @@
 if (session_status() == PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['username'])) { header('Location: login.php'); exit(); }
 require_once 'includes/config.php';
+require_once 'includes/permissions.php';
+
+if (!hasPermission('relatorios')) {
+    echo "Acesso negado.";
+    exit;
+}
+
 $pageTitle = 'Relatórios';
 include 'includes/header.php';
 
