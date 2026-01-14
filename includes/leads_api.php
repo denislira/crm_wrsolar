@@ -381,7 +381,8 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $data['status'], $changedBy, null, 0);
         } catch (Exception $e) { /* swallow */ }
 
-        // Auto-create task if stage has generate_task_on_enter enabled
+        // Auto-create task DISABLED - tasks should be created manually only
+        /*
         $taskCreated = false;
         if ($resolvedStageId) {
             try {
@@ -394,7 +395,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
                 try {
                     $dbg = ['ts'=>date('c'),'lead_id'=>$data['id'],'resolvedStageId'=>$resolvedStageId,'stage_row'=>$stageData];
                     file_put_contents(__DIR__ . '/../logs/auto_task_debug.log', json_encode($dbg, JSON_UNESCAPED_UNICODE) . PHP_EOL, FILE_APPEND);
-                } catch (Exception $e) { /* ignore */ }
+                } catch (Exception $e) { }
 
                 // normalize possible column names
                 $stageName = $stageData['name'] ?? ($stageData['stage_name'] ?? null);
@@ -424,13 +425,10 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
                     $taskCreated = (bool)$pdo->lastInsertId();
                     error_log("Auto-task created for lead {$data['id']} -> task_id=" . $pdo->lastInsertId());
                 }
-            } catch (Exception $e) { 
-                error_log("Auto-task creation failed: " . $e->getMessage());
-            }
-        }
+        */
 
         // Return whether a task was created for easier debugging on client
-        echo json_encode(['ok' => true, 'task_created' => $taskCreated]);
+        echo json_encode(['ok' => true, 'task_created' => false]); // Always false since auto-creation disabled
         exit;
     }
 
