@@ -43,7 +43,22 @@
         if(mode === 'dark') document.body.classList.add('theme-dark');
         else document.body.classList.add('theme-light');
         try{ localStorage.setItem('theme.mode', mode); }catch(e){}
+        // update reminder bell dropdown to match theme
+        try{ updateReminderDropdownTheme(); }catch(e){}
       };
+      function updateReminderDropdownTheme(){
+        const menu = document.getElementById('reminderBellMenu');
+        const count = document.getElementById('reminderBellCount');
+        if (!menu) return;
+        if (document.body.classList.contains('theme-dark')){
+          menu.classList.add('dropdown-menu-dark');
+          // adjust badge to muted in dark theme for contrast
+          if (count) { count.classList.remove('bg-danger'); count.classList.add('bg-secondary'); }
+        } else {
+          menu.classList.remove('dropdown-menu-dark');
+          if (count) { count.classList.remove('bg-secondary'); count.classList.add('bg-danger'); }
+        }
+      }
       // initialize from storage or prefers-color-scheme
       let stored = null; try{ stored = localStorage.getItem('theme.mode'); }catch(e){}
       if(stored) apply(stored);
@@ -100,5 +115,7 @@
       });
     })();
   </script>
+
+  <script src="assets/js/notifications.js"></script>
 </body>
 </html>

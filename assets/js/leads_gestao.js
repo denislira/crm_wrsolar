@@ -190,11 +190,17 @@
         return Math.floor(diffMs / (1000*60*60*24));
     }
 
+    function updateBulkDeleteVisibility(){
+        const btn = $('#bulkDeleteBtn');
+        if (btn) btn.classList.toggle('d-none', getSelectedLeadIds().length === 0);
+    }
+
     function makeCard(lead){
         const el = document.createElement('div'); el.className='lead-card'; el.draggable = true; el.dataset.id = lead.id;
         // selection checkbox for bulk actions
         const chk = document.createElement('input'); chk.type='checkbox'; chk.className = 'lead-select me-2'; chk.title = 'Selecionar para ações em massa';
         chk.addEventListener('click', (e)=>{ e.stopPropagation(); el.classList.toggle('selected', chk.checked); });
+        chk.addEventListener('change', updateBulkDeleteVisibility);
         const head = document.createElement('div'); head.className = 'd-flex align-items-center justify-content-between';
         const left = document.createElement('div'); left.className = 'd-flex align-items-center'; left.appendChild(chk);
         const title = document.createElement('div'); title.className='title'; title.textContent = escapeText(lead.name || '(sem nome)'); left.appendChild(title);
@@ -267,6 +273,7 @@
         allLeads.forEach(lead => {
             const tr = document.createElement('tr'); tr.dataset.id = lead.id;
             const chkTd = document.createElement('td'); chkTd.innerHTML = '<input class="lead-select" type="checkbox">';
+            const chk = chkTd.querySelector('input'); chk.addEventListener('change', updateBulkDeleteVisibility);
             const nameTd = document.createElement('td'); nameTd.textContent = lead.name || '(sem nome)';
             const compTd = document.createElement('td'); compTd.textContent = lead.source || lead.client_name || lead.company || '—';
             const statusTd = document.createElement('td'); statusTd.textContent = lead.status || '';
@@ -283,6 +290,7 @@
             tbody.appendChild(tr);
         });
         table.appendChild(thead); table.appendChild(tbody); container.appendChild(table);
+        updateBulkDeleteVisibility();
         // ensure the list container mirrors the global theme class so tables adopt dark styling
         const prefersDark = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
         container.classList.toggle('theme-dark', prefersDark);
@@ -354,6 +362,7 @@
         }
 
         renderKpis();
+        updateBulkDeleteVisibility();
     }
 
     function setupDragDrop(){
@@ -452,7 +461,7 @@
         const company = document.createElement('div'); company.textContent = 'Fonte: ' + (lead.source || lead.client_name || lead.company || '—');
         const email = document.createElement('div'); email.innerHTML = 'Email: ' + (lead.email? `<a href="mailto:${encodeURIComponent(lead.email)}">${lead.email}</a>` : '—');
         const phone = document.createElement('div'); phone.innerHTML = 'Telefone: ' + (lead.phone? `<a href="tel:${encodeURIComponent(lead.phone)}">${lead.phone}</a>` : '—');
-        const value = document.createElement('div'); value.textContent = 'Valor estimado: ' + toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
+        const value = document.createElement('div'); value.textContent = 'Valor estimado: ' + toCurrency(lead.orcamento_value || lead.estimativa_projeto_kwh || 0);
         const createdText = formatDateBR(lead.created_at || lead.createdAt || lead.created);
         const daysActive = daysSince(lead.created_at || lead.createdAt || lead.created);
         const createdDiv = document.createElement('div'); createdDiv.className = 'small text-muted'; createdDiv.textContent = 'Criado: ' + createdText + (daysActive !== null ? (' • ' + daysActive + ' dias') : '');
@@ -461,7 +470,9 @@
             // compact reminders placeholder (filled after panel open)
             const remindersWrap = document.createElement('div');
             remindersWrap.className = 'mb-3'; remindersWrap.id = 'leadReminders';
-            p.appendChild(remindersWrap);
+            // prepare columns
+            const leftCol = document.createElement('div'); leftCol.className = 'lead-col';
+            const rightCol = document.createElement('div'); rightCol.className = 'lead-col';
                 // create reminder button (icon + label) and wire click to open modal
                 const reminderBtn = document.createElement('button');
                 reminderBtn.className = 'btn btn-sm btn-outline-info';
@@ -504,14 +515,37 @@
                 });
         const editBtn = document.createElement('button'); editBtn.className='btn btn-sm btn-outline-primary'; editBtn.type='button'; editBtn.textContent='Editar';
         editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); populateLeadForm(lead); });
+        const deleteBtn = document.createElement('button'); deleteBtn.className='btn btn-sm btn-outline-danger'; deleteBtn.type='button'; deleteBtn.textContent='Excluir';
+        deleteBtn.addEventListener('click', async (e)=>{
+            e.stopPropagation();
+            if (!confirm('Tem certeza que deseja excluir este lead?')) return;
+            try {
+                const formData = new FormData();
+                formData.append('id', lead.id);
+                const res = await fetch(apiBase + '?action=delete', { method: 'POST', body: formData });
+                if (res.ok) {
+                    closePanel();
+                    await fetchLeads();
+                } else {
+                    alert('Erro ao excluir lead');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Erro ao excluir lead');
+            }
+        });
         const whatsappBtn = document.createElement('a'); whatsappBtn.className='btn btn-sm btn-outline-success'; whatsappBtn.href = lead.phone? 'https://wa.me/'+lead.phone.replace(/\D/g,''):'#'; whatsappBtn.target='_blank'; whatsappBtn.textContent='WhatsApp';
         const proposalBtn = document.createElement('button'); proposalBtn.className='btn btn-sm btn-primary'; proposalBtn.type='button'; proposalBtn.textContent='Enviar proposta';
         proposalBtn.classList.add('d-none');
-        btns.appendChild(reminderBtn); btns.appendChild(editBtn); btns.appendChild(whatsappBtn); btns.appendChild(proposalBtn);
+        btns.appendChild(reminderBtn); btns.appendChild(editBtn); btns.appendChild(deleteBtn); btns.appendChild(whatsappBtn); btns.appendChild(proposalBtn);
 
         // Movement timeline
         const timelineWrap = document.createElement('div'); timelineWrap.className = 'mt-3'; timelineWrap.innerHTML = '<h6>Histórico de movimentações</h6><div id="timeline"></div>';
-        p.appendChild(title); p.appendChild(status); p.appendChild(company); p.appendChild(email); p.appendChild(phone); p.appendChild(value); p.appendChild(createdDiv); p.appendChild(notes); p.appendChild(btns); p.appendChild(timelineWrap);
+        // assemble columns: left = basic info + notes + actions, right = reminders + timeline
+        leftCol.appendChild(title); leftCol.appendChild(status); leftCol.appendChild(company); leftCol.appendChild(email); leftCol.appendChild(phone); leftCol.appendChild(value); leftCol.appendChild(createdDiv); leftCol.appendChild(notes); leftCol.appendChild(btns);
+            rightCol.appendChild(remindersWrap); rightCol.appendChild(timelineWrap); 
+            // append columns directly to detail content so CSS grid works
+            p.appendChild(leftCol); p.appendChild(rightCol);
 
             // load compact reminders for this lead
             try { fetchRemindersForLead(id); } catch(e){ console.warn('failed loading reminders', e); }
@@ -532,6 +566,9 @@
         }
 
         const panel = $('#leadDetailsPanel'); panel.classList.remove('hidden');
+        // if panel already expanded, ensure two-column class present
+        const detail = document.getElementById('leadDetailContent');
+        if (panel.classList.contains('expanded')) { if (detail) detail.classList.add('columns-2'); }
     }
 
     function closePanel(){ $('#leadDetailsPanel').classList.add('hidden'); }
@@ -621,6 +658,7 @@
         const stageEl = F('leadStage') || $('#leadStage'); if (stageEl) stageEl.value = lead.stage_id || '';
         const consumoEl = F('leadConsumo') || $('#leadConsumo'); if (consumoEl) consumoEl.value = lead.consumo_cliente || '';
         const estEl = F('leadEstimativa') || $('#leadEstimativa'); if (estEl) estEl.value = lead.estimativa_projeto_kwh || '';
+        const orcEl = F('leadOrcamento') || $('#leadOrcamento'); if (orcEl) orcEl.value = lead.orcamento_value || '';
         const notesEl = F('leadNotes') || $('#leadNotes'); if (notesEl) notesEl.value = lead.notes || '';
         // reset file input
         const f = F('leadAnexos') || $('#leadAnexos'); if (f) f.value = '';
@@ -653,6 +691,20 @@
             });
         }
         $('#closeLeadPanel').addEventListener('click', closePanel);
+        const expandBtn = document.getElementById('expandLeadPanelBtn');
+        if (expandBtn) {
+            expandBtn.addEventListener('click', ()=>{
+                const panel = document.getElementById('leadDetailsPanel');
+                const detail = document.getElementById('leadDetailContent');
+                if (!panel) return;
+                const expanded = panel.classList.toggle('expanded');
+                if (detail) {
+                    detail.classList.toggle('columns-2', expanded);
+                }
+                expandBtn.setAttribute('aria-pressed', expanded ? 'true' : 'false');
+                expandBtn.textContent = expanded ? '⇤' : '⇔';
+            });
+        }
         $('#newLeadBtn').addEventListener('click', ()=>{ 
             const m = new bootstrap.Modal($('#leadModal')); 
             $('#leadModalTitle').textContent='Novo Lead'; 
@@ -690,8 +742,9 @@
             const notesValue = (F('leadNotes')||$('#lead-notes')) ? (F('leadNotes')||$('#lead-notes')).value : '';
             const consumoValue = (F('leadConsumo')||$('#lead-consumo')) ? (F('leadConsumo')||$('#lead-consumo')).value : '';
             const estimativaValue = (F('leadEstimativa')||$('#lead-estimativa-kwh')) ? (F('leadEstimativa')||$('#lead-estimativa-kwh')).value : '';
+            const orcamentoValue = (F('leadOrcamento')||$('#lead-orcamento')) ? (F('leadOrcamento')||$('#lead-orcamento')).value : '';
             
-            console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, stageVal, notesValue, consumoValue, estimativaValue});
+            console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, stageVal, notesValue, consumoValue, estimativaValue, orcamentoValue});
             console.log('Status element:', statusEl, 'Status value:', statusValue);
             
             fd.append('name', nameValue);
@@ -705,6 +758,7 @@
             fd.append('notes', notesValue);
             fd.append('consumo_cliente', consumoValue);
             fd.append('estimativa_projeto_kwh', estimativaValue);
+            fd.append('orcamento_value', orcamentoValue);
             fd.append('action', id? 'update' : 'add');
             if (id) fd.append('id', id);
             // append files
@@ -859,12 +913,22 @@
             bulkApply.addEventListener('click', async ()=>{
                 const ids = getSelectedLeadIds(); if (!ids.length) return alert('Nenhum lead selecionado');
                 const stageId = $('#bulkTargetStage').value; const assign = $('#bulkAssign').value;
-                if (!stageId) return alert('Escolha uma etapa alvo');
+                const deleteChecked = $('#bulkDeleteCheck').checked;
+                if (!deleteChecked && !stageId) return alert('Escolha uma etapa alvo ou marque para excluir');
                 bulkApply.disabled = true; bulkApply.textContent = 'Aplicando...';
                 try {
-                    for (let id of ids) {
-                        await updateStatus(id, '', {stage_id: stageId});
-                        // optionally implement assignment by calling update with data (left simple here)
+                    if (deleteChecked) {
+                        for (let id of ids) {
+                            const formData = new FormData();
+                            formData.append('id', id);
+                            const res = await fetch(apiBase + '?action=delete', { method: 'POST', body: formData });
+                            if (!res.ok) throw new Error('Erro ao excluir ' + id);
+                        }
+                    } else {
+                        for (let id of ids) {
+                            await updateStatus(id, '', {stage_id: stageId});
+                            // optionally implement assignment
+                        }
                     }
                     await fetchLeads(); $('#bulkModal').querySelector('[data-bs-dismiss]')?.click();
                     alert('Ação concluída');
@@ -945,6 +1009,26 @@
             await fetchStages(); await fetchLeads(); setupDragDrop(); setupHandlers();
             // ensure view mode applied after initial data load
             renderAll();
+            const bulkDeleteBtn = $('#bulkDeleteBtn');
+            if (bulkDeleteBtn) {
+                bulkDeleteBtn.addEventListener('click', async () => {
+                    const ids = getSelectedLeadIds();
+                    if (!ids.length) return;
+                    if (!confirm(`Excluir ${ids.length} lead(s) selecionado(s)?`)) return;
+                    try {
+                        for (const id of ids) {
+                            const formData = new FormData();
+                            formData.append('id', id);
+                            const res = await fetch(apiBase + '?action=delete', { method: 'POST', body: formData });
+                            if (!res.ok) throw new Error('Erro ao excluir ' + id);
+                        }
+                        await fetchLeads();
+                    } catch (err) {
+                        console.error(err);
+                        alert('Erro ao excluir leads');
+                    }
+                });
+            }
         }catch(err){ console.error(err); alert('Erro inicial: '+err.message); }
     });
 

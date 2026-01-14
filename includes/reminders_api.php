@@ -72,6 +72,14 @@ try {
         echo json_encode(['ok'=>true]);
         exit;
     }
+    if ($action === 'mark_sent') {
+        $id = $_POST['id'] ?? ($_GET['id'] ?? null);
+        if (!$id) { http_response_code(400); echo json_encode(['error'=>'Missing id']); exit; }
+        $stmt = $pdo->prepare('UPDATE reminders SET status = ?, executed_at = NOW() WHERE id = ?');
+        $stmt->execute(['sent', $id]);
+        echo json_encode(['ok'=>true]);
+        exit;
+    }
     http_response_code(400); echo json_encode(['error'=>'Unknown action']);
 } catch (Exception $e) {
     http_response_code(500); echo json_encode(['error' => $e->getMessage()]);

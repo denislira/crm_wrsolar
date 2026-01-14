@@ -126,19 +126,19 @@ try {
     if ($action === 'list') {
         // Try to include proposal_value from projetos (sum per lead). If projetos table missing, fallback to simple leads select.
         try {
-            $sql = 'SELECT l.id, l.user_id, l.name, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.anexos_filename, l.anexos_mimetype, COALESCE(p_sum.proposal_value,0) AS proposal_value, l.created_at, l.updated_at '
-                 . 'FROM leads l LEFT JOIN (SELECT lead_id, SUM(COALESCE(proposal_value,0)) AS proposal_value FROM projetos WHERE user_id = ? GROUP BY lead_id) p_sum ON p_sum.lead_id = l.id '
+            $sql = 'SELECT l.id, l.user_id, l.name, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.orcamento_value, l.anexos_filename, l.anexos_mimetype, l.created_at, l.updated_at '
+                 . 'FROM leads l '
                  . 'WHERE l.user_id = ? ORDER BY l.created_at DESC';
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$userId, $userId]);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            // fallback to basic leads select if projetos table or columns are not available
-            $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE user_id = ? ORDER BY created_at DESC');
             $stmt->execute([$userId]);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            // ensure proposal_value exists for compatibility
-            foreach ($rows as &$r) { if (!isset($r['proposal_value'])) $r['proposal_value'] = 0; }
+        } catch (Exception $e) {
+            // fallback to basic leads select if column not available
+            $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE user_id = ? ORDER BY created_at DESC');
+            $stmt->execute([$userId]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // ensure orcamento_value exists for compatibility
+            foreach ($rows as &$r) { if (!isset($r['orcamento_value'])) $r['orcamento_value'] = 0; }
             unset($r);
         }
         echo json_encode($rows);
@@ -148,17 +148,17 @@ try {
     if ($action === 'get') {
         if (empty($_GET['id'])) { throw new Exception('Missing id'); }
         try {
-            $sql = 'SELECT l.id, l.user_id, l.name, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.anexos_filename, l.anexos_mimetype, COALESCE(p_sum.proposal_value,0) AS proposal_value, l.created_at, l.updated_at '
-                 . 'FROM leads l LEFT JOIN (SELECT lead_id, SUM(COALESCE(proposal_value,0)) AS proposal_value FROM projetos WHERE user_id = ? GROUP BY lead_id) p_sum ON p_sum.lead_id = l.id '
+            $sql = 'SELECT l.id, l.user_id, l.name, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.orcamento_value, l.anexos_filename, l.anexos_mimetype, l.created_at, l.updated_at '
+                 . 'FROM leads l '
                  . 'WHERE l.id = ? AND l.user_id = ? LIMIT 1';
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$userId, $_GET['id'], $userId]);
-            $lead = $stmt->fetch(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE id = ? AND user_id = ?');
             $stmt->execute([$_GET['id'], $userId]);
             $lead = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($lead && !isset($lead['proposal_value'])) $lead['proposal_value'] = 0;
+        } catch (Exception $e) {
+            $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE id = ? AND user_id = ?');
+            $stmt->execute([$_GET['id'], $userId]);
+            $lead = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($lead && !isset($lead['orcamento_value'])) $lead['orcamento_value'] = 0;
         }
         if (!$lead) {
             http_response_code(404);
@@ -239,7 +239,7 @@ try {
             }
         }
 
-        $stmt = $pdo->prepare('INSERT INTO leads (user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, anexos, anexos_filename, anexos_mimetype, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+        $stmt = $pdo->prepare('INSERT INTO leads (user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, anexos, anexos_filename, anexos_mimetype, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
         $stmt->execute([
             $userId,
             $data['name'] ?? '',
@@ -252,6 +252,7 @@ try {
             $data['notes'] ?? '',
             !empty($data['consumo_cliente']) ? floatval($data['consumo_cliente']) : null,
             !empty($data['estimativa_projeto_kwh']) ? floatval($data['estimativa_projeto_kwh']) : null,
+            !empty($data['orcamento_value']) ? floatval($data['orcamento_value']) : 0,
             $anexos_blob,
             $anexos_filename,
             $anexos_mimetype
@@ -298,7 +299,8 @@ try {
             $resolvedStageId,
             $data['notes'] ?? '',
             !empty($data['consumo_cliente']) ? floatval($data['consumo_cliente']) : null,
-            !empty($data['estimativa_projeto_kwh']) ? floatval($data['estimativa_projeto_kwh']) : null
+            !empty($data['estimativa_projeto_kwh']) ? floatval($data['estimativa_projeto_kwh']) : null,
+            !empty($data['orcamento_value']) ? floatval($data['orcamento_value']) : 0
         ];
 
         if (!empty($_FILES['anexos']) && $_FILES['anexos']['error'][0] === UPLOAD_ERR_OK) {
@@ -315,7 +317,7 @@ try {
         $params[] = $userId;
 
         // Include stage_id column in the update SQL
-        $stmt = $pdo->prepare('UPDATE leads SET name=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=? AND user_id=?');
+        $stmt = $pdo->prepare('UPDATE leads SET name=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, orcamento_value=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=? AND user_id=?');
         $stmt->execute($params);
 
         // If status or stage changed, log movement

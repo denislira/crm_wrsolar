@@ -39,6 +39,7 @@ include 'includes/header.php';
                 <div id="pipelineSummary" class="small text-muted">Pipeline total: <strong id="pipelineTotal">R$ 0,00</strong></div>
                 <div class="d-flex gap-2 align-items-center">
                     <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
+                    <button id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger d-none" title="Excluir selecionados"><i class="fa fa-trash"></i></button>
                     <button id="bulkActionsBtn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#bulkModal">Ações em massa</button>
                     <button id="toggleViewBtn" class="btn btn-sm btn-outline-secondary" title="Alternar visualização Kanban / Grade"><i class="fa fa-columns"></i></button>
                 </div>
@@ -57,6 +58,7 @@ include 'includes/header.php';
             <aside id="leadDetailsPanel" class="lead-panel hidden">
                 <div class="lead-panel-inner">
                     <button id="closeLeadPanel" class="btn btn-sm btn-light close-panel" title="Fechar">✕</button>
+                    <button id="expandLeadPanelBtn" class="btn btn-sm btn-light me-2 expand-panel" title="Expandir painel" aria-pressed="false">⇔</button>
                     <div id="leadDetailContent" class="p-3"></div>
                 </div>
             </aside>
@@ -73,6 +75,7 @@ include 'includes/header.php';
                                 </select>
                             </div>
                             <div class="mb-2"><label class="form-label">Atribuir responsável (opcional)</label><input id="bulkAssign" class="form-control" placeholder="Nome do responsável"></div>
+                            <div class="mb-2"><label class="form-check"><input id="bulkDeleteCheck" class="form-check-input" type="checkbox"> <span class="form-check-label">Excluir selecionados</span></label></div>
                             <div class="small text-muted">Selecione os cards marcando a caixa ao lado deles.</div>
                         </div>
                         <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button id="bulkApply" type="button" class="btn btn-primary">Aplicar</button></div>
@@ -133,6 +136,8 @@ include 'includes/header.php';
                                         <input id="lead-consumo" class="form-control" type="number" step="0.01" placeholder="0,00">
                                         <label class="form-label mt-2">Estimativa do Projeto (kWh) <i class="fa fa-solar-panel text-info"></i></label>
                                         <input id="lead-estimativa-kwh" class="form-control" type="number" step="0.01" placeholder="0,00">
+                                        <label class="form-label mt-2">Valor de Orçamento (R$) <i class="fa fa-dollar-sign text-success"></i></label>
+                                        <input id="lead-orcamento" class="form-control" type="number" step="0.01" placeholder="0,00">
                                         <label class="form-label mt-2">Fonte <i class="fa fa-globe text-muted"></i></label>
                                         <input id="lead-source" class="form-control">
                                     </div>

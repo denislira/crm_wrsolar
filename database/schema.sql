@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS leads (
   notes TEXT DEFAULT NULL,
   consumo_cliente DECIMAL(10,2) DEFAULT NULL,
   estimativa_projeto_kwh DECIMAL(10,2) DEFAULT NULL,
+  orcamento_value DECIMAL(12,2) DEFAULT 0.00,
   anexos LONGBLOB DEFAULT NULL,
   anexos_filename VARCHAR(255) DEFAULT NULL,
   anexos_mimetype VARCHAR(100) DEFAULT NULL,

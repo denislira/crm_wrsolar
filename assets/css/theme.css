@@ -290,6 +290,26 @@ body.theme-dark .task-card {
   box-shadow: 0 6px 20px rgba(0,0,0,0.4) !important;
 }
 
+/* Próximos lembretes / eventos in dark theme */
+body.theme-dark .evento-card-modern,
+body.theme-dark .proximos-eventos-list,
+body.theme-dark .evento-content-modern,
+body.theme-dark .reminder-badge-hoje,
+body.theme-dark .evento-date-box {
+  background: var(--surface) !important;
+  color: var(--text-900) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4) !important;
+}
+body.theme-dark .evento-date-box { background: rgba(255,255,255,0.02) !important; }
+body.theme-dark .evento-date-month { color: var(--text-700) !important; }
+body.theme-dark .evento-date-day { color: var(--text-900) !important; }
+body.theme-dark .evento-title-modern { color: var(--text-900) !important; }
+body.theme-dark .evento-time-icon, body.theme-dark .evento-message, body.theme-dark .reminder-time-modern { color: var(--text-700) !important; }
+body.theme-dark .reminder-badge-hoje { background:#f59e0b !important; color:#fff !important; }
+/* Make client/lead names lighter in dark mode for 'Agenda para Hoje' */
+body.theme-dark .reminder-title-modern { color: var(--text-700) !important; }
+
 body.theme-dark .bg-white {
   background: var(--surface) !important;
   color: var(--text-900) !important;

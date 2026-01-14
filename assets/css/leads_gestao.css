@@ -21,6 +21,15 @@ body{background:#e9eef5}
 .lead-panel.hidden{transform:translateX(100%)}
 .lead-panel-inner{padding:18px}
 .close-panel{position:absolute;right:8px;top:8px}
+/* Expanded lead details panel */
+.lead-panel.expanded{width:820px;}
+.lead-panel .expand-panel{position:absolute;right:44px;top:8px}
+/* two-column layout for detail content when expanded */
+#leadDetailContent{display:block !important}
+#leadDetailContent > .lead-col{width:100%}
+#leadDetailContent.columns-2{display:grid !important;grid-template-columns:1fr 1fr;gap:16px}
+#leadDetailContent.columns-2 > .lead-col{min-width:0}
+#leadDetailContent .lead-col .reminder-list, #leadDetailContent .lead-col .timeline {max-height: calc(100vh - 220px);overflow:auto}
 @media (max-width: 900px){ .kanban-column{flex:0 0 260px} .lead-panel{width:100%;top:56px;height:calc(100vh - 56px)} }
 /* small helpers */
 .kpi-row .card{background:var(--card)}
