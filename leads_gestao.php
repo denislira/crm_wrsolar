@@ -137,7 +137,7 @@ include 'includes/header.php';
                                         <label class="form-label mt-2">Estimativa do Projeto (kWh) <i class="fa fa-solar-panel text-info"></i></label>
                                         <input id="lead-estimativa-kwh" class="form-control" type="number" step="0.01" placeholder="0,00">
                                         <label class="form-label mt-2">Valor de Orçamento (R$) <i class="fa fa-dollar-sign text-success"></i></label>
-                                        <input id="lead-orcamento" class="form-control" type="number" step="0.01" placeholder="0,00">
+                                        <input id="lead-orcamento" class="form-control currency-mask" type="text" placeholder="0,00">
                                         <label class="form-label mt-2">Fonte <i class="fa fa-globe text-muted"></i></label>
                                         <input id="lead-source" class="form-control">
                                     </div>
@@ -242,6 +242,28 @@ include 'includes/header.php';
                 } catch (err) { console.error(err); alert('Erro ao salvar lead'); }
             });
         }
+    });
+    </script>
+
+    <script>
+    // Currency mask for inputs with class 'currency-mask'
+    function applyCurrencyMask(input) {
+        input.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            value = (value / 100).toFixed(2);
+            value = value.replace('.', ',');
+            value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+            e.target.value = value;
+        });
+        input.addEventListener('focus', function(e) {
+            if (e.target.value === '0,00') e.target.value = '';
+        });
+        input.addEventListener('blur', function(e) {
+            if (e.target.value === '') e.target.value = '0,00';
+        });
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.currency-mask').forEach(applyCurrencyMask);
     });
     </script>
 

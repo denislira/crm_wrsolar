@@ -742,7 +742,7 @@
             const notesValue = (F('leadNotes')||$('#lead-notes')) ? (F('leadNotes')||$('#lead-notes')).value : '';
             const consumoValue = (F('leadConsumo')||$('#lead-consumo')) ? (F('leadConsumo')||$('#lead-consumo')).value : '';
             const estimativaValue = (F('leadEstimativa')||$('#lead-estimativa-kwh')) ? (F('leadEstimativa')||$('#lead-estimativa-kwh')).value : '';
-            const orcamentoValue = (F('leadOrcamento')||$('#lead-orcamento')) ? (F('leadOrcamento')||$('#lead-orcamento')).value : '';
+            const orcamentoValue = (F('leadOrcamento')||$('#lead-orcamento')) ? (F('leadOrcamento')||$('#lead-orcamento')).value.replace(/\./g, '').replace(',', '.') : '';
             
             console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, stageVal, notesValue, consumoValue, estimativaValue, orcamentoValue});
             console.log('Status element:', statusEl, 'Status value:', statusValue);
