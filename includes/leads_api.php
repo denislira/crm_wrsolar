@@ -183,18 +183,100 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         if (is_array($parsed)) $data = $parsed;
     }
 
+    // If a POST request arrives with empty $_POST and no $_FILES it is very likely
+    // that the request exceeded PHP's `post_max_size` or `upload_max_filesize`.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($data) && empty($_FILES)) {
+        // Convert ini shorthand (e.g. "8M") to bytes
+        $toBytes = function($val) {
+            $val = trim($val);
+            $last = strtolower($val[strlen($val)-1]);
+            $num = (int)$val;
+            switch($last) {
+                case 'g': $num *= 1024;
+                case 'm': $num *= 1024;
+                case 'k': $num *= 1024;
+            }
+            return $num;
+        };
+
+        $contentLen = isset($_SERVER['CONTENT_LENGTH']) ? (int)$_SERVER['CONTENT_LENGTH'] : 0;
+        $postMax = ini_get('post_max_size') ?: '8M';
+        $postMaxBytes = $toBytes($postMax);
+
+        if ($contentLen > 0 && $contentLen > $postMaxBytes) {
+            http_response_code(413);
+            $msg = 'Request too large: post_max_size (' . $postMax . ") exceeded";
+            _leads_api_log($msg . ' - Content-Length: ' . $contentLen);
+            echo json_encode(['error' => $msg]);
+            exit;
+        }
+
+        // Generic fallback: nothing parsed from the request body
+        // Log additional diagnostic info to help debugging (headers, raw input snippet, arrays)
+        $diag = [
+            'action_param' => $_REQUEST['action'] ?? null,
+            'user_id' => $userId ?? null,
+            'request_method' => $_SERVER['REQUEST_METHOD'] ?? null,
+            'post_keys' => array_keys($_POST),
+            'files' => array_keys($_FILES),
+            'remote_addr' => $_SERVER['REMOTE_ADDR'] ?? '',
+        ];
+        // capture request headers if available
+        if (function_exists('getallheaders')) {
+            $diag['headers'] = getallheaders();
+        }
+        // capture a small raw input sample (only if not huge)
+        $rawSample = '';
+        if ($contentLen > 0 && $contentLen < 1024 * 1024) {
+            $raw = file_get_contents('php://input');
+            $rawSample = substr($raw, 0, 2048);
+            $diag['raw_sample'] = $rawSample;
+        }
+
+        http_response_code(400);
+        $msg = 'Empty POST body (no form data parsed). Check request Content-Type and server upload limits.';
+        _leads_api_log($msg . ' - Content-Length: ' . $contentLen . ' post_max_size=' . $postMax . ' - DIAG: ' . json_encode($diag, JSON_UNESCAPED_UNICODE));
+        echo json_encode(['error' => $msg]);
+        exit;
+    }
+
     if ($action === 'add') {
-        // Processar arquivos anexados
+        // Validate file upload errors early to avoid inserting a lead when upload failed
         $anexos_blob = null;
         $anexos_filename = null;
         $anexos_mimetype = null;
-        
-        if (!empty($_FILES['anexos']) && $_FILES['anexos']['error'][0] === UPLOAD_ERR_OK) {
-            // Para simplificar, vamos pegar apenas o primeiro arquivo
+
+        if (!empty($_FILES['anexos'])) {
             $file = $_FILES['anexos'];
-            $anexos_filename = $file['name'][0];
-            $anexos_mimetype = $file['type'][0];
-            $anexos_blob = file_get_contents($file['tmp_name'][0]);
+            // errors can be an array for multiple files
+            $errors = is_array($file['error']) ? $file['error'] : [$file['error']];
+            // If any uploaded file has an error other than NO_FILE, reject the request
+            foreach ($errors as $err) {
+                if ($err === UPLOAD_ERR_NO_FILE) continue; // user didn't select a file for that slot
+                if ($err !== UPLOAD_ERR_OK) {
+                    // map some common codes to messages
+                    $msg = 'Erro no upload do arquivo';
+                    if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
+                        http_response_code(413);
+                        $msg = 'Arquivo muito grande (upload_max_filesize/post_max_size)';
+                    } elseif ($err === UPLOAD_ERR_PARTIAL) {
+                        $msg = 'Upload parcial do arquivo';
+                    } elseif ($err === UPLOAD_ERR_NO_TMP_DIR) {
+                        $msg = 'Falta diretório temporário no servidor';
+                    } elseif ($err === UPLOAD_ERR_CANT_WRITE) {
+                        $msg = 'Falha ao gravar arquivo no disco';
+                    }
+                    _leads_api_log('Upload error code: ' . $err . ' - ' . $msg);
+                    echo json_encode(['error' => $msg]);
+                    exit;
+                }
+            }
+            // If at least one file was provided and OK, take first file
+            if (!empty($file['name'][0]) && $errors[0] === UPLOAD_ERR_OK) {
+                $anexos_filename = $file['name'][0];
+                $anexos_mimetype = $file['type'][0];
+                $anexos_blob = file_get_contents($file['tmp_name'][0]);
+            }
         }
         
         // Ensure the lead status maps to an existing funil stage. If not, pick the first stage for this user.
@@ -295,6 +377,27 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
         // Processar arquivos anexados se houver novos
         $updateAnexos = '';
+        // Validate upload errors similar to add
+        if (!empty($_FILES['anexos'])) {
+            $file = $_FILES['anexos'];
+            $errors = is_array($file['error']) ? $file['error'] : [$file['error']];
+            foreach ($errors as $err) {
+                if ($err === UPLOAD_ERR_NO_FILE) continue;
+                if ($err !== UPLOAD_ERR_OK) {
+                    $msg = 'Erro no upload do arquivo';
+                    if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
+                        http_response_code(413);
+                        $msg = 'Arquivo muito grande (upload_max_filesize/post_max_size)';
+                    } elseif ($err === UPLOAD_ERR_PARTIAL) {
+                        $msg = 'Upload parcial do arquivo';
+                    }
+                    _leads_api_log('Upload error code (update): ' . $err . ' - ' . $msg);
+                    echo json_encode(['error' => $msg]);
+                    exit;
+                }
+            }
+        }
+
         $params = [
             $data['name'] ?? '',
             $data['email'] ?? '',

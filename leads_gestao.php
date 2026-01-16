@@ -5,10 +5,7 @@ if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/permissions.php';
 
-if (!hasPermission('leads_gestao')) {
-    echo "Acesso negado.";
-    exit;
-}
+checkAccessOrRedirect('leads_gestao');
 
 $pageTitle = 'Gestão de Leads';
 include 'includes/header.php';

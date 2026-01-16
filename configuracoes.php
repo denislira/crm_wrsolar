@@ -6,10 +6,7 @@ if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 include 'includes/config.php';
 include 'includes/permissions.php';
 
-if (!hasPermission('configuracoes')) {
-    echo "Acesso negado.";
-    exit;
-}
+checkAccessOrRedirect('configuracoes');
 
 // Buscar todos os usuários
 $stmt = $pdo->query('SELECT u.id, u.username, u.email, r.name as role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id');

@@ -5,10 +5,7 @@ if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 include 'includes/config.php';
 include 'includes/permissions.php';
 
-if (!hasPermission('integracao-equipes')) {
-    echo "Acesso negado.";
-    exit;
-}
+checkAccessOrRedirect('integracao-equipes');
 
 
 // Buscar equipes e responsáveis distintos para filtros

@@ -8,10 +8,7 @@ if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/permissions.php';
 
-if (!hasPermission('pos-venda')) {
-    echo "Acesso negado.";
-    exit;
-}
+checkAccessOrRedirect('pos-venda');
 
 $stmt = $pdo->prepare('SELECT p.client_name, pv.* FROM pos_venda pv JOIN projetos p ON pv.project_id=p.id WHERE pv.user_id = ?');
 $stmt->execute([$_SESSION['user_id']]);

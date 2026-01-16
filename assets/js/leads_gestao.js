@@ -118,7 +118,6 @@
         const sel = document.querySelector('#lead-status') || F('leadStatus') || document.querySelector('#leadStatus');
         if (!sel) return;
         sel.innerHTML = ''; // clear
-        const def = document.createElement('option'); def.value = ''; def.textContent = 'Novo'; sel.appendChild(def);
         STAGES.forEach(s=>{
             const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; sel.appendChild(o);
         });
@@ -203,21 +202,26 @@
         const el = document.createElement('div'); el.className='lead-card'; el.draggable = true; el.dataset.id = lead.id;
         // selection checkbox for bulk actions
         const chk = document.createElement('input'); chk.type='checkbox'; chk.className = 'lead-select me-2'; chk.title = 'Selecionar para ações em massa';
-        chk.addEventListener('click', (e)=>{
+        chk.addEventListener('change', (e)=>{
             e.stopPropagation();
             el.classList.toggle('selected', chk.checked);
-            // set border color to column color when selected
+            // set border-left to column color when selected, but preserve original left border
             const colWrap = el.closest('.kanban-column');
             const colColor = colWrap?.dataset?.color || '#6c757d';
             if (chk.checked) {
-                el.style.borderColor = colColor;
-                el.style.borderWidth = '2px';
+                // store previous left border so we can restore it later
+                if (!el.dataset._selectedPrevBorder) el.dataset._selectedPrevBorder = el.style.borderLeft || '';
+                el.style.borderLeft = '4px solid ' + colColor;
             } else {
-                el.style.borderColor = '';
-                el.style.borderWidth = '';
+                // restore original left border
+                el.style.borderLeft = el.dataset._selectedPrevBorder || el.dataset.originalBorder || '6px solid transparent';
+                delete el.dataset._selectedPrevBorder;
             }
+            updateBulkDeleteVisibility();
         });
-        chk.addEventListener('change', updateBulkDeleteVisibility);
+        // prevent clicks/keyboard on the checkbox from bubbling and triggering card click
+        chk.addEventListener('click', (e)=>{ e.stopPropagation(); });
+        chk.addEventListener('keydown', (e)=>{ if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') e.stopPropagation(); });
         const head = document.createElement('div'); head.className = 'd-flex align-items-center justify-content-between';
         const left = document.createElement('div'); left.className = 'd-flex align-items-center'; left.appendChild(chk);
         const title = document.createElement('div'); title.className='title'; title.textContent = escapeText(lead.name || '(sem nome)'); left.appendChild(title);
@@ -552,7 +556,7 @@
                 alert('Erro ao excluir lead');
             }
         });
-        const whatsappBtn = document.createElement('a'); whatsappBtn.className='btn btn-sm btn-outline-success'; whatsappBtn.href = lead.phone? 'https://wa.me/'+lead.phone.replace(/\D/g,''):'#'; whatsappBtn.target='_blank'; whatsappBtn.innerHTML='<i class="fa fa-whatsapp"></i>'; whatsappBtn.title='WhatsApp';
+        const whatsappBtn = document.createElement('a'); whatsappBtn.className='btn btn-sm btn-outline-success'; whatsappBtn.href = lead.phone? 'https://wa.me/'+lead.phone.replace(/\D/g,''):'#'; whatsappBtn.target='_blank'; whatsappBtn.innerHTML='<i class="fa-brands fa-whatsapp"></i>'; whatsappBtn.title='WhatsApp';
         const proposalBtn = document.createElement('button'); proposalBtn.className='btn btn-sm btn-primary'; proposalBtn.type='button'; proposalBtn.innerHTML='<i class="fa fa-paper-plane"></i>'; proposalBtn.title='Enviar proposta';
         proposalBtn.classList.add('d-none');
         btns.appendChild(reminderBtn); btns.appendChild(editBtn); btns.appendChild(deleteBtn); btns.appendChild(whatsappBtn); btns.appendChild(proposalBtn);
@@ -744,6 +748,18 @@
             $('#leadForm').reset(); 
             const idEl = F('leadId') || $('#lead-id'); 
             if (idEl) idEl.value = '';
+            // set default status to 'Sem Contato' when opening new lead modal
+            try {
+                const statusSel = F('leadStatus') || $('#leadStatus') || $('#lead-status');
+                if (statusSel) {
+                    let found = false;
+                    for (let i=0;i<statusSel.options.length;i++){
+                        if (statusSel.options[i].text === 'Sem Contrato') { statusSel.selectedIndex = i; found = true; break; }
+                    }
+                    // if 'Sem Contrato' not found, default to first existing stage if available
+                    if (!found && statusSel.options.length > 0) statusSel.selectedIndex = 0;
+                }
+            } catch(e) { /* ignore */ }
             m.show(); 
         });
         
@@ -762,15 +778,14 @@
             const idEl = F('leadId') || $('#lead-id');
             const id = idEl ? idEl.value : '';
             console.log('Lead ID:', id);
-            // Use FormData to support file uploads (anexos)
-            const fd = new FormData();
+            
             const nameValue = (F('leadName')||$('#lead-name')).value || '';
             const emailValue = (F('leadEmail')||$('#lead-email')).value || '';
             const phoneValue = (F('leadPhone')||$('#lead-phone')).value || '';
             const cpfValue = (F('leadCpf')||$('#lead-cpf-cnpj')) ? (F('leadCpf')||$('#lead-cpf-cnpj')).value : '';
             const sourceValue = (F('leadSource')||$('#lead-source')) ? (F('leadSource')||$('#lead-source')).value : 'web';
             const statusEl = (F('leadStatus')||$('#lead-status'));
-            const statusValue = statusEl ? statusEl.value : 'Novo';
+            const statusValue = statusEl ? statusEl.value : '';
             const stageVal = (F('leadStage')||$('#lead-stage')) ? (F('leadStage')||$('#lead-stage')).value : '';
             const notesValue = (F('leadNotes')||$('#lead-notes')) ? (F('leadNotes')||$('#lead-notes')).value : '';
             const consumoValue = (F('leadConsumo')||$('#lead-consumo')) ? (F('leadConsumo')||$('#lead-consumo')).value : '';
@@ -780,32 +795,64 @@
             console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, stageVal, notesValue, consumoValue, estimativaValue, orcamentoValue});
             console.log('Status element:', statusEl, 'Status value:', statusValue);
             
-            fd.append('name', nameValue);
-            fd.append('email', emailValue);
-            fd.append('phone', phoneValue);
-            fd.append('cpf_cnpj', cpfValue);
-            fd.append('source', sourceValue);
-            fd.append('status', statusValue);
-            if (stageVal) fd.append('stage_id', stageVal);
-            else if (statusValue) fd.append('stage_id', statusValue); // Fallback: use status as stage_id if stage not set
-            fd.append('notes', notesValue);
-            fd.append('consumo_cliente', consumoValue);
-            fd.append('estimativa_projeto_kwh', estimativaValue);
-            fd.append('orcamento_value', orcamentoValue);
-            fd.append('action', id? 'update' : 'add');
-            if (id) fd.append('id', id);
-            // append files
+            // Check if files are present
             const filesEl = (F('leadAnexos')||$('#leadAnexos'));
-            if (filesEl && filesEl.files && filesEl.files.length) {
+            const hasFiles = filesEl && filesEl.files && filesEl.files.length > 0;
+            
+            let body, headers = {};
+            
+            if (hasFiles) {
+                // Use FormData for file uploads
+                const fd = new FormData();
+                fd.append('name', nameValue);
+                fd.append('email', emailValue);
+                fd.append('phone', phoneValue);
+                fd.append('cpf_cnpj', cpfValue);
+                fd.append('source', sourceValue);
+                fd.append('status', statusValue);
+                if (stageVal) fd.append('stage_id', stageVal);
+                else if (statusValue) fd.append('stage_id', statusValue);
+                fd.append('notes', notesValue);
+                fd.append('consumo_cliente', consumoValue);
+                fd.append('estimativa_projeto_kwh', estimativaValue);
+                fd.append('orcamento_value', orcamentoValue);
+                if (id) fd.append('id', id);
+                
+                // Append files
                 for (let i=0;i<filesEl.files.length;i++) {
                     fd.append('anexos[]', filesEl.files[i]);
+                    console.log('Appending file:', filesEl.files[i].name, filesEl.files[i].size, 'bytes');
                 }
+                
+                body = fd;
+                // Don't set Content-Type header, browser will set it with boundary
+            } else {
+                // Use URLSearchParams for regular form data (better compatibility)
+                const params = new URLSearchParams();
+                params.append('name', nameValue);
+                params.append('email', emailValue);
+                params.append('phone', phoneValue);
+                params.append('cpf_cnpj', cpfValue);
+                params.append('source', sourceValue);
+                params.append('status', statusValue);
+                if (stageVal) params.append('stage_id', stageVal);
+                else if (statusValue) params.append('stage_id', statusValue);
+                params.append('notes', notesValue);
+                params.append('consumo_cliente', consumoValue);
+                params.append('estimativa_projeto_kwh', estimativaValue);
+                params.append('orcamento_value', orcamentoValue);
+                if (id) params.append('id', id);
+                
+                body = params;
+                headers['Content-Type'] = 'application/x-www-form-urlencoded';
             }
 
             try {
-                console.log('Sending request to:', apiBase);
-                console.log('Action:', id ? 'update' : 'add', 'ID:', id);
-                const res = await fetch(apiBase, { method: 'POST', body: fd });
+                const action = id ? 'update' : 'add';
+                const url = apiBase + '?action=' + action;
+                console.log('Sending request to:', url, hasFiles ? '(with files)' : '(no files)');
+                console.log('Action:', action, 'ID:', id);
+                const res = await fetch(url, { method: 'POST', headers, body });
                 console.log('Response status:', res.status);
                 const txt = await res.text();
                 console.log('Response text:', txt);

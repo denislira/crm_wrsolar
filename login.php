@@ -201,28 +201,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <form method="POST">
                 <?php if (isset($error)): ?>
                     <div class="alert alert-danger d-flex align-items-center" role="alert">
-                        <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                        <i class="fa fa-exclamation-triangle me-2"></i>
                         <?= htmlspecialchars($error) ?>
                     </div>
                 <?php endif; ?>
                 
                 <div class="mb-3">
                     <label for="username" class="form-label">
-                        <i class="fa-regular fa-user me-2"></i>Usuário
+                        <i class="fa fa-user me-2"></i>Usuário
                     </label>
                     <input type="text" name="username" id="username" class="form-control" required autocomplete="username" placeholder="Digite seu usuário">
                 </div>
                 
                 <div class="mb-4">
                     <label for="password" class="form-label">
-                        <i class="fa-regular fa-lock me-2"></i>Senha
+                        <i class="fa fa-lock me-2"></i>Senha
                     </label>
                     <input type="password" name="password" id="password" class="form-control" required autocomplete="current-password" placeholder="Digite sua senha">
                 </div>
                 
                 <div class="d-grid">
                     <button type="submit" class="btn btn-primary btn-login">
-                        <i class="fa-regular fa-right-to-bracket me-2"></i>Entrar no Sistema
+                        <i class="fa fa-sign-in-alt me-2"></i>Entrar no Sistema
                     </button>
                 </div>
             </form>
@@ -230,7 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <!-- Rodapé do card -->
             <div class="text-center mt-4">
                 <small class="text-muted">
-                    <i class="fa-regular fa-shield-halved me-1"></i>
+                    <i class="fa fa-shield-alt me-1"></i>
                     Acesso seguro e protegido
                 </small>
             </div>
