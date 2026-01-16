@@ -3,6 +3,8 @@
     const apiBase = 'includes/leads_api.php';
     let allLeads = [];
     const STALLED_DAYS_DEFAULT = 7;
+    // prevent double-submit of the lead form
+    let leadFormSubmitting = false;
 
     function $(sel){return document.querySelector(sel)}
     function $all(sel){return Array.from(document.querySelectorAll(sel))}
@@ -11,6 +13,7 @@
     const FIELD_MAP = {
         leadId: ['#leadId','#lead-id'],
         leadName: ['#leadName','#lead-name'],
+        leadCity: ['#leadCity','#lead-city','#lead-city'],
         leadPhone: ['#leadPhone','#lead-phone'],
         leadSource: ['#leadSource','#lead-source'],
         leadEmail: ['#leadEmail','#lead-email'],
@@ -204,6 +207,7 @@
         const chk = document.createElement('input'); chk.type='checkbox'; chk.className = 'lead-select me-2'; chk.title = 'Selecionar para ações em massa';
         chk.addEventListener('change', (e)=>{
             e.stopPropagation();
+            console.debug('lead-select change:', {id: el.dataset.id, checked: chk.checked});
             el.classList.toggle('selected', chk.checked);
             // set border-left to column color when selected, but preserve original left border
             const colWrap = el.closest('.kanban-column');
@@ -211,11 +215,18 @@
             if (chk.checked) {
                 // store previous left border so we can restore it later
                 if (!el.dataset._selectedPrevBorder) el.dataset._selectedPrevBorder = el.style.borderLeft || '';
-                el.style.borderLeft = '4px solid ' + colColor;
+                // set a CSS var so CSS can apply consistent styling and avoid specificity issues
+                try { el.style.setProperty('--selected-color', colColor); } catch(e) {}
+                // set inline border with important to ensure visibility even if stylesheets have specific rules
+                try { el.style.setProperty('border-left', '8px solid ' + colColor, 'important'); } catch(e) { el.style.borderLeft = '8px solid ' + colColor; }
+                console.debug('applied border', {inline: el.style.borderLeft, computed: window.getComputedStyle(el).borderLeft, var: el.style.getPropertyValue('--selected-color')});
             } else {
                 // restore original left border
-                el.style.borderLeft = el.dataset._selectedPrevBorder || el.dataset.originalBorder || '6px solid transparent';
+                const restore = el.dataset._selectedPrevBorder || el.dataset.originalBorder || '7px solid transparent';
+                try { el.style.setProperty('border-left', restore, 'important'); } catch(e) { el.style.borderLeft = restore; }
+                try { el.style.removeProperty('--selected-color'); } catch(e) {}
                 delete el.dataset._selectedPrevBorder;
+                console.debug('restored border to', restore);
             }
             updateBulkDeleteVisibility();
         });
@@ -224,7 +235,8 @@
         chk.addEventListener('keydown', (e)=>{ if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') e.stopPropagation(); });
         const head = document.createElement('div'); head.className = 'd-flex align-items-center justify-content-between';
         const left = document.createElement('div'); left.className = 'd-flex align-items-center'; left.appendChild(chk);
-        const title = document.createElement('div'); title.className='title'; title.textContent = escapeText(lead.name || '(sem nome)'); left.appendChild(title);
+        const title = document.createElement('div'); title.className='title'; title.textContent = escapeText(lead.name || '(sem nome)');
+        left.appendChild(title);
         head.appendChild(left);
 
         const company = document.createElement('div'); company.className='lead-meta'; company.textContent = 'Fonte: ' + (lead.source || lead.client_name || lead.company || '—');
@@ -233,6 +245,16 @@
         const owner = document.createElement('span'); owner.className='lead-owner'; owner.textContent = lead.responsavel || '';
         const score = document.createElement('span'); score.className = 'badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')); score.textContent = lead.score;
         meta.appendChild(value); meta.appendChild(owner); meta.appendChild(score);
+        // Add paperclip download icon to the right of the badge-score when an attachment exists
+        if (lead.anexos_filename) {
+            const clipLink = document.createElement('a');
+            clipLink.href = 'includes/leads_api.php?action=download_anexo&id=' + encodeURIComponent(lead.id);
+            clipLink.target = '_blank'; clipLink.rel = 'noopener';
+            const clip = document.createElement('i'); clip.className = 'fa fa-paperclip ms-2 text-muted small lead-clip-icon';
+            clip.title = lead.anexos_filename || 'Anexo disponível';
+            clipLink.appendChild(clip);
+            meta.appendChild(clipLink);
+        }
         el.appendChild(head); el.appendChild(company); el.appendChild(meta);
 
         // created date and days active
@@ -482,6 +504,19 @@
         const company = document.createElement('div'); company.textContent = 'Fonte: ' + (lead.source || lead.client_name || lead.company || '—');
         const email = document.createElement('div'); email.innerHTML = 'Email: ' + (lead.email? `<a href="mailto:${encodeURIComponent(lead.email)}">${lead.email}</a>` : '—');
         const phone = document.createElement('div'); phone.innerHTML = 'Telefone: ' + (lead.phone? `<a href="tel:${encodeURIComponent(lead.phone)}">${lead.phone}</a>` : '—');
+        // attachment link in detail panel
+        const anexosDiv = document.createElement('div'); anexosDiv.className = 'mt-2';
+        if (lead.anexos_filename) {
+            const an = document.createElement('a');
+            an.href = 'includes/leads_api.php?action=download_anexo&id=' + encodeURIComponent(lead.id);
+            an.target = '_blank'; an.rel = 'noopener';
+            an.className = 'anexo-link';
+            an.innerHTML = `${escapeText(lead.anexos_filename)} <i class="fa fa-paperclip ms-1"></i>`;
+            anexosDiv.appendChild(document.createTextNode('Anexo: '));
+            anexosDiv.appendChild(an);
+        } else {
+            anexosDiv.textContent = 'Anexo: —';
+        }
         const value = document.createElement('div'); value.textContent = 'Valor estimado: ' + toCurrency(lead.orcamento_value || 0);
         const createdText = formatDateBR(lead.created_at || lead.createdAt || lead.created);
         const daysActive = daysSince(lead.created_at || lead.createdAt || lead.created);
@@ -564,7 +599,9 @@
         // Movement timeline
         const timelineWrap = document.createElement('div'); timelineWrap.className = 'my-5'; timelineWrap.innerHTML = '<h6>Histórico de movimentações</h6><div id="timeline"></div>';
         // assemble columns: left = basic info + notes + actions, right = reminders + timeline
-        leftCol.appendChild(title); leftCol.appendChild(status); leftCol.appendChild(company); leftCol.appendChild(email); leftCol.appendChild(phone); leftCol.appendChild(value); leftCol.appendChild(createdDiv); leftCol.appendChild(notes); leftCol.appendChild(btns);
+        leftCol.appendChild(title); leftCol.appendChild(status); leftCol.appendChild(createdDiv); leftCol.appendChild(company); leftCol.appendChild(email); leftCol.appendChild(phone); leftCol.appendChild(value); leftCol.appendChild(notes);
+        if (typeof anexosDiv !== 'undefined' && anexosDiv) leftCol.appendChild(anexosDiv);
+        leftCol.appendChild(btns);
             rightCol.appendChild(remindersWrap); rightCol.appendChild(timelineWrap); 
             // append columns directly to detail content so CSS grid works
             p.appendChild(leftCol); p.appendChild(rightCol);
@@ -666,6 +703,7 @@
         const srcEl = F('leadSource') || $('#leadSource'); if (srcEl) srcEl.value = lead.source || '';
         const emailEl = F('leadEmail') || $('#leadEmail'); if (emailEl) emailEl.value = lead.email || '';
         const cpfEl = F('leadCpf') || $('#leadCpf'); if (cpfEl) cpfEl.value = lead.cpf_cnpj || lead.cpf || '';
+        const cityEl = F('leadCity') || $('#leadCity') || $('#lead-city'); if (cityEl) cityEl.value = lead.cidade || lead.city || '';
         const statusEl = F('leadStatus') || $('#leadStatus');
         if (statusEl) {
             if (statusEl.tagName === 'SELECT') {
@@ -695,6 +733,21 @@
         const notesEl = F('leadNotes') || $('#leadNotes'); if (notesEl) notesEl.value = lead.notes || '';
         // reset file input
         const f = F('leadAnexos') || $('#leadAnexos'); if (f) f.value = '';
+        // remove any previous existing attachments UI
+        const prevWrap = document.getElementById('existingAnexosWrap'); if (prevWrap) prevWrap.remove();
+        // show existing attachment (download link) when editing
+        if (lead.anexos_filename) {
+            try {
+                const wrap = document.createElement('div'); wrap.id = 'existingAnexosWrap'; wrap.className = 'mt-2 mb-2';
+                const lbl = document.createElement('div'); lbl.className = 'small text-muted mb-1'; lbl.textContent = 'Anexo:';
+                const link = document.createElement('a'); link.href = 'includes/leads_api.php?action=download_anexo&id=' + encodeURIComponent(lead.id); link.target = '_blank'; link.rel='noopener';
+                link.textContent = lead.anexos_filename + (lead.anexos_mimetype ? (' (' + lead.anexos_mimetype + ')') : '');
+                link.className = 'd-block';
+                wrap.appendChild(lbl); wrap.appendChild(link);
+                const fileInput = document.getElementById('lead-anexos');
+                if (fileInput && fileInput.parentNode) fileInput.parentNode.appendChild(wrap);
+            } catch(e){ console.warn('Failed showing existing attachment', e); }
+        }
         const m = new bootstrap.Modal($('#leadModal'));
         const titleEl = F('leadModalTitle') || $('#leadModalTitle'); if (titleEl) titleEl.textContent = 'Editar Lead';
         m.show();
@@ -774,6 +827,18 @@
         
         (F('leadForm') || $('#leadForm')).addEventListener('submit', async (e)=>{
             e.preventDefault();
+            // prevent duplicate submits
+            if (leadFormSubmitting) {
+                console.warn('Lead form submission blocked: already submitting');
+                return;
+            }
+            leadFormSubmitting = true;
+            const saveBtn = document.getElementById('save-lead');
+            let _saveBtnHtml = null;
+            if (saveBtn) {
+                try { _saveBtnHtml = saveBtn.innerHTML; } catch(e) {}
+                try { saveBtn.disabled = true; saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Salvando...'; } catch(e) {}
+            }
             console.log('Form submit triggered');
             const idEl = F('leadId') || $('#lead-id');
             const id = idEl ? idEl.value : '';
@@ -782,6 +847,7 @@
             const nameValue = (F('leadName')||$('#lead-name')).value || '';
             const emailValue = (F('leadEmail')||$('#lead-email')).value || '';
             const phoneValue = (F('leadPhone')||$('#lead-phone')).value || '';
+            const cityValue = (F('leadCity')||$('#lead-city')||$('#leadCity')) ? (F('leadCity')||$('#lead-city')||$('#leadCity')).value : '';
             const cpfValue = (F('leadCpf')||$('#lead-cpf-cnpj')) ? (F('leadCpf')||$('#lead-cpf-cnpj')).value : '';
             const sourceValue = (F('leadSource')||$('#lead-source')) ? (F('leadSource')||$('#lead-source')).value : 'web';
             const statusEl = (F('leadStatus')||$('#lead-status'));
@@ -806,6 +872,7 @@
                 const fd = new FormData();
                 fd.append('name', nameValue);
                 fd.append('email', emailValue);
+                fd.append('cidade', cityValue);
                 fd.append('phone', phoneValue);
                 fd.append('cpf_cnpj', cpfValue);
                 fd.append('source', sourceValue);
@@ -831,6 +898,7 @@
                 const params = new URLSearchParams();
                 params.append('name', nameValue);
                 params.append('email', emailValue);
+                params.append('cidade', cityValue);
                 params.append('phone', phoneValue);
                 params.append('cpf_cnpj', cpfValue);
                 params.append('source', sourceValue);
@@ -864,7 +932,8 @@
                 if (!res.ok || (payload && payload.error)) {
                     const msg = (payload && (payload.error || payload.message)) || txt || 'Erro ao salvar';
                     console.error('Save failed', res.status, msg);
-                    return alert('Falha ao salvar: ' + msg);
+                    alert('Falha ao salvar: ' + msg);
+                    return;
                 }
                 console.log('Save successful, reloading leads...');
                 try {
@@ -885,6 +954,14 @@
             } catch (err) { 
                 console.error('Fetch error:', err); 
                 alert('Falha ao salvar: ' + (err.message || err)); 
+            } finally {
+                // re-enable save button and clear submitting flag
+                leadFormSubmitting = false;
+                const saveBtnFinal = document.getElementById('save-lead');
+                if (saveBtnFinal) {
+                    try { saveBtnFinal.disabled = false; } catch(e) {}
+                    try { if (_saveBtnHtml) saveBtnFinal.innerHTML = _saveBtnHtml; } catch(e) {}
+                }
             }
         });
 

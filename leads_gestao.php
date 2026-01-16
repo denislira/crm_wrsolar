@@ -131,6 +131,8 @@ include 'includes/header.php';
                                         <input id="lead-phone" class="form-control" type="tel">
                                         <label class="form-label mt-2">CPF / CNPJ <i class="fa fa-id-card text-muted"></i></label>
                                         <input id="lead-cpf-cnpj" class="form-control" placeholder="000.000.000-00 ou 00.000.000/0000-00">
+                                        <label class="form-label mt-2">Cidade <i class="fa fa-city text-muted"></i></label>
+                                        <input id="lead-city" class="form-control" placeholder="Cidade">
                                     </div>
                                 </div>
                             </div>
@@ -236,15 +238,14 @@ include 'includes/header.php';
                 document.getElementById('leadModalTitle').textContent = 'Novo Lead';
                 leadModal.show();
             });
-            document.getElementById('save-lead').addEventListener('click', async ()=>{
-                const id = document.getElementById('lead-id').value;
-                const formData = new FormData(document.getElementById('leadForm'));
-                if (id) formData.append('id', id);
-                const action = id ? 'update' : 'add';
-                try {
-                    const res = await fetch('includes/leads_api.php?action='+action, { method: 'POST', body: formData });
-                    if (res.ok) { leadModal.hide(); location.reload(); } else { alert('Erro ao salvar lead'); }
-                } catch (err) { console.error(err); alert('Erro ao salvar lead'); }
+            document.getElementById('save-lead').addEventListener('click', (e)=>{
+                const form = document.getElementById('leadForm');
+                // Prefer requestSubmit when available (triggers form submit handlers)
+                if (form.requestSubmit) {
+                    form.requestSubmit();
+                } else {
+                    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                }
             });
         }
     });

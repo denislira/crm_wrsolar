@@ -30,29 +30,38 @@ switch ($action) {
         break;
     case 'add':
         $data = json_decode(file_get_contents('php://input'), true);
+        // force responsavel to current session username for security
+        $responsavel = $_SESSION['username'] ?? '';
         $stmt = $pdo->prepare("INSERT INTO team_tasks (user_id, equipe, titulo, descricao, status, responsavel, data_vencimento) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $data_venc = (isset($data['data_vencimento']) && trim($data['data_vencimento']) !== '') ? $data['data_vencimento'] : null;
         $stmt->execute([
             $userId,
-            $data['equipe'] ?? '',
-            $data['titulo'] ?? '',
+            $data['equipe'] ?? null,
+            $data['titulo'] ?? null,
             $data['descricao'] ?? '',
             $data['status'] ?? 'Pendente',
-            $data['responsavel'] ?? '',
-            $data['data_vencimento'] ?? null
+            $responsavel,
+            $data_venc
         ]);
         echo json_encode(['success'=>true, 'id'=>$pdo->lastInsertId()]);
         break;
     case 'update':
         $id = $_GET['id'] ?? 0;
         $data = json_decode(file_get_contents('php://input'), true);
+        // Do not allow changing responsavel via API — keep existing responsavel
+        $cur = $pdo->prepare("SELECT responsavel FROM team_tasks WHERE id = ? AND user_id = ?");
+        $cur->execute([$id, $userId]);
+        $row = $cur->fetch(PDO::FETCH_ASSOC);
+        $responsavel = $row ? $row['responsavel'] : ($_SESSION['username'] ?? '');
         $stmt = $pdo->prepare("UPDATE team_tasks SET equipe=?, titulo=?, descricao=?, status=?, responsavel=?, data_vencimento=? WHERE id=? AND user_id=?");
+        $data_venc = (isset($data['data_vencimento']) && trim($data['data_vencimento']) !== '') ? $data['data_vencimento'] : null;
         $stmt->execute([
-            $data['equipe'] ?? '',
-            $data['titulo'] ?? '',
+            $data['equipe'] ?? null,
+            $data['titulo'] ?? null,
             $data['descricao'] ?? '',
             $data['status'] ?? 'Pendente',
-            $data['responsavel'] ?? '',
-            $data['data_vencimento'] ?? null,
+            $responsavel,
+            $data_venc,
             $id,
             $userId
         ]);
@@ -76,5 +85,16 @@ switch ($action) {
             ];
         }
         echo json_encode($activities);
+        break;
+    case 'delete':
+        $id = $_GET['id'] ?? 0;
+        if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); break; }
+        $stmt = $pdo->prepare("DELETE FROM team_tasks WHERE id = ? AND user_id = ?");
+        $stmt->execute([$id, $userId]);
+        if ($stmt->rowCount() > 0) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Not found or no permission']);
+        }
         break;
 }

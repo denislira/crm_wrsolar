@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS team_tasks (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
-  equipe VARCHAR(50) NOT NULL,
-  titulo VARCHAR(255) NOT NULL,
+  equipe VARCHAR(50) DEFAULT NULL,
+  titulo VARCHAR(255) DEFAULT NULL,
   descricao TEXT,
   status VARCHAR(30) DEFAULT 'Pendente',
   responsavel VARCHAR(100),

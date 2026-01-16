@@ -8,19 +8,30 @@ body{background:#e9eef5}
 .kanban-header{font-weight:700;padding:10px 12px;background:transparent;border-bottom:1px solid rgba(11,26,49,0.04);display:flex;justify-content:space-between;align-items:center}
 .kanban-top-stripe{height:6px;border-top-left-radius:12px;border-top-right-radius:12px;margin:-8px -8px 6px -8px}
 .column-content{min-height:160px;padding:12px;display:flex;flex-direction:column;gap:10px}
-.lead-card{background:#fff;padding:12px;border-radius:12px;border:1px solid rgba(11,26,49,0.06);border-left:6px solid transparent;cursor:grab;transition:transform .12s ease,box-shadow .12s ease,border-left .12s ease;box-shadow:0 6px 18px rgba(11,26,49,0.06)}
-.lead-card:hover{transform:translateY(-4px);box-shadow:0 12px 36px rgba(11,26,49,0.08)}
+.lead-card{background:#fff;padding:12px;border-radius:12px;border:1px solid rgba(11,26,49,0.06);border-left:4px solid transparent;cursor:grab;transition:transform .12s ease,box-shadow .12s ease,border-left .12s ease,outline .12s ease;box-shadow:0 6px 18px rgba(11,26,49,0.06);position:relative}
 .lead-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(11,26,49,0.06)}
 .lead-card .lead-select{transform:scale(1.05)}
-.lead-card.selected{box-shadow:0 12px 36px rgba(11,26,49,0.06);border-color:rgba(11,106,193,0.08)}
+.lead-card.selected{outline:3px solid var(--selected-color,#6c757d);outline-offset:-3px}
 .lead-card .title{font-weight:600}
 .lead-meta{font-size:.85rem;color:var(--muted);display:flex;gap:8px;align-items:center;margin-top:6px}
-.badge-score{padding:4px 8px;border-radius:999px;font-weight:700;color:#fff}
+.badge-score{padding:2px 6px;border-radius:999px;font-weight:700;color:#fff;font-size:0.82rem;line-height:1}
 .badge-score.hot{background:#ef4444}
 .badge-score.warm{background:#f59e0b}
 .badge-score.cold{background:#06b6d4}
-.lead-panel{position:fixed;right:0;top:56px;width:420px;height:calc(100vh - 56px);background:var(--card);border-left:1px solid rgba(11,26,49,0.04);box-shadow:-8px 0 40px rgba(11,26,49,0.12), 0 0 20px rgba(0,0,0,0.1);z-index:1200;overflow:auto;transition:transform .2s ease}
-.lead-panel.hidden{transform:translateX(100%)}
+ .lead-panel{position:fixed;right:0;top:56px;width:420px;height:calc(100vh - 56px);background:var(--card);border-left:1px solid rgba(11,26,49,0.04);box-shadow:-8px 0 40px rgba(11,26,49,0.12), 0 0 20px rgba(0,0,0,0.1);z-index:1200;overflow:auto;transition:transform .2s ease;border-top-left-radius:12px;border-bottom-left-radius:12px}
+ .lead-panel.hidden{transform:translateX(100%)}
+
+/* Rounded, light sections inside the lead details panel */
+#leadDetailContent .lead-col{background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:12px;border:1px solid rgba(11,26,49,0.04)}
+
+@media (max-width: 900px){
+    /* On narrow screens the panel is full-width so avoid extra rounding and section backgrounds */
+    .lead-panel{border-radius:0}
+    #leadDetailContent .lead-col{background:transparent;border:none;padding:0;margin-bottom:0}
+}
+
+/* dark mode adjustments for panel sections */
+body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent .lead-col{background:#071427;border-color:rgba(255,255,255,0.03)}
 .lead-panel-inner{padding:18px}
 .close-panel{position:absolute;right:8px;top:8px}
 /* Expanded lead details panel */
@@ -36,6 +47,14 @@ body{background:#e9eef5}
 /* small helpers */
 .kpi-row .card{background:var(--card)}
 .loading{opacity:.6}
+
+/* clip icon on cards */
+.lead-clip-icon{font-size:0.85rem;vertical-align:middle;display:inline-block}
+.lead-clip-icon:hover{color:#0b6ac1}
+
+/* lead detail attachment link */
+#leadDetailContent .anexo-link{color:var(--accent);text-decoration:none;font-weight:600}
+#leadDetailContent .anexo-link:hover{text-decoration:underline}
 
 .stage-sum{font-size:.82rem;color:var(--muted);margin-left:8px}
 .stalled-icon{margin-left:6px;color:#f59e0b;font-size:0.9rem}

@@ -137,7 +137,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
     if ($action === 'list') {
         try {
-            $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE user_id = ? ORDER BY created_at DESC');
+            $stmt = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE user_id = ? ORDER BY created_at DESC');
             $stmt->execute([$userId]);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
@@ -154,7 +154,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
     if ($action === 'get') {
         if (empty($_GET['id'])) { throw new Exception('Missing id'); }
         try {
-            $sql = 'SELECT l.id, l.user_id, l.name, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.orcamento_value, l.anexos_filename, l.anexos_mimetype, l.created_at, l.updated_at '
+              $sql = 'SELECT l.id, l.user_id, l.name, l.cidade, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.orcamento_value, l.anexos_filename, l.anexos_mimetype, l.created_at, l.updated_at '
                  . 'FROM leads l '
                  . 'WHERE l.id = ? AND l.user_id = ? LIMIT 1';
             $stmt = $pdo->prepare($sql);
@@ -327,10 +327,11 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             }
         }
 
-        $stmt = $pdo->prepare('INSERT INTO leads (user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, anexos, anexos_filename, anexos_mimetype, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+        $stmt = $pdo->prepare('INSERT INTO leads (user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, anexos, anexos_filename, anexos_mimetype, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
         $stmt->execute([
             $userId,
             $data['name'] ?? '',
+            $data['cidade'] ?? '',
             $data['email'] ?? '',
             $data['phone'] ?? '',
             $data['cpf_cnpj'] ?? '',
@@ -400,6 +401,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
         $params = [
             $data['name'] ?? '',
+            $data['cidade'] ?? '',
             $data['email'] ?? '',
             $data['phone'] ?? '',
             $data['cpf_cnpj'] ?? '',
@@ -426,7 +428,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         $params[] = $userId;
 
         // Include stage_id column in the update SQL
-        $stmt = $pdo->prepare('UPDATE leads SET name=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, orcamento_value=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=? AND user_id=?');
+        $stmt = $pdo->prepare('UPDATE leads SET name=?, cidade=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, orcamento_value=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=? AND user_id=?');
         $stmt->execute($params);
 
         // If status or stage changed, log movement

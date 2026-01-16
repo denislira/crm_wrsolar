@@ -179,6 +179,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             position: relative;
             z-index: 2;
         }
+        /* Lighter border for password eye toggle */
+        #togglePassword {
+            border-color: rgba(11,106,193,0.12) !important;
+            border-width: 1px !important;
+            background: transparent !important;
+            color: var(--blue-900);
+        }
+        #togglePassword:hover {
+            border-color: rgba(11,106,193,0.18) !important;
+        }
     </style>
 </head>
 <body>
@@ -217,7 +227,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <label for="password" class="form-label">
                         <i class="fa fa-lock me-2"></i>Senha
                     </label>
-                    <input type="password" name="password" id="password" class="form-control" required autocomplete="current-password" placeholder="Digite sua senha">
+                    <div class="input-group">
+                        <input type="password" name="password" id="password" class="form-control" required autocomplete="current-password" placeholder="Digite sua senha">
+                        <button class="btn btn-outline-secondary" type="button" id="togglePassword" title="Mostrar senha"><i class="fa fa-eye"></i></button>
+                    </div>
                 </div>
                 
                 <div class="d-grid">
@@ -238,5 +251,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (function(){
+            const pwd = document.getElementById('password');
+            const btn = document.getElementById('togglePassword');
+            if (pwd && btn) {
+                btn.addEventListener('click', function(){
+                    const isPwd = pwd.type === 'password';
+                    pwd.type = isPwd ? 'text' : 'password';
+                    const icon = btn.querySelector('i');
+                    if (icon) icon.className = isPwd ? 'fa fa-eye-slash' : 'fa fa-eye';
+                    btn.title = isPwd ? 'Ocultar senha' : 'Mostrar senha';
+                });
+            }
+        })();
+    </script>
 </body>
 </html>

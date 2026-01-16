@@ -8,8 +8,19 @@ include 'includes/permissions.php';
 checkAccessOrRedirect('integracao-equipes');
 
 
-// Buscar equipes e responsáveis distintos para filtros
-$equipes = ['Marketing','Vendas','Atendimento','Técnica','Financeiro'];
+// Buscar equipes (preferencialmente da tabela `teams`) e responsáveis distintos para filtros
+$equipes = [];
+try {
+    $teamsStmt = $pdo->query('SELECT name FROM teams ORDER BY name');
+    $rows = $teamsStmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($rows) {
+        foreach ($rows as $r) $equipes[] = $r['name'];
+    }
+} catch (Exception $e) {
+    // tabela teams pode não existir em instalações antigas — fallback para lista estática
+    $equipes = ['Marketing','Vendas','Atendimento','Técnica','Financeiro'];
+}
+
 $respStmt = $pdo->prepare('SELECT DISTINCT responsavel FROM team_tasks WHERE user_id = ? AND responsavel IS NOT NULL AND responsavel <> ""');
 $respStmt->execute([$_SESSION['user_id']]);
 $responsaveis = array_map(function($r){return $r['responsavel'];}, $respStmt->fetchAll(PDO::FETCH_ASSOC));
@@ -28,7 +39,6 @@ include 'includes/header.php';
                     <div class="text-muted">Centraliza informações e tarefas entre equipes de marketing, vendas e atendimento. Melhora a comunicação interna e reduz falhas no processo.</div>
                 </div>
                 <div>
-                    <a href="add_customer.php" class="btn btn-primary">Adicionar tarefa/registro</a>
                 </div>
             </div>
 
@@ -47,7 +57,7 @@ include 'includes/header.php';
                     <div class="card card-shadow p-3 mb-3">
                         <h6 class="mb-3">Tarefas de Equipe</h6>
                         <div class="d-flex gap-2 flex-wrap mb-2">
-                            <select id="filtroEquipe" class="form-select form-select-sm w-auto">
+                            <select id="filtroEquipe" class="form-select form-select-sm w-auto" style="display:none;">
                                 <option value="">Todas equipes</option>
                                 <?php foreach ($equipes as $eq): ?><option value="<?php echo $eq; ?>"><?php echo $eq; ?></option><?php endforeach; ?>
                             </select>
@@ -62,9 +72,58 @@ include 'includes/header.php';
                                 <option value="Concluída">Concluída</option>
                             </select>
                             <input type="search" id="filtroBusca" class="form-control form-control-sm w-50" placeholder="Buscar tarefa...">
-                            <button class="btn btn-success btn-sm" id="btnNovaTarefa"><i class="fa fa-plus"></i> Nova tarefa</button>
                         </div>
                         <div id="tasksList"></div>
+                        <!-- Modal Nova Tarefa -->
+                        <div class="modal fade" id="modalNovaTarefa" tabindex="-1" aria-labelledby="modalNovaTarefaLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-light border-bottom">
+                                        <h5 class="modal-title" id="modalNovaTarefaLabel"><i class="fa fa-plus text-success"></i> Nova Tarefa de Equipe</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <form id="formModalNovaTarefa">
+                                            <div class="mb-2">
+                                                <label class="form-label">Título <i class="fa fa-tasks text-muted"></i></label>
+                                                <input type="text" name="titulo" id="new-titulo" class="form-control" required>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label">Descrição <i class="fa fa-align-left text-muted"></i></label>
+                                                <textarea name="descricao" id="new-descricao" class="form-control" rows="3"></textarea>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label">Responsável <i class="fa fa-user text-muted"></i></label>
+                                                <div class="form-control-plaintext fw-semibold"><?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?></div>
+                                                <input type="hidden" name="responsavel" id="new-responsavel" value="<?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?>">
+                                            </div>
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Data de vencimento <i class="fa fa-calendar text-muted"></i></label>
+                                                    <input type="date" name="data_vencimento" id="new-data-vencimento" class="form-control">
+                                                </div>
+                                                <div class="col-md-6"></div>
+                                            </div>
+                                            <div class="mt-2">
+                                                <label class="form-label">Status <i class="fa fa-flag text-muted"></i></label>
+                                                <select name="status" id="new-status" class="form-select">
+                                                    <option value="Pendente">Pendente</option>
+                                                    <option value="Em andamento">Em andamento</option>
+                                                    <option value="Concluída">Concluída</option>
+                                                </select>
+                                            </div>
+                                            <input type="hidden" name="equipe" id="new-equipe" value="">
+                                        </form>
+                                        <div id="novaTarefaModalMsg" class="mt-2"></div>
+                                    </div>
+                                    <div class="modal-footer d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                        <button id="btnSalvarNovaModal" type="button" class="btn btn-success"><i class="fa fa-save"></i> Salvar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Modal Editar Tarefa -->
                                                 <div class="modal fade" id="modalEditarTarefa" tabindex="-1" aria-labelledby="modalEditarTarefaLabel" aria-hidden="true">
                                                     <div class="modal-dialog modal-lg">
@@ -76,43 +135,35 @@ include 'includes/header.php';
                                                             <div class="modal-body">
                                                                 <form id="formEditarTarefa">
                                                                     <input type="hidden" name="id" id="edit-id">
+                                                                    <div class="mb-2">
+                                                                        <label class="form-label">Título <i class="fa fa-tasks text-muted"></i></label>
+                                                                        <input type="text" name="titulo" id="edit-titulo" class="form-control" required>
+                                                                    </div>
+                                                                    <div class="mb-2">
+                                                                        <label class="form-label">Descrição <i class="fa fa-align-left text-muted"></i></label>
+                                                                        <textarea name="descricao" id="edit-descricao" class="form-control" rows="3"></textarea>
+                                                                    </div>
+                                                                    <div class="mb-2">
+                                                                        <label class="form-label">Responsável <i class="fa fa-user text-muted"></i></label>
+                                                                        <div class="form-control-plaintext fw-semibold" id="edit-responsavel_display"><?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?></div>
+                                                                        <input type="hidden" name="responsavel" id="edit-responsavel" value="<?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?>">
+                                                                    </div>
                                                                     <div class="row g-3">
-                                                                        <div class="col-md-6">
-                                                                            <label class="form-label">Equipe <i class="fa fa-users text-muted"></i></label>
-                                                                            <select name="equipe" id="edit-equipe" class="form-select" required>
-                                                                                <option value="">Selecione</option>
-                                                                                <?php foreach ($equipes as $eq): ?><option value="<?php echo $eq; ?>"><?php echo $eq; ?></option><?php endforeach; ?>
-                                                                            </select>
-                                                                        </div>
-                                                                        <div class="col-md-6">
-                                                                            <label class="form-label">Responsável <i class="fa fa-user text-muted"></i></label>
-                                                                            <input type="text" name="responsavel" id="edit-responsavel" class="form-control" required>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="row g-3 mt-2">
-                                                                        <div class="col-md-6">
-                                                                            <label class="form-label">Título <i class="fa fa-tasks text-muted"></i></label>
-                                                                            <input type="text" name="titulo" id="edit-titulo" class="form-control" required>
-                                                                        </div>
-                                                                        <div class="col-md-6">
-                                                                            <label class="form-label">Status <i class="fa fa-flag text-muted"></i></label>
-                                                                            <select name="status" id="edit-status" class="form-select">
-                                                                                <option value="Pendente">Pendente</option>
-                                                                                <option value="Em andamento">Em andamento</option>
-                                                                                <option value="Concluída">Concluída</option>
-                                                                            </select>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="row g-3 mt-2">
                                                                         <div class="col-md-6">
                                                                             <label class="form-label">Data de vencimento <i class="fa fa-calendar text-muted"></i></label>
                                                                             <input type="date" name="data_vencimento" id="edit-data-vencimento" class="form-control">
                                                                         </div>
-                                                                        <div class="col-md-6">
-                                                                            <label class="form-label">Descrição <i class="fa fa-align-left text-muted"></i></label>
-                                                                            <textarea name="descricao" id="edit-descricao" class="form-control" rows="2"></textarea>
-                                                                        </div>
+                                                                        <div class="col-md-6"></div>
                                                                     </div>
+                                                                    <div class="mt-2">
+                                                                        <label class="form-label">Status <i class="fa fa-flag text-muted"></i></label>
+                                                                        <select name="status" id="edit-status" class="form-select">
+                                                                            <option value="Pendente">Pendente</option>
+                                                                            <option value="Em andamento">Em andamento</option>
+                                                                            <option value="Concluída">Concluída</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <input type="hidden" name="equipe" id="edit-equipe" value="">
                                                                 </form>
                                                                 <div id="editarTarefaMsg" class="mt-2"></div>
                                                             </div>
@@ -132,7 +183,7 @@ include 'includes/header.php';
                 </div>
 
                 <div class="col-lg-4">
-                    <div class="card card-shadow p-3">
+                    <div class="card card-shadow p-3" style="display:none;">
                         <h6 class="mb-2">Resumo de Equipes</h6>
                         <ul class="list-unstyled mb-0">
                             <?php foreach ($equipes as $eq): ?>
@@ -144,40 +195,43 @@ include 'includes/header.php';
                         </ul>
                     </div>
                     <div class="card card-shadow p-3 mt-3">
-                        <h6 class="mb-2">Nova Tarefa</h6>
-                        <form id="formNovaTarefa">
+                        <div class="d-flex align-items-start mb-3">
+                            <div class="me-3 display-6 text-primary"><i class="fa fa-plus-circle"></i></div>
+                            <div>
+                                <h6 class="mb-0">Nova Tarefa</h6>
+                                <small class="text-muted">Crie uma tarefa rápida para você</small>
+                            </div>
+                        </div>
+                        <form id="formNovaTarefa" class="mb-0">
                             <div class="mb-2">
-                                <label class="form-label">Equipe</label>
-                                <select name="equipe" class="form-select form-select-sm" required>
-                                    <option value="">Selecione</option>
-                                    <?php foreach ($equipes as $eq): ?><option value="<?php echo $eq; ?>"><?php echo $eq; ?></option><?php endforeach; ?>
-                                </select>
+                                <label class="form-label small">Título <span class="text-danger">*</span></label>
+                                <input type="text" name="titulo" class="form-control form-control-sm" placeholder="Ex: Revisar proposta" required>
                             </div>
                             <div class="mb-2">
-                                <label class="form-label">Título</label>
-                                <input type="text" name="titulo" class="form-control form-control-sm" required>
+                                <label class="form-label small">Descrição</label>
+                                <textarea name="descricao" class="form-control form-control-sm" rows="3" placeholder="Detalhes (opcional)"></textarea>
                             </div>
-                            <div class="mb-2">
-                                <label class="form-label">Descrição</label>
-                                <textarea name="descricao" class="form-control form-control-sm" rows="2"></textarea>
+                            <div class="row g-2 mb-2">
+                                <div class="col-7">
+                                    <label class="form-label small">Responsável</label>
+                                    <div class="form-control-plaintext small fw-semibold"><?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?></div>
+                                    <input type="hidden" name="responsavel" value="<?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?>">
+                                </div>
+                                <div class="col-5">
+                                    <label class="form-label small">Vencimento</label>
+                                    <input type="date" name="data_vencimento" class="form-control form-control-sm">
+                                </div>
                             </div>
-                            <div class="mb-2">
-                                <label class="form-label">Responsável</label>
-                                <input type="text" name="responsavel" class="form-control form-control-sm">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label">Data de vencimento</label>
-                                <input type="date" name="data_vencimento" class="form-control form-control-sm">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label">Status</label>
+                            <div class="mb-3">
+                                <label class="form-label small">Status</label>
                                 <select name="status" class="form-select form-select-sm">
                                     <option value="Pendente">Pendente</option>
                                     <option value="Em andamento">Em andamento</option>
                                     <option value="Concluída">Concluída</option>
                                 </select>
                             </div>
-                            <button type="submit" class="btn btn-success btn-sm">Salvar</button>
+                            <input type="hidden" name="equipe" value="">
+                            <button type="submit" class="btn btn-primary w-100">Salvar tarefa</button>
                         </form>
                         <div id="novaTarefaMsg" class="mt-2"></div>
                     </div>
@@ -602,6 +656,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 atualizarTarefas();
             } else {
                 showNotification('Erro ao criar tarefa','danger');
+            }
+        });
+    }
+    // Abrir modal de Nova Tarefa a partir do botão na lista e do link superior
+    const btnNovaTarefa = document.getElementById('btnNovaTarefa');
+    const modalNovaEl = document.getElementById('modalNovaTarefa');
+    if (btnNovaTarefa) btnNovaTarefa.addEventListener('click', ()=>{ new bootstrap.Modal(modalNovaEl).show(); });
+
+    // Submissão do formulário do modal
+    const btnSalvarNovaModal = document.getElementById('btnSalvarNovaModal');
+    if (btnSalvarNovaModal) {
+        btnSalvarNovaModal.addEventListener('click', async function() {
+            const form = document.getElementById('formModalNovaTarefa');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+            data.user_id = userId;
+            const resp = await addTask(data);
+            if (resp.success) {
+                document.getElementById('novaTarefaModalMsg').innerHTML = '<div class="alert alert-success">Tarefa criada com sucesso!</div>';
+                setTimeout(()=>{
+                    const modal = bootstrap.Modal.getInstance(modalNovaEl);
+                    if (modal) modal.hide();
+                    document.getElementById('novaTarefaModalMsg').innerHTML = '';
+                    form.reset();
+                    atualizarTarefas();
+                }, 700);
+            } else {
+                document.getElementById('novaTarefaModalMsg').innerHTML = '<div class="alert alert-danger">Erro ao criar tarefa</div>';
             }
         });
     }

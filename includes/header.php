@@ -9,6 +9,8 @@ include_once 'includes/permissions.php';
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SolarCRM</title>
   <link rel="icon" type="image/png" href="assets/img/favicon.png">
+  <!-- Browser also requests /favicon.ico automatically; provide explicit fallback -->
+  <link rel="shortcut icon" href="/favicon.ico">
   <link rel="stylesheet" href="assets/css/bootstrap.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

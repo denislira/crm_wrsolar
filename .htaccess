@@ -1,0 +1,3 @@
+RewriteEngine On
+# Serve the PNG favicon when /favicon.ico is requested (avoids 404 if .ico missing)
+RewriteRule ^favicon\.ico$ /assets/img/favicon.png [L]
