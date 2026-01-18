@@ -169,6 +169,17 @@
         if (!dt) return '—';
         try { const d = new Date(String(dt).replace(' ', 'T')); return d.toLocaleDateString('pt-BR'); } catch(e){ return String(dt); }
     }
+    function formatDateCompact(dt){
+        if (!dt) return '—';
+        try {
+            const d = new Date(String(dt).replace(' ', 'T'));
+            const day = String(d.getDate()).padStart(2,'0');
+            const mon = String(d.getMonth()+1).padStart(2,'0');
+            const now = new Date();
+            if (d.getFullYear() === now.getFullYear()) return `${day}/${mon}`;
+            return `${day}/${mon}/${String(d.getFullYear()).slice(-2)}`;
+        } catch(e){ return formatDateBR(dt); }
+    }
     function daysSince(dt){ if (!dt) return null; try { const d = new Date(String(dt).replace(' ', 'T')); const diff = Date.now() - d.getTime(); return Math.floor(diff / (1000*60*60*24)); } catch(e){ return null; } }
 
     function renderKpis(){
@@ -258,7 +269,8 @@
         el.appendChild(head); el.appendChild(company); el.appendChild(meta);
 
         // created date and days active
-        const createdText = formatDateBR(lead.created_at || lead.createdAt || lead.created);
+        const createdRaw = (lead.created_at || lead.createdAt || lead.created);
+        const createdText = document.body.classList.contains('kanban-compact') ? formatDateCompact(createdRaw) : formatDateBR(createdRaw);
         const daysActive = daysSince(lead.created_at || lead.createdAt || lead.created);
         const noMovement = leadUpdatedDaysAgo(lead);
         const createdDiv = document.createElement('div'); createdDiv.className = 'lead-created small text-muted mt-1';
@@ -504,6 +516,7 @@
         const company = document.createElement('div'); company.textContent = 'Fonte: ' + (lead.source || lead.client_name || lead.company || '—');
         const email = document.createElement('div'); email.innerHTML = 'Email: ' + (lead.email? `<a href="mailto:${encodeURIComponent(lead.email)}">${lead.email}</a>` : '—');
         const phone = document.createElement('div'); phone.innerHTML = 'Telefone: ' + (lead.phone? `<a href="tel:${encodeURIComponent(lead.phone)}">${lead.phone}</a>` : '—');
+        const city = document.createElement('div'); city.textContent = 'Cidade: ' + (lead.cidade || lead.city || '—');
         // attachment link in detail panel
         const anexosDiv = document.createElement('div'); anexosDiv.className = 'mt-2';
         if (lead.anexos_filename) {
@@ -599,7 +612,7 @@
         // Movement timeline
         const timelineWrap = document.createElement('div'); timelineWrap.className = 'my-5'; timelineWrap.innerHTML = '<h6>Histórico de movimentações</h6><div id="timeline"></div>';
         // assemble columns: left = basic info + notes + actions, right = reminders + timeline
-        leftCol.appendChild(title); leftCol.appendChild(status); leftCol.appendChild(createdDiv); leftCol.appendChild(company); leftCol.appendChild(email); leftCol.appendChild(phone); leftCol.appendChild(value); leftCol.appendChild(notes);
+        leftCol.appendChild(title); leftCol.appendChild(status); leftCol.appendChild(createdDiv); leftCol.appendChild(company); leftCol.appendChild(email); leftCol.appendChild(phone); leftCol.appendChild(city); leftCol.appendChild(value); leftCol.appendChild(notes);
         if (typeof anexosDiv !== 'undefined' && anexosDiv) leftCol.appendChild(anexosDiv);
         leftCol.appendChild(btns);
             rightCol.appendChild(remindersWrap); rightCol.appendChild(timelineWrap); 
@@ -815,6 +828,173 @@
             } catch(e) { /* ignore */ }
             m.show(); 
         });
+
+        // Kanban-only toggle: hide/show all page chrome and make kanban fill view
+        try {
+            const kanbanBtn = document.getElementById('kanbanOnlyBtn');
+            const kanbanIcon = document.getElementById('kanbanOnlyIcon');
+            const compactBtn = document.getElementById('kanbanCompactBtn');
+            const compactIcon = document.getElementById('kanbanCompactIcon');
+            // Keep references to original place so we can restore
+            let _kanbanBtnOriginalParent = null;
+            let _kanbanBtnOriginalNext = null;
+            let _compactBtnOriginalParent = null;
+            let _compactBtnOriginalNext = null;
+            const applyState = (on) => {
+                const kanbanWrap = document.getElementById('kanbanWrap');
+                if (on) {
+                        // compute an absolute path for the kanban background image based on current page
+                        try {
+                            const basePath = window.location.pathname.replace(/\/[^\/]*$/, '') || '';
+                            const imgPath = (basePath === '' ? '' : basePath) + '/assets/img/kanban2.jpg';
+                            document.body.style.setProperty('--kanban-bg-image', `url('${imgPath}')`);
+                        } catch (e) { /* ignore if styling fails */ }
+                    document.body.classList.add('kanban-only');
+                    if (kanbanIcon) { kanbanIcon.classList.remove('fa-expand-arrows-alt'); kanbanIcon.classList.add('fa-compress-arrows-alt'); kanbanBtn.title = 'Restaurar layout'; }
+                    // move the header buttons into the kanban area so they're visually above the kanban
+                    try {
+                        if (kanbanWrap) {
+                            // keep kanbanWrap positioned if other code relies on it
+                            kanbanWrap.style.position = kanbanWrap.style.position || 'relative';
+                        }
+                        // move buttons to the viewport as fixed floating controls
+                        if (kanbanBtn) {
+                            if (!_kanbanBtnOriginalParent) {
+                                _kanbanBtnOriginalParent = kanbanBtn.parentNode;
+                                _kanbanBtnOriginalNext = kanbanBtn.nextSibling;
+                            }
+                            // compute vertical alignment using original toolbar position
+                            try {
+                                const toolbarEl = _kanbanBtnOriginalParent || document.querySelector('.d-flex.gap-2.align-items-center') || document.querySelector('.page-header') || document.body;
+                                const rect = toolbarEl.getBoundingClientRect();
+                                const btnHeight = kanbanBtn.offsetHeight || 34;
+                                const OFFSET_Y = 72; // nudge down a bit more so buttons sit slightly lower
+                                let computedTop = Math.round(rect.top + (rect.height/2) - (btnHeight/2) + OFFSET_Y);
+                                // ensure buttons are at least slightly below the toolbar bottom
+                                const minBelow = Math.round(rect.bottom + 8);
+                                if (computedTop < minBelow) computedTop = minBelow;
+                                kanbanBtn.style.position = 'fixed';
+                                kanbanBtn.style.top = computedTop + 'px';
+                                kanbanBtn.style.right = '12px';
+                                kanbanBtn.style.zIndex = '2200';
+                                kanbanBtn.style.margin = '0';
+                                // append to kanbanWrap so DOM stays under kanban parent, fallback to body
+                                try { (kanbanWrap || document.body).appendChild(kanbanBtn); } catch(e) { document.body.appendChild(kanbanBtn); }
+                            } catch (errTop) {
+                                // fallback to a slightly lower fixed position
+                                kanbanBtn.style.position = 'fixed';
+                                kanbanBtn.style.top = '140px';
+                                kanbanBtn.style.right = '12px';
+                                kanbanBtn.style.zIndex = '2200';
+                                kanbanBtn.style.margin = '0';
+                                document.body.appendChild(kanbanBtn);
+                            }
+                        }
+                        if (compactBtn) {
+                            if (!_compactBtnOriginalParent) {
+                                _compactBtnOriginalParent = compactBtn.parentNode;
+                                _compactBtnOriginalNext = compactBtn.nextSibling;
+                            }
+                            try {
+                                const toolbarEl = _compactBtnOriginalParent || _kanbanBtnOriginalParent || document.querySelector('.d-flex.gap-2.align-items-center') || document.body;
+                                const rect = toolbarEl.getBoundingClientRect();
+                                const btnHeight = compactBtn.offsetHeight || 34;
+                                const OFFSET_Y = 72;
+                                let computedTop = Math.round(rect.top + (rect.height/2) - (btnHeight/2) + OFFSET_Y);
+                                const minBelow = Math.round(rect.bottom + 8);
+                                if (computedTop < minBelow) computedTop = minBelow;
+                                compactBtn.style.position = 'fixed';
+                                compactBtn.style.top = computedTop + 'px';
+                                // place compact to the left of the kanbanBtn (offset by approx 56px)
+                                compactBtn.style.right = '56px';
+                                compactBtn.style.zIndex = '2200';
+                                compactBtn.style.margin = '0';
+                                try { (kanbanWrap || document.body).appendChild(compactBtn); } catch(e) { document.body.appendChild(compactBtn); }
+                            } catch (errTop) {
+                                compactBtn.style.position = 'fixed';
+                                compactBtn.style.top = '140px';
+                                compactBtn.style.right = '56px';
+                                compactBtn.style.zIndex = '2200';
+                                compactBtn.style.margin = '0';
+                                document.body.appendChild(compactBtn);
+                            }
+                        }
+                    } catch (e) { console.warn('failed moving kanban/compact buttons into kanbanWrap', e); }
+                    // ensure internal column scroll positions start at top when entering Kanban-only
+                    try {
+                        const cols = document.querySelectorAll('#kanbanWrap .column-content');
+                        cols.forEach(c => { try { c.scrollTop = 0; c.scrollLeft = 0; } catch(e){} });
+                    } catch(e) { /* ignore */ }
+                } else {
+                    document.body.classList.remove('kanban-only');
+                    if (kanbanIcon) { kanbanIcon.classList.remove('fa-compress-arrows-alt'); kanbanIcon.classList.add('fa-expand-arrows-alt'); kanbanBtn.title = 'Mostrar somente Kanban'; }
+                    // restore the buttons to original location
+                    try {
+                        if (kanbanBtn && _kanbanBtnOriginalParent) {
+                            // clear fixed styles
+                            kanbanBtn.style.position = '';
+                            kanbanBtn.style.top = '';
+                            kanbanBtn.style.right = '';
+                            kanbanBtn.style.zIndex = '';
+                            kanbanBtn.style.margin = '';
+                            if (_kanbanBtnOriginalNext && _kanbanBtnOriginalNext.parentNode === _kanbanBtnOriginalParent) {
+                                _kanbanBtnOriginalParent.insertBefore(kanbanBtn, _kanbanBtnOriginalNext);
+                            } else {
+                                _kanbanBtnOriginalParent.appendChild(kanbanBtn);
+                            }
+                            _kanbanBtnOriginalParent = null;
+                            _kanbanBtnOriginalNext = null;
+                        }
+                        if (compactBtn && _compactBtnOriginalParent) {
+                            compactBtn.style.position = '';
+                            compactBtn.style.top = '';
+                            compactBtn.style.right = '';
+                            compactBtn.style.zIndex = '';
+                            compactBtn.style.margin = '';
+                            if (_compactBtnOriginalNext && _compactBtnOriginalNext.parentNode === _compactBtnOriginalParent) {
+                                _compactBtnOriginalParent.insertBefore(compactBtn, _compactBtnOriginalNext);
+                            } else {
+                                _compactBtnOriginalParent.appendChild(compactBtn);
+                            }
+                            _compactBtnOriginalParent = null;
+                            _compactBtnOriginalNext = null;
+                        }
+                    } catch (e) { console.warn('failed restoring kanban/compact buttons to header', e); }
+                    // restore the button to its original place (styles cleared above)
+                }
+                try { localStorage.setItem('kanbanOnly', on ? '1' : '0'); } catch(e){}
+            };
+            // Compact mode toggle: reduce paddings/column widths
+            const applyCompact = (onCompact) => {
+                try {
+                    document.body.classList.toggle('kanban-compact', onCompact);
+                    if (compactIcon) {
+                        // explicitly set icon and title so users see a "restore" affordance
+                        if (onCompact) {
+                            compactIcon.classList.remove('fa-compress');
+                            compactIcon.classList.add('fa-expand');
+                            compactBtn.title = 'Restaurar visual compacto';
+                        } else {
+                            compactIcon.classList.remove('fa-expand');
+                            compactIcon.classList.add('fa-compress');
+                            compactBtn.title = 'Compactar Kanban';
+                        }
+                    }
+                    try { localStorage.setItem('kanbanCompact', onCompact ? '1' : '0'); } catch(e){}
+                } catch(e){ console.warn('applyCompact failed', e); }
+            };
+            if (kanbanBtn) {
+                const saved = localStorage.getItem('kanbanOnly') === '1';
+                applyState(saved);
+                kanbanBtn.addEventListener('click', () => { const now = !document.body.classList.contains('kanban-only'); applyState(now); setTimeout(()=>{ window.dispatchEvent(new Event('resize')); }, 120); });
+                // init compact button
+                if (compactBtn) {
+                    const savedCompact = localStorage.getItem('kanbanCompact') === '1';
+                    applyCompact(savedCompact);
+                    compactBtn.addEventListener('click', ()=>{ const now = !document.body.classList.contains('kanban-compact'); applyCompact(now); setTimeout(()=>{ window.dispatchEvent(new Event('resize')); }, 120); });
+                }
+            }
+        } catch(e){ console.warn('kanbanOnly init failed', e); }
         
         // Add event listener to clean up backdrop when modal is hidden
         $('#leadModal').addEventListener('hidden.bs.modal', function () {

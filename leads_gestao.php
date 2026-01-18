@@ -47,6 +47,12 @@ include 'includes/header.php';
                     <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
                     <button id="bulkActionsBtn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#bulkModal">Ações em massa</button>
                     <button id="toggleViewBtn" class="btn btn-sm btn-outline-secondary" title="Alternar visualização Kanban / Grade"><i class="fa fa-columns"></i></button>
+                    <button id="kanbanCompactBtn" class="btn btn-sm btn-outline-secondary" title="Compactar Kanban" style="width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;margin-right:6px;">
+                        <i class="fa fa-compress" id="kanbanCompactIcon" aria-hidden="true"></i>
+                    </button>
+                    <button id="kanbanOnlyBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar somente Kanban" style="width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;margin-left:6px;">
+                        <i class="fa fa-expand-arrows-alt" id="kanbanOnlyIcon" aria-hidden="true"></i>
+                    </button>
                 </div>
             </div>
             <div id="kanbanWrap" class="kanban-wrap">
@@ -275,7 +281,4 @@ include 'includes/header.php';
 
     <script src="assets/js/leads_gestao.js"></script>
     <?php include 'includes/footer.php'; ?>
-                    </form>
-
-                </div>
 

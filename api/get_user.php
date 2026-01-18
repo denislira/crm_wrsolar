@@ -23,7 +23,7 @@ if (empty($id)) {
 }
 
 try {
-    $stmt = $pdo->prepare('SELECT id, username, email, role_id FROM users WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT id, username, email, role_id, team_id, role_level FROM users WHERE id = ?');
     $stmt->execute([$id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($user) {

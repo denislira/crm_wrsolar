@@ -25,6 +25,8 @@ $id = $_POST['id'] ?? '';
 $username = $_POST['username'] ?? '';
 $email = $_POST['email'] ?? '';
 $role_id = $_POST['role_id'] ?? '';
+$team_id = $_POST['team_id'] ?? null;
+$role_level = isset($_POST['role_level']) ? intval($_POST['role_level']) : 0;
 
 if (empty($id) || empty($username) || empty($role_id)) {
     echo json_encode(['success' => false, 'message' => 'Campos obrigatórios: id, username, role_id']);
@@ -32,8 +34,8 @@ if (empty($id) || empty($username) || empty($role_id)) {
 }
 
 try {
-    $stmt = $pdo->prepare('UPDATE users SET username = ?, email = ?, role_id = ? WHERE id = ?');
-    $stmt->execute([$username, $email, $role_id, $id]);
+    $stmt = $pdo->prepare('UPDATE users SET username = ?, email = ?, role_id = ?, team_id = ?, role_level = ? WHERE id = ?');
+    $stmt->execute([$username, $email, $role_id, $team_id ?: null, $role_level, $id]);
     echo json_encode(['success' => true, 'message' => 'Usuário atualizado com sucesso']);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Erro ao atualizar usuário: ' . $e->getMessage()]);

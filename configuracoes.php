@@ -8,13 +8,17 @@ include 'includes/permissions.php';
 
 checkAccessOrRedirect('configuracoes');
 
-// Buscar todos os usuários
-$stmt = $pdo->query('SELECT u.id, u.username, u.email, r.name as role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id');
+// Buscar todos os usuários (inclui team_id e role_level)
+$stmt = $pdo->query('SELECT u.id, u.username, u.email, r.name as role_name, u.team_id, u.role_level, t.name as team_name FROM users u LEFT JOIN roles r ON u.role_id = r.id LEFT JOIN teams t ON u.team_id = t.id');
 $users = $stmt->fetchAll();
 
 // Buscar papéis para o select
 $stmt_roles = $pdo->query('SELECT * FROM roles');
 $roles = $stmt_roles->fetchAll();
+
+// Buscar teams para selects
+$stmt_teams = $pdo->query('SELECT id, name FROM teams ORDER BY name');
+$teams = $stmt_teams->fetchAll();
 
 include 'includes/header.php';
 ?>
@@ -29,6 +33,9 @@ include 'includes/header.php';
             <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab" aria-controls="users" aria-selected="true">Gerenciar Usuários</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="teams-tab" data-bs-toggle="tab" data-bs-target="#teams" type="button" role="tab" aria-controls="teams" aria-selected="false">Equipes</button>
                 </li>
                 <!-- Adicionar mais abas aqui no futuro -->
             </ul>
@@ -51,6 +58,8 @@ include 'includes/header.php';
                                             <th>ID</th>
                                             <th>Usuário</th>
                                             <th>Email</th>
+                                            <th>Equipe</th>
+                                            <th>Nível</th>
                                             <th>Papel</th>
                                             <th>Ações</th>
                                         </tr>
@@ -61,6 +70,8 @@ include 'includes/header.php';
                                                 <td><?php echo $user['id']; ?></td>
                                                 <td><?php echo htmlspecialchars($user['username']); ?></td>
                                                 <td><?php echo htmlspecialchars($user['email'] ?? ''); ?></td>
+                                                <td><?php echo htmlspecialchars($user['team_name'] ?? ''); ?></td>
+                                                <td><?php echo isset($user['role_level']) ? intval($user['role_level']) : ''; ?></td>
                                                 <td><?php echo htmlspecialchars($user['role_name'] ?? 'N/A'); ?></td>
                                                 <td>
                                                     <button class="btn btn-sm btn-warning" onclick="editUser(<?php echo $user['id']; ?>)">Editar</button>
@@ -73,6 +84,34 @@ include 'includes/header.php';
                                 </table>
                             </div>
                         <?php endif; ?>
+                    </div>
+                </div>
+                <!-- Aba Equipes -->
+                <div class="tab-pane fade" id="teams" role="tabpanel" aria-labelledby="teams-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h5 mb-0">Equipes</h2>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTeamModal">Adicionar Equipe</button>
+                    </div>
+                    <div class="card card-shadow p-3">
+                        <?php
+                        $stmtT = $pdo->query('SELECT id, name, description, created_at FROM teams ORDER BY name');
+                        $teamsList = $stmtT->fetchAll();
+                        if (empty($teamsList)) {
+                            echo '<p>Nenhuma equipe cadastrada.</p>';
+                        } else {
+                            echo '<div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>ID</th><th>Nome</th><th>Descrição</th><th>Criado</th><th>Ações</th></tr></thead><tbody>';
+                            foreach ($teamsList as $t) {
+                                echo '<tr>';
+                                echo '<td>'.htmlspecialchars($t['id']).'</td>';
+                                echo '<td>'.htmlspecialchars($t['name']).'</td>';
+                                echo '<td>'.htmlspecialchars($t['description']).'</td>';
+                                echo '<td>'.htmlspecialchars($t['created_at']).'</td>';
+                                echo '<td><button class="btn btn-sm btn-warning" onclick="editTeam('.$t['id'].')">Editar</button> <button class="btn btn-sm btn-danger" onclick="deleteTeam('.$t['id'].')">Excluir</button></td>';
+                                echo '</tr>';
+                            }
+                            echo '</tbody></table></div>';
+                        }
+                        ?>
                     </div>
                 </div>
             </div>
@@ -108,6 +147,23 @@ include 'includes/header.php';
                             <?php foreach ($roles as $role): ?>
                                 <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name']); ?></option>
                             <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="team_id" class="form-label">Equipe</label>
+                        <select class="form-select" id="team_id" name="team_id">
+                            <option value="">(Nenhuma)</option>
+                            <?php foreach ($teams as $t): ?>
+                                <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="role_level" class="form-label">Nível (role_level)</label>
+                        <select class="form-select" id="role_level" name="role_level">
+                            <option value="0">0 - Usuário</option>
+                            <option value="1">1 - Gerente</option>
+                            <option value="2">2 - Administrador</option>
                         </select>
                     </div>
                 </div>
@@ -146,6 +202,80 @@ include 'includes/header.php';
                                 <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_team_id" class="form-label">Equipe</label>
+                        <select class="form-select" id="edit_team_id" name="team_id">
+                            <option value="">(Nenhuma)</option>
+                            <?php foreach ($teams as $t): ?>
+                                <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_role_level" class="form-label">Nível (role_level)</label>
+                        <select class="form-select" id="edit_role_level" name="role_level">
+                            <option value="0">0 - Usuário</option>
+                            <option value="1">1 - Gerente</option>
+                            <option value="2">2 - Administrador</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Adicionar Equipe -->
+<div class="modal fade" id="addTeamModal" tabindex="-1" aria-labelledby="addTeamModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addTeamModalLabel">Adicionar Equipe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="addTeamForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nome</label>
+                        <input type="text" class="form-control" id="team_name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descrição</label>
+                        <textarea class="form-control" id="team_description" name="description"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Adicionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Equipe -->
+<div class="modal fade" id="editTeamModal" tabindex="-1" aria-labelledby="editTeamModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editTeamModalLabel">Editar Equipe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editTeamForm">
+                <input type="hidden" id="edit_team_id_input" name="id">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nome</label>
+                        <input type="text" class="form-control" id="edit_team_name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descrição</label>
+                        <textarea class="form-control" id="edit_team_description" name="description"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -193,11 +323,35 @@ function editUser(id) {
             document.getElementById('edit_username').value = data.user.username;
             document.getElementById('edit_email').value = data.user.email;
             document.getElementById('edit_role_id').value = data.user.role_id;
+            if (document.getElementById('edit_team_id')) document.getElementById('edit_team_id').value = data.user.team_id || '';
+            if (document.getElementById('edit_role_level')) document.getElementById('edit_role_level').value = data.user.role_level || 0;
             new bootstrap.Modal(document.getElementById('editUserModal')).show();
         } else {
             alert('Erro: ' + data.message);
         }
     });
+}
+
+// Teams: edit and delete handlers
+function editTeam(id) {
+    fetch('api/get_teams.php')
+    .then(r=>r.json())
+    .then(data=>{
+        if (!data.success) { alert('Erro ao carregar equipes'); return; }
+        const team = data.teams.find(t=>t.id == id);
+        if (!team) { alert('Equipe não encontrada'); return; }
+        document.getElementById('edit_team_id_input').value = team.id;
+        document.getElementById('edit_team_name').value = team.name;
+        document.getElementById('edit_team_description').value = team.description;
+        new bootstrap.Modal(document.getElementById('editTeamModal')).show();
+    }).catch(()=>{ alert('Erro ao carregar equipes'); });
+}
+
+function deleteTeam(id) {
+    if (!confirm('Tem certeza que deseja excluir esta equipe?')) return;
+    const fd = new FormData(); fd.append('id', id);
+    fetch('api/delete_team.php', { method: 'POST', body: fd })
+    .then(r=>r.json()).then(data=>{ alert(data.message); if (data.success) location.reload(); });
 }
 
 function deleteUser(id) {

@@ -1,3 +1,7 @@
 RewriteEngine On
 # Serve the PNG favicon when /favicon.ico is requested (avoids 404 if .ico missing)
-RewriteRule ^favicon\.ico$ /assets/img/favicon.png [L]
+# Use a relative path so the rewrite maps correctly in most setups
+RewriteRule ^favicon\.ico$ assets/img/favicon.png [L,NC]
+# If internal rewrite doesn't work in some environments, redirect as a fallback
+RewriteCond %{REQUEST_URI} ^/favicon\.ico$ [NC]
+RewriteRule ^favicon\.ico$ /assets/img/favicon.png [R=302,L]

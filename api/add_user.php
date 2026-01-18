@@ -25,6 +25,8 @@ $username = $_POST['username'] ?? '';
 $email = $_POST['email'] ?? '';
 $password = $_POST['password'] ?? '';
 $role_id = $_POST['role_id'] ?? '';
+$team_id = $_POST['team_id'] ?? null;
+$role_level = isset($_POST['role_level']) ? intval($_POST['role_level']) : 0;
 
 if (empty($username) || empty($password) || empty($role_id)) {
     echo json_encode(['success' => false, 'message' => 'Campos obrigatórios: username, password, role_id']);
@@ -34,8 +36,8 @@ if (empty($username) || empty($password) || empty($role_id)) {
 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
 try {
-    $stmt = $pdo->prepare('INSERT INTO users (username, password, email, role_id) VALUES (?, ?, ?, ?)');
-    $stmt->execute([$username, $hashed_password, $email, $role_id]);
+    $stmt = $pdo->prepare('INSERT INTO users (username, password, email, role_id, team_id, role_level) VALUES (?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$username, $hashed_password, $email, $role_id, $team_id ?: null, $role_level]);
     echo json_encode(['success' => true, 'message' => 'Usuário adicionado com sucesso']);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Erro ao adicionar usuário: ' . $e->getMessage()]);

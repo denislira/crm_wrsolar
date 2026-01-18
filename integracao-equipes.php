@@ -29,10 +29,61 @@ $pageTitle = 'Integração de Equipes';
 include 'includes/header.php';
 ?>
 
+<style>
+.section-left-border { border-left: 6px solid #0b6ac1 !important; }
+.section-left-border.secondary { border-left-color: #6c757d !important; }
+.section-left-border.primary { border-left-color: #0d6efd !important; }
+.section-left-border.success { border-left-color: #198754 !important; }
+</style>
+
 <div class="d-flex">
     <?php include 'includes/sidebar.php'; ?>
     <main class="flex-grow-1 p-4">
         <div class="container-fluid">
+<!-- Modal Editar Lembrete -->
+<div class="modal fade" id="modalEditarLembrete" tabindex="-1" aria-labelledby="modalEditarLembreteLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-light border-bottom">
+                <h5 class="modal-title" id="modalEditarLembreteLabel"><i class="fa fa-edit text-primary"></i> Editar Lembrete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarLembrete">
+                    <input type="hidden" id="editRem-id" name="id">
+                    <div class="mb-2">
+                        <label class="form-label">Lead</label>
+                        <input type="text" id="editRem-lead-ident" class="form-control form-control-sm" readonly>
+                        <input type="text" id="editRem-lead-id" class="form-control form-control-sm mt-1" readonly>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-7">
+                            <label class="form-label">Data</label>
+                            <input type="date" id="editRem-date" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label">Hora</label>
+                            <input type="time" id="editRem-time" class="form-control form-control-sm">
+                        </div>
+                    </div>
+                    <div class="mb-2 mt-2">
+                        <label class="form-label">Modelo</label>
+                        <select id="editRem-template" class="form-select form-select-sm"><option value="">(Nenhum)</option></select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Mensagem</label>
+                        <textarea id="editRem-message" class="form-control form-control-sm" rows="4"></textarea>
+                    </div>
+                </form>
+                <div id="editarLembreteMsg" class="mt-2"></div>
+            </div>
+            <div class="modal-footer d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button id="btnSalvarEdicaoLembrete" type="button" class="btn btn-primary"><i class="fa fa-save"></i> Salvar alterações</button>
+            </div>
+        </div>
+    </div>
+</div>
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
                     <h1 class="h4 mb-1">Integração de Equipes</h1>
@@ -54,7 +105,7 @@ include 'includes/header.php';
             <div id="tarefasArea">
             <div class="row g-3">
                 <div class="col-lg-8">
-                    <div class="card card-shadow p-3 mb-3">
+                    <div class="card card-shadow p-3 mb-3 border-start border-3 border-secondary section-left-border secondary">
                         <h6 class="mb-3">Tarefas de Equipe</h6>
                         <div class="d-flex gap-2 flex-wrap mb-2">
                             <select id="filtroEquipe" class="form-select form-select-sm w-auto" style="display:none;">
@@ -175,7 +226,7 @@ include 'includes/header.php';
                                                     </div>
                                                 </div>
                     </div>
-                    <div class="card card-shadow p-3">
+                    <div class="card card-shadow p-3 border-start border-3 border-secondary section-left-border secondary">
                         <h6 class="mb-2">Atividades recentes</h6>
                         <ul id="teamTimeline" class="list-unstyled mb-0">
                         </ul>
@@ -183,7 +234,7 @@ include 'includes/header.php';
                 </div>
 
                 <div class="col-lg-4">
-                    <div class="card card-shadow p-3" style="display:none;">
+                    <div class="card card-shadow p-3 border-start border-3 border-secondary section-left-border secondary" style="display:none;">
                         <h6 class="mb-2">Resumo de Equipes</h6>
                         <ul class="list-unstyled mb-0">
                             <?php foreach ($equipes as $eq): ?>
@@ -194,7 +245,7 @@ include 'includes/header.php';
                             <?php endforeach; ?>
                         </ul>
                     </div>
-                    <div class="card card-shadow p-3 mt-3">
+                    <div class="card card-shadow p-3 mt-3 border-start border-3 border-primary section-left-border primary">
                         <div class="d-flex align-items-start mb-3">
                             <div class="me-3 display-6 text-primary"><i class="fa fa-plus-circle"></i></div>
                             <div>
@@ -244,14 +295,14 @@ include 'includes/header.php';
             <div id="lembretesArea" style="display:none;">
                 <div class="row g-3">
                     <div class="col-lg-4">
-                        <div class="form-card-modern mb-3">
+                        <div class="form-card-modern mb-3 section-left-border primary">
                             <div class="heading-with-icon">
                                 <i class="fa fa-calendar-check-o"></i>
                                 <h6>Agenda para Hoje</h6>
                             </div>
                             <div id="agendaHoje" class="list-unstyled small text-muted">Carregando...</div>
                         </div>
-                        <div class="form-card-modern">
+                        <div class="form-card-modern section-left-border">
                             <div class="heading-with-icon">
                                 <i class="fa fa-bell-o"></i>
                                 <h6>Agendar Lembrete</h6>
@@ -292,7 +343,7 @@ include 'includes/header.php';
                         </div>
                     </div>
                     <div class="col-lg-8">
-                        <div class="form-card-modern">
+                        <div class="form-card-modern section-left-border">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <div class="heading-with-icon mb-0">
                                     <i class="fa fa-calendar"></i>
@@ -598,7 +649,7 @@ async function loadRemindersLayout() {
                 const timeStr = r.remind_at ? r.remind_at.split(' ')[1]?.substring(0,5) || '' : '';
                 
                 const card = document.createElement('div');
-                card.className = 'evento-card-modern';
+                card.className = 'evento-card-modern d-flex align-items-start';
                 card.innerHTML = `
                     <div class="evento-date-box">
                         <div class="evento-date-month">${month}</div>
@@ -613,8 +664,17 @@ async function loadRemindersLayout() {
                             <i class="fa fa-clock-o"></i> ${timeStr}
                         </div>
                         ${r.message ? `<div class="evento-message">${escapeHtmlGlobal(r.message)}</div>` : ''}
+                    </div>
+                    <div class="ms-auto d-flex flex-column gap-1 align-items-end" style="margin-left:12px;">
+                        <button class="btn btn-sm btn-outline-primary edit-rem" data-id="${r.id}" title="Editar"><i class="fa fa-edit"></i></button>
+                        <button class="btn btn-sm btn-outline-danger del-rem" data-id="${r.id}" title="Excluir"><i class="fa fa-trash"></i></button>
                     </div>`;
                 list.appendChild(card);
+                // bind actions
+                const editBtn = card.querySelector('.edit-rem');
+                const delBtn = card.querySelector('.del-rem');
+                if (editBtn) editBtn.addEventListener('click', () => openEditReminderModal(r.id));
+                if (delBtn) delBtn.addEventListener('click', () => deleteReminderConfirm(r.id));
             });
         }
 
@@ -835,6 +895,86 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabLembretesBtn = document.getElementById('tabLembretesBtn');
     if (tabTarefas) tabTarefas.addEventListener('click', () => { showTab('tarefas'); });
     if (tabLembretesBtn) tabLembretesBtn.addEventListener('click', () => { showTab('lembretes'); });
+});
+
+// --- Reminders: edit/delete helpers and modal handling ---
+async function openEditReminderModal(id) {
+    try {
+        const res = await fetch(`includes/reminders_api.php?action=get&id=${id}`);
+        if (!res.ok) throw new Error('Erro ao buscar lembrete');
+        const r = await res.json();
+        // populate modal fields
+        document.getElementById('editRem-id').value = r.id || '';
+        document.getElementById('editRem-lead-ident').value = r.lead_name || '';
+        document.getElementById('editRem-lead-id').value = r.lead_id || '';
+        const dt = r.remind_at ? r.remind_at.split(' ') : ['',''];
+        document.getElementById('editRem-date').value = dt[0] || '';
+        document.getElementById('editRem-time').value = dt[1] ? dt[1].substring(0,5) : '';
+        document.getElementById('editRem-message').value = r.message || '';
+        // load templates and set value
+        const templates = await fetchReminderTemplates();
+        const sel = document.getElementById('editRem-template');
+        sel.innerHTML = '<option value="">(Nenhum)</option>';
+        templates.forEach(t=>{ const o = document.createElement('option'); o.value = t.id; o.textContent = t.name || t.title || ('template '+t.id); sel.appendChild(o); });
+        sel.value = r.template_id || '';
+        const modalEl = document.getElementById('modalEditarLembrete');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    } catch (e) {
+        console.error(e);
+        alert('Erro ao carregar lembrete para edição');
+    }
+}
+
+document.addEventListener('click', (e)=>{
+    // Close suggestions click handler preserved above; this is only for safety
+});
+
+async function deleteReminderConfirm(id) {
+    if (!confirm('Tem certeza que deseja excluir este lembrete?')) return;
+    try {
+        const payload = new URLSearchParams();
+        payload.append('action','delete');
+        payload.append('id', String(id));
+        const res = await fetch('includes/reminders_api.php', { method: 'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: payload.toString() });
+        const data = await res.json();
+        if (data.ok) {
+            loadRemindersLayout();
+        } else {
+            alert('Erro ao excluir lembrete');
+        }
+    } catch (e) { console.error(e); alert('Erro ao excluir lembrete'); }
+}
+
+// Save edited reminder
+document.addEventListener('DOMContentLoaded', ()=>{
+    const btnSaveEditRem = document.getElementById('btnSalvarEdicaoLembrete');
+    if (!btnSaveEditRem) return;
+    btnSaveEditRem.addEventListener('click', async ()=>{
+        const id = document.getElementById('editRem-id').value;
+        const date = document.getElementById('editRem-date').value;
+        const time = document.getElementById('editRem-time').value;
+        const message = document.getElementById('editRem-message').value.trim();
+        const templateId = document.getElementById('editRem-template').value || '';
+        if (!id || !date || !time || !message) { alert('Preencha data, hora e mensagem'); return; }
+        try {
+            const payload = new URLSearchParams();
+            payload.append('action','update');
+            payload.append('id', String(id));
+            payload.append('datetime', date + ' ' + time);
+            payload.append('message', message);
+            payload.append('template_id', templateId);
+            const res = await fetch('includes/reminders_api.php', { method: 'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: payload.toString() });
+            const data = await res.json();
+            if (data.ok) {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('modalEditarLembrete'));
+                if (modal) modal.hide();
+                loadRemindersLayout();
+            } else {
+                alert('Erro ao salvar lembrete');
+            }
+        } catch (e) { console.error(e); alert('Erro ao salvar lembrete'); }
+    });
 });
 
 </script>
