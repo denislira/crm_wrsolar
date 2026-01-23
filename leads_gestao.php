@@ -26,16 +26,28 @@ include 'includes/header.php';
                         <option value="cold">❄️ Frio (0-49)</option>
                     </select>
                     <button id="newLeadBtn" class="btn btn-primary btn-sm" style="min-width:160px;">Novo lead</button>
+                    <a href="import_leads.php" class="btn btn-sm btn-outline-secondary" title="Importar leads via CSV">Importar CSV</a>
                     <button id="funilConfigBtn" class="btn btn-sm btn-outline-primary" title="Personalizar estágios do funil" onclick="location.href='funil_config.php'">Personalizar Funil</button>
                 </div>
             </div>
 
             <!-- KPIs -->
             <div class="row g-3 mb-3" id="kpiRow">
-                <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Leads ativos</div><div id="kpiActive" class="h4">0</div></div></div>
-                <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Taxa de conversão</div><div id="kpiConv" class="h4">0%</div></div></div>
+                <div class="col-md-2">
+                    <div class="card p-3">
+                        <div class="small text-muted">Leads Anúncios</div>
+                        <div class="h4"><span id="anunciosKpiCount">0</span></div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card p-3">
+                        <div class="small text-muted">Leads ativos</div>
+                        <div id="kpiActive" class="h4">0</div>
+                    </div>
+                </div>
+                <div class="col-md-2"><div class="card p-3"><div class="small text-muted">Taxa de conversão</div><div id="kpiConv" class="h4">0%</div></div></div>
                 <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Valor no pipeline</div><div id="kpiValue" class="h4">R$ 0,00</div></div></div>
-                <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Leads quentes</div><div id="kpiHot" class="h4">0</div></div></div>
+                <div class="col-md-2"><div class="card p-3"><div class="small text-muted">Leads quentes</div><div id="kpiHot" class="h4">0</div></div></div>
             </div>
 
             <!-- Kanban (loaded from funil_stages table) -->
@@ -45,6 +57,7 @@ include 'includes/header.php';
                     <button id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger d-none" title="Excluir selecionados"><i class="fa fa-trash"></i></button>
                     <button id="bulkUncheckBtn" class="btn btn-sm btn-outline-secondary d-none" title="Desmarcar todos"><i class="fa fa-times"></i></button>
                     <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
+                    <button id="toggleSemStatusBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Sem Status">Sem Status</button>
                     <button id="bulkActionsBtn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#bulkModal">Ações em massa</button>
                     <button id="toggleViewBtn" class="btn btn-sm btn-outline-secondary" title="Alternar visualização Kanban / Grade"><i class="fa fa-columns"></i></button>
                     <button id="kanbanCompactBtn" class="btn btn-sm btn-outline-secondary" title="Compactar Kanban" style="width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;margin-right:6px;">
@@ -53,10 +66,34 @@ include 'includes/header.php';
                     <button id="kanbanOnlyBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar somente Kanban" style="width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;margin-left:6px;">
                         <i class="fa fa-expand-arrows-alt" id="kanbanOnlyIcon" aria-hidden="true"></i>
                     </button>
+                    
                 </div>
             </div>
             <div id="kanbanWrap" class="kanban-wrap">
                 <div id="kanbanLoading" class="p-4 text-muted">Carregando etapas do funil...</div>
+            </div>
+
+            <!-- Fixed hidden column for Anúncios removed (floating panel not needed) -->
+
+            <!-- Modal: Leads Anúncios -->
+            <div id="anunciosModal" class="modal fade" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Leads de Anúncios</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="anunciosList" class="list-group">
+                                <div class="text-muted small">Carregando...</div>
+                            </div>
+                            <div class="small text-muted mt-2">Você pode arrastar um lead daqui para uma coluna do Kanban, ou usar o botão "Adicionar ao Kanban".</div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Lista / Grade alternativa -->
@@ -97,6 +134,22 @@ include 'includes/header.php';
         </div>
     </main>
     </div>
+    <!-- Modal: Manage Statuses -->
+    <div id="statusModal" class="modal fade" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-md modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Gerenciar Status</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <div class="mb-3 d-flex gap-2">
+                        <input id="newStatusName" class="form-control" placeholder="Novo status">
+                        <button id="addStatusBtn" class="btn btn-primary">Adicionar</button>
+                    </div>
+                    <div id="statusList" class="list-group"></div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Modals: lead + reminder (placed outside main content to avoid nesting issues) -->
     <div class="modal fade" id="leadModal" tabindex="-1" aria-hidden="true">
@@ -114,14 +167,21 @@ include 'includes/header.php';
                         <div class="card mb-3">
                             <div class="card-body">
                                 <div class="row g-3">
-                                    <div class="col-md-8">
+                                    <div class="col-md-6">
                                         <label class="form-label">Nome <i class="fa fa-user text-muted"></i></label>
                                         <input id="lead-name" class="form-control" required>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <label class="form-label">Status</label>
-                                        <select id="lead-status" class="form-select">
-                                            <option value="">Novo</option>
+                                        <div class="d-flex">
+                                            <select id="lead-status" class="form-select"></select>
+                                            <button id="manageStatusBtn" type="button" class="btn btn-outline-secondary ms-2" title="Gerenciar Status" style="white-space:nowrap;"><i class="fa fa-cog"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Estágio</label>
+                                        <select id="lead-stage" class="form-select">
+                                            <option value="">-- Escolher estágio --</option>
                                         </select>
                                     </div>
                                 </div>

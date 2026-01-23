@@ -21,6 +21,9 @@ try {
     $equipes = ['Marketing','Vendas','Atendimento','Técnica','Financeiro'];
 }
 
+
+
+
 $respStmt = $pdo->prepare('SELECT DISTINCT responsavel FROM team_tasks WHERE user_id = ? AND responsavel IS NOT NULL AND responsavel <> ""');
 $respStmt->execute([$_SESSION['user_id']]);
 $responsaveis = array_map(function($r){return $r['responsavel'];}, $respStmt->fetchAll(PDO::FETCH_ASSOC));
@@ -53,8 +56,17 @@ include 'includes/header.php';
                     <input type="hidden" id="editRem-id" name="id">
                     <div class="mb-2">
                         <label class="form-label">Lead</label>
-                        <input type="text" id="editRem-lead-ident" class="form-control form-control-sm" readonly>
-                        <input type="text" id="editRem-lead-id" class="form-control form-control-sm mt-1" readonly>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <input type="text" id="editRem-lead-ident" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" id="editRem-lead-id" class="form-control form-control-sm" readonly placeholder="ID">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" id="editRem-lead-phone" class="form-control form-control-sm" readonly placeholder="Telefone">
+                            </div>
+                        </div>
                     </div>
                     <div class="row g-2">
                         <div class="col-7">
@@ -78,6 +90,7 @@ include 'includes/header.php';
                 <div id="editarLembreteMsg" class="mt-2"></div>
             </div>
             <div class="modal-footer d-flex justify-content-end gap-2">
+                <button id="btnExcluirLembrete" type="button" class="btn btn-danger me-auto"><i class="fa fa-trash"></i> Excluir</button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button id="btnSalvarEdicaoLembrete" type="button" class="btn btn-primary"><i class="fa fa-save"></i> Salvar alterações</button>
             </div>
@@ -97,6 +110,7 @@ include 'includes/header.php';
             <div class="mb-3">
                 <div class="btn-group" role="group" aria-label="view-tabs">
                     <button id="tabTarefas" type="button" class="btn btn-primary active">Tarefas de Equipe</button>
+                    <button id="tabMinhasTarefas" type="button" class="btn btn-outline-primary">Minhas Tarefas</button>
                     <button id="tabLembretesBtn" type="button" class="btn btn-outline-primary">Lembretes</button>
                 </div>
             </div>
@@ -288,6 +302,73 @@ include 'includes/header.php';
                     </div>
                 </div>
             </div>
+            <!-- Fim Aba Tarefas -->
+
+            <!-- Aba: Minhas Tarefas (apenas do usuário logado) -->
+            <div id="minhasArea" style="display:none;">
+                <div class="row g-3">
+                    <div class="col-lg-8">
+                        <div class="card card-shadow p-3 mb-3 border-start border-3 border-secondary section-left-border secondary">
+                            <h6 class="mb-3">Minhas Tarefas</h6>
+                            <div class="d-flex gap-2 flex-wrap mb-2">
+                                <select id="myFiltroStatus" class="form-select form-select-sm w-auto">
+                                    <option value="">Todos status</option>
+                                    <option value="Pendente">Pendente</option>
+                                    <option value="Em andamento">Em andamento</option>
+                                    <option value="Concluída">Concluída</option>
+                                </select>
+                                <input type="search" id="myFiltroBusca" class="form-control form-control-sm w-50" placeholder="Buscar tarefa...">
+                            </div>
+                            <div id="myTasksList"></div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card card-shadow p-3 mt-3 border-start border-3 border-primary section-left-border primary">
+                            <div class="d-flex align-items-start mb-3">
+                                <div class="me-3 display-6 text-primary"><i class="fa fa-plus-circle"></i></div>
+                                <div>
+                                    <h6 class="mb-0">Nova Tarefa</h6>
+                                    <small class="text-muted">Crie uma tarefa rápida para você</small>
+                                </div>
+                            </div>
+                            <!-- Reusa o mesmo formulário de criação rápida presente na coluna direita -->
+                            <form id="formNovaTarefa_My" class="mb-0">
+                                <div class="mb-2">
+                                    <label class="form-label small">Título <span class="text-danger">*</span></label>
+                                    <input type="text" name="titulo" class="form-control form-control-sm" placeholder="Ex: Revisar proposta" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label small">Descrição</label>
+                                    <textarea name="descricao" class="form-control form-control-sm" rows="3" placeholder="Detalhes (opcional)"></textarea>
+                                </div>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-7">
+                                        <label class="form-label small">Responsável</label>
+                                        <div class="form-control-plaintext small fw-semibold"><?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?></div>
+                                        <input type="hidden" name="responsavel" value="<?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?>">
+                                    </div>
+                                    <div class="col-5">
+                                        <label class="form-label small">Vencimento</label>
+                                        <input type="date" name="data_vencimento" class="form-control form-control-sm">
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small">Status</label>
+                                    <select name="status" class="form-select form-select-sm">
+                                        <option value="Pendente">Pendente</option>
+                                        <option value="Em andamento">Em andamento</option>
+                                        <option value="Concluída">Concluída</option>
+                                    </select>
+                                </div>
+                                <input type="hidden" name="equipe" value="">
+                                <button type="submit" class="btn btn-primary w-100">Salvar tarefa</button>
+                            </form>
+                            <div id="novaTarefaMsg_My" class="mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Fim Aba Minhas Tarefas -->
             </div>
             <!-- Fim Aba Tarefas -->
 
@@ -406,10 +487,9 @@ async function atualizarTarefas() {
                     <div class="small text-muted">Agendado: ${r.remind_at} • Status: ${escapeHtml(r.status)}</div>
                     <div class="mt-1">${escapeHtml(r.message || '')}</div>`;
                 card.appendChild(content);
-                const actions = document.createElement('div'); actions.className = 'd-flex flex-column gap-1';
-                actions.innerHTML = `<button class="btn btn-sm btn-outline-primary" title="Editar"><i class="fa fa-edit"></i></button>
-                    <button class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa fa-trash"></i></button>`;
-                card.appendChild(actions);
+                // make whole card clickable to edit
+                card.style.cursor = 'pointer';
+                card.addEventListener('click', () => openEditReminderModal(r.id));
                 list.appendChild(card);
             });
         } catch (e) { console.error(e); list.innerHTML = '<div class="text-danger">Erro carregando lembretes</div>'; }
@@ -566,27 +646,100 @@ async function deleteTaskConfirm(id) {
 
 // --- Abas: Tarefas / Lembretes ---
 const tabTarefas = document.getElementById('tabTarefas');
+const tabMinhasBtn = document.getElementById('tabMinhasTarefas');
 const tabLembretesBtn = document.getElementById('tabLembretesBtn');
 const tarefasArea = document.getElementById('tarefasArea');
+const minhasArea = document.getElementById('minhasArea');
 const lembretesArea = document.getElementById('lembretesArea');
 
+// Add event listeners
+if (tabTarefas) {
+    tabTarefas.addEventListener('click', () => { console.log('Tarefas clicked'); showTab('tarefas'); });
+}
+if (tabMinhasBtn) {
+    console.log('Adding event listener to tabMinhasBtn');
+    tabMinhasBtn.addEventListener('click', () => { console.log('Minhas Tarefas clicked'); showTab('minhas'); });
+}
+if (tabLembretesBtn) tabLembretesBtn.addEventListener('click', () => { console.log('Lembretes clicked'); showTab('lembretes'); });
+
 function showTab(name) {
+    console.log('showTab called with:', name);
+    // reset all
+    if (tabTarefas) { tabTarefas.classList.remove('btn-outline-primary', 'btn-primary', 'active'); tabTarefas.classList.add('btn-outline-primary'); }
+    if (tabMinhasBtn) { tabMinhasBtn.classList.remove('btn-outline-primary', 'btn-primary', 'active'); tabMinhasBtn.classList.add('btn-outline-primary'); }
+    if (tabLembretesBtn) { tabLembretesBtn.classList.remove('btn-outline-primary', 'btn-primary', 'active'); tabLembretesBtn.classList.add('btn-outline-primary'); }
+    if (tarefasArea) tarefasArea.style.display = 'none';
+    if (minhasArea) minhasArea.style.display = 'none';
+    if (lembretesArea) lembretesArea.style.display = 'none';
+
     if (name === 'tarefas') {
-        tabTarefas.classList.remove('btn-outline-primary');
-        tabTarefas.classList.add('btn-primary','active');
-        tabLembretesBtn.classList.remove('btn-primary','active');
-        tabLembretesBtn.classList.add('btn-outline-primary');
-        tarefasArea.style.display = '';
-        lembretesArea.style.display = 'none';
+        if (tabTarefas) { tabTarefas.classList.remove('btn-outline-primary'); tabTarefas.classList.add('btn-primary', 'active'); }
+        if (tarefasArea) tarefasArea.style.display = '';
         atualizarTarefas();
+    } else if (name === 'minhas') {
+        console.log('Setting minhas tab active');
+        if (tabMinhasBtn) { tabMinhasBtn.classList.remove('btn-outline-primary'); tabMinhasBtn.classList.add('btn-primary', 'active'); }
+        if (minhasArea) minhasArea.style.display = '';
+        atualizarMinhasTarefas();
     } else {
-        tabLembretesBtn.classList.remove('btn-outline-primary');
-        tabLembretesBtn.classList.add('btn-primary','active');
-        tabTarefas.classList.remove('btn-primary','active');
-        tabTarefas.classList.add('btn-outline-primary');
-        tarefasArea.style.display = 'none';
-        lembretesArea.style.display = '';
+        if (tabLembretesBtn) { tabLembretesBtn.classList.remove('btn-outline-primary'); tabLembretesBtn.classList.add('btn-primary', 'active'); }
+        if (lembretesArea) lembretesArea.style.display = '';
         loadRemindersLayout();
+    }
+}
+
+// Minhas Tarefas: carregar/listar/CRUD (executa via endpoint que respeita session user)
+async function atualizarMinhasTarefas() {
+    console.log('atualizarMinhasTarefas called');
+    const statusFiltro = document.getElementById('myFiltroStatus') ? document.getElementById('myFiltroStatus').value : '';
+    const buscaFiltro = document.getElementById('myFiltroBusca') ? document.getElementById('myFiltroBusca').value.trim().toLowerCase() : '';
+    const list = document.getElementById('myTasksList');
+    if (!list) { console.log('myTasksList not found'); return; }
+    list.innerHTML = '';
+    try {
+        const filtros = {};
+        if (statusFiltro) filtros.status = statusFiltro;
+        // request tasks assigned to current username or created by user
+        filtros.mine = '1';
+        console.log('MinhasTarefas - filtros antes fetch:', filtros);
+        const tarefas = await fetchTasks(filtros);
+        console.log('MinhasTarefas - resposta fetchTasks:', tarefas);
+        const itens = tarefas.filter(t => {
+            if (!buscaFiltro) return true;
+            return ((t.titulo||'').toLowerCase().includes(buscaFiltro) || (t.descricao||'').toLowerCase().includes(buscaFiltro));
+        });
+        if (!itens.length) { list.innerHTML = '<div class="text-muted">Nenhuma tarefa encontrada.</div>'; return; }
+        itens.forEach(t => {
+            const card = document.createElement('div');
+            card.className = 'mb-2 p-2 border rounded d-flex align-items-center gap-3 bg-white';
+            card.style.cursor = 'pointer';
+            const avatar = document.createElement('div');
+            avatar.className = 'rounded-circle d-flex align-items-center justify-content-center me-2';
+            avatar.style.width = '38px'; avatar.style.height = '38px'; avatar.style.background = (t.equipe ? ( {Marketing:'#3bb273',Vendas:'#0b6ac1',Atendimento:'#ffd24a',Técnica:'#7c3aed',Financeiro:'#ef4444'}[t.equipe] || '#888') : '#888');
+            avatar.style.color = '#fff'; avatar.style.fontWeight = 'bold'; avatar.style.fontSize = '1.1rem';
+            avatar.textContent = (t.responsavel||'?').split(' ').map(p=>p[0]||'').join('').toUpperCase().slice(0,2);
+            card.appendChild(avatar);
+            const content = document.createElement('div'); content.className = 'flex-grow-1';
+            content.innerHTML = `<div class="fw-semibold">${escapeHtml(t.titulo)} <span class="badge ms-2" style="background:${escapeHtml(t.equipe||'')} ;color:#fff;">${escapeHtml(t.equipe||'')}</span> <span class="badge ms-1" style="background:${escapeHtml(t.status||'')} ;color:#fff;">${escapeHtml(t.status||'')}</span></div>
+                <div class="small text-muted">${t.responsavel ? 'Responsável: ' + escapeHtml(t.responsavel) : ''} ${t.data_vencimento ? ' | Vencimento: ' + t.data_vencimento : ''}</div>
+                <div class="mt-1">${escapeHtml(t.descricao || '')}</div>`;
+            card.appendChild(content);
+            // make whole card clickable to edit (like reminders)
+            card.addEventListener('click', () => openEditModal(t));
+            const actions = document.createElement('div'); actions.className = 'd-flex flex-column gap-1';
+            actions.innerHTML = `<button class="btn btn-sm btn-outline-primary" title="Editar"><i class="fa fa-edit"></i></button>
+                <button class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa fa-trash"></i></button>`;
+            const editBtn = actions.querySelector('.btn-outline-primary');
+            const deleteBtn = actions.querySelector('.btn-outline-danger');
+            // prevent action buttons from triggering the card click
+            editBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openEditModal(t); });
+            deleteBtn.addEventListener('click', (ev) => { ev.stopPropagation(); deleteTaskConfirm(t.id); });
+            card.appendChild(actions);
+            list.appendChild(card);
+        });
+    } catch (e) {
+        console.error('Erro em atualizarMinhasTarefas:', e);
+        list.innerHTML = '<div class="text-danger">Erro ao carregar tarefas</div>';
     }
 }
 
@@ -665,16 +818,11 @@ async function loadRemindersLayout() {
                         </div>
                         ${r.message ? `<div class="evento-message">${escapeHtmlGlobal(r.message)}</div>` : ''}
                     </div>
-                    <div class="ms-auto d-flex flex-column gap-1 align-items-end" style="margin-left:12px;">
-                        <button class="btn btn-sm btn-outline-primary edit-rem" data-id="${r.id}" title="Editar"><i class="fa fa-edit"></i></button>
-                        <button class="btn btn-sm btn-outline-danger del-rem" data-id="${r.id}" title="Excluir"><i class="fa fa-trash"></i></button>
-                    </div>`;
+                `;
                 list.appendChild(card);
-                // bind actions
-                const editBtn = card.querySelector('.edit-rem');
-                const delBtn = card.querySelector('.del-rem');
-                if (editBtn) editBtn.addEventListener('click', () => openEditReminderModal(r.id));
-                if (delBtn) delBtn.addEventListener('click', () => deleteReminderConfirm(r.id));
+                // make whole card clickable to edit
+                card.style.cursor = 'pointer';
+                card.addEventListener('click', () => openEditReminderModal(r.id));
             });
         }
 
@@ -779,6 +927,32 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Erro ao salvar</div>'; }
         });
     }
+
+        // Minhas Tarefas: ativar aba e filtros
+        const myFiltroStatus = document.getElementById('myFiltroStatus');
+        if (myFiltroStatus) myFiltroStatus.addEventListener('change', atualizarMinhasTarefas);
+        const myFiltroBusca = document.getElementById('myFiltroBusca');
+        if (myFiltroBusca) myFiltroBusca.addEventListener('input', atualizarMinhasTarefas);
+
+        // Formulário rápido na aba Minhas Tarefas
+        const formNovaTarefaMy = document.getElementById('formNovaTarefa_My');
+        if (formNovaTarefaMy) {
+            formNovaTarefaMy.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                const nova = Object.fromEntries(formData);
+                nova.user_id = userId;
+                const resp = await addTask(nova);
+                if (resp.success) {
+                    document.getElementById('novaTarefaMsg_My').innerHTML = '<div class="alert alert-success">Tarefa criada com sucesso!</div>';
+                    this.reset();
+                    setTimeout(()=>{ document.getElementById('novaTarefaMsg_My').innerHTML = ''; }, 2000);
+                    atualizarMinhasTarefas();
+                } else {
+                    document.getElementById('novaTarefaMsg_My').innerHTML = '<div class="alert alert-danger">Erro ao criar tarefa</div>';
+                }
+            });
+        }
 
     // Busca automática de leads para lembretes
     const leadIdentInput = document.getElementById('rem-lead-ident');
@@ -907,6 +1081,7 @@ async function openEditReminderModal(id) {
         document.getElementById('editRem-id').value = r.id || '';
         document.getElementById('editRem-lead-ident').value = r.lead_name || '';
         document.getElementById('editRem-lead-id').value = r.lead_id || '';
+        document.getElementById('editRem-lead-phone').value = r.lead_phone || '';
         const dt = r.remind_at ? r.remind_at.split(' ') : ['',''];
         document.getElementById('editRem-date').value = dt[0] || '';
         document.getElementById('editRem-time').value = dt[1] ? dt[1].substring(0,5) : '';
@@ -975,6 +1150,29 @@ document.addEventListener('DOMContentLoaded', ()=>{
             }
         } catch (e) { console.error(e); alert('Erro ao salvar lembrete'); }
     });
+    // delete button inside edit modal
+    const btnDeleteRem = document.getElementById('btnExcluirLembrete');
+    if (btnDeleteRem) {
+        btnDeleteRem.addEventListener('click', async ()=>{
+            const id = document.getElementById('editRem-id').value;
+            if (!id) return alert('ID do lembrete não encontrado');
+            if (!confirm('Confirma exclusão deste lembrete?')) return;
+            try {
+                const payload = new URLSearchParams();
+                payload.append('action','delete');
+                payload.append('id', String(id));
+                const res = await fetch('includes/reminders_api.php', { method: 'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: payload.toString() });
+                const data = await res.json();
+                if (data.ok) {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('modalEditarLembrete'));
+                    if (modal) modal.hide();
+                    loadRemindersLayout();
+                } else {
+                    alert('Erro ao excluir lembrete');
+                }
+            } catch (e) { console.error(e); alert('Erro ao excluir lembrete'); }
+        });
+    }
 });
 
 </script>

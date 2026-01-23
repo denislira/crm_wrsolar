@@ -1,0 +1,14 @@
+{
+  "name": "wa-service",
+  "version": "0.1.0",
+  "description": "Exemplo de serviço Node.js para autenticar WhatsApp com Baileys e publicar QR para o painel WRCRM",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@adiwajshing/baileys": "github:canove/whaileys",
+    "pino": "^8.0.0"
+  }
+}

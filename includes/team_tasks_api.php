@@ -13,8 +13,20 @@ $action = $_GET['action'] ?? '';
 
 switch ($action) {
     case 'list':
-        $where = 'user_id = ?';
-        $params = [$userId];
+        $username = $_SESSION['username'] ?? '';
+        // If `mine=1` is passed, return tasks assigned to the current username OR created by current user
+        if (!empty($_GET['mine']) && ($_GET['mine'] === '1' || $_GET['mine'] === 'true')) {
+            $where = '(responsavel = ? OR user_id = ?)';
+            $params = [$username, $userId];
+        } else {
+            $where = 'user_id = ?';
+            $params = [$userId];
+        }
+        // Optional filter by responsavel (exact match)
+        if (!empty($_GET['responsavel'])) {
+            $where .= ' AND responsavel = ?';
+            $params[] = $_GET['responsavel'];
+        }
         if (!empty($_GET['equipe'])) {
             $where .= ' AND equipe = ?';
             $params[] = $_GET['equipe'];
@@ -26,7 +38,11 @@ switch ($action) {
         $sql = "SELECT * FROM team_tasks WHERE $where ORDER BY data_vencimento ASC, criado_em DESC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
-        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Debug: log all requests
+        $log = sprintf("[%s] user_id=%s username=%s GET=%s SQL=%s PARAMS=%s ROWS=%d\n", date('Y-m-d H:i:s'), $userId, $username, json_encode($_GET), $sql, json_encode($params), count($rows));
+        @file_put_contents(__DIR__ . '/../logs/tasks_debug.log', $log, FILE_APPEND);
+        echo json_encode($rows);
         break;
     case 'add':
         $data = json_decode(file_get_contents('php://input'), true);
@@ -48,12 +64,16 @@ switch ($action) {
     case 'update':
         $id = $_GET['id'] ?? 0;
         $data = json_decode(file_get_contents('php://input'), true);
-        // Do not allow changing responsavel via API — keep existing responsavel
-        $cur = $pdo->prepare("SELECT responsavel FROM team_tasks WHERE id = ? AND user_id = ?");
-        $cur->execute([$id, $userId]);
+        // Fetch existing row and check permissions (owner or assigned responsavel)
+        $cur = $pdo->prepare("SELECT user_id, responsavel FROM team_tasks WHERE id = ?");
+        $cur->execute([$id]);
         $row = $cur->fetch(PDO::FETCH_ASSOC);
-        $responsavel = $row ? $row['responsavel'] : ($_SESSION['username'] ?? '');
-        $stmt = $pdo->prepare("UPDATE team_tasks SET equipe=?, titulo=?, descricao=?, status=?, responsavel=?, data_vencimento=? WHERE id=? AND user_id=?");
+        if (!$row) { echo json_encode(['success'=>false,'error'=>'Not found']); break; }
+        $username = $_SESSION['username'] ?? '';
+        if (!($row['user_id'] == $userId || $row['responsavel'] === $username)) { echo json_encode(['success'=>false,'error'=>'No permission']); break; }
+        // Keep existing responsavel
+        $responsavel = $row['responsavel'];
+        $stmt = $pdo->prepare("UPDATE team_tasks SET equipe=?, titulo=?, descricao=?, status=?, responsavel=?, data_vencimento=? WHERE id=?");
         $data_venc = (isset($data['data_vencimento']) && trim($data['data_vencimento']) !== '') ? $data['data_vencimento'] : null;
         $stmt->execute([
             $data['equipe'] ?? null,
@@ -62,15 +82,15 @@ switch ($action) {
             $data['status'] ?? 'Pendente',
             $responsavel,
             $data_venc,
-            $id,
-            $userId
+            $id
         ]);
         echo json_encode(['success'=>true]);
         break;
     case 'recent_activities':
-        $sql = "SELECT id, equipe, titulo, responsavel, criado_em, atualizado_em FROM team_tasks WHERE user_id = ? AND (criado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY) OR atualizado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)) ORDER BY GREATEST(criado_em, atualizado_em) DESC LIMIT 10";
+        $username = $_SESSION['username'] ?? '';
+        $sql = "SELECT id, equipe, titulo, responsavel, criado_em, atualizado_em FROM team_tasks WHERE (user_id = ? OR responsavel = ?) AND (criado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY) OR atualizado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)) ORDER BY GREATEST(criado_em, atualizado_em) DESC LIMIT 10";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$userId]);
+        $stmt->execute([$userId, $username]);
         $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $activities = [];
         foreach ($tasks as $t) {
@@ -89,12 +109,19 @@ switch ($action) {
     case 'delete':
         $id = $_GET['id'] ?? 0;
         if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); break; }
-        $stmt = $pdo->prepare("DELETE FROM team_tasks WHERE id = ? AND user_id = ?");
-        $stmt->execute([$id, $userId]);
+        // Check permission: owner or assigned responsavel
+        $cur = $pdo->prepare("SELECT user_id, responsavel FROM team_tasks WHERE id = ?");
+        $cur->execute([$id]);
+        $row = $cur->fetch(PDO::FETCH_ASSOC);
+        if (!$row) { echo json_encode(['success' => false, 'error' => 'Not found']); break; }
+        $username = $_SESSION['username'] ?? '';
+        if (!($row['user_id'] == $userId || $row['responsavel'] === $username)) { echo json_encode(['success' => false, 'error' => 'Not found or no permission']); break; }
+        $stmt = $pdo->prepare("DELETE FROM team_tasks WHERE id = ?");
+        $stmt->execute([$id]);
         if ($stmt->rowCount() > 0) {
             echo json_encode(['success' => true]);
         } else {
-            echo json_encode(['success' => false, 'error' => 'Not found or no permission']);
+            echo json_encode(['success' => false, 'error' => 'Delete failed']);
         }
         break;
 }

@@ -83,9 +83,9 @@ try {
         if ($conversionCol) $cols[] = "{$conversionCol} AS is_conversion";
         if ($trackTimeCol) $cols[] = "{$trackTimeCol} AS track_time_in_stage";
         
-        $sql = "SELECT " . implode(', ', $cols) . " FROM funil_stages WHERE user_id = ? ORDER BY {$positionCol} ASC, id ASC";
+        $sql = "SELECT " . implode(', ', $cols) . " FROM funil_stages ORDER BY {$positionCol} ASC, id ASC";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$userId]);
+        $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode($rows);
         exit;
@@ -116,8 +116,8 @@ try {
         $isConversion = !empty($data['is_conversion']) ? 1 : 0;
         $trackTime = !empty($data['track_time_in_stage']) ? 1 : 0;
 
-        $stmt = $pdo->prepare("SELECT COALESCE(MAX({$positionCol}),0) as mx FROM funil_stages WHERE user_id = ?");
-        $stmt->execute([$userId]);
+        $stmt = $pdo->prepare("SELECT COALESCE(MAX({$positionCol}),0) as mx FROM funil_stages");
+        $stmt->execute();
         $mx = (int)$stmt->fetchColumn();
 
         $cols = ["user_id", $nameCol, $positionCol, $colorCol];
@@ -153,8 +153,8 @@ try {
         if (empty($data['id']) || !isset($data['name'])) throw new Exception('Missing id or name');
 
         // fetch previous for diff
-        $pre = $pdo->prepare('SELECT * FROM funil_stages WHERE id = ? AND user_id = ? LIMIT 1');
-        $pre->execute([$data['id'], $userId]);
+        $pre = $pdo->prepare('SELECT * FROM funil_stages WHERE id = ? LIMIT 1');
+        $pre->execute([$data['id']]);
         $prev = $pre->fetch(PDO::FETCH_ASSOC) ?: [];
 
         $color = isset($data['color']) ? $data['color'] : ($prev['color'] ?? null);
@@ -189,15 +189,14 @@ try {
         if ($trackTimeCol) { $sets[] = "{$trackTimeCol} = ?"; $params[] = $trackTime; }
 
         $params[] = $data['id'];
-        $params[] = $userId;
 
-        $sql = "UPDATE funil_stages SET " . implode(', ', $sets) . " WHERE id = ? AND user_id = ?";
+        $sql = "UPDATE funil_stages SET " . implode(', ', $sets) . " WHERE id = ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
 
         // log diff
         try {
-            $after = $pdo->prepare('SELECT * FROM funil_stages WHERE id = ? AND user_id = ? LIMIT 1'); $after->execute([$data['id'], $userId]); $new = $after->fetch(PDO::FETCH_ASSOC) ?: [];
+            $after = $pdo->prepare('SELECT * FROM funil_stages WHERE id = ? LIMIT 1'); $after->execute([$data['id']]); $new = $after->fetch(PDO::FETCH_ASSOC) ?: [];
             $changes = [];
             foreach ($new as $k => $v) {
                 $old = $prev[$k] ?? null; if ($old != $v) $changes[$k] = ['from' => $old, 'to' => $v];
@@ -212,27 +211,27 @@ try {
     if ($action === 'delete') {
         if (empty($data['id'])) throw new Exception('Missing id');
         // check leads associated
-        $c = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE user_id = ? AND (stage_id = ? OR status = ?)');
+        $c = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE (stage_id = ? OR status = ?)');
         // attempt to resolve name if stage id exists
-        $stageName = null; try { $s = $pdo->prepare("SELECT {$nameCol} AS name FROM funil_stages WHERE id = ? AND user_id = ? LIMIT 1"); $s->execute([$data['id'], $userId]); $row = $s->fetch(PDO::FETCH_ASSOC); if ($row) $stageName = $row['name']; } catch(Exception $e){}
-        $c->execute([$userId, $data['id'], $stageName]); $num = (int)$c->fetchColumn();
+        $stageName = null; try { $s = $pdo->prepare("SELECT {$nameCol} AS name FROM funil_stages WHERE id = ? LIMIT 1"); $s->execute([$data['id']]); $row = $s->fetch(PDO::FETCH_ASSOC); if ($row) $stageName = $row['name']; } catch(Exception $e){}
+        $c->execute([$data['id'], $stageName]); $num = (int)$c->fetchColumn();
         if ($num > 0 && empty($data['force'])) {
             http_response_code(409); echo json_encode(['error' => 'Stage has leads', 'leads' => $num]); exit;
         }
 
-        $stmt = $pdo->prepare('DELETE FROM funil_stages WHERE id = ? AND user_id = ?');
-        $stmt->execute([$data['id'], $userId]);
+        $stmt = $pdo->prepare('DELETE FROM funil_stages WHERE id = ?');
+        $stmt->execute([$data['id']]);
 
         // log history
         try { $h = $pdo->prepare('INSERT INTO funil_stages_history (stage_id, user_id, action, changes) VALUES (?, ?, ?, ?)'); $h->execute([$data['id'], $userId, 'delete', json_encode(['forced' => !empty($data['force'])] )]); } catch(Exception $e) {}
 
         // Reorder remaining stages
-        $stmt = $pdo->prepare("SELECT id FROM funil_stages WHERE user_id = ? ORDER BY {$positionCol} ASC, id ASC");
-        $stmt->execute([$userId]);
+        $stmt = $pdo->prepare("SELECT id FROM funil_stages ORDER BY {$positionCol} ASC, id ASC");
+        $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_COLUMN);
         $pos = 1;
-        $upd = $pdo->prepare("UPDATE funil_stages SET {$positionCol} = ? WHERE id = ? AND user_id = ?");
-        foreach ($rows as $r) { $upd->execute([$pos++, $r, $userId]); }
+        $upd = $pdo->prepare("UPDATE funil_stages SET {$positionCol} = ? WHERE id = ?");
+        foreach ($rows as $r) { $upd->execute([$pos++, $r]); }
         echo json_encode(['ok' => true]);
         exit;
     }
@@ -240,10 +239,10 @@ try {
     if ($action === 'reorder') {
         // Expecting data.positions = [{id:..., position:...}, ...]
         if (empty($data['positions']) || !is_array($data['positions'])) throw new Exception('Missing positions');
-        $upd = $pdo->prepare("UPDATE funil_stages SET {$positionCol} = ? WHERE id = ? AND user_id = ?");
+        $upd = $pdo->prepare("UPDATE funil_stages SET {$positionCol} = ? WHERE id = ?");
         foreach ($data['positions'] as $p) {
             $id = $p['id'] ?? null; $position = (int)($p['position'] ?? 0);
-            if ($id) $upd->execute([$position, $id, $userId]);
+            if ($id) $upd->execute([$position, $id]);
         }
         // log history with ordered list
         try { $h = $pdo->prepare('INSERT INTO funil_stages_history (stage_id, user_id, action, changes) VALUES (?, ?, ?, ?)'); $h->execute([null, $userId, 'reorder', json_encode(['positions' => $data['positions']])]); } catch(Exception $e) {}

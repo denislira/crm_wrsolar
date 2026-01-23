@@ -37,6 +37,9 @@ include 'includes/header.php';
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="teams-tab" data-bs-toggle="tab" data-bs-target="#teams" type="button" role="tab" aria-controls="teams" aria-selected="false">Equipes</button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="integrations-tab" data-bs-toggle="tab" data-bs-target="#integrations" type="button" role="tab" aria-controls="integrations" aria-selected="false">Integrações</button>
+                </li>
                 <!-- Adicionar mais abas aqui no futuro -->
             </ul>
             
@@ -112,6 +115,40 @@ include 'includes/header.php';
                             echo '</tbody></table></div>';
                         }
                         ?>
+                    </div>
+                </div>
+                <!-- Aba Integrações -->
+                <div class="tab-pane fade" id="integrations" role="tabpanel" aria-labelledby="integrations-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h5 mb-0">Integrações</h2>
+                    </div>
+                    <div class="card card-shadow p-3">
+                        <p class="mb-2">Integrações externas — conecte seu WhatsApp (Whaileys) para envio de mensagens a leads e usuários.</p>
+                        <div id="waIntegrationApp" class="d-flex gap-3 flex-wrap align-items-start">
+                            <div id="waStatusCard" class="p-3 rounded shadow-sm" style="min-width:320px; max-width:420px; background:#fff;">
+                                <h5 class="mb-2">WhatsApp</h5>
+                                <div id="waStatus" class="mb-2 text-muted">Carregando status...</div>
+                                <div id="waQrContainer" class="mb-2 d-none">
+                                    <img id="waQrImage" src="" alt="QR Code" style="width:260px; height:260px; object-fit:contain; border:1px solid #eee; padding:8px; background:#fafafa;"/>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button id="btnGenerateQr" class="btn btn-primary btn-sm">Gerar QrCode</button>
+                                    <button id="btnRefreshWa" class="btn btn-outline-secondary btn-sm">Atualizar</button>
+                                    <button id="btnDisconnectWa" class="btn btn-danger btn-sm d-none">Desconectar</button>
+                                    <button id="btnManualQr" class="btn btn-outline-primary btn-sm">Inserir QR</button>
+                                </div>
+                                <small class="d-block text-muted mt-2">Use o QR para autenticar seu cliente Whaileys (Node). Consulte a documentação da integração para detalhes.</small>
+                            </div>
+                            <div id="waHelpCard" class="p-3 rounded shadow-sm" style="min-width:320px; max-width:520px; background:#fff;">
+                                <h6 class="mb-2">Instruções rápidas</h6>
+                                <ol class="small mb-2">
+                                    <li>Inicie seu serviço Whaileys (Node) separado que consome o QR e autentica a sessão.</li>
+                                    <li>No momento, este painel fornece QR temporário e controla estado local.</li>
+                                    <li>Após autenticar no cliente, o serviço Whaileys deve chamar o endpoint de confirmação para marcar conectado (implemente no seu serviço Node).</li>
+                                </ol>
+                                <p class="small text-muted mb-0">Quer que eu gere também um exemplo de serviço Node + Whaileys para receber o QR e confirmar a conexão? Peça que eu crie.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -425,5 +462,47 @@ document.getElementById('changePasswordForm').addEventListener('submit', functio
     });
 });
 </script>
+
+<script src="<?php echo rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\'); ?>/assets/js/wa_integration.js"></script>
+<script>
+    (async function(){
+        try{
+            const url = '<?php echo rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\'); ?>/assets/js/wa_integration.js';
+            console.log('wa_integration: checking', url);
+            const res = await fetch(url, { cache: 'no-store' });
+            console.log('wa_integration: fetch status', res.status);
+            const txt = await res.text();
+            console.log('wa_integration: first chars', txt.slice(0,120));
+        }catch(e){ console.error('wa_integration: fetch error', e); }
+    })();
+</script>
+
+<!-- Modal Inserir QR Manual -->
+<div class="modal fade" id="manualQrModal" tabindex="-1" aria-labelledby="manualQrModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="manualQrModalLabel">Inserir QR manualmente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="manualQrForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Texto do QR (ex: whatsapp-qr:...)</label>
+                        <textarea id="manualQrText" class="form-control" rows="4" placeholder="Cole aqui o texto do QR"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ou cole a URL de uma imagem QR</label>
+                        <input id="manualQrUrl" class="form-control" placeholder="https://.../qr.png" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar QR</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <?php include 'includes/footer.php'; ?>

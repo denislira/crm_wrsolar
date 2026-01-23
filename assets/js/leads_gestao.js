@@ -2,6 +2,9 @@
     // Enhanced Kanban implementation (totals, inactivity alerts, movement timeline)
     const apiBase = 'includes/leads_api.php';
     let allLeads = [];
+    // grid sorting state: `key` is one of 'name','source','status' or null; dir is 1 (asc) or -1 (desc)
+    let GRID_SORT_BY = null;
+    let GRID_SORT_DIR = 1;
     const STALLED_DAYS_DEFAULT = 7;
     // prevent double-submit of the lead form
     let leadFormSubmitting = false;
@@ -32,6 +35,17 @@
         const arr = FIELD_MAP[key] || [];
         for (let s of arr){ try { const el = document.querySelector(s); if (el) return el; } catch(e){} }
         return null;
+    }
+
+    function toggleGridSort(key){
+        if (!key) return;
+        if (GRID_SORT_BY === key) {
+            GRID_SORT_DIR = -GRID_SORT_DIR; // toggle
+        } else {
+            GRID_SORT_BY = key; GRID_SORT_DIR = 1;
+        }
+        // re-render grid view
+        try { renderGrid(); } catch(e){ console.warn('toggleGridSort render failed', e); }
     }
 
     function escapeText(s){ return s==null? '': String(s); }
@@ -78,11 +92,128 @@
             const json = await res.json();
             console.log('Leads loaded:', json.length);
             allLeads = json.map(l => ({...l, score: l.score ?? computeScore(l)}));
+            // compute presence of SEM STATUS (stage_id === 0)
+            const prevSem = SEMSTATUS_PRESENT;
+            SEMSTATUS_PRESENT = allLeads.some(x => Number(x.stage_id) === 0);
+            // if presence changed and stages already loaded, rebuild columns
+            if (prevSem !== SEMSTATUS_PRESENT && STAGES && STAGES.length) {
+                try { buildColumns(); } catch(e){}
+            }
             renderAll();
         } catch (err) {
             console.error('fetchLeads error:', err);
             throw err;
         }
+    }
+
+    // --- Anúncios integration: fetch and render in modal ---
+    async function fetchAnuncios(){
+        try {
+            const res = await fetch(apiBase + '?action=list_anuncios');
+            if (!res.ok) throw new Error('Falha ao carregar anúncios');
+            const rows = await res.json();
+            const countEl = document.getElementById('anunciosCount'); if (countEl) countEl.textContent = (rows && rows.length) ? String(rows.length) : '0';
+            // Determine whether anuncios column should be shown
+            const prev = ANUNCIOS_PRESENT;
+            ANUNCIOS_PRESENT = !!(rows && rows.length);
+            // also update KPI small card if present
+            try { renderAnunciosKpi(Array.isArray(rows) ? rows : []); } catch(e){}
+            // If visibility changed and stages are loaded, rebuild columns and re-render
+            if (prev !== ANUNCIOS_PRESENT && STAGES && STAGES.length) {
+                try { buildColumns(); renderAll(); } catch(e) { console.warn('Failed to rebuild columns after anuncios change', e); }
+            }
+            return Array.isArray(rows) ? rows : [];
+        } catch(e){ console.warn('fetchAnuncios failed', e); return []; }
+    }
+
+    function renderAnunciosKpi(rows){
+        const countEl = document.getElementById('anunciosKpiCount');
+        if (countEl) countEl.textContent = (rows && rows.length) ? String(rows.length) : '0';
+        // we intentionally do NOT show names here; only the count is displayed
+    }
+
+    function makeAnuncioItem(an){
+        const it = document.createElement('div'); it.className = 'list-group-item d-flex justify-content-between align-items-start anuncio-item';
+        it.draggable = true; it.dataset.anuncioId = an.id;
+        const left = document.createElement('div'); left.className = 'flex-grow-1';
+        const title = document.createElement('div'); title.className = 'fw-bold'; title.textContent = an.name || an.nome || (an.contact_name || '(sem nome)');
+        const sub = document.createElement('div'); sub.className = 'small text-muted';
+        let subParts = [];
+        if (an.source) subParts.push('Fonte: ' + an.source);
+        else if (an.cidade) subParts.push('Cidade: ' + an.cidade);
+        if (an.phone) subParts.push(an.phone);
+        if (an.email) subParts.push(an.email);
+        if (an.utm_origem) subParts.push('UTM: ' + an.utm_origem);
+        if (an.utm_campanha) subParts.push('Campanha: ' + an.utm_campanha);
+        const created = an.created_at || an.data_criacao || an.created || an.createdAt || null;
+        if (created) subParts.push('Criado: ' + created);
+        sub.textContent = subParts.join(' • ');
+        left.appendChild(title); left.appendChild(sub);
+        const actions = document.createElement('div'); actions.className = 'd-flex gap-2';
+        const addBtn = document.createElement('button'); addBtn.className = 'btn btn-sm btn-primary'; addBtn.type='button'; addBtn.textContent = 'Adicionar ao Kanban';
+        addBtn.addEventListener('click', async ()=>{
+            addBtn.disabled = true; addBtn.textContent = 'Adicionando...';
+            try {
+                const fd = new FormData(); fd.append('action','promote_anuncio'); fd.append('id', an.id);
+                const r = await fetch(apiBase, { method:'POST', body: fd });
+                const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error || 'Erro');
+                await fetchLeads(); // reload kanban
+                const modalEl = document.getElementById('anunciosModal'); if (modalEl) new bootstrap.Modal(modalEl).hide();
+            } catch(err){ console.error(err); alert('Falha ao adicionar: ' + (err.message||err)); }
+            addBtn.disabled = false; addBtn.textContent = 'Adicionar ao Kanban';
+        });
+        actions.appendChild(addBtn);
+        it.appendChild(left); it.appendChild(actions);
+
+        it.addEventListener('dragstart', (e)=>{
+            e.dataTransfer.setData('text/plain', 'anuncio:' + an.id);
+            e.dataTransfer.effectAllowed = 'copyMove';
+            it.classList.add('dragging');
+        });
+        it.addEventListener('dragend', ()=> it.classList.remove('dragging'));
+        return it;
+    }
+
+    function makeAnuncioCard(an){
+        const el = document.createElement('div'); el.className = 'lead-card anuncio-card'; el.draggable = true; el.dataset.anuncioId = an.id;
+        // Minimal card: title + source + badge
+        const head = document.createElement('div'); head.className = 'd-flex align-items-center justify-content-between';
+        const left = document.createElement('div'); left.className = 'd-flex align-items-center';
+        const title = document.createElement('div'); title.className = 'title'; title.textContent = an.name || an.nome || an.contact_name || '(sem nome)';
+        left.appendChild(title);
+        head.appendChild(left);
+        const meta = document.createElement('div'); meta.className = 'small text-muted ms-2'; meta.textContent = an.source || (an.cidade?an.cidade:'');
+        const badge = document.createElement('span'); badge.className = 'badge bg-secondary ms-2'; badge.textContent = '';
+        head.appendChild(meta);
+        el.appendChild(head);
+        const sub = document.createElement('div'); sub.className = 'small text-muted mt-1';
+        let subLines = [];
+        if (an.phone) subLines.push(an.phone);
+        if (an.email) subLines.push(an.email);
+        if (an.utm_origem) subLines.push('UTM: ' + an.utm_origem);
+        if (an.utm_campanha) subLines.push('Campanha: ' + an.utm_campanha);
+        const created = an.created_at || an.data_criacao || an.created || an.createdAt || null;
+        if (created) subLines.push('Criado: ' + created);
+        sub.textContent = subLines.join(' • ');
+        el.appendChild(sub);
+
+        el.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', 'anuncio:' + an.id); e.dataTransfer.effectAllowed = 'copyMove'; el.classList.add('dragging'); });
+        el.addEventListener('dragend', ()=> el.classList.remove('dragging'));
+        // click to open modal visualizar
+        el.addEventListener('click', ()=> showAnunciosModal());
+        return el;
+    }
+
+    async function showAnunciosModal(){
+        const modalEl = document.getElementById('anunciosModal'); if (!modalEl) return;
+        const wrap = document.getElementById('anunciosList'); if (!wrap) return;
+        wrap.innerHTML = '<div class="text-muted small">Carregando...</div>';
+        const rows = await fetchAnuncios();
+        wrap.innerHTML = '';
+        if (!rows || rows.length === 0) { wrap.innerHTML = '<div class="text-muted small">Nenhum lead de anúncio encontrado.</div>'; }
+        rows.forEach(r=> wrap.appendChild(makeAnuncioItem(r)));
+        // show modal
+        const m = new bootstrap.Modal(modalEl); m.show();
     }
 
     let REMINDER_TEMPLATES = [];
@@ -102,17 +233,38 @@
 
     // Stages loaded from DB (funil_stages)
     let STAGES = [];
+    // Statuses (separate table) - UI should load these independently from stages
+    let STATUSES = [];
+    // whether the Anúncios column should be shown (only when there are rows in leads_anuncios)
+    let ANUNCIOS_PRESENT = false;
+    // Sem Status column: present when there are leads with stage_id === 0
+    let SEMSTATUS_PRESENT = false;
+    // user preference whether to show Sem Status column (persisted)
+    let SEMSTATUS_SHOWN = (localStorage.getItem('showSemStatus') !== '0');
     async function fetchStages(){
         try{
             const res = await fetch('includes/funil_stages_api.php?action=list'); if (!res.ok) throw new Error('Falha ao carregar estágios');
             const json = await res.json();
             STAGES = json.map(s => ({ id: String(s.id), name: s.name || s.stage_name || 'Sem nome', color: s.color || s.stage_color || '#6c757d', card_color: s.card_color || null }));
             buildColumns();
-            populateStatusSelect();
+            populateStageSelect();
         } catch (e) {
             console.error(e);
             STAGES = [{ id: '0', name: 'Novo', color:'#6c757d', card_color: null }];
             buildColumns();
+            populateStageSelect();
+        }
+    }
+
+    async function fetchStatuses(){
+        try{
+            const res = await fetch('includes/statuses_api.php?action=list'); if (!res.ok) throw new Error('Falha ao carregar status');
+            const json = await res.json();
+            STATUSES = Array.isArray(json) ? json.map(s => ({ id: String(s.id), name: s.name, user_id: s.user_id ?? null })) : [];
+            populateStatusSelect();
+        } catch (e) {
+            console.error('fetchStatuses failed', e);
+            STATUSES = [{ id: '0', name: 'Novo' }];
             populateStatusSelect();
         }
     }
@@ -120,15 +272,121 @@
     function populateStatusSelect(){
         const sel = document.querySelector('#lead-status') || F('leadStatus') || document.querySelector('#leadStatus');
         if (!sel) return;
-        sel.innerHTML = ''; // clear
+        // clear only options previously added as 'status' or everything (fallback)
+        Array.from(sel.options).forEach(opt => { if (!opt.dataset || opt.dataset.source === 'status') opt.remove(); });
+        // populate fresh
+        STATUSES.forEach(s=>{
+            const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; o.dataset.source = 'status'; sel.appendChild(o);
+        });
+        // ensure no stage options leaked into status select
+        try {
+            Array.from(sel.options).forEach(opt => { if (opt.dataset && opt.dataset.source === 'stage') opt.remove(); });
+        } catch(e){}
+    }
+
+    function populateStageSelect(){
+        const sel = document.querySelector('#lead-stage') || F('leadStage') || document.querySelector('#leadStage');
+        if (!sel) return;
+        // preserve placeholder then remove previous stage options
+        sel.innerHTML = '<option value="">-- Escolher estágio --</option>';
         STAGES.forEach(s=>{
-            const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; sel.appendChild(o);
+            const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; o.dataset.source = 'stage'; sel.appendChild(o);
+        });
+
+        // update Sem Status count if present
+        try {
+            const semCol = document.getElementById('col-sem_status');
+            const semCountEl = document.getElementById('count-sem_status');
+            if (semCountEl) semCountEl.textContent = (semCol ? String((semCol.children || []).length) : '0');
+        } catch(e){ }
+        // also remove any options in the status select that originated from stages (cleanup)
+        try {
+            const statusSel = document.querySelector('#lead-status') || F('leadStatus') || document.querySelector('#leadStatus');
+            if (statusSel) {
+                Array.from(statusSel.options).forEach(opt => { if (opt.dataset && opt.dataset.source === 'stage') opt.remove(); });
+            }
+        } catch(e){}
+    }
+
+    // Status manager UI functions
+    function renderStatusList() {
+        const wrap = document.getElementById('statusList'); if (!wrap) return;
+        wrap.innerHTML = '';
+        STATUSES.forEach(s => {
+            const item = document.createElement('div'); item.className = 'list-group-item d-flex align-items-center';
+            const nameDiv = document.createElement('div'); nameDiv.className = 'flex-grow-1'; nameDiv.textContent = s.name;
+            const actions = document.createElement('div'); actions.className = 'btn-group btn-group-sm';
+            const editBtn = document.createElement('button'); editBtn.className = 'btn btn-outline-primary'; editBtn.textContent = 'Editar';
+            const delBtn = document.createElement('button'); delBtn.className = 'btn btn-outline-danger'; delBtn.textContent = 'Excluir';
+            editBtn.addEventListener('click', ()=>{ const newName = prompt('Nome do status', s.name); if (newName && newName.trim()!=='' && newName.trim()!==s.name) { updateStatusEntry(s.id, newName.trim()); } });
+            delBtn.addEventListener('click', ()=>{ if (!confirm('Excluir este status?')) return; deleteStatusEntry(s.id); });
+            actions.appendChild(editBtn); actions.appendChild(delBtn);
+            item.appendChild(nameDiv); item.appendChild(actions); wrap.appendChild(item);
         });
     }
+
+    async function addStatusEntry(name){
+        try{
+            const body = new URLSearchParams(); body.append('action','add'); body.append('name', name);
+            const res = await fetch('includes/statuses_api.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString() });
+            const json = await res.json(); if (!res.ok || json.error) throw new Error(json.error || 'Erro');
+            await fetchStatuses(); renderStatusList();
+            alert('Status adicionado');
+        } catch(e){ alert('Falha ao adicionar status: ' + (e.message||e)); }
+    }
+
+    async function updateStatusEntry(id, name){
+        try{
+            const body = new URLSearchParams(); body.append('action','update'); body.append('id', id); body.append('name', name);
+            const res = await fetch('includes/statuses_api.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString() });
+            const json = await res.json(); if (!res.ok || json.error) throw new Error(json.error || 'Erro');
+            await fetchStatuses(); renderStatusList(); populateStatusSelect();
+            alert('Status atualizado');
+        } catch(e){ alert('Falha ao atualizar status: ' + (e.message||e)); }
+    }
+
+    async function deleteStatusEntry(id){
+        try{
+            const body = new URLSearchParams(); body.append('action','delete'); body.append('id', id);
+            const res = await fetch('includes/statuses_api.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString() });
+            const json = await res.json(); if (!res.ok || json.error) throw new Error(json.error || 'Erro');
+            await fetchStatuses(); renderStatusList(); populateStatusSelect();
+            alert('Status excluído');
+        } catch(e){ alert('Falha ao excluir status: ' + (e.message||e)); }
+    }
+
 
     function buildColumns(){
         const wrap = document.getElementById('kanbanWrap'); if(!wrap) return;
         wrap.innerHTML = '';
+        // Insert Sem Status column on the LEFT if present and user enabled
+        if (SEMSTATUS_PRESENT && SEMSTATUS_SHOWN) {
+            try {
+                const ssWrap = document.createElement('div'); ssWrap.className = 'kanban-column'; ssWrap.dataset.stageId = 'sem_status'; ssWrap.dataset.stageName = 'Sem Status';
+                ssWrap.dataset.color = '#6c757d';
+                const ssHeader = document.createElement('div'); ssHeader.className = 'kanban-header';
+                const ssTitle = document.createElement('span'); ssTitle.className = 'kanban-title'; ssTitle.textContent = 'Sem Status';
+                const ssCount = document.createElement('span'); ssCount.className = 'badge bg-light text-muted ms-2'; ssCount.id = 'count-sem_status'; ssCount.textContent = '0';
+                ssHeader.appendChild(ssTitle); ssHeader.appendChild(ssCount);
+                const ssContent = document.createElement('div'); ssContent.className = 'column-content'; ssContent.id = 'col-sem_status';
+                ssWrap.appendChild(ssHeader); ssWrap.appendChild(ssContent);
+                wrap.appendChild(ssWrap);
+            } catch(e){ console.warn('failed creating Sem Status column', e); }
+        }
+        // Insert Anúncios column next (if present)
+        if (ANUNCIOS_PRESENT) {
+            try {
+                const anWrap = document.createElement('div'); anWrap.className = 'kanban-column'; anWrap.dataset.stageId = 'anuncios'; anWrap.dataset.stageName = 'Anúncios';
+                anWrap.dataset.color = '#0d6efd';
+                const anHeader = document.createElement('div'); anHeader.className = 'kanban-header';
+                const anTitle = document.createElement('span'); anTitle.className = 'kanban-title'; anTitle.textContent = 'Anúncios';
+                const anCount = document.createElement('span'); anCount.className = 'badge bg-light text-muted ms-2'; anCount.id = 'count-anuncios'; anCount.textContent = '0';
+                anHeader.appendChild(anTitle); anHeader.appendChild(anCount);
+                const anContent = document.createElement('div'); anContent.className = 'column-content'; anContent.id = 'col-anuncios';
+                anWrap.appendChild(anHeader); anWrap.appendChild(anContent);
+                wrap.appendChild(anWrap);
+            } catch(e){ console.warn('failed creating anuncios column', e); }
+        }
         STAGES.forEach(s=>{
             const colWrap = document.createElement('div'); colWrap.className = 'kanban-column'; colWrap.dataset.stageId = s.id; colWrap.dataset.stageName = s.name;
             // expose colors to the DOM for later use
@@ -160,6 +418,21 @@
             colWrap.appendChild(header); colWrap.appendChild(content);
             wrap.appendChild(colWrap);
         });
+        // Insert 'Sem Status' column for leads with stage_id === 0 if present and user allows it
+        if (SEMSTATUS_PRESENT && SEMSTATUS_SHOWN) {
+            try {
+                const ssWrap = document.createElement('div'); ssWrap.className = 'kanban-column'; ssWrap.dataset.stageId = 'sem_status'; ssWrap.dataset.stageName = 'Sem Status';
+                ssWrap.dataset.color = '#6c757d';
+                const ssHeader = document.createElement('div'); ssHeader.className = 'kanban-header';
+                const ssTitle = document.createElement('span'); ssTitle.className = 'kanban-title'; ssTitle.textContent = 'Sem Status';
+                const ssCount = document.createElement('span'); ssCount.className = 'badge bg-light text-muted ms-2'; ssCount.id = 'count-sem_status'; ssCount.textContent = '0';
+                ssHeader.appendChild(ssTitle); ssHeader.appendChild(ssCount);
+                const ssContent = document.createElement('div'); ssContent.className = 'column-content'; ssContent.id = 'col-sem_status';
+                ssWrap.appendChild(ssHeader); ssWrap.appendChild(ssContent);
+                // append at the end (after stages)
+                wrap.appendChild(ssWrap);
+            } catch(e){ console.warn('failed creating Sem Status column', e); }
+        }
         const loading = document.getElementById('kanbanLoading'); if (loading) loading.remove();
     }
 
@@ -257,7 +530,17 @@
         const score = document.createElement('span'); score.className = 'badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')); score.textContent = lead.score;
         meta.appendChild(value); meta.appendChild(owner); meta.appendChild(score);
         // Add paperclip download icon to the right of the badge-score when an attachment exists
-        if (lead.anexos_filename) {
+        if (lead.anexos_files && lead.anexos_files.length) {
+            const filenames = lead.anexos_files.map(f => f.filename).join(', ');
+            const first = lead.anexos_files[0];
+            const clipLink = document.createElement('a');
+            clipLink.href = 'includes/leads_api.php?action=download_anexo&id=' + encodeURIComponent(lead.id) + '&file_id=' + encodeURIComponent(first.attachment_id);
+            clipLink.target = '_blank'; clipLink.rel = 'noopener';
+            const clip = document.createElement('i'); clip.className = 'fa fa-paperclip ms-2 text-muted small lead-clip-icon';
+            clip.title = filenames || 'Anexo disponível';
+            clipLink.appendChild(clip);
+            meta.appendChild(clipLink);
+        } else if (lead.anexos_filename) {
             const clipLink = document.createElement('a');
             clipLink.href = 'includes/leads_api.php?action=download_anexo&id=' + encodeURIComponent(lead.id);
             clipLink.target = '_blank'; clipLink.rel = 'noopener';
@@ -322,10 +605,62 @@
         const container = document.getElementById('leadsTableContainer'); if (!container) return;
         container.innerHTML = '';
         const table = document.createElement('table'); table.className = 'table table-sm table-hover';
-        const thead = document.createElement('thead'); thead.innerHTML = '<tr><th></th><th>Nome</th><th>Fonte</th><th>Status</th><th>Valor</th><th>Responsável</th><th>Score</th><th>Criado</th><th></th></tr>';
+            const thead = document.createElement('thead');
+            // build header with clickable sortable columns (compact arrow indicator)
+            const headerRow = document.createElement('tr');
+            const thEmpty = document.createElement('th'); headerRow.appendChild(thEmpty);
+            function makeSortableHeader(key, label) {
+                const th = document.createElement('th'); th.style.cursor = 'pointer';
+                const span = document.createElement('span'); span.textContent = label; span.className = 'sortable-col-label';
+                const ind = document.createElement('span'); ind.className = 'sort-indicator ms-1'; ind.style.fontSize = '0.8rem'; ind.style.opacity = '0.8';
+                if (GRID_SORT_BY === key) ind.textContent = GRID_SORT_DIR === 1 ? '▲' : '▼';
+                th.appendChild(span); th.appendChild(ind);
+                th.addEventListener('click', (e)=>{ e.stopPropagation(); toggleGridSort(key); });
+                return th;
+            }
+            headerRow.appendChild(makeSortableHeader('name','Nome'));
+            headerRow.appendChild(makeSortableHeader('source','Fonte'));
+            headerRow.appendChild(makeSortableHeader('status','Status'));
+            // remaining headers (sortable as requested)
+            headerRow.appendChild(makeSortableHeader('valor','Valor'));
+            headerRow.appendChild(makeSortableHeader('responsavel','Responsável'));
+            headerRow.appendChild(makeSortableHeader('score','Score'));
+            headerRow.appendChild(makeSortableHeader('criado','Criado'));
+            const thAct = document.createElement('th'); headerRow.appendChild(thAct);
+            thead.appendChild(headerRow);
         const tbody = document.createElement('tbody');
-        // rows
-        allLeads.forEach(lead => {
+        // rows (apply sort if requested)
+        let rows = allLeads.slice();
+        if (GRID_SORT_BY) {
+            const key = GRID_SORT_BY;
+            function getSortValue(item){
+                try {
+                    if (key === 'name') return String(item.name || '').toLowerCase();
+                    if (key === 'source') return String(item.source || item.client_name || item.company || '').toLowerCase();
+                    if (key === 'status') return String(item.status || '').toLowerCase();
+                    if (key === 'responsavel') return String(item.responsavel || '').toLowerCase();
+                    if (key === 'score') return Number(item.score || computeScore(item) || 0);
+                    if (key === 'valor' || key === 'value') return Number(item.orcamento_value || item.proposal_value || item.value || 0) || 0;
+                    if (key === 'criado') {
+                        const dt = item.created_at || item.createdAt || item.created || null;
+                        const t = dt ? (new Date(String(dt).replace(' ', 'T')).getTime() || 0) : 0;
+                        return Number(t);
+                    }
+                    return String(item[key] || '').toLowerCase();
+                } catch(e){ return '' }
+            }
+            rows.sort((a,b)=>{
+                const va = getSortValue(a); const vb = getSortValue(b);
+                if (typeof va === 'number' && typeof vb === 'number') {
+                    return (va - vb) * GRID_SORT_DIR;
+                }
+                const sa = String(va).toLowerCase(); const sb = String(vb).toLowerCase();
+                if (sa < sb) return -1 * GRID_SORT_DIR;
+                if (sa > sb) return 1 * GRID_SORT_DIR;
+                return 0;
+            });
+        }
+        rows.forEach(lead => {
             const tr = document.createElement('tr'); tr.dataset.id = lead.id;
             const chkTd = document.createElement('td'); chkTd.innerHTML = '<input class="lead-select" type="checkbox">';
             const chk = chkTd.querySelector('input'); chk.addEventListener('change', updateBulkDeleteVisibility);
@@ -369,7 +704,16 @@
         STAGES.forEach(s=> sums[s.id] = 0);
 
         allLeads.forEach(l=>{
-            const stageKey = l.stage_id ? String(l.stage_id) : (STAGES.find(s=>s.name === (l.status||'')) || {id:'0'}).id;
+            let stageKey = '0';
+            if (typeof l.stage_id !== 'undefined' && l.stage_id !== null) {
+                if (Number(l.stage_id) === 0) {
+                    stageKey = 'sem_status';
+                } else if (l.stage_id) {
+                    stageKey = String(l.stage_id);
+                }
+            } else {
+                stageKey = (STAGES.find(s=>s.name === (l.status||'')) || {id:'0'}).id;
+            }
             const col = document.getElementById('col-' + stageKey);
             if (col) {
                 const card = makeCard(l);
@@ -418,6 +762,27 @@
 
         renderKpis();
         updateBulkDeleteVisibility();
+        // populate Anúncios column (fetch latest and render as cards)
+        try {
+            fetchAnuncios().then(rows=>{
+                try {
+                    const col = document.getElementById('col-anuncios');
+                    if (!col) return;
+                    col.innerHTML = '';
+                    if (rows && rows.length) {
+                        rows.forEach(r=>{
+                            const card = makeAnuncioCard(r);
+                            col.appendChild(card);
+                        });
+                    } else {
+                        const empty = document.createElement('div'); empty.className='p-3 small text-muted'; empty.textContent = 'Nenhum lead de anúncio.'; col.appendChild(empty);
+                    }
+                    // update Anúncios fixed column count badge if present
+                    const fixedCount = document.getElementById('anunciosCount'); if (fixedCount) fixedCount.textContent = (rows && rows.length) ? String(rows.length) : '0';
+                    const kpiCount = document.getElementById('anunciosKpiCount'); if (kpiCount) kpiCount.textContent = (rows && rows.length) ? String(rows.length) : '0';
+                } catch(e){ console.warn('renderAnuncios failed', e); }
+            }).catch(()=>{});
+        } catch(e) { /* ignore */ }
     }
 
     function setupDragDrop(){
@@ -456,20 +821,45 @@
             if (!colWrap) return;
             colWrap.classList.remove('drag-over-column');
             const colContent = colWrap.querySelector('.column-content');
-            const id = e.dataTransfer.getData('text/plain');
+            const raw = e.dataTransfer.getData('text/plain') || '';
             const stageId = colWrap?.dataset?.stageId;
             const stageName = colWrap?.dataset?.stageName;
             try {
-                await updateStatus(id, stageName, { stage_id: stageId });
-                const item = allLeads.find(x=>String(x.id)===String(id)); if (item) { item.status = stageName; item.stage_id = stageId; item.updated_at = (new Date()).toISOString(); }
-                const dragging = document.querySelector('.lead-card.dragging');
-                if (dragging) {
-                    const newColor = container?.dataset?.color || '#6c757d';
-                    dragging.style.borderLeft = '6px solid ' + newColor;
-                    dragging.dataset._prevBorder = '';
+                // Prevent dropping existing lead cards into the Anúncios column
+                if (stageId === 'anuncios' && !raw.startsWith('anuncio:')) {
+                    flashFeedback(colContent, false);
+                    return;
                 }
-                renderAll();
-                flashFeedback(colContent, true);
+                // Prevent dropping any cards into 'Sem Status' column
+                if (stageId === 'sem_status') {
+                    flashFeedback(colContent, false);
+                    return;
+                }
+                // Support dragging existing lead cards (id) or anuncio items prefixed with 'anuncio:'
+                if (raw.startsWith('anuncio:')) {
+                    const anId = raw.split(':',2)[1];
+                    // promote anuncio via API (server will create lead)
+                    const fd = new FormData(); fd.append('action','promote_anuncio'); fd.append('id', anId); fd.append('stage_id', stageId || '');
+                    const res = await fetch(apiBase, { method: 'POST', body: fd });
+                    const json = await res.json(); if (!res.ok || json.error) throw new Error(json.error || 'Falha ao promover anúncio');
+                    // reload leads and provide feedback
+                    await fetchLeads();
+                    // refresh anuncios list and rebuild columns if necessary
+                    try { await fetchAnuncios(); } catch(e){}
+                    flashFeedback(colContent, true);
+                } else {
+                    const id = raw;
+                    await updateStatus(id, stageName, { stage_id: stageId });
+                    const item = allLeads.find(x=>String(x.id)===String(id)); if (item) { item.status = stageName; item.stage_id = stageId; item.updated_at = (new Date()).toISOString(); }
+                    const dragging = document.querySelector('.lead-card.dragging');
+                    if (dragging) {
+                        const newColor = container?.dataset?.color || '#6c757d';
+                        dragging.style.borderLeft = '6px solid ' + newColor;
+                        dragging.dataset._prevBorder = '';
+                    }
+                    renderAll();
+                    flashFeedback(colContent, true);
+                }
             } catch(err){ flashFeedback(colContent, false); console.error(err); }
         });
 
@@ -512,14 +902,40 @@
         const lead = allLeads.find(l=>String(l.id)===String(id)); if (!lead) return;
         const p = $('#leadDetailContent'); p.innerHTML = '';
         const title = document.createElement('h4'); title.textContent = lead.name || '(sem nome)';
-        const status = document.createElement('div'); status.className='mb-2 small text-muted'; status.textContent = 'Status: ' + (lead.status||'Novo');
+        const status = document.createElement('div'); status.className='mb-2 small text-muted';
+        (async ()=>{
+            try {
+                let statusLabel = lead.status || 'Novo';
+                // If status is an ID, try to resolve via loaded STATUSES or fetch them
+                if (statusLabel && String(statusLabel).match(/^\d+$/)) {
+                    let s = STATUSES.find(x=>String(x.id)===String(statusLabel));
+                    if (!s) {
+                        try { await fetchStatuses(); } catch(e){}
+                        s = STATUSES.find(x=>String(x.id)===String(statusLabel));
+                    }
+                    if (s) statusLabel = s.name;
+                }
+                status.textContent = 'Status: ' + (statusLabel || 'Novo');
+            } catch(e) { status.textContent = 'Status: ' + (lead.status||'Novo'); }
+        })();
         const company = document.createElement('div'); company.textContent = 'Fonte: ' + (lead.source || lead.client_name || lead.company || '—');
         const email = document.createElement('div'); email.innerHTML = 'Email: ' + (lead.email? `<a href="mailto:${encodeURIComponent(lead.email)}">${lead.email}</a>` : '—');
         const phone = document.createElement('div'); phone.innerHTML = 'Telefone: ' + (lead.phone? `<a href="tel:${encodeURIComponent(lead.phone)}">${lead.phone}</a>` : '—');
         const city = document.createElement('div'); city.textContent = 'Cidade: ' + (lead.cidade || lead.city || '—');
         // attachment link in detail panel
         const anexosDiv = document.createElement('div'); anexosDiv.className = 'mt-2';
-        if (lead.anexos_filename) {
+        if (lead.anexos_files && lead.anexos_files.length) {
+            anexosDiv.appendChild(document.createTextNode('Anexos: '));
+            const list = document.createElement('div'); list.className = 'anexos-list';
+            lead.anexos_files.forEach(f => {
+                const a = document.createElement('a');
+                a.href = 'includes/leads_api.php?action=download_anexo&id=' + encodeURIComponent(lead.id) + '&file_id=' + encodeURIComponent(f.attachment_id);
+                a.target = '_blank'; a.rel = 'noopener'; a.className = 'd-block';
+                a.innerHTML = escapeText(f.filename) + ' <i class="fa fa-paperclip ms-1"></i>';
+                list.appendChild(a);
+            });
+            anexosDiv.appendChild(list);
+        } else if (lead.anexos_filename) {
             const an = document.createElement('a');
             an.href = 'includes/leads_api.php?action=download_anexo&id=' + encodeURIComponent(lead.id);
             an.target = '_blank'; an.rel = 'noopener';
@@ -720,16 +1136,17 @@
         const statusEl = F('leadStatus') || $('#leadStatus');
         if (statusEl) {
             if (statusEl.tagName === 'SELECT') {
-                if (lead.stage_id && statusEl.querySelector(`option[value="${lead.stage_id}"]`)) {
-                    statusEl.value = lead.stage_id;
-                } else {
-                    // try matching by visible text
-                    let matched = false;
+                // Try matching by option value first (status stored as ID), then by visible text (status stored as name)
+                let matched = false;
+                try {
+                    if (lead.status && statusEl.querySelector(`option[value="${lead.status}"]`)) { statusEl.value = lead.status; matched = true; }
+                } catch(e){}
+                if (!matched) {
                     for (let i=0;i<statusEl.options.length;i++){
                         if (statusEl.options[i].text === (lead.status || '')) { statusEl.selectedIndex = i; matched = true; break; }
                     }
-                    if (!matched) statusEl.value = '';
                 }
+                if (!matched) statusEl.value = '';
             } else {
                 statusEl.value = lead.status || '';
             }
@@ -746,24 +1163,63 @@
         const notesEl = F('leadNotes') || $('#leadNotes'); if (notesEl) notesEl.value = lead.notes || '';
         // reset file input
         const f = F('leadAnexos') || $('#leadAnexos'); if (f) f.value = '';
-        // remove any previous existing attachments UI
-        const prevWrap = document.getElementById('existingAnexosWrap'); if (prevWrap) prevWrap.remove();
-        // show existing attachment (download link) when editing
-        if (lead.anexos_filename) {
-            try {
-                const wrap = document.createElement('div'); wrap.id = 'existingAnexosWrap'; wrap.className = 'mt-2 mb-2';
-                const lbl = document.createElement('div'); lbl.className = 'small text-muted mb-1'; lbl.textContent = 'Anexo:';
-                const link = document.createElement('a'); link.href = 'includes/leads_api.php?action=download_anexo&id=' + encodeURIComponent(lead.id); link.target = '_blank'; link.rel='noopener';
-                link.textContent = lead.anexos_filename + (lead.anexos_mimetype ? (' (' + lead.anexos_mimetype + ')') : '');
-                link.className = 'd-block';
-                wrap.appendChild(lbl); wrap.appendChild(link);
-                const fileInput = document.getElementById('lead-anexos');
-                if (fileInput && fileInput.parentNode) fileInput.parentNode.appendChild(wrap);
-            } catch(e){ console.warn('Failed showing existing attachment', e); }
-        }
+        // render existing attachments UI
+        try { renderExistingAttachments(lead); } catch(e){ console.warn('Failed rendering attachments', e); }
         const m = new bootstrap.Modal($('#leadModal'));
         const titleEl = F('leadModalTitle') || $('#leadModalTitle'); if (titleEl) titleEl.textContent = 'Editar Lead';
         m.show();
+    }
+
+    // Render existing attachments list inside the edit form and wire delete handlers
+    function renderExistingAttachments(lead) {
+        const prevWrap = document.getElementById('existingAnexosWrap'); if (prevWrap) prevWrap.remove();
+        const fileInput = document.getElementById('lead-anexos');
+        if (!fileInput) return;
+        try {
+            const wrap = document.createElement('div'); wrap.id = 'existingAnexosWrap'; wrap.className = 'mt-2 mb-2';
+            const lbl = document.createElement('div'); lbl.className = 'small text-muted mb-1'; lbl.textContent = (lead.anexos_files && lead.anexos_files.length) ? 'Anexos:' : (lead.anexos_filename ? 'Anexo:' : 'Anexos:');
+            wrap.appendChild(lbl);
+
+            if (lead.anexos_files && lead.anexos_files.length) {
+                lead.anexos_files.forEach(f => {
+                    const row = document.createElement('div'); row.className = 'd-flex align-items-center mb-1';
+                    const link = document.createElement('a'); link.href = 'includes/leads_api.php?action=download_anexo&id=' + encodeURIComponent(lead.id) + '&file_id=' + encodeURIComponent(f.attachment_id); link.target = '_blank'; link.rel = 'noopener';
+                    link.textContent = f.filename; link.className = 'me-2';
+                    const delBtn = document.createElement('button'); delBtn.type = 'button'; delBtn.className = 'btn btn-sm btn-outline-danger delete-anexo-btn'; delBtn.textContent = 'Excluir';
+                    delBtn.dataset.fileId = f.attachment_id; delBtn.dataset.leadId = lead.id;
+                    delBtn.addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        if (!confirm('Excluir este anexo?')) return;
+                        try {
+                            const fd = new FormData(); fd.append('file_id', e.currentTarget.dataset.fileId); fd.append('lead_id', e.currentTarget.dataset.leadId);
+                            const res = await fetch('includes/leads_api.php?action=delete_attachment', { method: 'POST', body: fd });
+                            const txt = await res.text(); let payload = null; try { payload = JSON.parse(txt); } catch(_) { payload = null; }
+                            if (!res.ok || (payload && payload.error)) { alert('Falha ao excluir: ' + ((payload && (payload.error||payload.message)) || txt)); return; }
+                            // refresh attachments for this lead
+                            const g = await fetch('includes/leads_api.php?action=get&id=' + encodeURIComponent(lead.id));
+                            if (g.ok) {
+                                const newLead = await g.json();
+                                renderExistingAttachments(newLead);
+                                // keep in-memory list up to date
+                                const idx = allLeads.findIndex(l => String(l.id) === String(lead.id));
+                                if (idx >= 0) allLeads[idx] = { ...allLeads[idx], ...newLead };
+                                // also update detail panel if open
+                                const detailId = document.querySelector('#leadDetailsPanel')?.classList.contains('hidden') ? null : lead.id;
+                                if (detailId) {
+                                    // if details panel open for same lead, re-open to refresh
+                                    const openId = document.querySelector('#leadDetailContent')?.querySelector('h4')?.textContent;
+                                }
+                            }
+                        } catch (err) { console.error(err); alert('Erro ao excluir anexo'); }
+                    });
+                    row.appendChild(link); row.appendChild(delBtn); wrap.appendChild(row);
+                });
+            } else if (lead.anexos_filename) {
+                const link = document.createElement('a'); link.href = 'includes/leads_api.php?action=download_anexo&id=' + encodeURIComponent(lead.id); link.target = '_blank'; link.rel = 'noopener'; link.textContent = lead.anexos_filename; link.className = 'd-block'; wrap.appendChild(link);
+            }
+
+            if (fileInput && fileInput.parentNode) fileInput.parentNode.appendChild(wrap);
+        } catch (e) { console.warn('renderExistingAttachments failed', e); }
     }
 
     function getSelectedLeadIds(){ return Array.from(document.querySelectorAll('.lead-select:checked')).map(c=>c.closest('.lead-card')?.dataset?.id).filter(Boolean); }
@@ -829,6 +1285,37 @@
             m.show(); 
         });
 
+        // Anúncios UI: Visualizar modal button and fixed column visibility
+        try {
+            const adsBtn = document.getElementById('anunciosVisualizarBtn');
+            const adsCol = document.getElementById('anunciosFixedColumn');
+            if (adsBtn) {
+                adsBtn.addEventListener('click', (e)=>{ e.preventDefault(); showAnunciosModal(); });
+            }
+            // load count and show fixed column when there are anuncios
+            (async ()=>{
+                try {
+                    const rows = await fetchAnuncios();
+                    if (rows && rows.length && adsCol) adsCol.classList.remove('d-none');
+                } catch(e){ /* ignore */ }
+            })();
+        } catch(e){ console.warn('ads UI setup failed', e); }
+
+        // Sem Status toggle button
+        try {
+            const semBtn = document.getElementById('toggleSemStatusBtn');
+            if (semBtn) {
+                // initialize visual state
+                semBtn.classList.toggle('active', SEMSTATUS_SHOWN);
+                semBtn.addEventListener('click', ()=>{
+                    SEMSTATUS_SHOWN = !SEMSTATUS_SHOWN;
+                    localStorage.setItem('showSemStatus', SEMSTATUS_SHOWN ? '1' : '0');
+                    semBtn.classList.toggle('active', SEMSTATUS_SHOWN);
+                    try { buildColumns(); renderAll(); } catch(e){ console.warn('Failed toggling Sem Status column', e); }
+                });
+            }
+        } catch(e){ console.warn('sem status toggle setup failed', e); }
+
         // Kanban-only toggle: hide/show all page chrome and make kanban fill view
         try {
             const kanbanBtn = document.getElementById('kanbanOnlyBtn');
@@ -846,7 +1333,7 @@
                         // compute an absolute path for the kanban background image based on current page
                         try {
                             const basePath = window.location.pathname.replace(/\/[^\/]*$/, '') || '';
-                            const imgPath = (basePath === '' ? '' : basePath) + '/assets/img/kanban2.jpg';
+                            const imgPath = (basePath === '' ? '' : basePath) + '/assets/img/kanban4.jpg';
                             document.body.style.setProperty('--kanban-bg-image', `url('${imgPath}')`);
                         } catch (e) { /* ignore if styling fails */ }
                     document.body.classList.add('kanban-only');
@@ -1058,7 +1545,6 @@
                 fd.append('source', sourceValue);
                 fd.append('status', statusValue);
                 if (stageVal) fd.append('stage_id', stageVal);
-                else if (statusValue) fd.append('stage_id', statusValue);
                 fd.append('notes', notesValue);
                 fd.append('consumo_cliente', consumoValue);
                 fd.append('estimativa_projeto_kwh', estimativaValue);
@@ -1084,7 +1570,6 @@
                 params.append('source', sourceValue);
                 params.append('status', statusValue);
                 if (stageVal) params.append('stage_id', stageVal);
-                else if (statusValue) params.append('stage_id', statusValue);
                 params.append('notes', notesValue);
                 params.append('consumo_cliente', consumoValue);
                 params.append('estimativa_projeto_kwh', estimativaValue);
@@ -1245,6 +1730,38 @@
             bulkBtn.addEventListener('click', ()=> populateBulkStages());
         }
 
+        // Manage statuses modal
+        const manageBtn = document.getElementById('manageStatusBtn');
+        if (manageBtn) {
+            manageBtn.addEventListener('click', ()=>{
+                const modalEl = document.getElementById('statusModal');
+                if (!modalEl) return;
+                // hide any currently shown Bootstrap modals so the status modal appears on top
+                try {
+                    const openModals = Array.from(document.querySelectorAll('.modal.show'));
+                    openModals.forEach(el => {
+                        try { const inst = bootstrap.Modal.getInstance(el); if (inst) inst.hide(); else el.classList.remove('show'); } catch(e){}
+                    });
+                } catch(e){}
+                // ensure modal is a direct child of body to avoid stacking/context issues
+                try { if (modalEl.parentNode !== document.body) document.body.appendChild(modalEl); } catch(e){}
+                // ensure backdrop will be above others by setting high z-index (Bootstrap default is usually fine)
+                modalEl.style.zIndex = 2200;
+                renderStatusList();
+                const m = new bootstrap.Modal(modalEl);
+                m.show();
+            });
+        }
+        const addStatusBtn = document.getElementById('addStatusBtn');
+        if (addStatusBtn) {
+            addStatusBtn.addEventListener('click', ()=>{
+                const name = (document.getElementById('newStatusName')||{}).value || '';
+                if (!name.trim()) return alert('Informe o nome do status');
+                addStatusEntry(name.trim());
+                document.getElementById('newStatusName').value = '';
+            });
+        }
+
         // uncheck all selected leads
         const uncheckBtn = $('#bulkUncheckBtn'); if (uncheckBtn) {
             uncheckBtn.addEventListener('click', ()=>{
@@ -1353,7 +1870,10 @@
     // initial
     document.addEventListener('DOMContentLoaded', async ()=>{
         try{
-            await fetchStages(); await fetchLeads(); setupDragDrop(); setupHandlers();
+            await fetchStatuses(); await fetchStages(); await fetchLeads();
+            // fetch anuncios and render KPI/card
+            try { const ads = await fetchAnuncios(); if (ads && ads.length) { const adsCol = document.getElementById('anunciosFixedColumn'); if (adsCol) adsCol.classList.remove('d-none'); } } catch(e){}
+            setupDragDrop(); setupHandlers();
             // ensure view mode applied after initial data load
             renderAll();
             const bulkDeleteBtn = $('#bulkDeleteBtn');

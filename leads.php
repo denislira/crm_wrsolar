@@ -39,9 +39,12 @@ include 'includes/header.php';
     <main class="flex-grow-1 p-4">
         <div id="leads" class="container-fluid">
         <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1 class="h3 mb-0">Gestão de Leads</h1>
-                <button id="open-add-lead" class="btn btn-primary">+ Novo Lead</button>
+        <h1 class="h3 mb-0">Gestão de Leads</h1>
+        <div class="d-flex gap-2">
+            <a href="import_leads.php" class="btn btn-outline-secondary">Importar CSV</a>
+            <button id="open-add-lead" class="btn btn-primary">+ Novo Lead</button>
         </div>
+    </div>
 
         <div class="card">
                 <div class="card-body p-0">
@@ -73,8 +76,8 @@ include 'includes/header.php';
                                                             <small><?= htmlspecialchars($lead['phone'] ?? '') ?></small>
                                                         </td>
                                                         <td><?= htmlspecialchars($lead['cpf_cnpj'] ?? '-') ?></td>
-                                                        <td><?= $lead['consumo_cliente'] ? 'R$ ' . number_format($lead['consumo_cliente'], 2, ',', '.') : '-' ?></td>
-                                                        <td><?= $lead['estimativa_projeto_kwh'] ? number_format($lead['estimativa_projeto_kwh'], 2, ',', '.') . ' kWh' : '-' ?></td>
+                                                        <td><?= $lead['consumo_cliente'] ? (is_numeric($lead['consumo_cliente']) ? 'R$ ' . number_format($lead['consumo_cliente'], 2, ',', '.') : $lead['consumo_cliente']) : '-' ?></td>
+                                                        <td><?= $lead['estimativa_projeto_kwh'] ? (is_numeric($lead['estimativa_projeto_kwh']) ? number_format($lead['estimativa_projeto_kwh'], 2, ',', '.') . ' kWh' : $lead['estimativa_projeto_kwh']) : '-' ?></td>
                                                         <td><span class="badge bg-secondary"><?= htmlspecialchars($lead['status']) ?></span></td>
                                                         <td class="text-center">
                                                             <?php if (!empty($lead['anexos_filename'])): ?>
@@ -153,9 +156,11 @@ include 'includes/header.php';
                             <div class="card mb-3">
                                 <div class="card-body">
                                     <label class="form-label">Consumo do Cliente (R$) <i class="fa fa-bolt text-warning"></i></label>
-                                    <input id="lead-consumo" class="form-control" type="number" step="0.01" placeholder="0,00">
+                                    <input id="lead-consumo" class="form-control" type="text" placeholder="Ex: 1500,00 ou texto">
                                     <label class="form-label mt-2">Estimativa do Projeto (kWh) <i class="fa fa-solar-panel text-info"></i></label>
-                                    <input id="lead-estimativa-kwh" class="form-control" type="number" step="0.01" placeholder="0,00">
+                                    <input id="lead-estimativa-kwh" class="form-control" type="text" placeholder="Ex: 500 ou texto">
+                                    <label class="form-label mt-2">Envio de Proposta <i class="fa fa-calendar text-muted"></i></label>
+                                    <input id="lead-envio-proposta" class="form-control" type="date">
                                     <label class="form-label mt-2">Fonte <i class="fa fa-globe text-muted"></i></label>
                                     <input id="lead-source" class="form-control">
                                 </div>
@@ -229,6 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('notes', document.getElementById('lead-notes').value);
             formData.append('consumo_cliente', document.getElementById('lead-consumo').value);
             formData.append('estimativa_projeto_kwh', document.getElementById('lead-estimativa-kwh').value);
+            formData.append('envio_proposta', document.getElementById('lead-envio-proposta').value);
             
             // Adicionar arquivos se houver
             const fileInput = document.getElementById('lead-anexos');
@@ -299,6 +305,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('lead-notes').value = lead.notes || '';
                     document.getElementById('lead-consumo').value = lead.consumo_cliente || '';
                     document.getElementById('lead-estimativa-kwh').value = lead.estimativa_projeto_kwh || '';
+                    // envio_proposta may be DATETIME 'YYYY-MM-DD HH:MM:SS' or NULL
+                    if (lead.envio_proposta) {
+                        document.getElementById('lead-envio-proposta').value = lead.envio_proposta.substring(0,10);
+                    } else {
+                        document.getElementById('lead-envio-proposta').value = '';
+                    }
                     
                     // Mostrar info sobre arquivo anexado, se houver
                     const anexoInfo = document.getElementById('anexo-current-info');

@@ -51,7 +51,7 @@ try {
     if ($action === 'get') {
         $id = $_GET['id'] ?? null;
         if (!$id) { http_response_code(400); echo json_encode(['error'=>'Missing id']); exit; }
-        $stmt = $pdo->prepare('SELECT * FROM reminders WHERE id = ? LIMIT 1');
+        $stmt = $pdo->prepare('SELECT r.*, l.name AS lead_name, l.phone AS lead_phone FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id WHERE r.id = ? LIMIT 1');
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         echo json_encode($row ?: []);

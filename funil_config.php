@@ -12,10 +12,10 @@ include 'includes/header.php';
     <div class="container-fluid">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h4 mb-0">Personalização do Funil</h1>
-        <?php $isAdmin = (isset($_SESSION['user_id']) && $_SESSION['user_id'] == 1); ?>
-        <div class="small text-muted"><?php echo $isAdmin ? 'Você pode editar o funil (Administrador)' : 'Você não tem permissão para editar (somente visualização)'; ?></div>
+        <?php $isAdmin = true; ?>
+        <div class="small text-muted">Você pode editar o funil (Edição liberada para todos)</div>
       </div>
-      <script>const IS_ADMIN = <?php echo $isAdmin ? 'true' : 'false'; ?>;</script>
+      <script>const IS_ADMIN = true;</script>
 
       <div class="row">
         <div class="col-lg-4 mb-3">
