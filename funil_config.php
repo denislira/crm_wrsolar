@@ -45,7 +45,7 @@ include 'includes/header.php';
                   <div class="col-md-4"><label class="form-label">Tipo final <i class="fa fa-info-circle ms-1 text-muted" data-bs-toggle="tooltip" title="Marca a etapa como Ganhou/Perdido ou Ativa."></i></label>
                     <select id="stageFinalType" class="form-select"><option value="none">Ativa</option><option value="won">Ganhou</option><option value="lost">Perdido</option></select>
                   </div>
-                  <div class="col-md-4"><label class="form-label">Incluir no forecast <i class="fa fa-info-circle ms-1 text-muted" data-bs-toggle="tooltip" title="Se sim, oportunidades aqui entram no cálculo de forecast."></i></label><select id="stageForecast" class="form-select"><option value="1">Sim</option><option value="0">Não</option></select></div>
+                  <div class="col-md-4"><label class="form-label">Soma do pipeline <i class="fa fa-info-circle ms-1 text-muted" data-bs-toggle="tooltip" title="Se sim, oportunidades nesta etapa entram no cálculo do Valor no pipeline."></i></label><select id="stageForecast" class="form-select"><option value="1">Sim</option><option value="0">Não</option></select></div>
                 </div>
 
                 <div class="mt-3 d-flex gap-2 align-items-center">

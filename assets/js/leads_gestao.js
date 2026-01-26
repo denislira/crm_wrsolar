@@ -204,6 +204,8 @@
             if (!res.ok) throw new Error('Falha ao carregar anúncios');
             const rows = await res.json();
             const countEl = document.getElementById('anunciosCount'); if (countEl) countEl.textContent = (rows && rows.length) ? String(rows.length) : '0';
+            // also update the kanban column header badge if present
+            const colCountEl = document.getElementById('count-anuncios'); if (colCountEl) colCountEl.textContent = (rows && rows.length) ? String(rows.length) : '0';
             // Determine whether anuncios column should be shown
             const prev = ANUNCIOS_PRESENT;
             ANUNCIOS_PRESENT = !!(rows && rows.length);
@@ -336,7 +338,7 @@
         try{
             const res = await fetch('includes/funil_stages_api.php?action=list'); if (!res.ok) throw new Error('Falha ao carregar estágios');
             const json = await res.json();
-            STAGES = json.map(s => ({ id: String(s.id), name: s.name || s.stage_name || 'Sem nome', color: s.color || s.stage_color || '#6c757d', card_color: s.card_color || null }));
+            STAGES = json.map(s => ({ id: String(s.id), name: s.name || s.stage_name || 'Sem nome', color: s.color || s.stage_color || '#6c757d', card_color: s.card_color || null, include_in_forecast: (typeof s.include_in_forecast !== 'undefined') ? Number(s.include_in_forecast) : ((typeof s.include_in_pipeline !== 'undefined') ? Number(s.include_in_pipeline) : 1), final_type: s.final_type || null }));
             buildColumns();
             populateStageSelect();
             // also refresh status select so it reflects STAGES (status will store stage names)
@@ -545,7 +547,25 @@
     function renderKpis(){
         const active = allLeads.filter(l=>!['Perdido','Ganhou'].includes(l.status));
         const hot = allLeads.filter(l=>l.score>=80).length;
-        const totalValue = allLeads.reduce((s,l)=>s + (parseFloat(l.orcamento_value||0) || 0), 0);
+        // totalValue: sum only leads whose stage is configured to be included in forecast/pipeline
+        let totalValue = 0;
+        allLeads.forEach(l=>{
+            try {
+                const val = parseFloat(l.orcamento_value||0) || 0;
+                // determine stage object for this lead
+                let stageObj = null;
+                if (typeof l.stage_id !== 'undefined' && l.stage_id !== null && String(l.stage_id) !== '0' && STAGES && STAGES.length) {
+                    stageObj = STAGES.find(s => String(s.id) === String(l.stage_id));
+                }
+                if (!stageObj && STAGES && STAGES.length) {
+                    // fallback: match by status name
+                    stageObj = STAGES.find(s => s.name === (l.status || ''));
+                }
+                // include when stageObj indicates inclusion; default to include (for backward compatibility)
+                const include = stageObj ? (Number(stageObj.include_in_forecast || 0) === 1) : true;
+                if (include) totalValue += val;
+            } catch(e) { /* ignore lead parse errors */ }
+        });
         const conv = allLeads.length ? (allLeads.filter(l=>l.status==='Ganhou').length / allLeads.length * 100).toFixed(1) : '0.0';
         $('#kpiActive').textContent = active.length;
         $('#kpiHot').textContent = hot;
@@ -582,6 +602,11 @@
                 else { selectAll.checked = false; selectAll.indeterminate = true; }
             }
         } catch(e) { /* ignore */ }
+        // update selected count indicator in list view if present
+        try {
+            const listCount = document.getElementById('listSelectedCount');
+            if (listCount) listCount.textContent = 'Selecionados: ' + String(selected.length);
+        } catch(e) {}
     }
 
     function makeCard(lead){
@@ -818,6 +843,14 @@
             const thAct = document.createElement('th'); headerRow.appendChild(thAct);
             thead.appendChild(headerRow);
         const tbody = document.createElement('tbody');
+        // Selected count indicator (shows total selected across pages)
+        try {
+            const selectedWrap = document.createElement('div');
+            selectedWrap.id = 'listSelectedCount';
+            selectedWrap.className = 'mb-2 text-muted fw-semibold fs-5';
+            selectedWrap.textContent = 'Selecionados: ' + String(getSelectedLeadIds().length);
+            container.appendChild(selectedWrap);
+        } catch(e) { /* ignore */ }
         // rows (apply filters first, then sort if requested)
         let rows = allLeads.slice();
         // apply GRID_FILTERS
@@ -959,6 +992,8 @@
     }
 
     function renderAll(){
+        // Always refresh KPIs/top cards so totals are correct when switching views
+        try { renderKpis(); } catch(e) { console.warn('renderKpis failed', e); }
         // switch to grid view if requested
         if (getViewMode() === 'grid') { renderGrid(); return; }
         clearColumns();
@@ -1043,6 +1078,7 @@
                     // update Anúncios fixed column count badge if present
                     const fixedCount = document.getElementById('anunciosCount'); if (fixedCount) fixedCount.textContent = (rows && rows.length) ? String(rows.length) : '0';
                     const kpiCount = document.getElementById('anunciosKpiCount'); if (kpiCount) kpiCount.textContent = (rows && rows.length) ? String(rows.length) : '0';
+                    const colBadge = document.getElementById('count-anuncios'); if (colBadge) colBadge.textContent = (rows && rows.length) ? String(rows.length) : '0';
                 } catch(e){ console.warn('renderAnuncios failed', e); }
             }).catch(()=>{});
         } catch(e) { /* ignore */ }

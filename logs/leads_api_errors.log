@@ -23,3 +23,7 @@
 [2026-01-26 05:47:30] UPDATE payload: {"name":"Teste 47","email":"teste@teste.com","cidade":"Araíraca","phone":"(82) 99999-9999","cpf_cnpj":"99.999.999\/9999-99","source":"FACEBOOK","status":"Sem Contato 2","notes":"","consumo_cliente":"444","estimativa_projeto_kwh":"23323","orcamento_value":"1.23","ultimo_contato":"2026-01-26 00:00:00","forma_pagamento":"3","created_at":"2026-01-26 00:00:00"}
 [2026-01-26 05:47:30] UPDATE forma_pagamento (raw): '3'
 [2026-01-26 05:47:30] UPDATE _FILES keys: []
+[2026-01-26 05:57:42] UPDATE payload: {"name":"LEAD 48","email":"lead48@email.com","cidade":"Arapiraca","phone":"(82) 9999-9999","cpf_cnpj":"999.999.999-99","source":"","status":"Sem Contato 2","notes":"","consumo_cliente":"5005","estimativa_projeto_kwh":"500","orcamento_value":"500.00","ultimo_contato":"2026-01-26 00:00:00","forma_pagamento":"1","created_at":"2026-01-25 00:00:00"}
+[2026-01-26 05:57:42] UPDATE forma_pagamento (raw): '1'
+[2026-01-26 05:57:42] UPDATE _FILES keys: []
+[2026-01-26 06:11:31] UPDATE raw_input: name=LEAD+48&email=lead48%40email.com&cidade=Arapiraca&phone=%2882%29+9999-9999&cpf_cnpj=999.999.999-99&source=&status=Sem+Contato+2&notes=&consumo_cliente=5005&estimativa_projeto_kwh=500&orcamento_value=2.00&ultimo_contato=2026-01-26+00%3A00%3A00&forma_pagamento=1&id=536

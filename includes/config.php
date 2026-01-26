@@ -7,7 +7,7 @@ $reqHost = preg_replace('/:\d+$/', '', $reqHost);
 
 if ($reqHost === 'localhost' || $reqHost === '127.0.0.1') {
     $host = 'localhost';
-    $dbname = 'crm';
+    $dbname = 'crmwrsolare';
     $username = 'root';
     $password = '1234';
 } else {
