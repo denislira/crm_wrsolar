@@ -167,22 +167,18 @@ include 'includes/header.php';
                         <div class="card mb-3">
                             <div class="card-body">
                                 <div class="row g-3">
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <label class="form-label">Nome <i class="fa fa-user text-muted"></i></label>
                                         <input id="lead-name" class="form-control" required>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-4">
                                         <label class="form-label">Status</label>
-                                        <div class="d-flex">
-                                            <select id="lead-status" class="form-select"></select>
-                                            <button id="manageStatusBtn" type="button" class="btn btn-outline-secondary ms-2" title="Gerenciar Status" style="white-space:nowrap;"><i class="fa fa-cog"></i></button>
-                                        </div>
+                                        <select id="lead-status" class="form-select"></select>
                                     </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Estágio</label>
-                                        <select id="lead-stage" class="form-select">
-                                            <option value="">-- Escolher estágio --</option>
-                                        </select>
+                                    <!-- Forma de Pagamento moved below Valor de Orçamento -->
+                                    <div class="col-md-4">
+                                        <label class="form-label">Último Contato</label>
+                                        <input id="lead-ultimo-contato" class="form-control" type="date">
                                     </div>
                                 </div>
                             </div>
@@ -211,6 +207,8 @@ include 'includes/header.php';
                                         <input id="lead-estimativa-kwh" class="form-control" type="number" step="0.01" placeholder="0,00">
                                         <label class="form-label mt-2">Valor de Orçamento (R$) <i class="fa fa-dollar-sign text-success"></i></label>
                                         <input id="lead-orcamento" class="form-control currency-mask" type="text" placeholder="0,00">
+                                        <label class="form-label mt-2">Forma de Pagamento</label>
+                                        <select id="lead-forma-pagamento" class="form-select"><option value="">-- selecione --</option></select>
                                         <label class="form-label mt-2">Fonte <i class="fa fa-globe text-muted"></i></label>
                                         <input id="lead-source" class="form-control">
                                     </div>
@@ -223,7 +221,10 @@ include 'includes/header.php';
                                     <div class="card-body">
                                         <label class="form-label">Anexar Arquivos <i class="fa fa-paperclip text-muted"></i></label>
                                         <input id="lead-anexos" class="form-control" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                                        <div class="form-text">Formatos aceitos: PDF, DOC, DOCX, JPG, PNG</div>
+                                        <div class="d-flex align-items-center gap-2 mt-2">
+                                            <div class="flex-grow-1"><div class="form-text">Formatos aceitos: PDF, DOC, DOCX, JPG, PNG</div></div>
+                                            <div><button id="upload-anexos-now" type="button" class="btn btn-sm btn-outline-primary"><i class="fa fa-upload"></i> Enviar Anexos</button></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -302,6 +303,9 @@ include 'includes/header.php';
                 document.getElementById('leadForm').reset();
                 document.getElementById('lead-id').value = '';
                 document.getElementById('leadModalTitle').textContent = 'Novo Lead';
+                // set current date for ultimo_contato
+                const now = new Date().toISOString().slice(0,10);
+                document.getElementById('lead-ultimo-contato').value = now;
                 leadModal.show();
             });
             document.getElementById('save-lead').addEventListener('click', (e)=>{

@@ -5,6 +5,11 @@
     // grid sorting state: `key` is one of 'name','source','status' or null; dir is 1 (asc) or -1 (desc)
     let GRID_SORT_BY = null;
     let GRID_SORT_DIR = 1;
+    let GRID_PAGE = 1;
+    const GRID_PAGE_SIZE = 10;
+    let GRID_FILTERS = {};
+    // maintain selected lead ids across pagination/views
+    let SELECTED_LEADS = new Set();
     const STALLED_DAYS_DEFAULT = 7;
     // prevent double-submit of the lead form
     let leadFormSubmitting = false;
@@ -44,6 +49,7 @@
         } else {
             GRID_SORT_BY = key; GRID_SORT_DIR = 1;
         }
+        GRID_PAGE = 1; // reset to first page on sort
         // re-render grid view
         try { renderGrid(); } catch(e){ console.warn('toggleGridSort render failed', e); }
     }
@@ -81,6 +87,91 @@
         if (lead.source) score += 10;
         score = Math.min(100, score + (Math.random()*8|0));
         return Math.round(score);
+    }
+
+    // Input masking utilities for phone and CPF/CNPJ
+    function maskPhoneDigits(digits){
+        if (!digits) return '';
+        if (digits.length <= 2) return digits;
+        if (digits.length <= 6) return `(${digits.slice(0,2)}) ${digits.slice(2)}`;
+        if (digits.length <= 10) return `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+        return `(${digits.slice(0,2)}) ${digits.length===11?digits.slice(2,7):digits.slice(2,6)}-${digits.slice(digits.length-4)}`;
+    }
+
+    function maskCpfCnpjDigits(digits){
+        if (!digits) return '';
+        if (digits.length <= 11) {
+            // CPF: 000.000.000-00
+            const p1 = digits.slice(0,3);
+            const p2 = digits.slice(3,6);
+            const p3 = digits.slice(6,9);
+            const p4 = digits.slice(9,11);
+            return [p1,p2,p3].filter(Boolean).join('.') + (p4 ? ('-' + p4) : '');
+        } else {
+            // CNPJ: 00.000.000/0000-00
+            const p1 = digits.slice(0,2);
+            const p2 = digits.slice(2,5);
+            const p3 = digits.slice(5,8);
+            const p4 = digits.slice(8,12);
+            const p5 = digits.slice(12,14);
+            return [p1,p2,p3].filter(Boolean).join('.') + (p4 ? ('/' + p4) : '') + (p5 ? ('-' + p5) : '');
+        }
+    }
+
+    // set caret preserving: compute number of digits before original caret, then place caret after same count in formatted value
+    function setCaretByDigitIndex(el, formatted, digitsBefore){
+        try{
+            let di = 0; let pos = 0;
+            for (; pos < formatted.length; pos++){
+                if (/\d/.test(formatted.charAt(pos))) di++;
+                if (di === digitsBefore) { pos++; break; }
+            }
+            if (di < digitsBefore) pos = formatted.length;
+            el.setSelectionRange(pos,pos);
+        }catch(e){}
+    }
+
+    function formatAndSetCaret(el, formatter){
+        const raw = el.value || '';
+        const sel = el.selectionStart || raw.length;
+        // count digits before cursor
+        const left = raw.slice(0, sel);
+        const digitsBefore = (left.match(/\d/g) || []).length;
+        const digits = (raw.match(/\d/g) || []).join('');
+        const formatted = formatter(digits);
+        el.value = formatted;
+        // place caret
+        setCaretByDigitIndex(el, formatted, digitsBefore);
+    }
+
+    function attachMaskHandlers(){
+        const phoneEls = Array.from(document.querySelectorAll('#lead-phone, #leadPhone'));
+        const cpfEls = Array.from(document.querySelectorAll('#lead-cpf-cnpj, #leadCpf'));
+        const cityEls = Array.from(document.querySelectorAll('#lead-city, #leadCity'));
+        const emailEls = Array.from(document.querySelectorAll('#lead-email, #leadEmail'));
+        phoneEls.forEach(el=>{
+            try { el.placeholder = '(00) 90000-0000'; el.setAttribute('inputmode','tel'); } catch(e){}
+            el.addEventListener('input', (e)=>{ formatAndSetCaret(el, maskPhoneDigits); });
+            el.addEventListener('blur', ()=>{ formatAndSetCaret(el, maskPhoneDigits); });
+        });
+        cpfEls.forEach(el=>{
+            el.addEventListener('input', (e)=>{ formatAndSetCaret(el, maskCpfCnpjDigits); });
+            el.addEventListener('blur', ()=>{ formatAndSetCaret(el, maskCpfCnpjDigits); });
+        });
+        // Capitalize first letter of city on blur
+        cityEls.forEach(el=>{
+            el.addEventListener('blur', (e)=>{
+                try{
+                    const v = (el.value || '').trim();
+                    if (!v) return;
+                    el.value = v.charAt(0).toUpperCase() + v.slice(1);
+                }catch(e){}
+            });
+        });
+        // Email placeholder and inputmode
+        emailEls.forEach(el=>{
+            try { el.placeholder = 'seunome@exemplo.com'; el.setAttribute('inputmode','email'); } catch(e){}
+        });
     }
 
     async function fetchLeads(){
@@ -248,11 +339,14 @@
             STAGES = json.map(s => ({ id: String(s.id), name: s.name || s.stage_name || 'Sem nome', color: s.color || s.stage_color || '#6c757d', card_color: s.card_color || null }));
             buildColumns();
             populateStageSelect();
+            // also refresh status select so it reflects STAGES (status will store stage names)
+            try { populateStatusSelect(); } catch(e){}
         } catch (e) {
             console.error(e);
             STAGES = [{ id: '0', name: 'Novo', color:'#6c757d', card_color: null }];
             buildColumns();
             populateStageSelect();
+            try { populateStatusSelect(); } catch(e){}
         }
     }
 
@@ -273,15 +367,14 @@
         const sel = document.querySelector('#lead-status') || F('leadStatus') || document.querySelector('#leadStatus');
         if (!sel) return;
         // clear only options previously added as 'status' or everything (fallback)
-        Array.from(sel.options).forEach(opt => { if (!opt.dataset || opt.dataset.source === 'status') opt.remove(); });
-        // populate fresh
-        STATUSES.forEach(s=>{
-            const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; o.dataset.source = 'status'; sel.appendChild(o);
-        });
-        // ensure no stage options leaked into status select
-        try {
-            Array.from(sel.options).forEach(opt => { if (opt.dataset && opt.dataset.source === 'stage') opt.remove(); });
-        } catch(e){}
+        Array.from(sel.options).forEach(opt => opt.remove());
+        // Use STAGES names as the values for the status select (no fallback to STATUSES)
+        sel.innerHTML = '<option value="">-- Selecionar --</option>';
+        if (STAGES && STAGES.length) {
+            STAGES.forEach(s=>{
+                const o = document.createElement('option'); o.value = s.name; o.textContent = s.name; o.dataset.source = 'stage'; sel.appendChild(o);
+            });
+        }
     }
 
     function populateStageSelect(){
@@ -299,13 +392,7 @@
             const semCountEl = document.getElementById('count-sem_status');
             if (semCountEl) semCountEl.textContent = (semCol ? String((semCol.children || []).length) : '0');
         } catch(e){ }
-        // also remove any options in the status select that originated from stages (cleanup)
-        try {
-            const statusSel = document.querySelector('#lead-status') || F('leadStatus') || document.querySelector('#leadStatus');
-            if (statusSel) {
-                Array.from(statusSel.options).forEach(opt => { if (opt.dataset && opt.dataset.source === 'stage') opt.remove(); });
-            }
-        } catch(e){}
+        // no cleanup here: status select should reflect STAGES when available
     }
 
     // Status manager UI functions
@@ -483,34 +570,43 @@
         if (btn) btn.classList.toggle('d-none', selected.length === 0);
         const uncheckBtn = $('#bulkUncheckBtn');
         if (uncheckBtn) uncheckBtn.classList.toggle('d-none', selected.length <= 1);
+        // update header select-all checkbox state for visible rows
+        try {
+            const selectAll = document.getElementById('selectAllVisible');
+            if (selectAll) {
+                const visible = Array.from(document.querySelectorAll('#leadsTableContainer tbody .lead-select'));
+                const checkedCount = visible.filter(c => c.checked).length;
+                if (visible.length === 0) { selectAll.checked = false; selectAll.indeterminate = false; }
+                else if (checkedCount === 0) { selectAll.checked = false; selectAll.indeterminate = false; }
+                else if (checkedCount === visible.length) { selectAll.checked = true; selectAll.indeterminate = false; }
+                else { selectAll.checked = false; selectAll.indeterminate = true; }
+            }
+        } catch(e) { /* ignore */ }
     }
 
     function makeCard(lead){
         const el = document.createElement('div'); el.className='lead-card'; el.draggable = true; el.dataset.id = lead.id;
         // selection checkbox for bulk actions
         const chk = document.createElement('input'); chk.type='checkbox'; chk.className = 'lead-select me-2'; chk.title = 'Selecionar para ações em massa';
+        try { chk.checked = SELECTED_LEADS.has(String(lead.id)); } catch(e){}
         chk.addEventListener('change', (e)=>{
             e.stopPropagation();
-            console.debug('lead-select change:', {id: el.dataset.id, checked: chk.checked});
+            try {
+                if (chk.checked) SELECTED_LEADS.add(String(lead.id)); else SELECTED_LEADS.delete(String(lead.id));
+            } catch(e){}
             el.classList.toggle('selected', chk.checked);
             // set border-left to column color when selected, but preserve original left border
             const colWrap = el.closest('.kanban-column');
             const colColor = colWrap?.dataset?.color || '#6c757d';
             if (chk.checked) {
-                // store previous left border so we can restore it later
                 if (!el.dataset._selectedPrevBorder) el.dataset._selectedPrevBorder = el.style.borderLeft || '';
-                // set a CSS var so CSS can apply consistent styling and avoid specificity issues
                 try { el.style.setProperty('--selected-color', colColor); } catch(e) {}
-                // set inline border with important to ensure visibility even if stylesheets have specific rules
                 try { el.style.setProperty('border-left', '8px solid ' + colColor, 'important'); } catch(e) { el.style.borderLeft = '8px solid ' + colColor; }
-                console.debug('applied border', {inline: el.style.borderLeft, computed: window.getComputedStyle(el).borderLeft, var: el.style.getPropertyValue('--selected-color')});
             } else {
-                // restore original left border
                 const restore = el.dataset._selectedPrevBorder || el.dataset.originalBorder || '7px solid transparent';
                 try { el.style.setProperty('border-left', restore, 'important'); } catch(e) { el.style.borderLeft = restore; }
                 try { el.style.removeProperty('--selected-color'); } catch(e) {}
                 delete el.dataset._selectedPrevBorder;
-                console.debug('restored border to', restore);
             }
             updateBulkDeleteVisibility();
         });
@@ -591,6 +687,7 @@
         const list = document.getElementById('listWrap');
         const btn = document.getElementById('toggleViewBtn');
         if (mode === 'grid') {
+            GRID_PAGE = 1; // reset page when switching to grid
             if (kanban) kanban.classList.add('d-none');
             if (list) list.classList.remove('d-none');
             if (btn) btn.innerHTML = '<i class="fa fa-columns"></i>';
@@ -608,29 +705,143 @@
             const thead = document.createElement('thead');
             // build header with clickable sortable columns (compact arrow indicator)
             const headerRow = document.createElement('tr');
-            const thEmpty = document.createElement('th'); headerRow.appendChild(thEmpty);
+            const thEmpty = document.createElement('th');
+            // Select-all checkbox for visible rows
+            try {
+                const selectAll = document.createElement('input');
+                selectAll.type = 'checkbox';
+                selectAll.id = 'selectAllVisible';
+                selectAll.title = 'Selecionar todas as linhas visíveis';
+                selectAll.className = 'form-check-input';
+                // Make checkbox more visible: larger + accent color + slight border
+                try {
+                    selectAll.style.accentColor = '#000000';
+                } catch(e){}
+                selectAll.style.width = '18px';
+                selectAll.style.height = '18px';
+                selectAll.style.opacity = '1';
+                selectAll.style.border = '1px solid rgba(0,0,0,0.25)';
+                selectAll.style.marginTop = '0.12rem';
+                selectAll.classList.add('me-2');
+                selectAll.addEventListener('change', (e) => {
+                    const checked = !!selectAll.checked;
+                    // only affect visible rows in this table (current page)
+                    const visibleChecks = container.querySelectorAll('tbody .lead-select');
+                    visibleChecks.forEach(chk => {
+                        try {
+                            chk.checked = checked;
+                            // toggle row selected class if inside a tr
+                            const tr = chk.closest('tr'); if (tr) tr.classList.toggle('selected', checked);
+                            chk.dispatchEvent(new Event('change', { bubbles: true }));
+                        } catch(e){}
+                    });
+                    updateBulkDeleteVisibility();
+                });
+                thEmpty.appendChild(selectAll);
+            } catch(e) { /* ignore UI add errors */ }
+            headerRow.appendChild(thEmpty);
+            // create sortable header with filter dropdown trigger
             function makeSortableHeader(key, label) {
-                const th = document.createElement('th'); th.style.cursor = 'pointer';
+                const th = document.createElement('th'); th.style.cursor = 'pointer'; th.style.position = 'relative';
                 const span = document.createElement('span'); span.textContent = label; span.className = 'sortable-col-label';
                 const ind = document.createElement('span'); ind.className = 'sort-indicator ms-1'; ind.style.fontSize = '0.8rem'; ind.style.opacity = '0.8';
                 if (GRID_SORT_BY === key) ind.textContent = GRID_SORT_DIR === 1 ? '▲' : '▼';
                 th.appendChild(span); th.appendChild(ind);
                 th.addEventListener('click', (e)=>{ e.stopPropagation(); toggleGridSort(key); });
+
+                const caret = document.createElement('span'); caret.className = 'ms-2 text-muted filter-caret'; caret.style.cursor = 'pointer'; caret.title = 'Filtro'; caret.textContent = '▾';
+                caret.addEventListener('click', (e)=>{ e.stopPropagation(); openHeaderFilter(th, key); });
+                th.appendChild(caret);
                 return th;
+            }
+
+            // open a small filter popup for a header
+            function openHeaderFilter(th, key) {
+                // close existing
+                const existing = document.querySelector('.header-filter-popup'); if (existing) existing.remove();
+                const popup = document.createElement('div'); popup.className = 'header-filter-popup card p-2 shadow';
+                popup.style.position = 'absolute'; popup.style.zIndex = 2000; popup.style.minWidth = '200px';
+                // build input depending on key
+                if (key === 'status') {
+                    const sel = document.createElement('select'); sel.className = 'form-select form-select-sm';
+                    const optAll = document.createElement('option'); optAll.value = ''; optAll.textContent = 'Todos'; sel.appendChild(optAll);
+                    const uniqueStatuses = [...new Set(allLeads.map(l=>l.status).filter(s=>s))];
+                    uniqueStatuses.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; if ((GRID_FILTERS[key]||'') === s) o.selected = true; sel.appendChild(o); });
+                    popup.appendChild(sel);
+                    const btns = document.createElement('div'); btns.className = 'd-flex gap-2 mt-2';
+                    const apply = document.createElement('button'); apply.className = 'btn btn-sm btn-primary flex-grow-1'; apply.textContent = 'Aplicar';
+                    const clear = document.createElement('button'); clear.className = 'btn btn-sm btn-outline-secondary flex-grow-1'; clear.textContent = 'Limpar';
+                    apply.addEventListener('click', ()=>{ GRID_FILTERS[key] = sel.value; GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
+                } else if (key === 'criado' || key === 'ultimo_contato') {
+                    const from = document.createElement('input'); from.type = 'date'; from.className = 'form-control form-control-sm'; from.placeholder = 'De';
+                    const to = document.createElement('input'); to.type = 'date'; to.className = 'form-control form-control-sm mt-2'; to.placeholder = 'Até';
+                    if (GRID_FILTERS[key]) { from.value = GRID_FILTERS[key].from || ''; to.value = GRID_FILTERS[key].to || ''; }
+                    popup.appendChild(from); popup.appendChild(to);
+                    const btns = document.createElement('div'); btns.className = 'd-flex gap-2 mt-2';
+                    const apply = document.createElement('button'); apply.className = 'btn btn-sm btn-primary flex-grow-1'; apply.textContent = 'Aplicar';
+                    const clear = document.createElement('button'); clear.className = 'btn btn-sm btn-outline-secondary flex-grow-1'; clear.textContent = 'Limpar';
+                    apply.addEventListener('click', ()=>{
+                        GRID_FILTERS[key] = { from: from.value || '', to: to.value || '' };
+                        GRID_PAGE = 1; popup.remove(); renderGrid();
+                    });
+                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
+                } else {
+                    const input = document.createElement('input'); input.type = 'text'; input.className = 'form-control form-control-sm'; input.placeholder = 'Filtrar...';
+                    input.value = GRID_FILTERS[key] || '';
+                    popup.appendChild(input);
+                    const btns = document.createElement('div'); btns.className = 'd-flex gap-2 mt-2';
+                    const apply = document.createElement('button'); apply.className = 'btn btn-sm btn-primary flex-grow-1'; apply.textContent = 'Aplicar';
+                    const clear = document.createElement('button'); clear.className = 'btn btn-sm btn-outline-secondary flex-grow-1'; clear.textContent = 'Limpar';
+                    apply.addEventListener('click', ()=>{ GRID_FILTERS[key] = input.value.trim(); GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
+                }
+                document.body.appendChild(popup);
+                // position
+                const r = th.getBoundingClientRect(); popup.style.left = (r.left + window.scrollX) + 'px'; popup.style.top = (r.bottom + window.scrollY + 6) + 'px';
+                // close on outside click
+                const onDocClick = (ev)=>{ if (!popup.contains(ev.target) && !th.contains(ev.target)) { popup.remove(); document.removeEventListener('click', onDocClick); } };
+                setTimeout(()=> document.addEventListener('click', onDocClick), 0);
             }
             headerRow.appendChild(makeSortableHeader('name','Nome'));
             headerRow.appendChild(makeSortableHeader('source','Fonte'));
             headerRow.appendChild(makeSortableHeader('status','Status'));
             // remaining headers (sortable as requested)
+            headerRow.appendChild(makeSortableHeader('phone','Telefone'));
             headerRow.appendChild(makeSortableHeader('valor','Valor'));
-            headerRow.appendChild(makeSortableHeader('responsavel','Responsável'));
             headerRow.appendChild(makeSortableHeader('score','Score'));
             headerRow.appendChild(makeSortableHeader('criado','Criado'));
+            headerRow.appendChild(makeSortableHeader('ultimo_contato','Último Contato'));
             const thAct = document.createElement('th'); headerRow.appendChild(thAct);
             thead.appendChild(headerRow);
         const tbody = document.createElement('tbody');
-        // rows (apply sort if requested)
+        // rows (apply filters first, then sort if requested)
         let rows = allLeads.slice();
+        // apply GRID_FILTERS
+        rows = rows.filter(lead=>{
+            try {
+                for (const k in GRID_FILTERS) {
+                    if (!Object.prototype.hasOwnProperty.call(GRID_FILTERS,k)) continue;
+                    const f = GRID_FILTERS[k]; if (f === null || f === undefined || f === '') continue;
+                    if (k === 'status') {
+                        if ((lead.status||'') !== f) return false;
+                    } else if (k === 'criado' || k === 'ultimo_contato') {
+                        const dt = (k === 'criado') ? (lead.created_at || lead.createdAt || lead.created) : (lead.ultimo_contato);
+                        if (!dt) return false;
+                        const t = new Date(String(dt).replace(' ', 'T')); if (isNaN(t.getTime())) return false;
+                        const from = f.from ? new Date(f.from) : null; const to = f.to ? new Date(f.to) : null;
+                        if (from && t < from) return false; if (to && t > (new Date(to.getFullYear(), to.getMonth(), to.getDate(),23,59,59))) return false;
+                    } else {
+                        const val = (k === 'valor') ? String(toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0)).toLowerCase() : String((lead[k] || lead.source || lead.client_name || lead.company || '')).toLowerCase();
+                        if (!val.includes(String(f).toLowerCase())) return false;
+                    }
+                }
+            } catch(e){ return true }
+            return true;
+        });
         if (GRID_SORT_BY) {
             const key = GRID_SORT_BY;
             function getSortValue(item){
@@ -638,11 +849,16 @@
                     if (key === 'name') return String(item.name || '').toLowerCase();
                     if (key === 'source') return String(item.source || item.client_name || item.company || '').toLowerCase();
                     if (key === 'status') return String(item.status || '').toLowerCase();
-                    if (key === 'responsavel') return String(item.responsavel || '').toLowerCase();
+                    if (key === 'phone') return String(item.phone || '').toLowerCase();
                     if (key === 'score') return Number(item.score || computeScore(item) || 0);
                     if (key === 'valor' || key === 'value') return Number(item.orcamento_value || item.proposal_value || item.value || 0) || 0;
                     if (key === 'criado') {
                         const dt = item.created_at || item.createdAt || item.created || null;
+                        const t = dt ? (new Date(String(dt).replace(' ', 'T')).getTime() || 0) : 0;
+                        return Number(t);
+                    }
+                    if (key === 'ultimo_contato') {
+                        const dt = item.ultimo_contato || null;
                         const t = dt ? (new Date(String(dt).replace(' ', 'T')).getTime() || 0) : 0;
                         return Number(t);
                     }
@@ -660,26 +876,73 @@
                 return 0;
             });
         }
-        rows.forEach(lead => {
+        // pagination
+        const totalPages = Math.ceil(rows.length / GRID_PAGE_SIZE);
+        const start = (GRID_PAGE - 1) * GRID_PAGE_SIZE;
+        const end = start + GRID_PAGE_SIZE;
+        const pageRows = rows.slice(start, end);
+        // render only pageRows
+        pageRows.forEach(lead => {
             const tr = document.createElement('tr'); tr.dataset.id = lead.id;
             const chkTd = document.createElement('td'); chkTd.innerHTML = '<input class="lead-select" type="checkbox">';
-            const chk = chkTd.querySelector('input'); chk.addEventListener('change', updateBulkDeleteVisibility);
-            const nameTd = document.createElement('td'); nameTd.textContent = lead.name || '(sem nome)';
+            const chk = chkTd.querySelector('input');
+            try { chk.checked = SELECTED_LEADS.has(String(lead.id)); } catch(e){}
+            // ensure row selection toggles visual selected state and updates bulk controls
+            chk.addEventListener('change', (e) => {
+                try {
+                    if (chk.checked) SELECTED_LEADS.add(String(lead.id)); else SELECTED_LEADS.delete(String(lead.id));
+                } catch(e){}
+                try { tr.classList.toggle('selected', !!chk.checked); } catch(_){ }
+                updateBulkDeleteVisibility();
+            });
+            const nameTd = document.createElement('td'); nameTd.textContent = (lead.name || '(sem nome)').length > 20 ? (lead.name || '(sem nome)').substring(0, 20) + '...' : (lead.name || '(sem nome)');
             const compTd = document.createElement('td'); compTd.textContent = lead.source || lead.client_name || lead.company || '—';
             const statusTd = document.createElement('td'); statusTd.textContent = lead.status || '';
+            const phoneTd = document.createElement('td'); phoneTd.textContent = lead.phone || '';
             const valTd = document.createElement('td'); valTd.textContent = toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
-            const ownerTd = document.createElement('td'); ownerTd.textContent = lead.responsavel || '';
             const scoreTd = document.createElement('td'); scoreTd.innerHTML = '<span class="badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')) + '">' + (lead.score||0) + '</span>';
             const createdTd = document.createElement('td'); createdTd.className='small text-muted'; createdTd.textContent = formatDateBR(lead.created_at || lead.createdAt || lead.created);
-            const actTd = document.createElement('td');
-            const openBtn = document.createElement('button'); openBtn.className='btn btn-sm btn-outline-secondary'; openBtn.type='button'; openBtn.textContent='Abrir';
+            const updatedTd = document.createElement('td'); updatedTd.className='small text-muted'; updatedTd.textContent = formatDateBR(lead.ultimo_contato);
+            const actTd = document.createElement('td'); actTd.className='small';
+            const openBtn = document.createElement('button');
+            openBtn.className='btn btn-sm btn-outline-secondary p-1';
+            openBtn.type='button';
+            openBtn.innerHTML = '<i class="fa fa-eye" aria-hidden="true"></i>';
+            openBtn.title = 'Abrir';
+            openBtn.setAttribute('aria-label','Abrir');
             openBtn.addEventListener('click', ()=> openPanel(lead.id));
             actTd.appendChild(openBtn);
 
-            tr.appendChild(chkTd); tr.appendChild(nameTd); tr.appendChild(compTd); tr.appendChild(statusTd); tr.appendChild(valTd); tr.appendChild(ownerTd); tr.appendChild(scoreTd); tr.appendChild(createdTd); tr.appendChild(actTd);
+            tr.appendChild(chkTd); tr.appendChild(nameTd); tr.appendChild(compTd); tr.appendChild(statusTd); tr.appendChild(phoneTd); tr.appendChild(valTd); tr.appendChild(scoreTd); tr.appendChild(createdTd); tr.appendChild(updatedTd); tr.appendChild(actTd);
             tbody.appendChild(tr);
         });
         table.appendChild(thead); table.appendChild(tbody); container.appendChild(table);
+        // pagination controls
+        if (totalPages > 1) {
+            const paginationDiv = document.createElement('div'); paginationDiv.className = 'd-flex justify-content-center mt-3';
+            const nav = document.createElement('nav');
+            const ul = document.createElement('ul'); ul.className = 'pagination pagination-sm';
+            // previous button
+            const prevLi = document.createElement('li'); prevLi.className = 'page-item' + (GRID_PAGE === 1 ? ' disabled' : '');
+            const prevA = document.createElement('a'); prevA.className = 'page-link'; prevA.href = '#'; prevA.textContent = 'Anterior';
+            prevA.addEventListener('click', (e) => { e.preventDefault(); if (GRID_PAGE > 1) { GRID_PAGE--; renderGrid(); } });
+            prevLi.appendChild(prevA); ul.appendChild(prevLi);
+            // page numbers (show up to 5 pages)
+            const startPage = Math.max(1, GRID_PAGE - 2);
+            const endPage = Math.min(totalPages, GRID_PAGE + 2);
+            for (let p = startPage; p <= endPage; p++) {
+                const li = document.createElement('li'); li.className = 'page-item' + (p === GRID_PAGE ? ' active' : '');
+                const a = document.createElement('a'); a.className = 'page-link'; a.href = '#'; a.textContent = p;
+                a.addEventListener('click', (e) => { e.preventDefault(); GRID_PAGE = p; renderGrid(); });
+                li.appendChild(a); ul.appendChild(li);
+            }
+            // next button
+            const nextLi = document.createElement('li'); nextLi.className = 'page-item' + (GRID_PAGE === totalPages ? ' disabled' : '');
+            const nextA = document.createElement('a'); nextA.className = 'page-link'; nextA.href = '#'; nextA.textContent = 'Próximo';
+            nextA.addEventListener('click', (e) => { e.preventDefault(); if (GRID_PAGE < totalPages) { GRID_PAGE++; renderGrid(); } });
+            nextLi.appendChild(nextA); ul.appendChild(nextLi);
+            nav.appendChild(ul); paginationDiv.appendChild(nav); container.appendChild(paginationDiv);
+        }
         updateBulkDeleteVisibility();
         // ensure the list container mirrors the global theme class so tables adopt dark styling
         const prefersDark = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
@@ -1136,22 +1399,22 @@
         const statusEl = F('leadStatus') || $('#leadStatus');
         if (statusEl) {
             if (statusEl.tagName === 'SELECT') {
-                // Try matching by option value first (status stored as ID), then by visible text (status stored as name)
+                // Load status by the lead's stage_id only: find the stage name and set it.
                 let matched = false;
                 try {
-                    if (lead.status && statusEl.querySelector(`option[value="${lead.status}"]`)) { statusEl.value = lead.status; matched = true; }
-                } catch(e){}
-                if (!matched) {
-                    for (let i=0;i<statusEl.options.length;i++){
-                        if (statusEl.options[i].text === (lead.status || '')) { statusEl.selectedIndex = i; matched = true; break; }
+                    if (lead.stage_id != null && lead.stage_id !== '') {
+                        const stage = STAGES.find(s => String(s.id) === String(lead.stage_id));
+                        if (stage) { statusEl.value = stage.name; matched = true; }
                     }
-                }
+                } catch(e){ console.warn('populateLeadForm stage match failed', e); }
                 if (!matched) statusEl.value = '';
             } else {
                 statusEl.value = lead.status || '';
             }
         }
-        const stageEl = F('leadStage') || $('#leadStage'); if (stageEl) stageEl.value = lead.stage_id || '';
+        const ultimoContatoEl = document.getElementById('lead-ultimo-contato'); if (ultimoContatoEl) ultimoContatoEl.value = lead.ultimo_contato ? lead.ultimo_contato.substring(0,10) : '';
+        const formaEl = document.getElementById('lead-forma-pagamento'); if (formaEl) formaEl.value = lead.forma_pagamento || '';
+        const stageEl = F('leadStage') || $('#leadStage'); if (stageEl) { try { stageEl.remove(); } catch(e){ stageEl.style.display = 'none'; } }
         const consumoEl = F('leadConsumo') || $('#leadConsumo'); if (consumoEl) consumoEl.value = lead.consumo_cliente || '';
         const estEl = F('leadEstimativa') || $('#leadEstimativa'); if (estEl) estEl.value = lead.estimativa_projeto_kwh || '';
         const orcEl = F('leadOrcamento') || $('#leadOrcamento'); if (orcEl) {
@@ -1222,7 +1485,9 @@
         } catch (e) { console.warn('renderExistingAttachments failed', e); }
     }
 
-    function getSelectedLeadIds(){ return Array.from(document.querySelectorAll('.lead-select:checked')).map(c=>c.closest('.lead-card')?.dataset?.id).filter(Boolean); }
+    function getSelectedLeadIds(){
+        try { return Array.from(SELECTED_LEADS); } catch(e) { return []; }
+    }
 
     async function populateBulkStages(){
         const sel = $('#bulkTargetStage'); if (!sel) return;
@@ -1285,6 +1550,39 @@
             m.show(); 
         });
 
+        // Immediate attachments upload button (inside lead modal)
+        const uploadAnexosBtn = document.getElementById('upload-anexos-now');
+        if (uploadAnexosBtn) {
+            uploadAnexosBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const idEl = F('leadId') || $('#lead-id');
+                const leadId = idEl ? idEl.value : '';
+                if (!leadId) { alert('Salve o lead antes de enviar anexos.'); return; }
+                const fileInput = document.getElementById('lead-anexos');
+                if (!fileInput || !fileInput.files || fileInput.files.length === 0) { alert('Selecione arquivos para enviar.'); return; }
+                const origHtml = uploadAnexosBtn.innerHTML;
+                try {
+                    uploadAnexosBtn.disabled = true; uploadAnexosBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enviando...';
+                    const fd = new FormData(); fd.append('id', leadId);
+                    for (let i=0;i<fileInput.files.length;i++) fd.append('anexos[]', fileInput.files[i]);
+                    const res = await fetch(apiBase + '?action=update', { method: 'POST', body: fd });
+                    const txt = await res.text(); let payload = null; try { payload = JSON.parse(txt); } catch(_) { payload = null; }
+                    if (!res.ok || (payload && payload.error)) { alert('Falha ao enviar anexos: ' + ((payload && (payload.error||payload.message)) || txt)); return; }
+                    // Refresh attachments UI for this lead
+                    const g = await fetch(apiBase + '?action=get&id=' + encodeURIComponent(leadId));
+                    if (g.ok) {
+                        const newLead = await g.json();
+                        try { renderExistingAttachments(newLead); } catch(_) {}
+                        // update in-memory list
+                        try { const idx = allLeads.findIndex(l => String(l.id) === String(leadId)); if (idx >= 0) allLeads[idx] = { ...allLeads[idx], ...newLead }; } catch(_) {}
+                        // clear file input
+                        fileInput.value = '';
+                    }
+                } catch (err) { console.error(err); alert('Erro ao enviar anexos'); }
+                finally { uploadAnexosBtn.disabled = false; uploadAnexosBtn.innerHTML = origHtml; }
+            });
+        }
+
         // Anúncios UI: Visualizar modal button and fixed column visibility
         try {
             const adsBtn = document.getElementById('anunciosVisualizarBtn');
@@ -1315,6 +1613,9 @@
                 });
             }
         } catch(e){ console.warn('sem status toggle setup failed', e); }
+
+        // attach input masks for phone and CPF/CNPJ
+        try { attachMaskHandlers(); } catch(e){ console.warn('attachMaskHandlers failed', e); }
 
         // Kanban-only toggle: hide/show all page chrome and make kanban fill view
         try {
@@ -1519,13 +1820,15 @@
             const sourceValue = (F('leadSource')||$('#lead-source')) ? (F('leadSource')||$('#lead-source')).value : 'web';
             const statusEl = (F('leadStatus')||$('#lead-status'));
             const statusValue = statusEl ? statusEl.value : '';
-            const stageVal = (F('leadStage')||$('#lead-stage')) ? (F('leadStage')||$('#lead-stage')).value : '';
             const notesValue = (F('leadNotes')||$('#lead-notes')) ? (F('leadNotes')||$('#lead-notes')).value : '';
             const consumoValue = (F('leadConsumo')||$('#lead-consumo')) ? (F('leadConsumo')||$('#lead-consumo')).value : '';
             const estimativaValue = (F('leadEstimativa')||$('#lead-estimativa-kwh')) ? (F('leadEstimativa')||$('#lead-estimativa-kwh')).value : '';
             const orcamentoValue = (F('leadOrcamento')||$('#lead-orcamento')) ? (F('leadOrcamento')||$('#lead-orcamento')).value.replace(/\./g, '').replace(',', '.') : '';
+            const ultimoContatoValue = document.getElementById('lead-ultimo-contato').value;
+            const formattedUltimoContato = ultimoContatoValue ? ultimoContatoValue + ' 00:00:00' : '';
+            const formaPagamentoValue = (document.getElementById('lead-forma-pagamento')||{value:''}).value || '';
             
-            console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, stageVal, notesValue, consumoValue, estimativaValue, orcamentoValue});
+            console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, notesValue, consumoValue, estimativaValue, orcamentoValue, formattedUltimoContato});
             console.log('Status element:', statusEl, 'Status value:', statusValue);
             
             // Check if files are present
@@ -1544,11 +1847,12 @@
                 fd.append('cpf_cnpj', cpfValue);
                 fd.append('source', sourceValue);
                 fd.append('status', statusValue);
-                if (stageVal) fd.append('stage_id', stageVal);
                 fd.append('notes', notesValue);
                 fd.append('consumo_cliente', consumoValue);
                 fd.append('estimativa_projeto_kwh', estimativaValue);
                 fd.append('orcamento_value', orcamentoValue);
+                fd.append('ultimo_contato', formattedUltimoContato);
+                fd.append('forma_pagamento', formaPagamentoValue);
                 if (id) fd.append('id', id);
                 
                 // Append files
@@ -1569,11 +1873,12 @@
                 params.append('cpf_cnpj', cpfValue);
                 params.append('source', sourceValue);
                 params.append('status', statusValue);
-                if (stageVal) params.append('stage_id', stageVal);
                 params.append('notes', notesValue);
                 params.append('consumo_cliente', consumoValue);
                 params.append('estimativa_projeto_kwh', estimativaValue);
                 params.append('orcamento_value', orcamentoValue);
+                params.append('ultimo_contato', formattedUltimoContato);
+                params.append('forma_pagamento', formaPagamentoValue);
                 if (id) params.append('id', id);
                 
                 body = params;
@@ -1731,27 +2036,8 @@
         }
 
         // Manage statuses modal
-        const manageBtn = document.getElementById('manageStatusBtn');
-        if (manageBtn) {
-            manageBtn.addEventListener('click', ()=>{
-                const modalEl = document.getElementById('statusModal');
-                if (!modalEl) return;
-                // hide any currently shown Bootstrap modals so the status modal appears on top
-                try {
-                    const openModals = Array.from(document.querySelectorAll('.modal.show'));
-                    openModals.forEach(el => {
-                        try { const inst = bootstrap.Modal.getInstance(el); if (inst) inst.hide(); else el.classList.remove('show'); } catch(e){}
-                    });
-                } catch(e){}
-                // ensure modal is a direct child of body to avoid stacking/context issues
-                try { if (modalEl.parentNode !== document.body) document.body.appendChild(modalEl); } catch(e){}
-                // ensure backdrop will be above others by setting high z-index (Bootstrap default is usually fine)
-                modalEl.style.zIndex = 2200;
-                renderStatusList();
-                const m = new bootstrap.Modal(modalEl);
-                m.show();
-            });
-        }
+        // remove manage status button from insert/edit modal (business uses Status as funil names)
+        try { const manageBtn = document.getElementById('manageStatusBtn'); if (manageBtn) manageBtn.remove(); } catch(e){}
         const addStatusBtn = document.getElementById('addStatusBtn');
         if (addStatusBtn) {
             addStatusBtn.addEventListener('click', ()=>{
@@ -1765,10 +2051,12 @@
         // uncheck all selected leads
         const uncheckBtn = $('#bulkUncheckBtn'); if (uncheckBtn) {
             uncheckBtn.addEventListener('click', ()=>{
-                $all('.lead-select:checked').forEach(chk => {
-                    chk.checked = false;
-                    chk.dispatchEvent(new Event('change'));
+                // clear persisted selections and uncheck all visible checkboxes
+                try { SELECTED_LEADS.clear(); } catch(e){}
+                $all('.lead-select').forEach(chk => {
+                    try { chk.checked = false; const tr = chk.closest('tr'); if (tr) tr.classList.remove('selected'); const card = chk.closest('.lead-card'); if (card) card.classList.remove('selected'); } catch(e){}
                 });
+                updateBulkDeleteVisibility();
             });
         }
 
@@ -1874,6 +2162,7 @@
             // fetch anuncios and render KPI/card
             try { const ads = await fetchAnuncios(); if (ads && ads.length) { const adsCol = document.getElementById('anunciosFixedColumn'); if (adsCol) adsCol.classList.remove('d-none'); } } catch(e){}
             setupDragDrop(); setupHandlers();
+            await loadPaymentMethods();
             // ensure view mode applied after initial data load
             renderAll();
             const bulkDeleteBtn = $('#bulkDeleteBtn');
@@ -1898,5 +2187,27 @@
             }
         }catch(err){ console.error(err); alert('Erro inicial: '+err.message); }
     });
+
+    // Load payment methods and populate select
+    async function loadPaymentMethods(){
+        const sel = document.getElementById('lead-forma-pagamento');
+        if (!sel) return;
+        const current = sel.value || '';
+        try {
+            const res = await fetch('/WRCRM/includes/payment_methods_api.php?action=list');
+            if (!res.ok) return;
+            const data = await res.json();
+            sel.innerHTML = '<option value="">-- selecione --</option>';
+            data.forEach(d=>{
+                const o = document.createElement('option');
+                o.value = d.name || d.id;
+                o.textContent = d.name;
+                sel.appendChild(o);
+            });
+            if (current) sel.value = current;
+        } catch (e) {
+            console.warn('Failed loading payment methods', e);
+        }
+    }
 
 })();

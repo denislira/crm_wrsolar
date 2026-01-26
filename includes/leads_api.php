@@ -84,75 +84,9 @@ function ensure_utf8_local($s) {
     return str_replace("\xEF\xBF\xBD", '', $s);
 }
 
-// Ensure leads table has stage_id column for robust mapping to funil stages
-try {
-    $colCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads' AND COLUMN_NAME = 'stage_id'");
-    $colCheck->execute();
-    $hasStageId = (bool)$colCheck->fetchColumn();
-    if (!$hasStageId) {
-        // add nullable stage_id
-        $pdo->exec("ALTER TABLE leads ADD COLUMN stage_id INT NULL AFTER status");
-        // Attempt to populate stage_id for existing rows by matching status -> funil_stages (per user)
-        // This will set stage_id where a stage with the same name exists for the same user
-        // initial best-effort update; will be attempted again after detecting exact column name
-        try { $pdo->exec("UPDATE leads l JOIN funil_stages s ON l.user_id = s.user_id AND l.status = s.name SET l.stage_id = s.id"); } catch(Exception $e) { /* ignore */ }
-    }
-} catch (Exception $e) {
-    // ignore migration errors here; API will continue to work without stage_id
-}
-
-// Detect funil_stages column names to support legacy schemas (stage_name vs name)
-try {
-    $fsColCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
-    $fsColCheck->execute();
-    $fsExisting = $fsColCheck->fetchAll(PDO::FETCH_COLUMN);
-    $FS_NAME_COL = in_array('name', $fsExisting) ? 'name' : (in_array('stage_name', $fsExisting) ? 'stage_name' : 'name');
-} catch (Exception $e) {
-    $FS_NAME_COL = 'name';
-}
-
-// After we know the correct name column for funil_stages, attempt to populate stage_id for existing leads
-try {
-    $pdo->exec("UPDATE leads l JOIN funil_stages s ON l.user_id = s.user_id AND l.status = s.{$FS_NAME_COL} SET l.stage_id = s.id");
-} catch (Exception $e) {
-    // ignore, non-critical
-}
-
-// Ensure lead_movements table exists (audit trail of stage/status changes)
-try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS lead_movements (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        lead_id INT NOT NULL,
-        user_id INT NOT NULL,
-        from_stage_id INT NULL,
-        to_stage_id INT NULL,
-        from_status VARCHAR(255) NULL,
-        to_status VARCHAR(255) NULL,
-        changed_by INT NULL,
-        note TEXT NULL,
-        is_alert TINYINT(1) DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX (lead_id), INDEX (user_id), INDEX (from_stage_id), INDEX (to_stage_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
-} catch (Exception $e) {
-    // not critical — if creation fails we'll still proceed without movements logging
-}
-
-// Create attachments table to support multiple files per lead
-try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS leads_attachments (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        lead_id INT NOT NULL,
-        user_id INT NOT NULL,
-        filename VARCHAR(255) NULL,
-        mimetype VARCHAR(255) NULL,
-        data LONGBLOB NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX (lead_id), INDEX (user_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
-} catch (Exception $e) {
-    // ignore non-fatal
-}
+// NOTE: runtime schema checks and CREATE/ALTER statements were removed from this API
+// to avoid performing metadata queries or DDL on each request. Migrations should be
+// applied manually using the scripts/ tools (for example scripts/add_new_leads_columns.php).
 
 // Helper: inserts a movement record (best-effort, swallow errors)
 function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $fromStatus, $toStatus, $changedBy = null, $note = null, $isAlert = 0) {
@@ -181,7 +115,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
     if ($action === 'list') {
         try {
-            $stmt = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads ORDER BY created_at DESC');
+            $stmt = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads ORDER BY created_at DESC');
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
@@ -225,7 +159,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
     if ($action === 'get') {
         if (empty($_GET['id'])) { throw new Exception('Missing id'); }
         try {
-                  $sql = 'SELECT l.id, l.user_id, l.name, l.cidade, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.orcamento_value, l.envio_proposta, l.anexos_filename, l.anexos_mimetype, l.created_at, l.updated_at '
+                    $sql = 'SELECT l.id, l.user_id, l.name, l.cidade, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.orcamento_value, l.envio_proposta, l.ultimo_contato, l.anexos_filename, l.anexos_mimetype, l.created_at, l.updated_at '
                       . 'FROM leads l '
                       . 'WHERE l.id = ? LIMIT 1';
                 $stmt = $pdo->prepare($sql);
@@ -333,13 +267,21 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $row = $s->fetch(PDO::FETCH_ASSOC);
             if ($row) { $resolvedStageId = (int)$row['id']; }
         }
-        // Prefer explicit status field from input; fallback to 'Novo' when not provided
+        // If no explicit stage_id provided, try to resolve from status (status will carry stage name)
         $resolvedStatus = isset($data['status']) && trim($data['status']) !== '' ? $data['status'] : 'Novo';
+        if ($resolvedStageId === null && !empty($resolvedStatus)) {
+            try {
+                $s2 = $pdo->prepare("SELECT id FROM funil_stages WHERE {$FS_NAME_COL} = ? LIMIT 1");
+                $s2->execute([is_string($resolvedStatus) ? ensure_utf8_local($resolvedStatus) : $resolvedStatus]);
+                $r2 = $s2->fetch(PDO::FETCH_ASSOC);
+                if ($r2) $resolvedStageId = (int)$r2['id'];
+            } catch (Exception $e) { /* ignore */ }
+        }
         // ensure utf8 for user-supplied status if present
         if (is_string($resolvedStatus)) { $resolvedStatus = ensure_utf8_local($resolvedStatus); }
 
         // Insert lead (without blobs) first
-        // Normalize envio_proposta if provided (accept YYYY-MM-DD or YYYY-MM-DDTHH:MM)
+        // Normalize envio_proposta and ultimo_contato if provided (accept YYYY-MM-DD or YYYY-MM-DDTHH:MM)
         $envio = null;
         if (!empty($data['envio_proposta'])) {
             $v = trim($data['envio_proposta']);
@@ -348,7 +290,25 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $envio = $v;
         }
 
-        $stmt = $pdo->prepare('INSERT INTO leads (user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+        $ultimoContato = null;
+        if (!empty($data['ultimo_contato'])) {
+            $u = trim($data['ultimo_contato']);
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $u)) { $u = $u . ' 00:00:00'; }
+            elseif (strpos($u, 'T') !== false) { $u = str_replace('T', ' ', $u); if (strlen($u) == 16) $u .= ':00'; }
+            $ultimoContato = $u;
+        }
+
+        $formaPagamento = null;
+        if (!empty($data['forma_pagamento'])) {
+            $formaPagamento = trim($data['forma_pagamento']);
+        }
+
+        $formaPagamento = null;
+        if (!empty($data['forma_pagamento'])) {
+            $formaPagamento = trim($data['forma_pagamento']);
+        }
+
+        $stmt = $pdo->prepare('INSERT INTO leads (user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, forma_pagamento, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
         $params = [
             $userId,
             $data['name'] ?? '',
@@ -363,7 +323,9 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             !empty($data['consumo_cliente']) ? $data['consumo_cliente'] : null,
             !empty($data['estimativa_projeto_kwh']) ? $data['estimativa_projeto_kwh'] : null,
             !empty($data['orcamento_value']) ? floatval($data['orcamento_value']) : 0,
-            $envio
+            $envio,
+            $ultimoContato,
+            $formaPagamento
         ];
         foreach ($params as &$p) { if (is_string($p)) $p = ensure_utf8_local($p); }
         $stmt->execute($params);
@@ -440,6 +402,15 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $row = $s->fetch(PDO::FETCH_ASSOC);
             if ($row) { $resolvedStageId = (int)$row['id']; }
         }
+        // If no explicit stage_id was provided, try resolving stage_id from the supplied status
+        if ($resolvedStageId === null && !empty($resolvedStatus)) {
+            try {
+                $s_res = $pdo->prepare("SELECT id FROM funil_stages WHERE {$FS_NAME_COL} = ? LIMIT 1");
+                $s_res->execute([is_string($resolvedStatus) ? ensure_utf8_local($resolvedStatus) : $resolvedStatus]);
+                $rr = $s_res->fetch(PDO::FETCH_ASSOC);
+                if ($rr) { $resolvedStageId = (int)$rr['id']; }
+            } catch (Exception $e) { /* ignore resolution errors */ }
+        }
 
         // Processar arquivos anexados se houver novos
         $updateAnexos = '';
@@ -472,6 +443,14 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $envio = $v;
         }
 
+        $ultimoContato = null;
+        if (!empty($data['ultimo_contato'])) {
+            $u = trim($data['ultimo_contato']);
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $u)) { $u = $u . ' 00:00:00'; }
+            elseif (strpos($u, 'T') !== false) { $u = str_replace('T', ' ', $u); if (strlen($u) == 16) $u .= ':00'; }
+            $ultimoContato = $u;
+        }
+
         $params = [
             $data['name'] ?? '',
             $data['cidade'] ?? '',
@@ -485,7 +464,9 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             !empty($data['consumo_cliente']) ? $data['consumo_cliente'] : null,
             !empty($data['estimativa_projeto_kwh']) ? $data['estimativa_projeto_kwh'] : null,
             !empty($data['orcamento_value']) ? floatval($data['orcamento_value']) : 0,
-            $envio
+            $envio,
+            $ultimoContato,
+            $formaPagamento
         ];
 
         if (!empty($_FILES['anexos'])) {
@@ -526,11 +507,11 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             }
         }
 
+        // Append id for WHERE clause
         $params[] = $data['id'];
-        $params[] = $userId;
 
-        // Include stage_id column in the update SQL
-        $stmt = $pdo->prepare('UPDATE leads SET name=?, cidade=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, orcamento_value=?, envio_proposta=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=? AND user_id=?');
+        // Include stage_id column in the update SQL. Allow updates regardless of original user_id
+        $stmt = $pdo->prepare('UPDATE leads SET name=?, cidade=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, orcamento_value=?, envio_proposta=?, ultimo_contato=?, forma_pagamento=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=?');
         $stmt->execute($params);
 
         // If status or stage changed, log movement

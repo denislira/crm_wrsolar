@@ -18,3 +18,4 @@
 [2026-01-23 07:43:34] list_anuncios failed: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'created_at' in 'order clause'
 [2026-01-23 08:01:27] promote_anuncio: deleted leads_anuncios id 3
 [2026-01-23 08:55:43] promote_anuncio: deleted leads_anuncios id 3
+[2026-01-25 01:42:51] DEBUG update payload: {"name":"Josuel 22","email":"","cidade":"","phone":"82 99918-8538","cpf_cnpj":"","source":"OC AGÊNCIA","status":"8","notes":"VER A NECESSIDADE","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"0.00","id":"527"}

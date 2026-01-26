@@ -8,8 +8,8 @@ export async function fetchTasks(filters={}) {
 export async function addTask(data) {
   const res = await fetch('includes/team_tasks_api.php?action=add', {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(data)
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
   });
   return await res.json();
 }

@@ -83,12 +83,22 @@ include_once 'includes/permissions.php';
         <a class="navbar-brand d-flex align-items-center text-dark" href="index.php">
           <img src="assets/img/wrsolare-logo.png" alt="WR Solare" height="28" style="margin-right:.5rem;">
           <span class="fw-semibold" style="color:var(--blue-900);"></span>
+          <?php
+            $reqHost = strtolower($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '');
+            $reqHost = preg_replace('/:\d+$/', '', $reqHost);
+            if ($reqHost === 'localhost' || $reqHost === '127.0.0.1') {
+                echo '<span class="badge bg-warning text-dark ms-2">LOCAL</span>';
+            }
+          ?>
         </a>
       </div>
       <div class="ms-auto d-flex align-items-center">
         <?php if (session_status() === PHP_SESSION_NONE) session_start(); ?>
         <?php $displayName = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username']) : 'Usuário'; ?>
         <div class="me-2 d-none d-md-inline text-dark">Olá, <strong><?php echo $displayName; ?></strong></div>
+        <?php if (isset($reqHost) && ($reqHost === 'localhost' || $reqHost === '127.0.0.1')): ?>
+          <div class="me-2 d-none d-md-inline"><span class="badge bg-secondary">dev</span></div>
+        <?php endif; ?>
         <button id="themeToggle" class="btn btn-outline-secondary me-2" title="Alternar tema" aria-label="Alternar tema">🌓</button>
         <!-- Reminder bell -->
         <div class="dropdown me-2">
