@@ -13,14 +13,16 @@ $cfg = file_get_contents($configPath);
 $host = '127.0.0.1';
 $dbname = 'crm';
 $username = 'root';
-$password = '';
-if (preg_match("/\$host\s*=\s*'([^']+)'/", $cfg, $m)) { $host = $m[1]; }
-if (preg_match("/\$dbname\s*=\s*'([^']+)'/", $cfg, $m)) { $dbname = $m[1]; }
-if (preg_match("/\$username\s*=\s*'([^']+)'/", $cfg, $m)) { $username = $m[1]; }
-if (preg_match("/\$password\s*=\s*'([^']*)'/", $cfg, $m)) { $password = $m[1]; }
+$password = '1234'; // hardcoded for localhost
+if (preg_match("/\s*\$host\s*=\s*'([^']+)'/", $cfg, $m)) { $host = $m[1]; }
+if (preg_match("/\s*\$dbname\s*=\s*'([^']+)'/", $cfg, $m)) { $dbname = $m[1]; }
+if (preg_match("/\s*\$username\s*=\s*'([^']+)'/", $cfg, $m)) { $username = $m[1]; }
+if (preg_match("/\s*\$password\s*=\s*'([^']*)'/", $cfg, $m)) { $password = $m[1]; }
 
 // If host is 'localhost', use 127.0.0.1 to force TCP (avoids socket errors on some environments)
 $connectHost = ($host === 'localhost') ? '127.0.0.1' : $host;
+
+echo "Parsed: host=$host, connectHost=$connectHost, dbname=$dbname, username=$username, password=$password\n";
 
 try {
     $pdo = new PDO("mysql:host={$connectHost};dbname={$dbname};charset=utf8mb4", $username, $password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);

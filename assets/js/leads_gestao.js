@@ -1399,21 +1399,36 @@
         const statusEl = F('leadStatus') || $('#leadStatus');
         if (statusEl) {
             if (statusEl.tagName === 'SELECT') {
-                // Load status by the lead's stage_id only: find the stage name and set it.
-                let matched = false;
-                try {
-                    if (lead.stage_id != null && lead.stage_id !== '') {
-                        const stage = STAGES.find(s => String(s.id) === String(lead.stage_id));
-                        if (stage) { statusEl.value = stage.name; matched = true; }
+                // Try to set status by the lead's stage_id (STAGES may load asynchronously).
+                const setStatusFromStage = (attempt = 0) => {
+                    if (Array.isArray(STAGES) && STAGES.length) {
+                        let matched = false;
+                        try {
+                            if (lead.stage_id != null && lead.stage_id !== '') {
+                                const stage = STAGES.find(s => String(s.id) === String(lead.stage_id));
+                                if (stage) { statusEl.value = stage.name; matched = true; }
+                            }
+                        } catch (e) { console.warn('populateLeadForm stage match failed', e); }
+                        if (!matched) statusEl.value = lead.status || '';
+                    } else if (attempt < 12) {
+                        // wait a bit for STAGES to be available (total ~1.8s)
+                        setTimeout(() => setStatusFromStage(attempt + 1), 150);
+                    } else {
+                        // fallback to stored status text
+                        statusEl.value = lead.status || '';
                     }
-                } catch(e){ console.warn('populateLeadForm stage match failed', e); }
-                if (!matched) statusEl.value = '';
+                };
+                setStatusFromStage();
             } else {
                 statusEl.value = lead.status || '';
             }
         }
         const ultimoContatoEl = document.getElementById('lead-ultimo-contato'); if (ultimoContatoEl) ultimoContatoEl.value = lead.ultimo_contato ? lead.ultimo_contato.substring(0,10) : '';
-        const formaEl = document.getElementById('lead-forma-pagamento'); if (formaEl) formaEl.value = lead.forma_pagamento || '';
+        // set payment method (ensure options are loaded)
+        loadPaymentMethods().then(() => {
+            const formaEl = document.getElementById('lead-forma-pagamento');
+            if (formaEl) formaEl.value = lead.forma_pagamento || '';
+        });
         const stageEl = F('leadStage') || $('#leadStage'); if (stageEl) { try { stageEl.remove(); } catch(e){ stageEl.style.display = 'none'; } }
         const consumoEl = F('leadConsumo') || $('#leadConsumo'); if (consumoEl) consumoEl.value = lead.consumo_cliente || '';
         const estEl = F('leadEstimativa') || $('#leadEstimativa'); if (estEl) estEl.value = lead.estimativa_projeto_kwh || '';
@@ -1565,7 +1580,7 @@
                     uploadAnexosBtn.disabled = true; uploadAnexosBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enviando...';
                     const fd = new FormData(); fd.append('id', leadId);
                     for (let i=0;i<fileInput.files.length;i++) fd.append('anexos[]', fileInput.files[i]);
-                    const res = await fetch(apiBase + '?action=update', { method: 'POST', body: fd });
+                    const res = await fetch(apiBase + '?action=upload_attachment', { method: 'POST', body: fd });
                     const txt = await res.text(); let payload = null; try { payload = JSON.parse(txt); } catch(_) { payload = null; }
                     if (!res.ok || (payload && payload.error)) { alert('Falha ao enviar anexos: ' + ((payload && (payload.error||payload.message)) || txt)); return; }
                     // Refresh attachments UI for this lead
@@ -2194,13 +2209,13 @@
         if (!sel) return;
         const current = sel.value || '';
         try {
-            const res = await fetch('/WRCRM/includes/payment_methods_api.php?action=list');
+            const res = await fetch('includes/payment_methods_api.php?action=list');
             if (!res.ok) return;
             const data = await res.json();
             sel.innerHTML = '<option value="">-- selecione --</option>';
             data.forEach(d=>{
                 const o = document.createElement('option');
-                o.value = d.name || d.id;
+                o.value = String(d.id);
                 o.textContent = d.name;
                 sel.appendChild(o);
             });

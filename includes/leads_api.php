@@ -44,6 +44,11 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/config.php';
 
+// Ensure FS_NAME_COL default (some installs use 'stage_name' column)
+if (!isset($FS_NAME_COL) || !$FS_NAME_COL) {
+    $FS_NAME_COL = 'name';
+}
+
 $userId = $_SESSION['user_id'];
 $action = $_REQUEST['action'] ?? 'list';
 
@@ -115,7 +120,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
     if ($action === 'list') {
         try {
-            $stmt = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads ORDER BY created_at DESC');
+            $stmt = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, forma_pagamento, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads ORDER BY created_at DESC');
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
@@ -159,7 +164,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
     if ($action === 'get') {
         if (empty($_GET['id'])) { throw new Exception('Missing id'); }
         try {
-                    $sql = 'SELECT l.id, l.user_id, l.name, l.cidade, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.orcamento_value, l.envio_proposta, l.ultimo_contato, l.anexos_filename, l.anexos_mimetype, l.created_at, l.updated_at '
+                    $sql = 'SELECT l.id, l.user_id, l.name, l.cidade, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.orcamento_value, l.envio_proposta, l.ultimo_contato, l.forma_pagamento, l.anexos_filename, l.anexos_mimetype, l.created_at, l.updated_at '
                       . 'FROM leads l '
                       . 'WHERE l.id = ? LIMIT 1';
                 $stmt = $pdo->prepare($sql);
@@ -191,6 +196,58 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
         echo json_encode($lead);
         exit;
+    }
+
+    // Handle attachment-only uploads: insert attachments without modifying other lead fields
+    if ($action === 'upload_attachment') {
+        // Expecting multipart/form-data with 'id' and files in 'anexos' or 'anexos[]'
+        $leadId = $_POST['id'] ?? null;
+        if (empty($leadId)) { http_response_code(400); echo json_encode(['error' => 'Missing lead id']); exit; }
+        if (empty($_FILES['anexos'])) { http_response_code(400); echo json_encode(['error' => 'No files provided']); exit; }
+
+        $file = $_FILES['anexos'];
+        $errors = is_array($file['error']) ? $file['error'] : [$file['error']];
+        $inserted = 0; $firstName = null; $firstType = null; $firstBlob = null;
+        $insertAtt = $pdo->prepare('INSERT INTO leads_attachments (lead_id, user_id, filename, mimetype, data, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
+        for ($i = 0; $i < count($file['name']); $i++) {
+            if (!isset($file['error'][$i]) || $file['error'][$i] !== UPLOAD_ERR_OK) continue;
+            $fname = $file['name'][$i];
+            $ftype = $file['type'][$i] ?? 'application/octet-stream';
+            $tmp = $file['tmp_name'][$i];
+            $blob = file_get_contents($tmp);
+            try {
+                $insertAtt->execute([(int)$leadId, $userId, $fname, $ftype, $blob]);
+                if ($inserted === 0) { $firstName = $fname; $firstType = $ftype; $firstBlob = $blob; }
+                $inserted++;
+            } catch (Exception $e) {
+                _leads_api_log('Failed inserting attachment (upload_attachment): ' . $e->getMessage());
+            }
+        }
+
+        // For backward compatibility: if legacy leads.anexos fields exist, update with first attachment
+        if ($inserted > 0 && $firstName !== null) {
+            try {
+                $upd = $pdo->prepare('UPDATE leads SET anexos = ?, anexos_filename = ?, anexos_mimetype = ? WHERE id = ?');
+                $upd->execute([$firstBlob, $firstName, $firstType, (int)$leadId]);
+            } catch (Exception $e) { /* ignore */ }
+        }
+
+        // Return updated lead record
+        try {
+            $g = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, anexos_filename, anexos_mimetype, created_at, updated_at FROM leads WHERE id = ? LIMIT 1');
+            $g->execute([(int)$leadId]);
+            $nl = $g->fetch(PDO::FETCH_ASSOC);
+            // fetch attachments list
+            $att = $pdo->prepare('SELECT id AS attachment_id, filename, mimetype FROM leads_attachments WHERE lead_id = ? ORDER BY id ASC');
+            $att->execute([(int)$leadId]);
+            $nl['anexos_files'] = $att->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode(['ok' => true, 'lead' => $nl]);
+            exit;
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed fetching lead after upload']);
+            exit;
+        }
     }
 
     // Read input for POST (form or JSON)
@@ -298,6 +355,24 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $ultimoContato = $u;
         }
 
+        // Debug logging: record incoming update payload and files (temporary)
+        try {
+            _leads_api_log('UPDATE payload: ' . json_encode($data, JSON_UNESCAPED_UNICODE));
+            _leads_api_log('UPDATE forma_pagamento (raw): ' . var_export($data['forma_pagamento'] ?? null, true));
+            _leads_api_log('UPDATE _FILES keys: ' . json_encode(array_keys($_FILES), JSON_UNESCAPED_UNICODE));
+        } catch (Exception $e) { /* ignore logging errors */ }
+
+        // Parse forma_pagamento for update
+        $formaPagamento = null;
+        if (!empty($data['forma_pagamento'])) {
+            $formaPagamento = trim($data['forma_pagamento']);
+        }
+
+        $formaPagamento = null;
+        if (!empty($data['forma_pagamento'])) {
+            $formaPagamento = trim($data['forma_pagamento']);
+        }
+
         $formaPagamento = null;
         if (!empty($data['forma_pagamento'])) {
             $formaPagamento = trim($data['forma_pagamento']);
@@ -384,6 +459,14 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
     if ($action === 'update') {
         if (empty($data['id'])) { throw new Exception('Missing id'); }
+
+        // parse forma_pagamento from incoming data (ensure defined)
+        $formaPagamento = null;
+        if (!empty($data['forma_pagamento'])) {
+            $formaPagamento = trim($data['forma_pagamento']);
+        }
+        // Log raw request body for debugging
+        try { _leads_api_log('UPDATE raw_input: ' . substr(file_get_contents('php://input'), 0, 4096)); } catch (Exception $e) {}
 
         // Fetch previous state to detect changes
         $pre = $pdo->prepare('SELECT id, status, stage_id FROM leads WHERE id = ? LIMIT 1');

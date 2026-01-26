@@ -164,76 +164,90 @@ include 'includes/header.php';
                 <div class="modal-body">
                     <form id="leadForm" enctype="multipart/form-data">
                         <input type="hidden" id="lead-id">
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <label class="form-label">Nome <i class="fa fa-user text-muted"></i></label>
-                                        <input id="lead-name" class="form-control" required>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Status</label>
-                                        <select id="lead-status" class="form-select"></select>
-                                    </div>
-                                    <!-- Forma de Pagamento moved below Valor de Orçamento -->
-                                    <div class="col-md-4">
-                                        <label class="form-label">Último Contato</label>
-                                        <input id="lead-ultimo-contato" class="form-control" type="date">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <div class="card mb-3">
-                                    <div class="card-body">
-                                        <label class="form-label">Email <i class="fa fa-envelope text-muted"></i></label>
-                                        <input id="lead-email" class="form-control" type="email">
-                                        <label class="form-label mt-2">Telefone <i class="fa fa-phone text-muted"></i></label>
-                                        <input id="lead-phone" class="form-control" type="tel">
-                                        <label class="form-label mt-2">CPF / CNPJ <i class="fa fa-id-card text-muted"></i></label>
-                                        <input id="lead-cpf-cnpj" class="form-control" placeholder="000.000.000-00 ou 00.000.000/0000-00">
-                                        <label class="form-label mt-2">Cidade <i class="fa fa-city text-muted"></i></label>
-                                        <input id="lead-city" class="form-control" placeholder="Cidade">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card mb-3">
-                                    <div class="card-body">
-                                        <label class="form-label">Consumo do Cliente (R$) <i class="fa fa-bolt text-warning"></i></label>
-                                        <input id="lead-consumo" class="form-control" type="number" step="0.01" placeholder="0,00">
-                                        <label class="form-label mt-2">Estimativa do Projeto (kWh) <i class="fa fa-solar-panel text-info"></i></label>
-                                        <input id="lead-estimativa-kwh" class="form-control" type="number" step="0.01" placeholder="0,00">
-                                        <label class="form-label mt-2">Valor de Orçamento (R$) <i class="fa fa-dollar-sign text-success"></i></label>
-                                        <input id="lead-orcamento" class="form-control currency-mask" type="text" placeholder="0,00">
-                                        <label class="form-label mt-2">Forma de Pagamento</label>
-                                        <select id="lead-forma-pagamento" class="form-select"><option value="">-- selecione --</option></select>
-                                        <label class="form-label mt-2">Fonte <i class="fa fa-globe text-muted"></i></label>
-                                        <input id="lead-source" class="form-control">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <div class="card mb-3">
-                                    <div class="card-body">
-                                        <label class="form-label">Anexar Arquivos <i class="fa fa-paperclip text-muted"></i></label>
-                                        <input id="lead-anexos" class="form-control" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                                        <div class="d-flex align-items-center gap-2 mt-2">
-                                            <div class="flex-grow-1"><div class="form-text">Formatos aceitos: PDF, DOC, DOCX, JPG, PNG</div></div>
-                                            <div><button id="upload-anexos-now" type="button" class="btn btn-sm btn-outline-primary"><i class="fa fa-upload"></i> Enviar Anexos</button></div>
+                        <div class="container-fluid">
+                            <div class="row">
+                                <div class="col-lg-7">
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Nome</label>
+                                                <input id="lead-name" class="form-control form-control-lg" required placeholder="Nome completo ou empresa">
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">Email</label>
+                                                    <input id="lead-email" class="form-control" type="email" placeholder="exemplo@dominio.com">
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">Telefone</label>
+                                                    <input id="lead-phone" class="form-control" type="tel" placeholder="(00) 90000-0000">
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">CPF / CNPJ</label>
+                                                    <input id="lead-cpf-cnpj" class="form-control" placeholder="000.000.000-00 ou 00.000.000/0000-00">
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">Cidade</label>
+                                                    <input id="lead-city" class="form-control" placeholder="Cidade">
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Anexar Arquivos</label>
+                                                <input id="lead-anexos" class="form-control" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                                <div class="d-flex align-items-center gap-2 mt-2">
+                                                    <div class="flex-grow-1"><div class="form-text">PDF, DOC, JPG, PNG (max 10MB cada)</div></div>
+                                                    <div><button id="upload-anexos-now" type="button" class="btn btn-sm btn-outline-primary"><i class="fa fa-upload"></i> Enviar</button></div>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Notas</label>
+                                                <textarea id="lead-notes" class="form-control" rows="4" placeholder="Observações sobre o lead..."></textarea>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card mb-3 h-100">
-                                    <div class="card-body d-flex flex-column h-100">
-                                        <label class="form-label">Notas de Observação <i class="fa fa-sticky-note text-muted"></i></label>
-                                        <textarea id="lead-notes" class="form-control" rows="4" placeholder="Digite suas observações sobre este lead..."></textarea>
+                                <div class="col-lg-5">
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Status</label>
+                                                <select id="lead-status" class="form-select"></select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Último Contato</label>
+                                                <input id="lead-ultimo-contato" class="form-control" type="date">
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">Consumo (R$)</label>
+                                                    <input id="lead-consumo" class="form-control" type="number" step="0.01" placeholder="0,00">
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">Estimativa (kWh)</label>
+                                                    <input id="lead-estimativa-kwh" class="form-control" type="number" step="0.01" placeholder="0,00">
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Valor de Orçamento</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text">R$</span>
+                                                    <input id="lead-orcamento" class="form-control currency-mask" type="text" placeholder="0,00">
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Forma de Pagamento</label>
+                                                <select id="lead-forma-pagamento" class="form-select"><option value="">-- selecione --</option></select>
+                                                <div class="form-text">Selecione a forma de pagamento principal do cliente.</div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Fonte</label>
+                                                <input id="lead-source" class="form-control" placeholder="Ex: Facebook, Indicação">
+                                            </div>
+                                        </div>
                                     </div>
+                                    <!-- Anexos movidos para a coluna esquerda para melhor visibilidade -->
                                 </div>
                             </div>
                         </div>
