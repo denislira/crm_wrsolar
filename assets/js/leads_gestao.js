@@ -1424,6 +1424,16 @@
             }
         }
         const ultimoContatoEl = document.getElementById('lead-ultimo-contato'); if (ultimoContatoEl) ultimoContatoEl.value = lead.ultimo_contato ? lead.ultimo_contato.substring(0,10) : '';
+        // Data de Entrada (created_at) - show value but disable editing when opening edit modal
+        try {
+            const createdEl = document.getElementById('lead-created-at');
+            const createdVal = lead.created_at || lead.createdAt || lead.data_criacao || lead.data_criado || '';
+            if (createdEl) {
+                createdEl.value = createdVal ? String(createdVal).substring(0,10) : '';
+                createdEl.disabled = true;
+                createdEl.readOnly = true;
+            }
+        } catch(e) { console.warn('Failed setting created_at in form', e); }
         // set payment method (ensure options are loaded)
         loadPaymentMethods().then(() => {
             const formaEl = document.getElementById('lead-forma-pagamento');
@@ -1550,6 +1560,18 @@
             $('#leadForm').reset(); 
             const idEl = F('leadId') || $('#lead-id'); 
             if (idEl) idEl.value = '';
+            // Ensure Data de Entrada is editable for new leads and default to today
+            try {
+                const createdEl = document.getElementById('lead-created-at');
+                const now = new Date().toISOString().slice(0,10);
+                if (createdEl) { createdEl.disabled = false; createdEl.readOnly = false; createdEl.value = now; }
+            } catch(e) { }
+            // set current date for ultimo_contato when creating new lead
+            try {
+                const now2 = new Date().toISOString().slice(0,10);
+                const ultimoEl = document.getElementById('lead-ultimo-contato');
+                if (ultimoEl) ultimoEl.value = now2;
+            } catch(e) {}
             // set default status to 'Sem Contato' when opening new lead modal
             try {
                 const statusSel = F('leadStatus') || $('#leadStatus') || $('#lead-status');
@@ -1841,6 +1863,7 @@
             const orcamentoValue = (F('leadOrcamento')||$('#lead-orcamento')) ? (F('leadOrcamento')||$('#lead-orcamento')).value.replace(/\./g, '').replace(',', '.') : '';
             const ultimoContatoValue = document.getElementById('lead-ultimo-contato').value;
             const formattedUltimoContato = ultimoContatoValue ? ultimoContatoValue + ' 00:00:00' : '';
+            const createdAtValue = (document.getElementById('lead-created-at') || { value: '' }).value;
             const formaPagamentoValue = (document.getElementById('lead-forma-pagamento')||{value:''}).value || '';
             
             console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, notesValue, consumoValue, estimativaValue, orcamentoValue, formattedUltimoContato});
@@ -1868,6 +1891,8 @@
                 fd.append('orcamento_value', orcamentoValue);
                 fd.append('ultimo_contato', formattedUltimoContato);
                 fd.append('forma_pagamento', formaPagamentoValue);
+                // include created_at only when creating a new lead
+                if (!id && createdAtValue) fd.append('created_at', createdAtValue + ' 00:00:00');
                 if (id) fd.append('id', id);
                 
                 // Append files
@@ -1894,6 +1919,8 @@
                 params.append('orcamento_value', orcamentoValue);
                 params.append('ultimo_contato', formattedUltimoContato);
                 params.append('forma_pagamento', formaPagamentoValue);
+                // include created_at only when creating a new lead
+                if (!id && createdAtValue) params.append('created_at', createdAtValue + ' 00:00:00');
                 if (id) params.append('id', id);
                 
                 body = params;

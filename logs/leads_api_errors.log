@@ -20,3 +20,6 @@
 [2026-01-23 08:55:43] promote_anuncio: deleted leads_anuncios id 3
 [2026-01-25 01:42:51] DEBUG update payload: {"name":"Josuel 22","email":"","cidade":"","phone":"82 99918-8538","cpf_cnpj":"","source":"OC AGÊNCIA","status":"8","notes":"VER A NECESSIDADE","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"0.00","id":"527"}
 [2026-01-26 05:11:48] UPDATE raw_input: name=teste+46+&email=teste%40este.com&cidade=Arapiraca&phone=%2823%29+23232-3232&cpf_cnpj=12.312.313%2F2323-23&source=pelo+site&status=Qualificado&notes=Nota+de+observacao&consumo_cliente=2222&estimativa_projeto_kwh=333&orcamento_value=44.44&ultimo_contato=2026-01-25+00%3A00%3A00&forma_pagamento=1&id=534
+[2026-01-26 05:47:30] UPDATE payload: {"name":"Teste 47","email":"teste@teste.com","cidade":"Araíraca","phone":"(82) 99999-9999","cpf_cnpj":"99.999.999\/9999-99","source":"FACEBOOK","status":"Sem Contato 2","notes":"","consumo_cliente":"444","estimativa_projeto_kwh":"23323","orcamento_value":"1.23","ultimo_contato":"2026-01-26 00:00:00","forma_pagamento":"3","created_at":"2026-01-26 00:00:00"}
+[2026-01-26 05:47:30] UPDATE forma_pagamento (raw): '3'
+[2026-01-26 05:47:30] UPDATE _FILES keys: []

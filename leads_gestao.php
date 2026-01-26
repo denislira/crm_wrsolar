@@ -219,6 +219,11 @@ include 'includes/header.php';
                                                 <label class="form-label">Último Contato</label>
                                                 <input id="lead-ultimo-contato" class="form-control" type="date">
                                             </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Data de Entrada</label>
+                                                <input id="lead-created-at" class="form-control" type="date" placeholder="Data de entrada">
+                                                <div class="form-text small">Pode ser ajustada no cadastro inicial; não editável depois.</div>
+                                            </div>
                                             <div class="row">
                                                 <div class="col-md-6 mb-3">
                                                     <label class="form-label">Consumo (R$)</label>
@@ -320,6 +325,9 @@ include 'includes/header.php';
                 // set current date for ultimo_contato
                 const now = new Date().toISOString().slice(0,10);
                 document.getElementById('lead-ultimo-contato').value = now;
+                    // set current date for created_at (Data de Entrada) and make it editable for new leads
+                    const createdEl = document.getElementById('lead-created-at');
+                    if (createdEl) { createdEl.value = now; createdEl.disabled = false; createdEl.readOnly = false; }
                 leadModal.show();
             });
             document.getElementById('save-lead').addEventListener('click', (e)=>{
