@@ -932,7 +932,7 @@
             const compTd = document.createElement('td'); compTd.textContent = lead.source || lead.client_name || lead.company || '—';
             const statusTd = document.createElement('td'); statusTd.textContent = lead.status || '';
             const phoneTd = document.createElement('td'); phoneTd.textContent = lead.phone || '';
-            const valTd = document.createElement('td'); valTd.textContent = toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
+            const valTd = document.createElement('td'); valTd.textContent = toCurrency(lead.orcamento_value || lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
             const scoreTd = document.createElement('td'); scoreTd.innerHTML = '<span class="badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')) + '">' + (lead.score||0) + '</span>';
             const createdTd = document.createElement('td'); createdTd.className='small text-muted'; createdTd.textContent = formatDateBR(lead.created_at || lead.createdAt || lead.created);
             const updatedTd = document.createElement('td'); updatedTd.className='small text-muted'; updatedTd.textContent = formatDateBR(lead.ultimo_contato);
@@ -1596,6 +1596,8 @@
             $('#leadForm').reset(); 
             const idEl = F('leadId') || $('#lead-id'); 
             if (idEl) idEl.value = '';
+            // Clear existing attachments display for new lead
+            const prevWrap = document.getElementById('existingAnexosWrap'); if (prevWrap) prevWrap.remove();
             // Ensure Data de Entrada is editable for new leads and default to today
             try {
                 const createdEl = document.getElementById('lead-created-at');
@@ -1911,57 +1913,35 @@
             
             let body, headers = {};
             
+            // Always use FormData for consistency
+            const fd = new FormData();
+            fd.append('name', nameValue);
+            fd.append('email', emailValue);
+            fd.append('cidade', cityValue);
+            fd.append('phone', phoneValue);
+            fd.append('cpf_cnpj', cpfValue);
+            fd.append('source', sourceValue);
+            fd.append('status', statusValue);
+            fd.append('notes', notesValue);
+            fd.append('consumo_cliente', consumoValue);
+            fd.append('estimativa_projeto_kwh', estimativaValue);
+            fd.append('orcamento_value', orcamentoValue);
+            fd.append('ultimo_contato', formattedUltimoContato);
+            fd.append('forma_pagamento', formaPagamentoValue);
+            // include created_at only when creating a new lead
+            if (!id && createdAtValue) fd.append('created_at', createdAtValue + ' 00:00:00');
+            if (id) fd.append('id', id);
+            
+            // Append files if present
             if (hasFiles) {
-                // Use FormData for file uploads
-                const fd = new FormData();
-                fd.append('name', nameValue);
-                fd.append('email', emailValue);
-                fd.append('cidade', cityValue);
-                fd.append('phone', phoneValue);
-                fd.append('cpf_cnpj', cpfValue);
-                fd.append('source', sourceValue);
-                fd.append('status', statusValue);
-                fd.append('notes', notesValue);
-                fd.append('consumo_cliente', consumoValue);
-                fd.append('estimativa_projeto_kwh', estimativaValue);
-                fd.append('orcamento_value', orcamentoValue);
-                fd.append('ultimo_contato', formattedUltimoContato);
-                fd.append('forma_pagamento', formaPagamentoValue);
-                // include created_at only when creating a new lead
-                if (!id && createdAtValue) fd.append('created_at', createdAtValue + ' 00:00:00');
-                if (id) fd.append('id', id);
-                
-                // Append files
                 for (let i=0;i<filesEl.files.length;i++) {
                     fd.append('anexos[]', filesEl.files[i]);
                     console.log('Appending file:', filesEl.files[i].name, filesEl.files[i].size, 'bytes');
                 }
-                
-                body = fd;
-                // Don't set Content-Type header, browser will set it with boundary
-            } else {
-                // Use URLSearchParams for regular form data (better compatibility)
-                const params = new URLSearchParams();
-                params.append('name', nameValue);
-                params.append('email', emailValue);
-                params.append('cidade', cityValue);
-                params.append('phone', phoneValue);
-                params.append('cpf_cnpj', cpfValue);
-                params.append('source', sourceValue);
-                params.append('status', statusValue);
-                params.append('notes', notesValue);
-                params.append('consumo_cliente', consumoValue);
-                params.append('estimativa_projeto_kwh', estimativaValue);
-                params.append('orcamento_value', orcamentoValue);
-                params.append('ultimo_contato', formattedUltimoContato);
-                params.append('forma_pagamento', formaPagamentoValue);
-                // include created_at only when creating a new lead
-                if (!id && createdAtValue) params.append('created_at', createdAtValue + ' 00:00:00');
-                if (id) params.append('id', id);
-                
-                body = params;
-                headers['Content-Type'] = 'application/x-www-form-urlencoded';
             }
+            
+            body = fd;
+            // Don't set Content-Type header, browser will set it with boundary
 
             try {
                 const action = id ? 'update' : 'add';

@@ -403,7 +403,14 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $formaPagamento
         ];
         foreach ($params as &$p) { if (is_string($p)) $p = ensure_utf8_local($p); }
-        $stmt->execute($params);
+        try {
+            $stmt->execute($params);
+        } catch (Exception $e) {
+            _leads_api_log('add:insert failed: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Database error during insert']);
+            exit;
+        }
 
         $leadId = $pdo->lastInsertId();
 
@@ -595,7 +602,14 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
         // Include stage_id column in the update SQL. Allow updates regardless of original user_id
         $stmt = $pdo->prepare('UPDATE leads SET name=?, cidade=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, orcamento_value=?, envio_proposta=?, ultimo_contato=?, forma_pagamento=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=?');
-        $stmt->execute($params);
+        try {
+            $stmt->execute($params);
+        } catch (Exception $e) {
+            _leads_api_log('update:leads failed: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Database error during update']);
+            exit;
+        }
 
         // If status or stage changed, log movement
         try {
@@ -832,7 +846,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $colsRaw = $colChk->fetchAll(PDO::FETCH_COLUMN);
             $cols = array_map(function($c){ return strtolower(trim($c)); }, $colsRaw ?: []);
             $hasUser = in_array('user_id', $cols);
-            $preferred = ['created_at','data_criacao','created','createdat','timestamp'];
+            $preferred = ['data_criacao'];
             $orderCol = 'id';
             foreach ($preferred as $pc) { if (in_array($pc, $cols)) { $orderCol = $pc; break; } }
 

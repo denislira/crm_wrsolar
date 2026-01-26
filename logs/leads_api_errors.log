@@ -27,3 +27,6 @@
 [2026-01-26 05:57:42] UPDATE forma_pagamento (raw): '1'
 [2026-01-26 05:57:42] UPDATE _FILES keys: []
 [2026-01-26 06:11:31] UPDATE raw_input: name=LEAD+48&email=lead48%40email.com&cidade=Arapiraca&phone=%2882%29+9999-9999&cpf_cnpj=999.999.999-99&source=&status=Sem+Contato+2&notes=&consumo_cliente=5005&estimativa_projeto_kwh=500&orcamento_value=2.00&ultimo_contato=2026-01-26+00%3A00%3A00&forma_pagamento=1&id=536
+[2026-01-26 07:20:06] UPDATE payload: {"name":"LEAD 50","email":"","cidade":"","phone":"","cpf_cnpj":"","source":"","status":"","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-01-26 00:00:00","forma_pagamento":"","created_at":"2026-01-26 00:00:00"}
+[2026-01-26 07:20:06] UPDATE forma_pagamento (raw): ''
+[2026-01-26 07:20:06] UPDATE _FILES keys: []
