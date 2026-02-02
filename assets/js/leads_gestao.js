@@ -8,6 +8,35 @@
     let GRID_PAGE = 1;
     const GRID_PAGE_SIZE = 10;
     let GRID_FILTERS = {};
+    // current filter values
+    let CURRENT_SEARCH = '';
+    let CURRENT_SCORE_FILTER = '';
+    let CURRENT_CIDADE_FILTER = '';
+    let CURRENT_STALLED_ONLY = false;
+
+    function getFilteredLeads(){
+        let filtered = allLeads.slice(); // copy
+        // apply search
+        if (CURRENT_SEARCH) {
+            const v = CURRENT_SEARCH.toLowerCase();
+            filtered = filtered.filter(l => (l.name||'').toLowerCase().includes(v) || (l.client_name||'').toLowerCase().includes(v));
+        }
+        // apply score filter
+        if (CURRENT_SCORE_FILTER) {
+            const map = {hot: l=>l.score>=80, warm: l=>l.score>=50 && l.score<80, cold: l=>l.score<50};
+            filtered = filtered.filter(map[CURRENT_SCORE_FILTER]);
+        }
+        // apply cidade filter
+        if (CURRENT_CIDADE_FILTER) {
+            filtered = filtered.filter(l => l.cidade === CURRENT_CIDADE_FILTER);
+        }
+        // apply stalled only
+        if (CURRENT_STALLED_ONLY) {
+            const thresh = Number(localStorage.getItem('stalledDays')||STALLED_DAYS_DEFAULT);
+            filtered = filtered.filter(l => leadUpdatedDaysAgo(l) >= thresh);
+        }
+        return filtered;
+    }
     // maintain selected lead ids across pagination/views
     let SELECTED_LEADS = new Set();
     const STALLED_DAYS_DEFAULT = 7;
@@ -183,9 +212,21 @@
             const json = await res.json();
             console.log('Leads loaded:', json.length);
             allLeads = json.map(l => ({...l, score: l.score ?? computeScore(l)}));
-            // compute presence of SEM STATUS (stage_id === 0)
+            // populate cidade filter
+            const cidades = [...new Set(allLeads.map(l => l.cidade).filter(c => c && c.trim()))].sort();
+            const filterCidade = document.getElementById('filterCidade');
+            if (filterCidade) {
+                filterCidade.innerHTML = '<option value="">Todas cidades</option>';
+                cidades.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    opt.textContent = c;
+                    filterCidade.appendChild(opt);
+                });
+            }
+            // compute presence of SEM STATUS (stage_id === 0 or null)
             const prevSem = SEMSTATUS_PRESENT;
-            SEMSTATUS_PRESENT = allLeads.some(x => Number(x.stage_id) === 0);
+            SEMSTATUS_PRESENT = allLeads.some(x => x.stage_id == null || Number(x.stage_id) === 0);
             // if presence changed and stages already loaded, rebuild columns
             if (prevSem !== SEMSTATUS_PRESENT && STAGES && STAGES.length) {
                 try { buildColumns(); } catch(e){}
@@ -334,6 +375,8 @@
     let SEMSTATUS_PRESENT = false;
     // user preference whether to show Sem Status column (persisted)
     let SEMSTATUS_SHOWN = (localStorage.getItem('showSemStatus') !== '0');
+    // user preference whether to show Anuncios column (persisted)
+    let ANUNCIOS_SHOWN = (localStorage.getItem('showAnuncios') !== '0');
     async function fetchStages(){
         try{
             const res = await fetch('includes/funil_stages_api.php?action=list'); if (!res.ok) throw new Error('Falha ao carregar estágios');
@@ -462,8 +505,8 @@
                 wrap.appendChild(ssWrap);
             } catch(e){ console.warn('failed creating Sem Status column', e); }
         }
-        // Insert Anúncios column next (if present)
-        if (ANUNCIOS_PRESENT) {
+        // Insert Anúncios column next (if present and user enabled)
+        if (ANUNCIOS_PRESENT && ANUNCIOS_SHOWN) {
             try {
                 const anWrap = document.createElement('div'); anWrap.className = 'kanban-column'; anWrap.dataset.stageId = 'anuncios'; anWrap.dataset.stageName = 'Anúncios';
                 anWrap.dataset.color = '#0d6efd';
@@ -590,6 +633,8 @@
         if (btn) btn.classList.toggle('d-none', selected.length === 0);
         const uncheckBtn = $('#bulkUncheckBtn');
         if (uncheckBtn) uncheckBtn.classList.toggle('d-none', selected.length <= 1);
+        const printBtn = $('#printSelectedBtn');
+        if (printBtn) printBtn.classList.toggle('d-none', selected.length === 0);
         // update header select-all checkbox state for visible rows
         try {
             const selectAll = document.getElementById('selectAllVisible');
@@ -852,7 +897,7 @@
             container.appendChild(selectedWrap);
         } catch(e) { /* ignore */ }
         // rows (apply filters first, then sort if requested)
-        let rows = allLeads.slice();
+        let rows = getFilteredLeads();
         // apply GRID_FILTERS
         rows = rows.filter(lead=>{
             try {
@@ -997,18 +1042,17 @@
         // switch to grid view if requested
         if (getViewMode() === 'grid') { renderGrid(); return; }
         clearColumns();
+        const filtered = getFilteredLeads();
         // compute sums per stage id
         const sums = {};
         STAGES.forEach(s=> sums[s.id] = 0);
 
-        allLeads.forEach(l=>{
+        filtered.forEach(l=>{
             let stageKey = '0';
-            if (typeof l.stage_id !== 'undefined' && l.stage_id !== null) {
-                if (Number(l.stage_id) === 0) {
-                    stageKey = 'sem_status';
-                } else if (l.stage_id) {
-                    stageKey = String(l.stage_id);
-                }
+            if (typeof l.stage_id === 'undefined' || l.stage_id === null || Number(l.stage_id) === 0) {
+                stageKey = 'sem_status';
+            } else if (l.stage_id) {
+                stageKey = String(l.stage_id);
             } else {
                 stageKey = (STAGES.find(s=>s.name === (l.status||'')) || {id:'0'}).id;
             }
@@ -1689,6 +1733,21 @@
             }
         } catch(e){ console.warn('sem status toggle setup failed', e); }
 
+        // Anuncios toggle button
+        try {
+            const anBtn = document.getElementById('toggleAnunciosBtn');
+            if (anBtn) {
+                // initialize visual state
+                anBtn.classList.toggle('active', ANUNCIOS_SHOWN);
+                anBtn.addEventListener('click', ()=>{
+                    ANUNCIOS_SHOWN = !ANUNCIOS_SHOWN;
+                    localStorage.setItem('showAnuncios', ANUNCIOS_SHOWN ? '1' : '0');
+                    anBtn.classList.toggle('active', ANUNCIOS_SHOWN);
+                    try { buildColumns(); renderAll(); } catch(e){ console.warn('Failed toggling Anuncios column', e); }
+                });
+            }
+        } catch(e){ console.warn('anuncios toggle setup failed', e); }
+
         // attach input masks for phone and CPF/CNPJ
         try { attachMaskHandlers(); } catch(e){ console.warn('attachMaskHandlers failed', e); }
 
@@ -2068,29 +2127,87 @@
             });
         }
 
-        $('#searchInput').addEventListener('input', (e)=>{ const v = e.target.value.toLowerCase(); if (!v) {renderAll();return;} allLeads = allLeads.sort(); // noop to keep reference
-            const filtered = allLeads.filter(l => (l.name||'').toLowerCase().includes(v) || (l.client_name||'').toLowerCase().includes(v)); clearColumns(); filtered.forEach(l=>{ const stageKey = l.stage_id ? String(l.stage_id) : (STAGES.find(s=>s.name === (l.status||''))||{id:'0'}).id; const col = document.getElementById('col-' + stageKey); if(col) col.appendChild(makeCard(l)); });
+        $('#searchInput').addEventListener('input', (e)=>{
+            CURRENT_SEARCH = e.target.value.toLowerCase();
+            renderAll();
         });
 
         $('#filterScore').addEventListener('change', (e)=>{
-            const v = e.target.value; if (!v) { renderAll(); return; } const map = {hot: l=>l.score>=80, warm: l=>l.score>=50 && l.score<80, cold: l=>l.score<50};
-            clearColumns(); allLeads.filter(map[v]).forEach(l=>{ const stageKey = l.stage_id ? String(l.stage_id) : (STAGES.find(s=>s.name === (l.status||''))||{id:'0'}).id; const col = document.getElementById('col-' + stageKey); if(col) col.appendChild(makeCard(l)); });
+            CURRENT_SCORE_FILTER = e.target.value;
+            renderAll();
+        });
+
+        $('#filterCidade').addEventListener('change', (e)=>{
+            CURRENT_CIDADE_FILTER = e.target.value;
+            renderAll();
         });
 
         // stalled toggle
         const stalledBtn = $('#stalledToggle'); if (stalledBtn) {
             stalledBtn.addEventListener('click', ()=>{
-                const only = stalledBtn.classList.toggle('active'); stalledBtn.textContent = only ? 'Somente parados' : 'Leads parados';
-                if (only) {
-                    clearColumns(); const thresh = Number(localStorage.getItem('stalledDays')||STALLED_DAYS_DEFAULT);
-                    allLeads.filter(l=> leadUpdatedDaysAgo(l) >= thresh).forEach(l=>{ const stageKey = l.stage_id ? String(l.stage_id) : (STAGES.find(s=>s.name === (l.status||''))||{id:'0'}).id; const col = document.getElementById('col-' + stageKey); if(col) col.appendChild(makeCard(l)); });
-                } else { renderAll(); }
+                CURRENT_STALLED_ONLY = stalledBtn.classList.toggle('active');
+                stalledBtn.textContent = CURRENT_STALLED_ONLY ? 'Somente parados' : 'Leads parados';
+                renderAll();
             });
         }
 
         // populate bulk stages when modal opens
         const bulkBtn = $('#bulkActionsBtn'); if (bulkBtn) {
             bulkBtn.addEventListener('click', ()=> populateBulkStages());
+        }
+
+        // print selected leads
+        const printBtn = $('#printSelectedBtn'); if (printBtn) {
+            printBtn.addEventListener('click', ()=>{
+                const selectedIds = getSelectedLeadIds();
+                if (selectedIds.length === 0) { alert('Selecione pelo menos um lead para imprimir.'); return; }
+                const selectedLeads = allLeads.filter(l => selectedIds.includes(String(l.id)));
+                printSelectedLeads(selectedLeads);
+            });
+        }
+
+        // print selected leads function
+        function printSelectedLeads(leads) {
+            const printWindow = window.open('', '_blank');
+            const html = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Relatório de Leads Selecionados</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { text-align: center; }
+        .lead-card { border: 1px solid #ddd; margin-bottom: 20px; padding: 15px; page-break-inside: avoid; }
+        .lead-header { font-weight: bold; margin-bottom: 10px; }
+        .lead-detail { margin: 5px 0; }
+        @media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <h1>Relatório de Leads Selecionados</h1>
+    <p>Total: ${leads.length} leads</p>
+    ${leads.map(lead => `
+        <div class="lead-card">
+            <div class="lead-header">${lead.name || 'Sem nome'}</div>
+            <div class="lead-detail"><strong>Email:</strong> ${lead.email || '-'}</div>
+            <div class="lead-detail"><strong>Telefone:</strong> ${lead.phone || '-'}</div>
+            <div class="lead-detail"><strong>Cidade:</strong> ${lead.cidade || '-'}</div>
+            <div class="lead-detail"><strong>Fonte:</strong> ${lead.source || '-'}</div>
+            <div class="lead-detail"><strong>Status:</strong> ${lead.status || '-'}</div>
+            <div class="lead-detail"><strong>Valor:</strong> R$ ${lead.orcamento_value ? parseFloat(lead.orcamento_value).toFixed(2) : '0.00'}</div>
+            <div class="lead-detail"><strong>Score:</strong> ${lead.score || 0}</div>
+            <div class="lead-detail"><strong>Criado:</strong> ${lead.created_at ? new Date(lead.created_at).toLocaleDateString('pt-BR') : '-'}</div>
+            <div class="lead-detail"><strong>Último Contato:</strong> ${lead.ultimo_contato ? new Date(lead.ultimo_contato).toLocaleDateString('pt-BR') : '-'}</div>
+            <div class="lead-detail"><strong>Observações:</strong> ${lead.notes || '-'}</div>
+        </div>
+    `).join('')}
+    <button class="no-print" onclick="window.print()">Imprimir</button>
+</body>
+</html>
+            `;
+            printWindow.document.write(html);
+            printWindow.document.close();
         }
 
         // Manage statuses modal

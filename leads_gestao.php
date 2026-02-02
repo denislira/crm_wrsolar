@@ -19,6 +19,9 @@ include 'includes/header.php';
                 <h1 class="h4 mb-0">Gestão de Leads</h1>
                 <div class="d-flex gap-2 align-items-center">
                     <input id="searchInput" class="form-control form-control-sm" placeholder="Buscar por nome ou empresa..." style="min-width:280px">
+                    <select id="filterCidade" class="form-select form-select-sm">
+                        <option value="">Todas cidades</option>
+                    </select>
                     <select id="filterScore" class="form-select form-select-sm">
                         <option value="">Todos scores</option>
                         <option value="hot">🔥 Quente (80+)</option>
@@ -58,7 +61,9 @@ include 'includes/header.php';
                     <button id="bulkUncheckBtn" class="btn btn-sm btn-outline-secondary d-none" title="Desmarcar todos"><i class="fa fa-times"></i></button>
                     <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
                     <button id="toggleSemStatusBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Sem Status">Sem Status</button>
+                    <button id="toggleAnunciosBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Anúncios">Anúncios</button>
                     <button id="bulkActionsBtn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#bulkModal">Ações em massa</button>
+                    <button id="printSelectedBtn" class="btn btn-sm btn-outline-secondary d-none" title="Imprimir leads selecionados"><i class="fa fa-print"></i> Imprimir Selecionados</button>
                     <button id="toggleViewBtn" class="btn btn-sm btn-outline-secondary" title="Alternar visualização Kanban / Grade"><i class="fa fa-columns"></i></button>
                     <button id="kanbanCompactBtn" class="btn btn-sm btn-outline-secondary" title="Compactar Kanban" style="width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;margin-right:6px;">
                         <i class="fa fa-compress" id="kanbanCompactIcon" aria-hidden="true"></i>
