@@ -4,18 +4,23 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
+$includePerm = __DIR__ . '/permissions.php';
+if (file_exists($includePerm)) include_once $includePerm;
+
 $current = basename($_SERVER['PHP_SELF']);
 ?>
 
 <aside class="app-sidebar d-flex flex-column">
     <div class="sidebar-content">
         <ul class="nav nav-pills flex-column">
+            <?php if (function_exists('hasPermission') ? hasPermission('dashboard') : true): ?>
             <li class="nav-item">
                 <a href="index.php" class="nav-link <?php echo $current=='index.php' ? 'active':''; ?>" data-tooltip="Dashboard">
                     <span class="icon"><i class="fa-solid fa-house"></i></span>
                     <span class="label">Dashboard</span>
                 </a>
             </li>
+            <?php endif; ?>
             <li class="nav-item">
                 <a href="meu_perfil.php" class="nav-link <?php echo $current=='meu_perfil.php' ? 'active':''; ?>" data-tooltip="Meu Perfil">
                     <span class="icon"><i class="fa-regular fa-user-circle"></i></span>
@@ -30,36 +35,46 @@ $current = basename($_SERVER['PHP_SELF']);
                 </a>
             </li>
             -->
+            <?php if (function_exists('hasPermission') ? hasPermission('leads_gestao') : true): ?>
             <li class="nav-item">
                 <a href="leads_gestao.php" class="nav-link <?php echo $current=='leads_gestao.php' ? 'active':''; ?>" data-tooltip="Gestão de Leads">
                     <span class="icon"><i class="fa-regular fa-rectangle-list"></i></span>
                     <span class="label">Gestão de Leads</span>
                 </a>
             </li>
+            <?php endif; ?>
+            <?php if (function_exists('hasPermission') ? hasPermission('projetos') : true): ?>
             <li class="nav-item">
                 <a href="projetos.php" class="nav-link <?php echo $current=='projetos.php' ? 'active':''; ?>" data-tooltip="Projetos">
                     <span class="icon"><i class="fa-regular fa-folder-open"></i></span>
                     <span class="label">Projetos</span>
                 </a>
             </li>
+            <?php endif; ?>
+            <?php if (function_exists('hasPermission') ? hasPermission('integracao-equipes') : true): ?>
             <li class="nav-item">
                 <a href="integracao-equipes.php" class="nav-link <?php echo $current=='integracao-equipes.php' ? 'active':''; ?>" data-tooltip="Integração de Equipes">
                     <span class="icon"><i class="fa-regular fa-address-book"></i></span>
                     <span class="label">Integração de Equipes</span>
                 </a>
             </li>
+            <?php endif; ?>
+            <?php if (function_exists('hasPermission') ? hasPermission('pos-venda') : true): ?>
             <li class="nav-item">
                 <a href="pos-venda.php" class="nav-link <?php echo $current=='pos-venda.php' ? 'active':''; ?>" data-tooltip="Pós-venda">
                     <span class="icon"><i class="fa-solid fa-tools"></i></span>
                     <span class="label">Pós-venda</span>
                 </a>
             </li>
+            <?php endif; ?>
+            <?php if (function_exists('hasPermission') ? hasPermission('relatorios') : true): ?>
             <li class="nav-item">
                 <a href="relatorios.php" class="nav-link <?php echo $current=='relatorios.php' ? 'active':''; ?>" data-tooltip="Relatórios">
                     <span class="icon"><i class="fa-regular fa-chart-bar"></i></span>
                     <span class="label">Relatórios</span>
                 </a>
             </li>
+            <?php endif; ?>
             <?php if (hasPermission('configuracoes')): ?>
             <li class="nav-item">
                 <a href="configuracoes.php" class="nav-link <?php echo $current=='configuracoes.php' ? 'active':''; ?>" data-tooltip="Configurações">

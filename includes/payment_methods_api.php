@@ -27,6 +27,15 @@ try {
         echo json_encode(['ok' => true]);
         exit;
     }
+    if ($action === 'update') {
+        $id = $_POST['id'] ?? null;
+        $name = trim($_POST['name'] ?? '');
+        if (empty($id) || $name === '') { http_response_code(400); echo json_encode(['error'=>'Missing id or name']); exit; }
+        $u = $pdo->prepare('UPDATE payment_methods SET name = ? WHERE id = ?');
+        $u->execute([$name, (int)$id]);
+        echo json_encode(['ok' => true]);
+        exit;
+    }
     http_response_code(400);
     echo json_encode(['error' => 'Unknown action']);
 } catch (Exception $e) {

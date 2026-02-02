@@ -10,79 +10,51 @@ require_once __DIR__ . '/includes/permissions.php';
 
 checkAccessOrRedirect('dashboard');
 
+// Show aggregated data for all users (no user_id filtering)
 // Active leads (not converted/lost)
-$totalLeads = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE user_id = ? AND status NOT IN ('Convertido','Perdido')");
-$totalLeads->execute([$_SESSION['user_id']]);
-$totalLeads = $totalLeads->fetchColumn();
+$totalLeads = $pdo->query("SELECT COUNT(*) FROM leads WHERE deleted = 0 AND status NOT IN ('Convertido','Perdido')")->fetchColumn();
 
-$totalProjetos = $pdo->prepare("SELECT COUNT(*) FROM projetos WHERE user_id = ? AND status NOT IN ('Finalizado','Perdido')");
-$totalProjetos->execute([$_SESSION['user_id']]);
-$totalProjetos = $totalProjetos->fetchColumn();
+// Projects in progress (not finalized or lost)
+$totalProjetos = $pdo->query("SELECT COUNT(*) FROM projetos WHERE status NOT IN ('Finalizado','Perdido')")->fetchColumn();
 
 // Value currently in negotiation (open proposals)
-$valorNegociacao = $pdo->prepare("SELECT IFNULL(SUM(proposal_value),0) FROM projetos WHERE user_id = ? AND status NOT IN ('Finalizado','Perdido')");
-$valorNegociacao->execute([$_SESSION['user_id']]);
-$valorNegociacao = $valorNegociacao->fetchColumn();
+$valorNegociacao = $pdo->query("SELECT IFNULL(SUM(proposal_value),0) FROM projetos WHERE status NOT IN ('Finalizado','Perdido')")->fetchColumn();
 
 // Closed / won projects
-$projetosFinalizados = $pdo->prepare("SELECT COUNT(*) FROM projetos WHERE user_id = ? AND status='Finalizado'");
-$projetosFinalizados->execute([$_SESSION['user_id']]);
-$projetosFinalizados = $projetosFinalizados->fetchColumn();
+$projetosFinalizados = $pdo->query("SELECT COUNT(*) FROM projetos WHERE status='Finalizado'")->fetchColumn();
 
 // Total contracted value (finalized projects)
-$valorContratadoStmt = $pdo->prepare("SELECT IFNULL(SUM(proposal_value),0) FROM projetos WHERE user_id = ? AND status='Finalizado'");
-$valorContratadoStmt->execute([$_SESSION['user_id']]);
-$valorContratado = $valorContratadoStmt->fetchColumn();
+$valorContratado = $pdo->query("SELECT IFNULL(SUM(proposal_value),0) FROM projetos WHERE status='Finalizado'")->fetchColumn();
 
 // Additional metrics
 // All leads and conversion
-$totalLeadsAll = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE user_id = ?");
-$totalLeadsAll->execute([$_SESSION['user_id']]);
-$totalLeadsAll = $totalLeadsAll->fetchColumn();
-
+$totalLeadsAll = $pdo->query("SELECT COUNT(*) FROM leads WHERE deleted = 0")->fetchColumn();
 $conversionRate = $totalLeadsAll > 0 ? round(($projetosFinalizados / $totalLeadsAll) * 100, 1) : 0;
 
 // New leads in last 30 days
-$newLeads30 = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE user_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)");
-$newLeads30->execute([$_SESSION['user_id']]);
-$newLeads30 = $newLeads30->fetchColumn();
+$newLeads30 = $pdo->query("SELECT COUNT(*) FROM leads WHERE deleted = 0 AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)")->fetchColumn();
 
 // Average proposal value (all non-zero proposals)
-$avgProposal = $pdo->prepare("SELECT IFNULL(AVG(NULLIF(proposal_value,0)),0) FROM projetos WHERE user_id = ? AND proposal_value > 0");
-$avgProposal->execute([$_SESSION['user_id']]);
-$avgProposal = $avgProposal->fetchColumn();
+$avgProposal = $pdo->query("SELECT IFNULL(AVG(NULLIF(proposal_value,0)),0) FROM projetos WHERE proposal_value > 0")->fetchColumn();
 
 // Revenue forecast = sum of open proposals * conversionRate (simple forecast)
-$openProposalsSum = $pdo->prepare("SELECT IFNULL(SUM(proposal_value),0) FROM projetos WHERE user_id = ? AND status NOT IN ('Finalizado','Perdido')");
-$openProposalsSum->execute([$_SESSION['user_id']]);
-$openProposalsSum = $openProposalsSum->fetchColumn();
+$openProposalsSum = $pdo->query("SELECT IFNULL(SUM(proposal_value),0) FROM projetos WHERE status NOT IN ('Finalizado','Perdido')")->fetchColumn();
 $revenueForecast = round(($openProposalsSum * ($conversionRate / 100)), 2);
 
 // Leads by status for chart
-// Leads by status (for doughnut)
-$leadsByStatus = $pdo->prepare("SELECT status, COUNT(*) as count FROM leads WHERE user_id = ? GROUP BY status");
-$leadsByStatus->execute([$_SESSION['user_id']]);
-$leadsStatusData = $leadsByStatus->fetchAll(PDO::FETCH_ASSOC);
+$leadsStatusData = $pdo->query("SELECT status, COUNT(*) as count FROM leads WHERE deleted = 0 GROUP BY status")->fetchAll(PDO::FETCH_ASSOC);
 
 // Leads by source (for bar chart)
-$leadsBySource = $pdo->prepare("SELECT IFNULL(source,'(Indefinido)') as source, COUNT(*) as count FROM leads WHERE user_id = ? GROUP BY source ORDER BY count DESC LIMIT 8");
-$leadsBySource->execute([$_SESSION['user_id']]);
-$leadsSourceData = $leadsBySource->fetchAll(PDO::FETCH_ASSOC);
+$leadsSourceData = $pdo->query("SELECT IFNULL(source,'(Indefinido)') as source, COUNT(*) as count FROM leads WHERE deleted = 0 GROUP BY source ORDER BY count DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
 
 // Monthly leads (last 12 months)
-$monthlyLeads = $pdo->prepare("SELECT DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE user_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym");
-$monthlyLeads->execute([$_SESSION['user_id']]);
-$monthlyLeadsData = $monthlyLeads->fetchAll(PDO::FETCH_ASSOC);
+$monthlyLeadsData = $pdo->query("SELECT DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE deleted = 0 AND created_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym")->fetchAll(PDO::FETCH_ASSOC);
 
 // Top open opportunities (by proposal value)
-$topOpps = $pdo->prepare("SELECT id, client_name, proposal_value, status, created_at FROM projetos WHERE user_id = ? ORDER BY proposal_value DESC LIMIT 6");
-$topOpps->execute([$_SESSION['user_id']]);
-$topOpps = $topOpps->fetchAll(PDO::FETCH_ASSOC);
+$topOpps = $pdo->query("SELECT id, client_name, proposal_value, status, created_at FROM projetos ORDER BY proposal_value DESC LIMIT 6")->fetchAll(PDO::FETCH_ASSOC);
 
 // Recent leads
-$recentLeads = $pdo->prepare("SELECT name, email, status, created_at FROM leads WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
-$recentLeads->execute([$_SESSION['user_id']]);
-$recentLeads = $recentLeads->fetchAll(PDO::FETCH_ASSOC);
+$recentLeads = $pdo->query("SELECT name, email, status, created_at FROM leads WHERE deleted = 0 ORDER BY created_at DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
 
 include 'includes/header.php';
 // include sidebar so navigation is visible

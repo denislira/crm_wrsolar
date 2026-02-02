@@ -46,6 +46,13 @@
     function $(sel){return document.querySelector(sel)}
     function $all(sel){return Array.from(document.querySelectorAll(sel))}
 
+    // Helper to get status name from id
+    function getStatusName(statusId) {
+        if (!statusId) return 'Novo';
+        const s = STAGES.find(x => String(x.id) === String(statusId));
+        return s ? s.name : statusId;
+    }
+
     // Field adapter: maps common field keys to multiple possible modal input IDs
     const FIELD_MAP = {
         leadId: ['#leadId','#lead-id'],
@@ -116,6 +123,74 @@
         if (lead.source) score += 10;
         score = Math.min(100, score + (Math.random()*8|0));
         return Math.round(score);
+    }
+
+    // Trash functions
+    async function loadTrashedModal(){
+        try {
+            const res = await fetch(apiBase + '?action=list_trash');
+            if (!res.ok) throw new Error('Erro ao carregar lixeira');
+            const trashedLeads = await res.json();
+            renderTrashedTable(trashedLeads);
+        } catch (err) {
+            console.error(err);
+            const tbody = $('#trashedTableBody');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Erro ao carregar</td></tr>';
+        }
+    }
+
+    function renderTrashedTable(leads){
+        const tbody = $('#trashedTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = leads.map(l => `
+            <tr>
+                <td>${escapeText(l.name)}</td>
+                <td>${escapeText(l.email || '')}</td>
+                <td>${escapeText(l.phone || '')}</td>
+                <td>${escapeText(l.status || '')}</td>
+                <td>${l.deleted_at ? new Date(l.deleted_at).toLocaleDateString('pt-BR') : ''}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-success me-1" onclick="restoreLead(${l.id})">Restaurar</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deletePermanent(${l.id})">Excluir</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function restoreLead(id){
+        if (!confirm('Restaurar este lead?')) return;
+        try {
+            const formData = new FormData();
+            formData.append('id', id);
+            const res = await fetch(apiBase + '?action=restore', { method: 'POST', body: formData });
+            if (res.ok) {
+                await loadTrashedModal();
+                updateTrashedCount();
+            } else {
+                alert('Erro ao restaurar lead');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Erro ao restaurar lead');
+        }
+    }
+
+    async function deletePermanent(id){
+        if (!confirm('Excluir permanentemente este lead? Esta ação não pode ser desfeita.')) return;
+        try {
+            const formData = new FormData();
+            formData.append('id', id);
+            const res = await fetch(apiBase + '?action=delete_permanent', { method: 'POST', body: formData });
+            if (res.ok) {
+                await loadTrashedModal();
+                updateTrashedCount();
+            } else {
+                alert('Erro ao excluir lead');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Erro ao excluir lead');
+        }
     }
 
     // Input masking utilities for phone and CPF/CNPJ
@@ -209,7 +284,18 @@
             const res = await fetch(apiBase + '?action=list');
             console.log('Fetch leads response status:', res.status);
             if (!res.ok) throw new Error('Falha ao carregar leads');
-            const json = await res.json();
+            const text = await res.text();
+            let json;
+            try {
+                json = JSON.parse(text);
+            } catch (e) {
+                console.error('Failed to parse JSON:', e);
+                console.log('Response text:', text);
+                throw e;
+            }
+            if (json.error) {
+                throw new Error(json.error);
+            }
             console.log('Leads loaded:', json.length);
             allLeads = json.map(l => ({...l, score: l.score ?? computeScore(l)}));
             // populate cidade filter
@@ -232,9 +318,23 @@
                 try { buildColumns(); } catch(e){}
             }
             renderAll();
+            updateTrashedCount();
         } catch (err) {
             console.error('fetchLeads error:', err);
             throw err;
+        }
+    }
+
+    async function updateTrashedCount(){
+        try {
+            const res = await fetch(apiBase + '?action=list_trash');
+            if (!res.ok) return;
+            const trashed = await res.json();
+            const count = trashed.length;
+            const el = $('#kpiTrashed');
+            if (el) el.textContent = count;
+        } catch (err) {
+            console.warn('Failed to load trashed count', err);
         }
     }
 
@@ -413,14 +513,16 @@
         if (!sel) return;
         // clear only options previously added as 'status' or everything (fallback)
         Array.from(sel.options).forEach(opt => opt.remove());
-        // Use STAGES names as the values for the status select (no fallback to STATUSES)
+        // Use STAGES names as the values for the status select, fallback to STATUSES
         sel.innerHTML = '<option value="">-- Selecionar --</option>';
-        if (STAGES && STAGES.length) {
-            STAGES.forEach(s=>{
-                const o = document.createElement('option'); o.value = s.name; o.textContent = s.name; o.dataset.source = 'stage'; sel.appendChild(o);
-            });
-        }
+        const sources = (STAGES && STAGES.length) ? STAGES : (STATUSES && STATUSES.length ? STATUSES : []);
+        sources.forEach(s=>{
+            const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; o.dataset.source = 'stage'; sel.appendChild(o);
+        });
     }
+
+    // expose globally for inline scripts
+    window.populateStatusSelect = populateStatusSelect;
 
     function populateStageSelect(){
         const sel = document.querySelector('#lead-stage') || F('leadStage') || document.querySelector('#leadStage');
@@ -756,14 +858,20 @@
         const kanban = document.getElementById('kanbanWrap');
         const list = document.getElementById('listWrap');
         const btn = document.getElementById('toggleViewBtn');
+        const semStatusBtn = document.getElementById('toggleSemStatusBtn');
+        const anunciosBtn = document.getElementById('toggleAnunciosBtn');
         if (mode === 'grid') {
             GRID_PAGE = 1; // reset page when switching to grid
             if (kanban) kanban.classList.add('d-none');
             if (list) list.classList.remove('d-none');
+            if (semStatusBtn) semStatusBtn.classList.add('d-none');
+            if (anunciosBtn) anunciosBtn.classList.add('d-none');
             if (btn) btn.innerHTML = '<i class="fa fa-columns"></i>';
         } else {
             if (kanban) kanban.classList.remove('d-none');
             if (list) list.classList.add('d-none');
+            if (semStatusBtn) semStatusBtn.classList.remove('d-none');
+            if (anunciosBtn) anunciosBtn.classList.remove('d-none');
             if (btn) btn.innerHTML = '<i class="fa fa-list"></i>';
         }
     }
@@ -819,7 +927,15 @@
                 th.appendChild(span); th.appendChild(ind);
                 th.addEventListener('click', (e)=>{ e.stopPropagation(); toggleGridSort(key); });
 
-                const caret = document.createElement('span'); caret.className = 'ms-2 text-muted filter-caret'; caret.style.cursor = 'pointer'; caret.title = 'Filtro'; caret.textContent = '▾';
+                const caret = document.createElement('span'); caret.className = 'ms-2 text-muted filter-caret'; caret.title = 'Filtro';
+                // inline SVG: funnel outline with a half-filled interior
+                caret.innerHTML = `
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="14" height="14" aria-hidden="true" focusable="false">
+                        <path d="M3 4h18l-6.5 7.5V18l-3 1.5V11.5L3 4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                        <path d="M6.5 8.5 L12 13 L17.5 8.5 L17.5 9.5 L12 13.8 L6.5 9.5 Z" fill="currentColor" opacity="0.45"/>
+                    </svg>
+                `;
+                caret.style.cursor = 'pointer';
                 caret.addEventListener('click', (e)=>{ e.stopPropagation(); openHeaderFilter(th, key); });
                 th.appendChild(caret);
                 return th;
@@ -835,16 +951,38 @@
                 if (key === 'status') {
                     const sel = document.createElement('select'); sel.className = 'form-select form-select-sm';
                     const optAll = document.createElement('option'); optAll.value = ''; optAll.textContent = 'Todos'; sel.appendChild(optAll);
-                    const uniqueStatuses = [...new Set(allLeads.map(l=>l.status).filter(s=>s))];
-                    uniqueStatuses.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; if ((GRID_FILTERS[key]||'') === s) o.selected = true; sel.appendChild(o); });
+                    // build unique mapping {id: name} to avoid duplicate options
+                    const map = {};
+                    allLeads.forEach(l => {
+                        if (!l || (l.status === null || typeof l.status === 'undefined' || l.status === '')) return;
+                        const id = String(l.status);
+                        if (!map[id]) map[id] = getStatusName(l.status) || id;
+                    });
+                    Object.keys(map).forEach(id => {
+                        const o = document.createElement('option'); o.value = id; o.textContent = map[id];
+                        if (String(GRID_FILTERS[key]||'') === id) o.selected = true;
+                        sel.appendChild(o);
+                    });
                     popup.appendChild(sel);
                     const btns = document.createElement('div'); btns.className = 'd-flex gap-2 mt-2';
                     const apply = document.createElement('button'); apply.className = 'btn btn-sm btn-primary flex-grow-1'; apply.textContent = 'Aplicar';
                     const clear = document.createElement('button'); clear.className = 'btn btn-sm btn-outline-secondary flex-grow-1'; clear.textContent = 'Limpar';
-                    apply.addEventListener('click', ()=>{ GRID_FILTERS[key] = sel.value; GRID_PAGE = 1; popup.remove(); renderGrid(); });
-                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    apply.addEventListener('click', ()=>{
+                        console.log('HeaderFilter apply:', key, sel.value);
+                        GRID_FILTERS[key] = sel.value;
+                        GRID_PAGE = 1;
+                        popup.remove();
+                        renderGrid();
+                    });
+                    clear.addEventListener('click', ()=>{
+                        console.log('HeaderFilter clear:', key);
+                        delete GRID_FILTERS[key];
+                        GRID_PAGE = 1;
+                        popup.remove();
+                        renderGrid();
+                    });
                     btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
-                } else if (key === 'criado' || key === 'ultimo_contato') {
+                } else if (key === 'data_inicio' || key === 'ultimo_contato') {
                     const from = document.createElement('input'); from.type = 'date'; from.className = 'form-control form-control-sm'; from.placeholder = 'De';
                     const to = document.createElement('input'); to.type = 'date'; to.className = 'form-control form-control-sm mt-2'; to.placeholder = 'Até';
                     if (GRID_FILTERS[key]) { from.value = GRID_FILTERS[key].from || ''; to.value = GRID_FILTERS[key].to || ''; }
@@ -853,10 +991,14 @@
                     const apply = document.createElement('button'); apply.className = 'btn btn-sm btn-primary flex-grow-1'; apply.textContent = 'Aplicar';
                     const clear = document.createElement('button'); clear.className = 'btn btn-sm btn-outline-secondary flex-grow-1'; clear.textContent = 'Limpar';
                     apply.addEventListener('click', ()=>{
+                        console.log('HeaderFilter apply (date):', key, { from: from.value || '', to: to.value || '' });
                         GRID_FILTERS[key] = { from: from.value || '', to: to.value || '' };
                         GRID_PAGE = 1; popup.remove(); renderGrid();
                     });
-                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    clear.addEventListener('click', ()=>{
+                        console.log('HeaderFilter clear (date):', key);
+                        delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid();
+                    });
                     btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
                 } else {
                     const input = document.createElement('input'); input.type = 'text'; input.className = 'form-control form-control-sm'; input.placeholder = 'Filtrar...';
@@ -865,8 +1007,14 @@
                     const btns = document.createElement('div'); btns.className = 'd-flex gap-2 mt-2';
                     const apply = document.createElement('button'); apply.className = 'btn btn-sm btn-primary flex-grow-1'; apply.textContent = 'Aplicar';
                     const clear = document.createElement('button'); clear.className = 'btn btn-sm btn-outline-secondary flex-grow-1'; clear.textContent = 'Limpar';
-                    apply.addEventListener('click', ()=>{ GRID_FILTERS[key] = input.value.trim(); GRID_PAGE = 1; popup.remove(); renderGrid(); });
-                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    apply.addEventListener('click', ()=>{
+                        console.log('HeaderFilter apply (text):', key, input.value.trim());
+                        GRID_FILTERS[key] = input.value.trim(); GRID_PAGE = 1; popup.remove(); renderGrid();
+                    });
+                    clear.addEventListener('click', ()=>{
+                        console.log('HeaderFilter clear (text):', key);
+                        delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid();
+                    });
                     btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
                 }
                 document.body.appendChild(popup);
@@ -883,7 +1031,7 @@
             headerRow.appendChild(makeSortableHeader('phone','Telefone'));
             headerRow.appendChild(makeSortableHeader('valor','Valor'));
             headerRow.appendChild(makeSortableHeader('score','Score'));
-            headerRow.appendChild(makeSortableHeader('criado','Criado'));
+            headerRow.appendChild(makeSortableHeader('data_inicio','Data Início'));
             headerRow.appendChild(makeSortableHeader('ultimo_contato','Último Contato'));
             const thAct = document.createElement('th'); headerRow.appendChild(thAct);
             thead.appendChild(headerRow);
@@ -906,12 +1054,26 @@
                     const f = GRID_FILTERS[k]; if (f === null || f === undefined || f === '') continue;
                     if (k === 'status') {
                         if ((lead.status||'') !== f) return false;
-                    } else if (k === 'criado' || k === 'ultimo_contato') {
-                        const dt = (k === 'criado') ? (lead.created_at || lead.createdAt || lead.created) : (lead.ultimo_contato);
-                        if (!dt) return false;
-                        const t = new Date(String(dt).replace(' ', 'T')); if (isNaN(t.getTime())) return false;
-                        const from = f.from ? new Date(f.from) : null; const to = f.to ? new Date(f.to) : null;
-                        if (from && t < from) return false; if (to && t > (new Date(to.getFullYear(), to.getMonth(), to.getDate(),23,59,59))) return false;
+                    } else if (k === 'data_inicio' || k === 'ultimo_contato') {
+                        const dtRaw = (k === 'data_inicio') ? (lead.data_inicio || lead.created_at || lead.createdAt || lead.created) : (lead.ultimo_contato);
+                        if (!dtRaw) return false;
+                        const t = new Date(String(dtRaw).replace(' ', 'T'));
+                        if (isNaN(t.getTime())) return false;
+                        // parse input yyyy-mm-dd as local date (avoid Date parsing timezone quirks)
+                        function parseDateOnly(dstr){
+                            if (!dstr) return null;
+                            const parts = String(dstr).split('-');
+                            if (parts.length !== 3) {
+                                const d2 = new Date(dstr);
+                                return isNaN(d2.getTime()) ? null : d2;
+                            }
+                            const y = parseInt(parts[0],10), m = parseInt(parts[1],10)-1, d = parseInt(parts[2],10);
+                            return new Date(y,m,d);
+                        }
+                        const from = f.from ? parseDateOnly(f.from) : null;
+                        const to = f.to ? parseDateOnly(f.to) : null;
+                        if (from && t < new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0,0,0)) return false;
+                        if (to && t > new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23,59,59)) return false;
                     } else {
                         const val = (k === 'valor') ? String(toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0)).toLowerCase() : String((lead[k] || lead.source || lead.client_name || lead.company || '')).toLowerCase();
                         if (!val.includes(String(f).toLowerCase())) return false;
@@ -926,12 +1088,12 @@
                 try {
                     if (key === 'name') return String(item.name || '').toLowerCase();
                     if (key === 'source') return String(item.source || item.client_name || item.company || '').toLowerCase();
-                    if (key === 'status') return String(item.status || '').toLowerCase();
+                    if (key === 'status') return String(getStatusName(item.status) || '').toLowerCase();
                     if (key === 'phone') return String(item.phone || '').toLowerCase();
                     if (key === 'score') return Number(item.score || computeScore(item) || 0);
                     if (key === 'valor' || key === 'value') return Number(item.orcamento_value || item.proposal_value || item.value || 0) || 0;
-                    if (key === 'criado') {
-                        const dt = item.created_at || item.createdAt || item.created || null;
+                    if (key === 'data_inicio') {
+                        const dt = item.data_inicio || item.created_at || item.createdAt || item.created || null;
                         const t = dt ? (new Date(String(dt).replace(' ', 'T')).getTime() || 0) : 0;
                         return Number(t);
                     }
@@ -975,11 +1137,11 @@
             });
             const nameTd = document.createElement('td'); nameTd.textContent = (lead.name || '(sem nome)').length > 20 ? (lead.name || '(sem nome)').substring(0, 20) + '...' : (lead.name || '(sem nome)');
             const compTd = document.createElement('td'); compTd.textContent = lead.source || lead.client_name || lead.company || '—';
-            const statusTd = document.createElement('td'); statusTd.textContent = lead.status || '';
+            const statusTd = document.createElement('td'); statusTd.textContent = getStatusName(lead.status) || '';
             const phoneTd = document.createElement('td'); phoneTd.textContent = lead.phone || '';
             const valTd = document.createElement('td'); valTd.textContent = toCurrency(lead.orcamento_value || lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
             const scoreTd = document.createElement('td'); scoreTd.innerHTML = '<span class="badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')) + '">' + (lead.score||0) + '</span>';
-            const createdTd = document.createElement('td'); createdTd.className='small text-muted'; createdTd.textContent = formatDateBR(lead.created_at || lead.createdAt || lead.created);
+            const createdTd = document.createElement('td'); createdTd.className='small text-muted'; createdTd.textContent = formatDateBR(lead.data_inicio || lead.created_at || lead.createdAt || lead.created);
             const updatedTd = document.createElement('td'); updatedTd.className='small text-muted'; updatedTd.textContent = formatDateBR(lead.ultimo_contato);
             const actTd = document.createElement('td'); actTd.className='small';
             const openBtn = document.createElement('button');
@@ -1249,13 +1411,9 @@
         (async ()=>{
             try {
                 let statusLabel = lead.status || 'Novo';
-                // If status is an ID, try to resolve via loaded STATUSES or fetch them
+                // If status is an ID, try to resolve via loaded STAGES
                 if (statusLabel && String(statusLabel).match(/^\d+$/)) {
-                    let s = STATUSES.find(x=>String(x.id)===String(statusLabel));
-                    if (!s) {
-                        try { await fetchStatuses(); } catch(e){}
-                        s = STATUSES.find(x=>String(x.id)===String(statusLabel));
-                    }
+                    let s = STAGES.find(x=>String(x.id)===String(statusLabel));
                     if (s) statusLabel = s.name;
                 }
                 status.textContent = 'Status: ' + (statusLabel || 'Novo');
@@ -1344,10 +1502,10 @@
                 });
         const editBtn = document.createElement('button'); editBtn.className='btn btn-sm btn-outline-primary'; editBtn.type='button'; editBtn.innerHTML='<i class="fa fa-edit"></i>'; editBtn.title='Editar';
         editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); populateLeadForm(lead); });
-        const deleteBtn = document.createElement('button'); deleteBtn.className='btn btn-sm btn-outline-danger'; deleteBtn.type='button'; deleteBtn.innerHTML='<i class="fa fa-trash"></i>'; deleteBtn.title='Excluir';
+        const deleteBtn = document.createElement('button'); deleteBtn.className='btn btn-sm btn-outline-danger'; deleteBtn.type='button'; deleteBtn.innerHTML='<i class="fa fa-trash"></i>'; deleteBtn.title='Mover para lixeira';
         deleteBtn.addEventListener('click', async (e)=>{
             e.stopPropagation();
-            if (!confirm('Tem certeza que deseja excluir este lead?')) return;
+            if (!confirm('Mover este lead para a lixeira?')) return;
             try {
                 const formData = new FormData();
                 formData.append('id', lead.id);
@@ -1356,11 +1514,11 @@
                     closePanel();
                     await fetchLeads();
                 } else {
-                    alert('Erro ao excluir lead');
+                    alert('Erro ao mover lead para lixeira');
                 }
             } catch (err) {
                 console.error(err);
-                alert('Erro ao excluir lead');
+                alert('Erro ao mover lead para lixeira');
             }
         });
         const whatsappBtn = document.createElement('a'); whatsappBtn.className='btn btn-sm btn-outline-success'; whatsappBtn.href = lead.phone? 'https://wa.me/'+lead.phone.replace(/\D/g,''):'#'; whatsappBtn.target='_blank'; whatsappBtn.innerHTML='<i class="fa-brands fa-whatsapp"></i>'; whatsappBtn.title='WhatsApp';
@@ -1479,41 +1637,23 @@
         const statusEl = F('leadStatus') || $('#leadStatus');
         if (statusEl) {
             if (statusEl.tagName === 'SELECT') {
-                // Try to set status by the lead's stage_id (STAGES may load asynchronously).
-                const setStatusFromStage = (attempt = 0) => {
-                    if (Array.isArray(STAGES) && STAGES.length) {
-                        let matched = false;
-                        try {
-                            if (lead.stage_id != null && lead.stage_id !== '') {
-                                const stage = STAGES.find(s => String(s.id) === String(lead.stage_id));
-                                if (stage) { statusEl.value = stage.name; matched = true; }
-                            }
-                        } catch (e) { console.warn('populateLeadForm stage match failed', e); }
-                        if (!matched) statusEl.value = lead.status || '';
-                    } else if (attempt < 12) {
-                        // wait a bit for STAGES to be available (total ~1.8s)
-                        setTimeout(() => setStatusFromStage(attempt + 1), 150);
-                    } else {
-                        // fallback to stored status text
-                        statusEl.value = lead.status || '';
-                    }
-                };
-                setStatusFromStage();
+                // Set status directly to stage_id
+                statusEl.value = lead.stage_id || lead.status || '';
             } else {
                 statusEl.value = lead.status || '';
             }
         }
         const ultimoContatoEl = document.getElementById('lead-ultimo-contato'); if (ultimoContatoEl) ultimoContatoEl.value = lead.ultimo_contato ? lead.ultimo_contato.substring(0,10) : '';
-        // Data de Entrada (created_at) - show value but disable editing when opening edit modal
+        // Data de Entrada (data_inicio) - editable
         try {
             const createdEl = document.getElementById('lead-created-at');
-            const createdVal = lead.created_at || lead.createdAt || lead.data_criacao || lead.data_criado || '';
+            const dataInicioVal = lead.data_inicio || '';
             if (createdEl) {
-                createdEl.value = createdVal ? String(createdVal).substring(0,10) : '';
-                createdEl.disabled = true;
-                createdEl.readOnly = true;
+                createdEl.value = dataInicioVal ? String(dataInicioVal).substring(0,10) : '';
+                createdEl.disabled = false;
+                createdEl.readOnly = false;
             }
-        } catch(e) { console.warn('Failed setting created_at in form', e); }
+        } catch(e) { console.warn('Failed setting data_inicio in form', e); }
         // set payment method (ensure options are loaded)
         loadPaymentMethods().then(() => {
             const formaEl = document.getElementById('lead-forma-pagamento');
@@ -1615,7 +1755,8 @@
                 renderAll();
             });
         }
-        $('#closeLeadPanel').addEventListener('click', closePanel);
+        const closeBtn = $('#closeLeadPanel');
+        if (closeBtn) closeBtn.addEventListener('click', closePanel);
         const expandBtn = document.getElementById('expandLeadPanelBtn');
         if (expandBtn) {
             expandBtn.addEventListener('click', ()=>{
@@ -1634,7 +1775,9 @@
                 expandBtn.textContent = expanded ? '⇤' : '⇔';
             });
         }
-        $('#newLeadBtn').addEventListener('click', ()=>{ 
+        const newLeadBtn = $('#newLeadBtn');
+        if (newLeadBtn) {
+            newLeadBtn.addEventListener('click', ()=>{ 
             const m = new bootstrap.Modal($('#leadModal')); 
             $('#leadModalTitle').textContent='Novo Lead'; 
             $('#leadForm').reset(); 
@@ -1668,6 +1811,7 @@
             } catch(e) { /* ignore */ }
             m.show(); 
         });
+        }
 
         // Immediate attachments upload button (inside lead modal)
         const uploadAnexosBtn = document.getElementById('upload-anexos-now');
@@ -1768,7 +1912,7 @@
                         // compute an absolute path for the kanban background image based on current page
                         try {
                             const basePath = window.location.pathname.replace(/\/[^\/]*$/, '') || '';
-                            const imgPath = (basePath === '' ? '' : basePath) + '/assets/img/kanban4.jpg';
+                            const imgPath = (basePath === '' ? '' : basePath) + '/assets/img/fundoKanban.jpg';
                             document.body.style.setProperty('--kanban-bg-image', `url('${imgPath}')`);
                         } catch (e) { /* ignore if styling fails */ }
                     document.body.classList.add('kanban-only');
@@ -1960,7 +2104,7 @@
             const orcamentoValue = (F('leadOrcamento')||$('#lead-orcamento')) ? (F('leadOrcamento')||$('#lead-orcamento')).value.replace(/\./g, '').replace(',', '.') : '';
             const ultimoContatoValue = document.getElementById('lead-ultimo-contato').value;
             const formattedUltimoContato = ultimoContatoValue ? ultimoContatoValue + ' 00:00:00' : '';
-            const createdAtValue = (document.getElementById('lead-created-at') || { value: '' }).value;
+            const dataInicioValue = (document.getElementById('lead-created-at') || { value: '' }).value;
             const formaPagamentoValue = (document.getElementById('lead-forma-pagamento')||{value:''}).value || '';
             
             console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, notesValue, consumoValue, estimativaValue, orcamentoValue, formattedUltimoContato});
@@ -1987,8 +2131,8 @@
             fd.append('orcamento_value', orcamentoValue);
             fd.append('ultimo_contato', formattedUltimoContato);
             fd.append('forma_pagamento', formaPagamentoValue);
-            // include created_at only when creating a new lead
-            if (!id && createdAtValue) fd.append('created_at', createdAtValue + ' 00:00:00');
+            // include data_inicio for new and edit
+            if (dataInicioValue) fd.append('data_inicio', dataInicioValue);
             if (id) fd.append('id', id);
             
             // Append files if present
@@ -2194,7 +2338,7 @@
             <div class="lead-detail"><strong>Telefone:</strong> ${lead.phone || '-'}</div>
             <div class="lead-detail"><strong>Cidade:</strong> ${lead.cidade || '-'}</div>
             <div class="lead-detail"><strong>Fonte:</strong> ${lead.source || '-'}</div>
-            <div class="lead-detail"><strong>Status:</strong> ${lead.status || '-'}</div>
+            <div class="lead-detail"><strong>Status:</strong> ${getStatusName(lead.status) || '-'}</div>
             <div class="lead-detail"><strong>Valor:</strong> R$ ${lead.orcamento_value ? parseFloat(lead.orcamento_value).toFixed(2) : '0.00'}</div>
             <div class="lead-detail"><strong>Score:</strong> ${lead.score || 0}</div>
             <div class="lead-detail"><strong>Criado:</strong> ${lead.created_at ? new Date(lead.created_at).toLocaleDateString('pt-BR') : '-'}</div>
@@ -2337,6 +2481,10 @@
             // fetch anuncios and render KPI/card
             try { const ads = await fetchAnuncios(); if (ads && ads.length) { const adsCol = document.getElementById('anunciosFixedColumn'); if (adsCol) adsCol.classList.remove('d-none'); } } catch(e){}
             setupDragDrop(); setupHandlers();
+            const trashedModal = $('#trashedModal');
+            if (trashedModal) {
+                trashedModal.addEventListener('show.bs.modal', loadTrashedModal);
+            }
             await loadPaymentMethods();
             // ensure view mode applied after initial data load
             renderAll();
@@ -2345,18 +2493,18 @@
                 bulkDeleteBtn.addEventListener('click', async () => {
                     const ids = getSelectedLeadIds();
                     if (!ids.length) return;
-                    if (!confirm(`Excluir ${ids.length} lead(s) selecionado(s)?`)) return;
+                    if (!confirm(`Mover ${ids.length} lead(s) selecionado(s) para a lixeira?`)) return;
                     try {
                         for (const id of ids) {
                             const formData = new FormData();
                             formData.append('id', id);
                             const res = await fetch(apiBase + '?action=delete', { method: 'POST', body: formData });
-                            if (!res.ok) throw new Error('Erro ao excluir ' + id);
+                            if (!res.ok) throw new Error('Erro ao mover ' + id + ' para lixeira');
                         }
                         await fetchLeads();
                     } catch (err) {
                         console.error(err);
-                        alert('Erro ao excluir leads');
+                        alert('Erro ao mover leads para lixeira');
                     }
                 });
             }
@@ -2384,5 +2532,173 @@
             console.warn('Failed loading payment methods', e);
         }
     }
+
+    // Payment methods management modal (list / add / delete)
+    async function loadPaymentMethodsList(){
+        const wrap = document.getElementById('paymentMethodsList');
+        if (!wrap) return;
+        try {
+            const res = await fetch('includes/payment_methods_api.php?action=list');
+            if (!res.ok) { wrap.innerHTML = '<div class="small text-danger">Erro ao carregar</div>'; return; }
+            const data = await res.json();
+            if (!data.length) { wrap.innerHTML = '<div class="small text-muted">Nenhuma forma cadastrada.</div>'; return; }
+            wrap.innerHTML = '';
+            data.forEach(d=>{
+                const item = document.createElement('div');
+                item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                item.innerHTML = '<div class="pm-name">'+escapeText(d.name)+'</div>' +
+                    '<div class="btn-group">'
+                    + '<button class="btn btn-sm btn-outline-secondary btn-edit-payment" data-id="'+d.id+'" title="Editar"><i class="fa fa-edit"></i></button>'
+                    + '<button class="btn btn-sm btn-outline-danger btn-delete-payment" data-id="'+d.id+'" title="Excluir"><i class="fa fa-trash"></i></button>'
+                    + '</div>';
+                wrap.appendChild(item);
+            });
+            // delete handlers
+            wrap.querySelectorAll('.btn-delete-payment').forEach(b=>{
+                b.addEventListener('click', async (e)=>{
+                    if (!confirm('Excluir essa forma de pagamento?')) return;
+                    const id = b.getAttribute('data-id');
+                    try {
+                        const fd = new FormData(); fd.append('id', id);
+                        const res = await fetch('includes/payment_methods_api.php?action=delete', { method: 'POST', body: fd });
+                        if (!res.ok) throw new Error('Erro ao excluir');
+                        await loadPaymentMethodsList();
+                        await loadPaymentMethods();
+                    } catch(err){ console.error(err); alert('Erro ao excluir forma de pagamento'); }
+                });
+            });
+            // edit handlers (inline)
+            wrap.querySelectorAll('.btn-edit-payment').forEach(b=>{
+                b.addEventListener('click', (e)=>{
+                    const id = b.getAttribute('data-id');
+                    const item = b.closest('.list-group-item');
+                    const nameDiv = item.querySelector('.pm-name');
+                    const original = nameDiv.textContent || '';
+                    // create input and action buttons
+                    const input = document.createElement('input');
+                    input.type = 'text'; input.className = 'form-control form-control-sm'; input.value = original;
+                    const saveBtn = document.createElement('button'); saveBtn.className = 'btn btn-sm btn-primary ms-2'; saveBtn.textContent = 'Salvar';
+                    const cancelBtn = document.createElement('button'); cancelBtn.className = 'btn btn-sm btn-secondary ms-1'; cancelBtn.textContent = 'Cancelar';
+                    nameDiv.replaceWith(input);
+                    b.closest('.btn-group').style.display = 'none';
+                    const actionsWrap = document.createElement('div'); actionsWrap.className = 'd-flex'; actionsWrap.appendChild(saveBtn); actionsWrap.appendChild(cancelBtn);
+                    item.appendChild(actionsWrap);
+
+                    cancelBtn.addEventListener('click', ()=>{
+                        input.replaceWith(nameDiv);
+                        actionsWrap.remove();
+                        b.closest('.btn-group').style.display = '';
+                    });
+
+                    saveBtn.addEventListener('click', async ()=>{
+                        const newName = (input.value||'').trim();
+                        if (!newName) { alert('Nome não pode ficar vazio'); return; }
+                        try {
+                            const fd = new FormData(); fd.append('id', id); fd.append('name', newName);
+                            const res = await fetch('includes/payment_methods_api.php?action=update', { method: 'POST', body: fd });
+                            const j = await res.json(); if (!res.ok) throw new Error(j.error||'Erro ao atualizar');
+                            // restore UI
+                            const newDiv = document.createElement('div'); newDiv.className = 'pm-name'; newDiv.textContent = newName;
+                            input.replaceWith(newDiv);
+                            actionsWrap.remove();
+                            b.closest('.btn-group').style.display = '';
+                            await loadPaymentMethods();
+                        } catch(err){ console.error(err); alert('Erro ao atualizar forma de pagamento'); }
+                    });
+                });
+            });
+        } catch(e){ console.warn('Failed loading payment methods list', e); wrap.innerHTML = '<div class="small text-danger">Erro ao carregar</div>'; }
+    }
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+        const btn = document.getElementById('openPaymentMethodsBtn');
+        const modalEl = document.getElementById('paymentMethodsModal');
+        const addBtn = document.getElementById('addPaymentMethodBtn');
+        const nameInput = document.getElementById('newPaymentMethodName');
+        const pmModal = modalEl ? new bootstrap.Modal(modalEl) : null;
+        if (btn && pmModal){
+            btn.addEventListener('click', async ()=>{
+                await loadPaymentMethodsList();
+                pmModal.show();
+            });
+        }
+        if (addBtn){
+            addBtn.addEventListener('click', async ()=>{
+                const name = (nameInput.value||'').trim();
+                if (!name) { alert('Informe o nome da forma de pagamento'); return; }
+                try {
+                    const fd = new FormData(); fd.append('name', name);
+                    const res = await fetch('includes/payment_methods_api.php?action=add', { method: 'POST', body: fd });
+                    const j = await res.json();
+                    if (!res.ok) throw new Error(j.error||'Erro ao adicionar');
+                    nameInput.value = '';
+                    await loadPaymentMethodsList();
+                    await loadPaymentMethods();
+                } catch(e){ console.error(e); alert('Erro ao adicionar forma de pagamento'); }
+            });
+        }
+    });
+
+    // Trash functions
+    async function showTrashView() {
+        $('#kanbanWrap').classList.add('d-none');
+        $('#trashWrap').classList.remove('d-none');
+        await loadTrash();
+    }
+
+    function showKanbanView() {
+        $('#trashWrap').classList.add('d-none');
+        $('#kanbanWrap').classList.remove('d-none');
+    }
+
+    async function loadTrash() {
+        try {
+            const res = await fetch(apiBase + '?action=list_trash');
+            if (!res.ok) throw new Error('Erro ao carregar lixeira');
+            const trash = await res.json();
+            renderTrash(trash);
+        } catch (err) {
+            console.error(err);
+            alert('Erro ao carregar lixeira');
+        }
+    }
+
+    function renderTrash(trash) {
+        const tbody = $('#trashTableBody');
+        tbody.innerHTML = trash.map(lead => `
+            <tr>
+                <td>${escapeText(lead.name)}</td>
+                <td>${escapeText(lead.email || '')}</td>
+                <td>${escapeText(lead.phone || '')}</td>
+                <td>${escapeText(getStatusName(lead.status))}</td>
+                <td>${formatDateBR(lead.deleted_at)}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-success" onclick="restoreLead(${lead.id})">Restaurar</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deletePermanent(${lead.id})">Excluir</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function restoreLead(id) {
+        if (!confirm('Restaurar este lead?')) return;
+        try {
+            const formData = new FormData();
+            formData.append('id', id);
+            const res = await fetch(apiBase + '?action=restore', { method: 'POST', body: formData });
+            if (res.ok) {
+                await loadTrash();
+            } else {
+                alert('Erro ao restaurar lead');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Erro ao restaurar lead');
+        }
+    }
+
+    // Make functions global for onclick
+    window.restoreLead = restoreLead;
+    window.deletePermanent = deletePermanent;
 
 })();

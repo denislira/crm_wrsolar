@@ -13,35 +13,28 @@ $action = $_GET['action'] ?? '';
 
 switch ($action) {
     case 'list':
+        // Return tasks visible to everyone. Optional filters by responsavel/equipe/status are supported.
         $username = $_SESSION['username'] ?? '';
-        // If `mine=1` is passed, return tasks assigned to the current username OR created by current user
-        if (!empty($_GET['mine']) && ($_GET['mine'] === '1' || $_GET['mine'] === 'true')) {
-            $where = '(responsavel = ? OR user_id = ?)';
-            $params = [$username, $userId];
-        } else {
-            $where = 'user_id = ?';
-            $params = [$userId];
-        }
-        // Optional filter by responsavel (exact match)
+        $w = [];
+        $params = [];
         if (!empty($_GET['responsavel'])) {
-            $where .= ' AND responsavel = ?';
+            $w[] = 'responsavel = ?';
             $params[] = $_GET['responsavel'];
         }
         if (!empty($_GET['equipe'])) {
-            $where .= ' AND equipe = ?';
+            $w[] = 'equipe = ?';
             $params[] = $_GET['equipe'];
         }
         if (!empty($_GET['status'])) {
-            $where .= ' AND status = ?';
+            $w[] = 'status = ?';
             $params[] = $_GET['status'];
         }
-        $sql = "SELECT * FROM team_tasks WHERE $where ORDER BY data_vencimento ASC, criado_em DESC";
+        $sql = 'SELECT * FROM team_tasks';
+        if (!empty($w)) $sql .= ' WHERE ' . implode(' AND ', $w);
+        $sql .= ' ORDER BY data_vencimento ASC, criado_em DESC';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        // Debug: log all requests
-        $log = sprintf("[%s] user_id=%s username=%s GET=%s SQL=%s PARAMS=%s ROWS=%d\n", date('Y-m-d H:i:s'), $userId, $username, json_encode($_GET), $sql, json_encode($params), count($rows));
-        @file_put_contents(__DIR__ . '/../logs/tasks_debug.log', $log, FILE_APPEND);
         echo json_encode($rows);
         break;
     case 'add':
@@ -71,8 +64,11 @@ switch ($action) {
         if (!$row) { echo json_encode(['success'=>false,'error'=>'Not found']); break; }
         $username = $_SESSION['username'] ?? '';
         if (!($row['user_id'] == $userId || $row['responsavel'] === $username)) { echo json_encode(['success'=>false,'error'=>'No permission']); break; }
-        // Keep existing responsavel
+        // Allow changing responsavel when provided (owner or current responsavel already checked above)
         $responsavel = $row['responsavel'];
+        if (isset($data['responsavel']) && trim($data['responsavel']) !== '') {
+            $responsavel = $data['responsavel'];
+        }
         $stmt = $pdo->prepare("UPDATE team_tasks SET equipe=?, titulo=?, descricao=?, status=?, responsavel=?, data_vencimento=? WHERE id=?");
         $data_venc = (isset($data['data_vencimento']) && trim($data['data_vencimento']) !== '') ? $data['data_vencimento'] : null;
         $stmt->execute([

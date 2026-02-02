@@ -5,7 +5,7 @@ body{background:#e9eef5}
 .kanban-wrap.panel-open{margin-right:420px}
 .kanban-wrap.panel-open.panel-expanded{margin-right:820px}
 .kanban-column{flex:0 0 320px;background:var(--card);border-radius:12px;padding:8px;border:1px solid rgba(11,26,49,0.06);box-shadow:0 10px 30px rgba(11,26,49,0.06);min-height:240px;overflow:hidden}
-.kanban-header{font-weight:700;padding:10px 12px;background:transparent;border-bottom:1px solid rgba(11,26,49,0.04);display:flex;justify-content:space-between;align-items:center}
+.kanban-header{font-weight:700;padding:10px 12px;background:transparent;border-bottom:1px solid rgba(11,26,49,0.04);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
 .kanban-top-stripe{height:6px;border-top-left-radius:12px;border-top-right-radius:12px;margin:-8px -8px 6px -8px}
 .column-content{min-height:160px;padding:12px;display:flex;flex-direction:column;gap:10px}
 .lead-card{background:#fff;padding:12px;border-radius:12px;border:1px solid rgba(11,26,49,0.06);border-left:4px solid transparent;cursor:grab;transition:transform .12s ease,box-shadow .12s ease,border-left .12s ease,outline .12s ease;box-shadow:0 6px 18px rgba(11,26,49,0.06);position:relative}
@@ -46,6 +46,18 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
 @media (max-width: 900px){ .kanban-column{flex:0 0 260px} .lead-panel{width:100%;top:56px;height:calc(100vh - 56px)} }
 /* small helpers */
 .kpi-row .card{background:var(--card)}
+
+/* Specific KPI card tweaks for leads dashboard */
+@media (min-width: 768px) {
+    /* Increase width and font of 'Valor no pipeline' (4th column in #kpiRow) */
+    #kpiRow > div:nth-child(4){ flex: 0 0 18% !important; max-width: 18% !important; }
+    #kpiRow > div:nth-child(4) .small.text-muted{ font-size:0.85rem !important; }
+    #kpiRow > div:nth-child(4) .h4{ font-size:1.4rem !important; }
+
+    /* Increase width and prominence of 'Leads quentes' (5th column) */
+    #kpiRow > div:nth-child(5){ flex: 0 0 14% !important; max-width: 14% !important; }
+    #kpiRow > div:nth-child(5) .h4{ font-size:1.5rem !important; font-weight:700 !important; }
+}
 .loading{opacity:.6}
 
 /* clip icon on cards */
@@ -57,6 +69,12 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
 #leadDetailContent .anexo-link:hover{text-decoration:underline}
 
 .stage-sum{font-size:.82rem;color:var(--muted);margin-left:8px}
+
+/* Prevent kanban header items from wrapping. Ensure title truncates and icons/badges stay on the right. */
+.kanban-header > .kanban-title{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px}
+.kanban-header > .kanban-title{flex:1 1 auto;min-width:0;white-space:normal;overflow:visible;text-overflow:clip;padding-right:8px}
+.kanban-header > .badge, .kanban-header > .stage-sum, .kanban-header > .stage-filter-icon{flex:0 0 auto;margin-left:6px}
+.kanban-header .stage-filter-icon{display:inline-flex;align-items:center;justify-content:center}
 .stalled-icon{margin-left:6px;color:#f59e0b;font-size:0.9rem}
 .lead-card.stalled{outline:2px dashed rgba(245,158,11,0.08)}
 .largest-stage{border:2px solid rgba(11,106,193,0.08)}
@@ -135,7 +153,7 @@ body.kanban-only #kanbanWrap::before{
     /* make the image fixed to the viewport */
     position:fixed;
     top:0; right:0; bottom:0; left:0;
-    background-image: var(--kanban-bg-image, url('../img/kanban4.jpg'));
+    background-image: var(--kanban-bg-image, url('../img/fundoKanban.jpg'));
     background-size:cover;
     background-position:center center;
     background-repeat:no-repeat;
@@ -268,6 +286,44 @@ body.kanban-only.theme-dark .column-content{
     text-transform:uppercase;
     letter-spacing:0.5px;
 }
+
+/* Filter caret (small arrow) styling: larger clickable area and subtle hover */
+.filter-caret{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    /* remove lateral margins and slightly reduce size */
+    width:20px;
+    height:20px;
+    padding:2px;
+    margin-left:0;
+    margin-right:0;
+    border-radius:6px;
+    cursor:pointer;
+    color:#9aa6b3;
+    transition:background-color .12s ease, color .12s ease, transform .08s ease;
+    font-size:0.82rem;
+}
+.filter-caret svg{ width:12px; height:12px; }
+.filter-caret i{ font-size:0.75rem; }
+.filter-caret:hover{ background: rgba(11,26,49,0.04); color: var(--accent); transform:translateY(-1px); }
+.filter-caret:active{ transform:translateY(0); }
+
+/* Stage-specific small filter icon (used for column headers) */
+.stage-filter-icon{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:20px;
+    height:20px;
+    padding:0;
+    margin-left:0;
+    margin-right:0;
+    cursor:pointer;
+    color:#9aa6b3;
+}
+.stage-filter-icon svg{ width:12px; height:12px; }
+.stage-filter-icon:hover{ color:var(--accent); background: rgba(11,26,49,0.04); border-radius:6px; }
 
 /* Próximos Eventos layout cronológico */
 .proximos-eventos-list{
@@ -613,6 +669,15 @@ body.kanban-compact .kanban-column { flex: 0 0 240px !important; border-radius:8
 body.kanban-compact .kanban-header { padding:8px 10px !important; font-size:0.95rem !important; }
 body.kanban-compact .column-content { padding:8px !important; gap:6px !important; }
 body.kanban-compact .lead-card { padding:8px !important; border-radius:8px !important; box-shadow:0 6px 16px rgba(11,26,49,0.05) !important; }
+
+/* Prevent header badges and value from wrapping in compact mode — reserve space for them */
+body.kanban-compact .kanban-header{position:relative}
+body.kanban-compact .kanban-header > .kanban-title{flex:1 1 60%;min-width:0}
+body.kanban-compact .kanban-header > .badge,
+body.kanban-compact .kanban-header > .stage-sum,
+body.kanban-compact .kanban-header .stage-filter-icon{
+    order:2;flex:0 0 auto;white-space:nowrap;align-self:center;margin-left:6px
+}
 body.kanban-compact .lead-card .title { font-size:0.95rem !important; }
 body.kanban-compact .lead-meta, body.kanban-compact .lead-created { font-size:0.78rem !important; }
 body.kanban-compact .lead-days-box { padding:3px 6px !important; font-size:0.75rem !important; }

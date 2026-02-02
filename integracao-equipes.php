@@ -28,6 +28,15 @@ $respStmt = $pdo->prepare('SELECT DISTINCT responsavel FROM team_tasks WHERE use
 $respStmt->execute([$_SESSION['user_id']]);
 $responsaveis = array_map(function($r){return $r['responsavel'];}, $respStmt->fetchAll(PDO::FETCH_ASSOC));
 
+// Lista de usuários para selecionar como responsável em novas tarefas
+$users = [];
+try {
+    $usersStmt = $pdo->query('SELECT id, username FROM users ORDER BY username');
+    $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $users = [];
+}
+
 $pageTitle = 'Integração de Equipes';
 include 'includes/header.php';
 ?>
@@ -110,7 +119,6 @@ include 'includes/header.php';
             <div class="mb-3">
                 <div class="btn-group" role="group" aria-label="view-tabs">
                     <button id="tabTarefas" type="button" class="btn btn-primary active">Tarefas de Equipe</button>
-                    <button id="tabMinhasTarefas" type="button" class="btn btn-outline-primary">Minhas Tarefas</button>
                     <button id="tabLembretesBtn" type="button" class="btn btn-outline-primary">Lembretes</button>
                 </div>
             </div>
@@ -122,6 +130,10 @@ include 'includes/header.php';
                     <div class="card card-shadow p-3 mb-3 border-start border-3 border-secondary section-left-border secondary">
                         <h6 class="mb-3">Tarefas de Equipe</h6>
                         <div class="d-flex gap-2 flex-wrap mb-2">
+                            <div class="form-check form-check-inline align-items-center">
+                                <input class="form-check-input" type="checkbox" id="filtroMinhas">
+                                <label class="form-check-label small" for="filtroMinhas">Minhas tarefas</label>
+                            </div>
                             <select id="filtroEquipe" class="form-select form-select-sm w-auto" style="display:none;">
                                 <option value="">Todas equipes</option>
                                 <?php foreach ($equipes as $eq): ?><option value="<?php echo $eq; ?>"><?php echo $eq; ?></option><?php endforeach; ?>
@@ -159,8 +171,11 @@ include 'includes/header.php';
                                             </div>
                                             <div class="mb-2">
                                                 <label class="form-label">Responsável <i class="fa fa-user text-muted"></i></label>
-                                                <div class="form-control-plaintext fw-semibold"><?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?></div>
-                                                <input type="hidden" name="responsavel" id="new-responsavel" value="<?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?>">
+                                                <select name="responsavel" id="new-responsavel" class="form-select">
+                                                    <?php foreach ($users as $u): ?>
+                                                        <option value="<?php echo htmlspecialchars($u['username']); ?>" <?php if (($u['username'] ?? '') === ($_SESSION['username'] ?? '')) echo 'selected'; ?>><?php echo htmlspecialchars($u['username']); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
                                             </div>
                                             <div class="row g-3">
                                                 <div class="col-md-6">
@@ -189,56 +204,103 @@ include 'includes/header.php';
                             </div>
                         </div>
 
-                        <!-- Modal Editar Tarefa -->
-                                                <div class="modal fade" id="modalEditarTarefa" tabindex="-1" aria-labelledby="modalEditarTarefaLabel" aria-hidden="true">
-                                                    <div class="modal-dialog modal-lg">
-                                                        <div class="modal-content">
-                                                            <div class="modal-header bg-light border-bottom">
-                                                                <h5 class="modal-title" id="modalEditarTarefaLabel"><i class="fa fa-edit text-primary"></i> Editar Tarefa de Equipe</h5>
-                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-                                                            </div>
-                                                            <div class="modal-body">
-                                                                <form id="formEditarTarefa">
-                                                                    <input type="hidden" name="id" id="edit-id">
-                                                                    <div class="mb-2">
-                                                                        <label class="form-label">Título <i class="fa fa-tasks text-muted"></i></label>
-                                                                        <input type="text" name="titulo" id="edit-titulo" class="form-control" required>
-                                                                    </div>
-                                                                    <div class="mb-2">
-                                                                        <label class="form-label">Descrição <i class="fa fa-align-left text-muted"></i></label>
-                                                                        <textarea name="descricao" id="edit-descricao" class="form-control" rows="3"></textarea>
-                                                                    </div>
-                                                                    <div class="mb-2">
-                                                                        <label class="form-label">Responsável <i class="fa fa-user text-muted"></i></label>
-                                                                        <div class="form-control-plaintext fw-semibold" id="edit-responsavel_display"><?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?></div>
-                                                                        <input type="hidden" name="responsavel" id="edit-responsavel" value="<?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?>">
-                                                                    </div>
-                                                                    <div class="row g-3">
-                                                                        <div class="col-md-6">
-                                                                            <label class="form-label">Data de vencimento <i class="fa fa-calendar text-muted"></i></label>
-                                                                            <input type="date" name="data_vencimento" id="edit-data-vencimento" class="form-control">
-                                                                        </div>
-                                                                        <div class="col-md-6"></div>
-                                                                    </div>
-                                                                    <div class="mt-2">
-                                                                        <label class="form-label">Status <i class="fa fa-flag text-muted"></i></label>
-                                                                        <select name="status" id="edit-status" class="form-select">
-                                                                            <option value="Pendente">Pendente</option>
-                                                                            <option value="Em andamento">Em andamento</option>
-                                                                            <option value="Concluída">Concluída</option>
-                                                                        </select>
-                                                                    </div>
-                                                                    <input type="hidden" name="equipe" id="edit-equipe" value="">
-                                                                </form>
-                                                                <div id="editarTarefaMsg" class="mt-2"></div>
-                                                            </div>
-                                                            <div class="modal-footer d-flex justify-content-end gap-2">
-                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                                                <button id="btnSalvarEdicao" type="button" class="btn btn-primary"><i class="fa fa-save"></i> Salvar alterações</button>
-                                                            </div>
+                        <!-- Modal Editar Tarefa (design melhorado) -->
+                        <style>
+                            .task-avatar { width:56px; height:56px; border-radius:50%; background:#e9ecef; display:inline-flex; align-items:center; justify-content:center; font-weight:600; color:#fff; box-shadow:0 2px 6px rgba(0,0,0,0.08); font-size:1.05rem; }
+                            .task-meta-label { font-size:0.85rem; color:#6c757d; }
+                            .modal-edit-left { border-right:1px solid #f1f3f5; }
+                            .modal-header.colorful { padding:18px 24px; border-bottom:0; background:#0d6efd; transition:background .18s ease; }
+                            .modal-header.colorful .modal-title { color:#fff; }
+                            .modal-header.colorful .btn-close { filter: invert(1) grayscale(1) contrast(150%); }
+                            /* inputs and selects always show system blue borders */
+                            .modal-content .form-control,
+                            .modal-content .form-select {
+                                border-color: #0d6efd !important;
+                            }
+                            /* focus styles for inputs/selects to match system blue */
+                            .modal-content .form-control:focus,
+                            .modal-content .form-select:focus {
+                                border-color: #0d6efd !important;
+                                box-shadow: 0 0 0 .15rem rgba(13,110,253,0.15) !important;
+                                outline: 0 !important;
+                            }
+                            .modal-header.colorful .text-muted { color:rgba(255,255,255,0.85); }
+                            .status-badge { display:inline-block; padding:4px 8px; border-radius:12px; font-size:0.75rem; }
+                            @media (max-width:767px){ .modal-edit-left { border-right: none; } }
+                        </style>
+                        <div class="modal fade" id="modalEditarTarefa" tabindex="-1" aria-labelledby="modalEditarTarefaLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header colorful d-flex align-items-center">
+                                        <div class="d-flex align-items-center gap-3">
+                                            <div id="modal-header-avatar" class="task-avatar bg-dark"><i class="fa fa-edit"></i></div>
+                                            <div>
+                                                <h5 class="modal-title mb-0" id="modalEditarTarefaLabel">Editar Tarefa de Equipe</h5>
+                                                <div class="text-muted small">Altere dados e atribua a outro responsável</div>
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <form id="formEditarTarefa">
+                                            <input type="hidden" name="id" id="edit-id">
+                                            <div class="row">
+                                                <div class="col-md-8 modal-edit-left pe-4">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Título <span class="task-meta-label"><i class="fa fa-tasks"></i></span></label>
+                                                        <input type="text" name="titulo" id="edit-titulo" class="form-control form-control-lg" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Descrição</label>
+                                                        <textarea name="descricao" id="edit-descricao" class="form-control" rows="4" placeholder="Notas, passos a seguir, links úteis..."></textarea>
+                                                    </div>
+                                                    <div class="row g-3">
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Data de vencimento</label>
+                                                            <input type="date" name="data_vencimento" id="edit-data-vencimento" class="form-control">
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Status</label>
+                                                            <select name="status" id="edit-status" class="form-select">
+                                                                <option value="Pendente">Pendente</option>
+                                                                <option value="Em andamento">Em andamento</option>
+                                                                <option value="Concluída">Concluída</option>
+                                                            </select>
                                                         </div>
                                                     </div>
+                                                    <input type="hidden" name="equipe" id="edit-equipe" value="">
                                                 </div>
+                                                    <div class="col-md-4">
+                                                        <div class="mb-3 text-center">
+                                                            <div id="edit-avatar" class="task-avatar mb-2">?</div>
+                                                            <div class="fw-semibold" id="edit-responsavel_name">&nbsp;</div>
+                                                            <div class="small text-muted">ID: <span id="edit-responsavel-id" class="text-muted">-</span></div>
+                                                        </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Atribuir responsável</label>
+                                                        <select name="responsavel" id="edit-responsavel" class="form-select">
+                                                            <?php foreach ($users as $u): ?>
+                                                                <option value="<?php echo htmlspecialchars($u['username']); ?>"><?php echo htmlspecialchars($u['username']); ?></option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                        <div class="small text-muted mt-1">Escolha outro usuário para transferir a tarefa.</div>
+                                                    </div>
+                                                    <div class="mt-4">
+                                                        <h6 class="small text-muted">Meta</h6>
+                                                        <div class="small text-muted">Use o campo de descrição para detalhes, e altere status/data conforme necessário.</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </form>
+                                        <div id="editarTarefaMsg" class="mt-2"></div>
+                                    </div>
+                                    <div class="modal-footer d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                        <button id="btnSalvarEdicao" type="button" class="btn btn-primary"><i class="fa fa-save me-1"></i> Salvar alterações</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="card card-shadow p-3 border-start border-3 border-secondary section-left-border secondary">
                         <h6 class="mb-2">Atividades recentes</h6>
@@ -278,10 +340,13 @@ include 'includes/header.php';
                             </div>
                             <div class="row g-2 mb-2">
                                 <div class="col-7">
-                                    <label class="form-label small">Responsável</label>
-                                    <div class="form-control-plaintext small fw-semibold"><?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?></div>
-                                    <input type="hidden" name="responsavel" value="<?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?>">
-                                </div>
+                                        <label class="form-label small">Responsável</label>
+                                        <select name="responsavel" id="quick-new-responsavel" class="form-select form-select-sm">
+                                            <?php foreach ($users as $u): ?>
+                                                <option value="<?php echo htmlspecialchars($u['username']); ?>" <?php if (($u['username'] ?? '') === ($_SESSION['username'] ?? '')) echo 'selected'; ?>><?php echo htmlspecialchars($u['username']); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
                                 <div class="col-5">
                                     <label class="form-label small">Vencimento</label>
                                     <input type="date" name="data_vencimento" class="form-control form-control-sm">
@@ -304,71 +369,7 @@ include 'includes/header.php';
             </div>
             <!-- Fim Aba Tarefas -->
 
-            <!-- Aba: Minhas Tarefas (apenas do usuário logado) -->
-            <div id="minhasArea" style="display:none;">
-                <div class="row g-3">
-                    <div class="col-lg-8">
-                        <div class="card card-shadow p-3 mb-3 border-start border-3 border-secondary section-left-border secondary">
-                            <h6 class="mb-3">Minhas Tarefas</h6>
-                            <div class="d-flex gap-2 flex-wrap mb-2">
-                                <select id="myFiltroStatus" class="form-select form-select-sm w-auto">
-                                    <option value="">Todos status</option>
-                                    <option value="Pendente">Pendente</option>
-                                    <option value="Em andamento">Em andamento</option>
-                                    <option value="Concluída">Concluída</option>
-                                </select>
-                                <input type="search" id="myFiltroBusca" class="form-control form-control-sm w-50" placeholder="Buscar tarefa...">
-                            </div>
-                            <div id="myTasksList"></div>
-                        </div>
-                    </div>
-                    <div class="col-lg-4">
-                        <div class="card card-shadow p-3 mt-3 border-start border-3 border-primary section-left-border primary">
-                            <div class="d-flex align-items-start mb-3">
-                                <div class="me-3 display-6 text-primary"><i class="fa fa-plus-circle"></i></div>
-                                <div>
-                                    <h6 class="mb-0">Nova Tarefa</h6>
-                                    <small class="text-muted">Crie uma tarefa rápida para você</small>
-                                </div>
-                            </div>
-                            <!-- Reusa o mesmo formulário de criação rápida presente na coluna direita -->
-                            <form id="formNovaTarefa_My" class="mb-0">
-                                <div class="mb-2">
-                                    <label class="form-label small">Título <span class="text-danger">*</span></label>
-                                    <input type="text" name="titulo" class="form-control form-control-sm" placeholder="Ex: Revisar proposta" required>
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label small">Descrição</label>
-                                    <textarea name="descricao" class="form-control form-control-sm" rows="3" placeholder="Detalhes (opcional)"></textarea>
-                                </div>
-                                <div class="row g-2 mb-2">
-                                    <div class="col-7">
-                                        <label class="form-label small">Responsável</label>
-                                        <div class="form-control-plaintext small fw-semibold"><?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?></div>
-                                        <input type="hidden" name="responsavel" value="<?php echo htmlspecialchars($_SESSION['username'] ?? ''); ?>">
-                                    </div>
-                                    <div class="col-5">
-                                        <label class="form-label small">Vencimento</label>
-                                        <input type="date" name="data_vencimento" class="form-control form-control-sm">
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label small">Status</label>
-                                    <select name="status" class="form-select form-select-sm">
-                                        <option value="Pendente">Pendente</option>
-                                        <option value="Em andamento">Em andamento</option>
-                                        <option value="Concluída">Concluída</option>
-                                    </select>
-                                </div>
-                                <input type="hidden" name="equipe" value="">
-                                <button type="submit" class="btn btn-primary w-100">Salvar tarefa</button>
-                            </form>
-                            <div id="novaTarefaMsg_My" class="mt-2"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Fim Aba Minhas Tarefas -->
+            <!-- Aba: Minhas Tarefas removed -->
             </div>
             <!-- Fim Aba Tarefas -->
 
@@ -452,6 +453,7 @@ import { fetchTasks, addTask, updateTask, deleteTask, fetchRecentActivities } fr
 const equipes = <?php echo json_encode($equipes); ?>;
 const responsaveis = <?php echo json_encode($responsaveis); ?>;
 const userId = <?php echo json_encode($_SESSION['user_id']); ?>;
+const username = <?php echo json_encode($_SESSION['username'] ?? ''); ?>;
 
 function escapeHtmlGlobal(str) {
     if (!str) return '';
@@ -465,6 +467,7 @@ const escapeHtml = escapeHtmlGlobal;
 async function atualizarTarefas() {
     const equipeFiltro = document.getElementById('filtroEquipe').value;
     const respFiltro = document.getElementById('filtroResp').value;
+    const mineChecked = document.getElementById('filtroMinhas') ? document.getElementById('filtroMinhas').checked : false;
     const statusFiltro = document.getElementById('filtroStatus').value;
     const buscaFiltro = document.getElementById('filtroBusca').value;
 
@@ -495,7 +498,8 @@ async function atualizarTarefas() {
         } catch (e) { console.error(e); list.innerHTML = '<div class="text-danger">Erro carregando lembretes</div>'; }
         return;
     }
-    const tarefas = await fetchTasks({equipe: equipeFiltro, responsavel: respFiltro, status: statusFiltro});
+    const responsavelParam = mineChecked ? username : respFiltro;
+    const tarefas = await fetchTasks({equipe: equipeFiltro, responsavel: responsavelParam, status: statusFiltro});
     if (!tarefas.length) {
         list.innerHTML = '<div class="text-muted">Nenhuma tarefa encontrada.</div>';
     } else {
@@ -624,11 +628,35 @@ function formatDate(ts) {
 function openEditModal(task) {
     document.getElementById('edit-id').value = task.id;
     document.getElementById('edit-equipe').value = task.equipe;
-    document.getElementById('edit-responsavel').value = task.responsavel;
+    // set select value (responsável)
+    const sel = document.getElementById('edit-responsavel');
+    if (sel) sel.value = task.responsavel || '';
     document.getElementById('edit-titulo').value = task.titulo;
     document.getElementById('edit-status').value = task.status;
     document.getElementById('edit-data-vencimento').value = task.data_vencimento;
     document.getElementById('edit-descricao').value = task.descricao;
+    // fill avatar/name area
+        try {
+        const nameEl = document.getElementById('edit-responsavel_name');
+        const avatarEl = document.getElementById('edit-avatar');
+        const headerAvatar = document.getElementById('modal-header-avatar');
+        const idEl = document.getElementById('edit-responsavel-id');
+        if (nameEl) nameEl.textContent = task.responsavel || '';
+        if (idEl) idEl.textContent = task.responsavel_id || (task.responsavel || '').toString().slice(0,6);
+        const initials = (task.responsavel || '').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase() || '?';
+        if (avatarEl) avatarEl.textContent = initials;
+        if (headerAvatar) headerAvatar.textContent = initials;
+        // use system blue for avatar/header
+        const primary = '#0d6efd';
+        const headerColor = '#0b5ed7';
+        if (avatarEl) { avatarEl.style.background = primary; avatarEl.style.color = '#fff'; }
+        if (headerAvatar) { headerAvatar.style.background = primary; headerAvatar.style.color = '#fff'; }
+        const modalHeader = document.querySelector('#modalEditarTarefa .modal-header');
+        if (modalHeader) {
+            modalHeader.style.background = headerColor;
+            modalHeader.style.borderBottom = '1px solid rgba(0,0,0,0.06)';
+        }
+    } catch(e){ console.warn('avatar fill error',e); }
     const modal = new bootstrap.Modal(document.getElementById('modalEditarTarefa'));
     modal.show();
 }
@@ -646,27 +674,17 @@ async function deleteTaskConfirm(id) {
 
 // --- Abas: Tarefas / Lembretes ---
 const tabTarefas = document.getElementById('tabTarefas');
-const tabMinhasBtn = document.getElementById('tabMinhasTarefas');
 const tabLembretesBtn = document.getElementById('tabLembretesBtn');
 const tarefasArea = document.getElementById('tarefasArea');
 const minhasArea = document.getElementById('minhasArea');
 const lembretesArea = document.getElementById('lembretesArea');
 
-// Add event listeners
-if (tabTarefas) {
-    tabTarefas.addEventListener('click', () => { console.log('Tarefas clicked'); showTab('tarefas'); });
-}
-if (tabMinhasBtn) {
-    console.log('Adding event listener to tabMinhasBtn');
-    tabMinhasBtn.addEventListener('click', () => { console.log('Minhas Tarefas clicked'); showTab('minhas'); });
-}
-if (tabLembretesBtn) tabLembretesBtn.addEventListener('click', () => { console.log('Lembretes clicked'); showTab('lembretes'); });
+// Note: tab click listeners are attached after DOMContentLoaded to avoid duplicates
 
 function showTab(name) {
     console.log('showTab called with:', name);
     // reset all
     if (tabTarefas) { tabTarefas.classList.remove('btn-outline-primary', 'btn-primary', 'active'); tabTarefas.classList.add('btn-outline-primary'); }
-    if (tabMinhasBtn) { tabMinhasBtn.classList.remove('btn-outline-primary', 'btn-primary', 'active'); tabMinhasBtn.classList.add('btn-outline-primary'); }
     if (tabLembretesBtn) { tabLembretesBtn.classList.remove('btn-outline-primary', 'btn-primary', 'active'); tabLembretesBtn.classList.add('btn-outline-primary'); }
     if (tarefasArea) tarefasArea.style.display = 'none';
     if (minhasArea) minhasArea.style.display = 'none';
@@ -676,11 +694,6 @@ function showTab(name) {
         if (tabTarefas) { tabTarefas.classList.remove('btn-outline-primary'); tabTarefas.classList.add('btn-primary', 'active'); }
         if (tarefasArea) tarefasArea.style.display = '';
         atualizarTarefas();
-    } else if (name === 'minhas') {
-        console.log('Setting minhas tab active');
-        if (tabMinhasBtn) { tabMinhasBtn.classList.remove('btn-outline-primary'); tabMinhasBtn.classList.add('btn-primary', 'active'); }
-        if (minhasArea) minhasArea.style.display = '';
-        atualizarMinhasTarefas();
     } else {
         if (tabLembretesBtn) { tabLembretesBtn.classList.remove('btn-outline-primary'); tabLembretesBtn.classList.add('btn-primary', 'active'); }
         if (lembretesArea) lembretesArea.style.display = '';
@@ -688,60 +701,7 @@ function showTab(name) {
     }
 }
 
-// Minhas Tarefas: carregar/listar/CRUD (executa via endpoint que respeita session user)
-async function atualizarMinhasTarefas() {
-    console.log('atualizarMinhasTarefas called');
-    const statusFiltro = document.getElementById('myFiltroStatus') ? document.getElementById('myFiltroStatus').value : '';
-    const buscaFiltro = document.getElementById('myFiltroBusca') ? document.getElementById('myFiltroBusca').value.trim().toLowerCase() : '';
-    const list = document.getElementById('myTasksList');
-    if (!list) { console.log('myTasksList not found'); return; }
-    list.innerHTML = '';
-    try {
-        const filtros = {};
-        if (statusFiltro) filtros.status = statusFiltro;
-        // request tasks assigned to current username or created by user
-        filtros.mine = '1';
-        console.log('MinhasTarefas - filtros antes fetch:', filtros);
-        const tarefas = await fetchTasks(filtros);
-        console.log('MinhasTarefas - resposta fetchTasks:', tarefas);
-        const itens = tarefas.filter(t => {
-            if (!buscaFiltro) return true;
-            return ((t.titulo||'').toLowerCase().includes(buscaFiltro) || (t.descricao||'').toLowerCase().includes(buscaFiltro));
-        });
-        if (!itens.length) { list.innerHTML = '<div class="text-muted">Nenhuma tarefa encontrada.</div>'; return; }
-        itens.forEach(t => {
-            const card = document.createElement('div');
-            card.className = 'mb-2 p-2 border rounded d-flex align-items-center gap-3 bg-white';
-            card.style.cursor = 'pointer';
-            const avatar = document.createElement('div');
-            avatar.className = 'rounded-circle d-flex align-items-center justify-content-center me-2';
-            avatar.style.width = '38px'; avatar.style.height = '38px'; avatar.style.background = (t.equipe ? ( {Marketing:'#3bb273',Vendas:'#0b6ac1',Atendimento:'#ffd24a',Técnica:'#7c3aed',Financeiro:'#ef4444'}[t.equipe] || '#888') : '#888');
-            avatar.style.color = '#fff'; avatar.style.fontWeight = 'bold'; avatar.style.fontSize = '1.1rem';
-            avatar.textContent = (t.responsavel||'?').split(' ').map(p=>p[0]||'').join('').toUpperCase().slice(0,2);
-            card.appendChild(avatar);
-            const content = document.createElement('div'); content.className = 'flex-grow-1';
-            content.innerHTML = `<div class="fw-semibold">${escapeHtml(t.titulo)} <span class="badge ms-2" style="background:${escapeHtml(t.equipe||'')} ;color:#fff;">${escapeHtml(t.equipe||'')}</span> <span class="badge ms-1" style="background:${escapeHtml(t.status||'')} ;color:#fff;">${escapeHtml(t.status||'')}</span></div>
-                <div class="small text-muted">${t.responsavel ? 'Responsável: ' + escapeHtml(t.responsavel) : ''} ${t.data_vencimento ? ' | Vencimento: ' + t.data_vencimento : ''}</div>
-                <div class="mt-1">${escapeHtml(t.descricao || '')}</div>`;
-            card.appendChild(content);
-            // make whole card clickable to edit (like reminders)
-            card.addEventListener('click', () => openEditModal(t));
-            const actions = document.createElement('div'); actions.className = 'd-flex flex-column gap-1';
-            actions.innerHTML = `<button class="btn btn-sm btn-outline-primary" title="Editar"><i class="fa fa-edit"></i></button>
-                <button class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa fa-trash"></i></button>`;
-            const editBtn = actions.querySelector('.btn-outline-primary');
-            const deleteBtn = actions.querySelector('.btn-outline-danger');
-            // prevent action buttons from triggering the card click
-            editBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openEditModal(t); });
-            deleteBtn.addEventListener('click', (ev) => { ev.stopPropagation(); deleteTaskConfirm(t.id); });
-            card.appendChild(actions);
-            list.appendChild(card);
-        });
-    } catch (e) {
-        console.error('Erro em atualizarMinhasTarefas:', e);
-        list.innerHTML = '<div class="text-danger">Erro ao carregar tarefas</div>';
-    }
-}
+// Minhas Tarefas removed
 
 async function fetchReminderTemplates() {
     try {
@@ -770,6 +730,7 @@ async function loadRemindersLayout() {
                 const timeStr = r.remind_at ? r.remind_at.split(' ')[1]?.substring(0,5) || '' : '';
                 const it = document.createElement('div');
                 it.className = 'reminder-card-modern';
+                it.dataset.reminderId = r.id || '';
                 it.innerHTML = `
                     <div class="reminder-icon-circle">
                         <i class="fa fa-clock-o"></i>
@@ -782,6 +743,13 @@ async function loadRemindersLayout() {
                     </div>`;
                 agendaEl.appendChild(it);
             });
+            // delegated click handler for today's reminders
+            agendaEl.addEventListener('click', (ev) => {
+                const card = ev.target.closest('.reminder-card-modern');
+                if (!card) return;
+                const id = card.dataset.reminderId || card.getAttribute('data-reminder-id');
+                if (id) openEditReminderModal(id);
+            });
         }
 
         if (!upcoming.length) proximosEl.innerHTML = '<div class="text-muted" style="padding:12px;">Nenhum lembrete agendado.</div>'; else {
@@ -793,7 +761,7 @@ async function loadRemindersLayout() {
             if (totalLeadsBtn) {
                 totalLeadsBtn.textContent = `${uniqueLeads.size} LEADS`;
             }
-            upcoming.forEach(r => {
+                upcoming.forEach(r => {
                 const dt = new Date(r.remind_at.replace(' ','T'));
                 const isToday = r.remind_at && r.remind_at.slice(0,10) === today;
                 const monthNames = ['JAN.','FEV.','MAR.','ABR.','MAI.','JUN.','JUL.','AGO.','SET.','OUT.','NOV.','DEZ.'];
@@ -803,6 +771,8 @@ async function loadRemindersLayout() {
                 
                 const card = document.createElement('div');
                 card.className = 'evento-card-modern d-flex align-items-start';
+                card.dataset.reminderId = r.id || '';
+                card.style.cursor = 'pointer';
                 card.innerHTML = `
                     <div class="evento-date-box">
                         <div class="evento-date-month">${month}</div>
@@ -820,10 +790,17 @@ async function loadRemindersLayout() {
                     </div>
                 `;
                 list.appendChild(card);
-                // make whole card clickable to edit
-                card.style.cursor = 'pointer';
-                card.addEventListener('click', () => openEditReminderModal(r.id));
             });
+            // Delegated click handler on the container to ensure clicks register even if child handlers fail
+            const proximosContainer = proximosEl.querySelector('.proximos-eventos-list');
+            if (proximosContainer) {
+                proximosContainer.addEventListener('click', (ev) => {
+                    const card = ev.target.closest('.evento-card-modern');
+                    if (!card) return;
+                    const id = card.dataset.reminderId || card.getAttribute('data-reminder-id');
+                    if (id) openEditReminderModal(id);
+                });
+            }
         }
 
         // preencher templates
@@ -847,6 +824,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (filtroResp) filtroResp.addEventListener('change', atualizarTarefas);
     const filtroStatus = document.getElementById('filtroStatus');
     if (filtroStatus) filtroStatus.addEventListener('change', atualizarTarefas);
+    const filtroMinhas = document.getElementById('filtroMinhas');
+    if (filtroMinhas) filtroMinhas.addEventListener('change', atualizarTarefas);
     const filtroBusca = document.getElementById('filtroBusca');
     if (filtroBusca) filtroBusca.addEventListener('input', atualizarTarefas);
     // Evento de submissão do formulário de nova tarefa
@@ -928,31 +907,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-        // Minhas Tarefas: ativar aba e filtros
-        const myFiltroStatus = document.getElementById('myFiltroStatus');
-        if (myFiltroStatus) myFiltroStatus.addEventListener('change', atualizarMinhasTarefas);
-        const myFiltroBusca = document.getElementById('myFiltroBusca');
-        if (myFiltroBusca) myFiltroBusca.addEventListener('input', atualizarMinhasTarefas);
-
-        // Formulário rápido na aba Minhas Tarefas
-        const formNovaTarefaMy = document.getElementById('formNovaTarefa_My');
-        if (formNovaTarefaMy) {
-            formNovaTarefaMy.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                const formData = new FormData(this);
-                const nova = Object.fromEntries(formData);
-                nova.user_id = userId;
-                const resp = await addTask(nova);
-                if (resp.success) {
-                    document.getElementById('novaTarefaMsg_My').innerHTML = '<div class="alert alert-success">Tarefa criada com sucesso!</div>';
-                    this.reset();
-                    setTimeout(()=>{ document.getElementById('novaTarefaMsg_My').innerHTML = ''; }, 2000);
-                    atualizarMinhasTarefas();
-                } else {
-                    document.getElementById('novaTarefaMsg_My').innerHTML = '<div class="alert alert-danger">Erro ao criar tarefa</div>';
-                }
-            });
-        }
+        // Minhas Tarefas removed: no related listeners
 
     // Busca automática de leads para lembretes
     const leadIdentInput = document.getElementById('rem-lead-ident');
@@ -1093,13 +1048,20 @@ async function openEditReminderModal(id) {
         templates.forEach(t=>{ const o = document.createElement('option'); o.value = t.id; o.textContent = t.name || t.title || ('template '+t.id); sel.appendChild(o); });
         sel.value = r.template_id || '';
         const modalEl = document.getElementById('modalEditarLembrete');
-        const modal = new bootstrap.Modal(modalEl);
+        // reuse existing instance when possible to avoid duplicate backdrops
+        let modal = bootstrap.Modal.getInstance ? bootstrap.Modal.getInstance(modalEl) : null;
+        if (!modal) {
+            modal = new bootstrap.Modal(modalEl);
+        }
         modal.show();
     } catch (e) {
         console.error(e);
         alert('Erro ao carregar lembrete para edição');
     }
 }
+
+// Expose to global scope so non-module delegated handlers can call it
+try { window.openEditReminderModal = openEditReminderModal; } catch (e) { /* ignore if not allowed */ }
 
 document.addEventListener('click', (e)=>{
     // Close suggestions click handler preserved above; this is only for safety

@@ -42,7 +42,7 @@ include 'includes/header.php';
                         <div class="h4"><span id="anunciosKpiCount">0</span></div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="card p-3">
                         <div class="small text-muted">Leads ativos</div>
                         <div id="kpiActive" class="h4">0</div>
@@ -50,7 +50,13 @@ include 'includes/header.php';
                 </div>
                 <div class="col-md-2"><div class="card p-3"><div class="small text-muted">Taxa de conversão</div><div id="kpiConv" class="h4">0%</div></div></div>
                 <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Valor no pipeline</div><div id="kpiValue" class="h4">R$ 0,00</div></div></div>
-                <div class="col-md-2"><div class="card p-3"><div class="small text-muted">Leads quentes</div><div id="kpiHot" class="h4">0</div></div></div>
+                <div class="col-md-1"><div class="card p-3"><div class="small text-muted">Leads quentes</div><div id="kpiHot" class="h4">0</div></div></div>
+                <div class="col-md-2">
+                    <div class="card p-3" id="trashedKpiCard" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#trashedModal">
+                        <div class="small text-muted">Leads na lixeira <i class="fa fa-trash text-muted" style="font-size: 1.2em;"></i></div>
+                        <div id="kpiTrashed" class="h4">0</div>
+                    </div>
+                </div>
             </div>
 
             <!-- Kanban (loaded from funil_stages table) -->
@@ -156,6 +162,40 @@ include 'includes/header.php';
         </div>
     </div>
 
+    <!-- Modal: Lixeira de Leads -->
+    <div id="trashedModal" class="modal fade" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Lixeira de Leads</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                    <div id="trashedTableContainer">
+                        <table class="table table-striped table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Email</th>
+                                    <th>Telefone</th>
+                                    <th>Status</th>
+                                    <th>Deletado em</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trashedTableBody">
+                                <tr><td colspan="6" class="text-muted">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modals: lead + reminder (placed outside main content to avoid nesting issues) -->
     <div class="modal fade" id="leadModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -227,7 +267,7 @@ include 'includes/header.php';
                                             <div class="mb-3">
                                                 <label class="form-label">Data de Entrada</label>
                                                 <input id="lead-created-at" class="form-control" type="date" placeholder="Data de entrada">
-                                                <div class="form-text small">Pode ser ajustada no cadastro inicial; não editável depois.</div>
+                                                <div class="form-text small">Data de início do lead, pode ser editada.</div>
                                             </div>
                                             <div class="row">
                                                 <div class="col-md-6 mb-3">
@@ -248,7 +288,10 @@ include 'includes/header.php';
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Forma de Pagamento</label>
-                                                <select id="lead-forma-pagamento" class="form-select"><option value="">-- selecione --</option></select>
+                                                <div class="d-flex gap-2">
+                                                    <select id="lead-forma-pagamento" class="form-select"><option value="">-- selecione --</option></select>
+                                                    <button id="openPaymentMethodsBtn" type="button" class="btn btn-outline-secondary" title="Gerenciar formas de pagamento"><i class="fa fa-credit-card"></i></button>
+                                                </div>
                                                 <div class="form-text">Selecione a forma de pagamento principal do cliente.</div>
                                             </div>
                                             <div class="mb-3">
@@ -330,10 +373,12 @@ include 'includes/header.php';
                 // set current date for ultimo_contato
                 const now = new Date().toISOString().slice(0,10);
                 document.getElementById('lead-ultimo-contato').value = now;
-                    // set current date for created_at (Data de Entrada) and make it editable for new leads
+                    // set current date for data_inicio (Data de Entrada) for new leads
                     const createdEl = document.getElementById('lead-created-at');
                     if (createdEl) { createdEl.value = now; createdEl.disabled = false; createdEl.readOnly = false; }
                 leadModal.show();
+                // populate status select if available
+                if (window.populateStatusSelect) window.populateStatusSelect();
             });
             document.getElementById('save-lead').addEventListener('click', (e)=>{
                 const form = document.getElementById('leadForm');
@@ -347,6 +392,23 @@ include 'includes/header.php';
         }
     });
     </script>
+
+    <!-- Modal: Gerenciar Formas de Pagamento -->
+    <div id="paymentMethodsModal" class="modal fade" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-md modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Formas de Pagamento</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <div class="mb-3 d-flex gap-2">
+                        <input id="newPaymentMethodName" class="form-control" placeholder="Nova forma de pagamento">
+                        <button id="addPaymentMethodBtn" class="btn btn-primary">Adicionar</button>
+                    </div>
+                    <div id="paymentMethodsList" class="list-group"><div class="small text-muted">Carregando...</div></div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button></div>
+            </div>
+        </div>
+    </div>
 
     <script>
     // Currency mask for inputs with class 'currency-mask'

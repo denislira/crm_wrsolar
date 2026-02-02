@@ -40,6 +40,9 @@ include 'includes/header.php';
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="integrations-tab" data-bs-toggle="tab" data-bs-target="#integrations" type="button" role="tab" aria-controls="integrations" aria-selected="false">Integrações</button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="permissions-tab" data-bs-toggle="tab" data-bs-target="#permissions" type="button" role="tab" aria-controls="permissions" aria-selected="false">Permissões</button>
+                </li>
                 <!-- Adicionar mais abas aqui no futuro -->
             </ul>
             
@@ -148,6 +151,50 @@ include 'includes/header.php';
                                 </ol>
                                 <p class="small text-muted mb-0">Quer que eu gere também um exemplo de serviço Node + Whaileys para receber o QR e confirmar a conexão? Peça que eu crie.</p>
                             </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Aba Permissões -->
+                <div class="tab-pane fade" id="permissions" role="tabpanel" aria-labelledby="permissions-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h5 mb-0">Permissões por Papel</h2>
+                        <div class="d-flex gap-2 align-items-center">
+                            <label class="mb-0 me-2">Papel:</label>
+                            <select id="perm_role_select" class="form-select form-select-sm">
+                                <?php foreach ($roles as $role): ?>
+                                    <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="card card-shadow p-3">
+                        <div class="mb-2 d-flex justify-content-between align-items-center">
+                            <div>
+                                <button id="btn_reload_permissions" class="btn btn-sm btn-outline-secondary">Recarregar</button>
+                            </div>
+                            <div>
+                                <input id="filter_permission" class="form-control form-control-sm" placeholder="Pesquisar permissão" style="max-width:320px;" />
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover" id="permissions_table">
+                                <thead>
+                                    <tr>
+                                        <th>Permissão (screen)</th>
+                                        <th style="width:120px;">Permitido</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="permissions_tbody">
+                                    <tr><td colspan="2" class="text-muted">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button id="btn_clone_permissions" class="btn btn-outline-secondary btn-sm">Clonar para outro papel</button>
+                            <button id="btn_save_permissions" class="btn btn-primary btn-sm">Salvar alterações</button>
                         </div>
                     </div>
                 </div>
@@ -506,3 +553,105 @@ document.getElementById('changePasswordForm').addEventListener('submit', functio
 </div>
 
 <?php include 'includes/footer.php'; ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    const roleSelect = document.getElementById('perm_role_select');
+    const tbody = document.getElementById('permissions_tbody');
+    const filterInput = document.getElementById('filter_permission');
+
+    async function loadScreens() {
+        const res = await fetch('api/get_all_screens.php');
+        const data = await res.json();
+        return data.screens || [];
+    }
+
+    async function loadRolePermissions(roleId) {
+        tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Carregando...</td></tr>';
+        const [screensRes, roleRes] = await Promise.all([
+            fetch('api/get_all_screens.php'),
+            fetch('api/get_role_permissions.php?role_id='+encodeURIComponent(roleId))
+        ]);
+        const screensData = await screensRes.json();
+        const roleData = await roleRes.json();
+        const screens = screensData.screens || [];
+        const allowed = roleData.allowed || {};
+
+        if (screens.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhuma permissão registrada.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        for (const s of screens) {
+            const tr = document.createElement('tr');
+            tr.dataset.screen = s;
+            const tdName = document.createElement('td');
+            tdName.textContent = s;
+            const tdCheck = document.createElement('td');
+            const chk = document.createElement('input');
+            chk.type = 'checkbox';
+            chk.className = 'form-check-input';
+            chk.checked = !!allowed[s];
+            tdCheck.appendChild(chk);
+            tr.appendChild(tdName);
+            tr.appendChild(tdCheck);
+            tbody.appendChild(tr);
+        }
+    }
+
+    roleSelect.addEventListener('change', ()=> loadRolePermissions(roleSelect.value));
+    document.getElementById('btn_reload_permissions').addEventListener('click', ()=> loadRolePermissions(roleSelect.value));
+
+    filterInput.addEventListener('input', function(){
+        const q = this.value.trim().toLowerCase();
+        for (const tr of tbody.querySelectorAll('tr')) {
+            const s = (tr.dataset.screen||'').toLowerCase();
+            tr.style.display = q === '' || s.indexOf(q) !== -1 ? '' : 'none';
+        }
+    });
+
+    document.getElementById('btn_save_permissions').addEventListener('click', async function(){
+        const roleId = roleSelect.value;
+        const permissions = [];
+        for (const tr of tbody.querySelectorAll('tr')) {
+            const chk = tr.querySelector('input[type="checkbox"]');
+            const screen = tr.dataset.screen;
+            if (!screen) continue;
+            if (chk && chk.checked) permissions.push(screen);
+        }
+        const fd = new FormData();
+        fd.append('role_id', roleId);
+        for (const p of permissions) fd.append('permissions[]', p);
+        const res = await fetch('api/save_role_permissions.php', { method: 'POST', body: fd });
+        const data = await res.json();
+        alert(data.message || (data.success ? 'Salvo' : 'Erro'));
+        if (data.success) loadRolePermissions(roleId);
+    });
+
+    document.getElementById('btn_clone_permissions').addEventListener('click', async function(){
+        const sourceRole = roleSelect.value;
+        const target = prompt('Digite o ID do papel alvo para clonar as permissões:');
+        if (!target) return;
+        if (target == sourceRole) { alert('Papel de destino igual ao de origem.'); return; }
+        // read current checked
+        const permissions = [];
+        for (const tr of tbody.querySelectorAll('tr')) {
+            const chk = tr.querySelector('input[type="checkbox"]');
+            const screen = tr.dataset.screen;
+            if (!screen) continue;
+            if (chk && chk.checked) permissions.push(screen);
+        }
+        const fd = new FormData(); fd.append('role_id', target);
+        for (const p of permissions) fd.append('permissions[]', p);
+        const res = await fetch('api/save_role_permissions.php', { method: 'POST', body: fd });
+        const data = await res.json();
+        alert(data.message || (data.success ? 'Clonado' : 'Erro'));
+    });
+
+    // init button removed — initialization handled via migrations or API when needed
+
+    // initial load
+    if (roleSelect.value) loadRolePermissions(roleSelect.value);
+});
+</script>
