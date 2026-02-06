@@ -98,18 +98,36 @@ try {
 } catch (Exception $e) { $openProposalsSumUser = 0; $revenueForecastUser = 0; }
 
 
+// Carregar cor primária das configurações
+$primary_color = '#667eea';
+$storageDir = __DIR__ . '/storage';
+$settingsPath = $storageDir . '/settings.json';
+if (file_exists($settingsPath)) {
+    $raw = @file_get_contents($settingsPath);
+    $settings = $raw ? json_decode($raw, true) : [];
+    if (!empty($settings['primary_color'])) {
+        $primary_color = $settings['primary_color'];
+    }
+}
+
 include __DIR__ . '/includes/header.php';
 // sidebar contains navigation
 include __DIR__ . '/includes/sidebar.php';
 ?>
 <style>
     .profile-header-gradient {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: <?php echo htmlspecialchars($primary_color); ?>;
         border-radius: 16px;
         padding: 2rem;
-        color: white;
+        color: white !important;
         margin-bottom: 2rem;
-        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.2);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    }
+    .profile-header-gradient h2,
+    .profile-header-gradient p,
+    .profile-header-gradient a,
+    .profile-header-gradient * {
+        color: white !important;
     }
     .profile-card {
         background: white;
@@ -253,10 +271,7 @@ include __DIR__ . '/includes/sidebar.php';
                     <h2 class="mb-2" style="font-weight: 700;">Meu Perfil</h2>
                     <p class="mb-0 opacity-75">Gerencie suas informações e acompanhe suas atividades</p>
                 </div>
-                <div class="d-flex gap-2">
-                    <a href="index.php" class="btn btn-light btn-modern">
-                        <i class="fas fa-arrow-left me-2"></i>Voltar
-                    </a>
+                <div>
                     <a href="logout.php" class="btn btn-outline-light btn-modern">
                         <i class="fas fa-sign-out-alt me-2"></i>Sair
                     </a>
@@ -270,7 +285,7 @@ include __DIR__ . '/includes/sidebar.php';
             <!-- Coluna Esquerda - Foto e Informações -->
             <div class="col-lg-4">
                 <!-- Card Foto de Perfil -->
-                <div class="profile-card mb-4">
+                <div class="profile-card">
                     <h5 class="profile-section-title">Foto de Perfil</h5>
                     <div class="text-center mb-4">
                         <?php
@@ -292,7 +307,7 @@ include __DIR__ . '/includes/sidebar.php';
                         <label class="form-label fw-semibold small text-muted">Escolher nova foto</label>
                         <input id="avatarInput" type="file" accept="image/*" class="form-control" />
                     </div>
-                    <div class="d-flex gap-2">
+                    <div class="d-flex gap-2 mb-4">
                         <button id="btnUploadAvatar" class="btn btn-primary btn-modern flex-grow-1">
                             <i class="fas fa-upload me-2"></i>Salvar
                         </button>
@@ -300,12 +315,11 @@ include __DIR__ . '/includes/sidebar.php';
                             <i class="fas fa-trash me-2"></i>Remover
                         </button>
                     </div>
-                    <div id="avatarMsg" class="mt-3"></div>
-                </div>
+                    <div id="avatarMsg" class="mt-3 mb-4"></div>
 
-                <!-- Card Informações Pessoais -->
-                <div class="profile-card">
-                    <h5 class="profile-section-title">Informações Pessoais</h5>
+                    <!-- Informações Pessoais -->
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-3 text-secondary">Informações Pessoais</h6>
                     <div>
                         <div class="profile-info-item">
                             <div class="profile-info-label">
@@ -390,6 +404,7 @@ include __DIR__ . '/includes/sidebar.php';
                         <?php endif; ?>
                     </div>
                 </div>
+            </div>
         </div>
 
         <!-- Seções de Leads, Projetos, Movimentações e Lembretes -->
@@ -553,8 +568,25 @@ include __DIR__ . '/includes/sidebar.php';
                 list.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-tasks fa-3x mb-3 opacity-25"></i><p>Nenhuma tarefa encontrada.</p></div>'; 
                 return; 
             }
+            
+            // Filtrar por texto de busca
+            let tarefasFiltradas = tarefas;
+            if(q) {
+                tarefasFiltradas = tarefas.filter(t => {
+                    const titulo = (t.titulo || '').toLowerCase();
+                    const descricao = (t.descricao || '').toLowerCase();
+                    const responsavel = (t.responsavel || '').toLowerCase();
+                    return titulo.includes(q) || descricao.includes(q) || responsavel.includes(q);
+                });
+            }
+            
+            if(!tarefasFiltradas.length){ 
+                list.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-search fa-3x mb-3 opacity-25"></i><p>Nenhuma tarefa encontrada com esse critério.</p></div>'; 
+                return; 
+            }
+            
             list.innerHTML = '';
-            tarefas.forEach(t=>{
+            tarefasFiltradas.forEach(t=>{
                 const card = document.createElement('div');
                 card.className = 'task-item';
                 
