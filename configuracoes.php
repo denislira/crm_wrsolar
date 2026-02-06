@@ -43,6 +43,9 @@ include 'includes/header.php';
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="permissions-tab" data-bs-toggle="tab" data-bs-target="#permissions" type="button" role="tab" aria-controls="permissions" aria-selected="false">Permissões</button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="appearance-tab" data-bs-toggle="tab" data-bs-target="#appearance" type="button" role="tab" aria-controls="appearance" aria-selected="false">Aparência</button>
+                </li>
                 <!-- Adicionar mais abas aqui no futuro -->
             </ul>
             
@@ -80,9 +83,9 @@ include 'includes/header.php';
                                                 <td><?php echo isset($user['role_level']) ? intval($user['role_level']) : ''; ?></td>
                                                 <td><?php echo htmlspecialchars($user['role_name'] ?? 'N/A'); ?></td>
                                                 <td>
-                                                    <button class="btn btn-sm btn-warning" onclick="editUser(<?php echo $user['id']; ?>)">Editar</button>
-                                                    <button class="btn btn-sm btn-danger" onclick="deleteUser(<?php echo $user['id']; ?>)">Excluir</button>
-                                                    <button class="btn btn-sm btn-info" onclick="changePassword(<?php echo $user['id']; ?>)">Alterar Senha</button>
+                                                    <button class="btn btn-sm btn-outline-warning me-1" onclick="editUser(<?php echo $user['id']; ?>)" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                                                    <button class="btn btn-sm btn-outline-danger me-1" onclick="deleteUser(<?php echo $user['id']; ?>)" title="Excluir"><i class="fa-solid fa-trash"></i></button>
+                                                    <button class="btn btn-sm btn-outline-info" onclick="changePassword(<?php echo $user['id']; ?>)" title="Alterar senha"><i class="fa-solid fa-key"></i></button>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -112,7 +115,10 @@ include 'includes/header.php';
                                 echo '<td>'.htmlspecialchars($t['name']).'</td>';
                                 echo '<td>'.htmlspecialchars($t['description']).'</td>';
                                 echo '<td>'.htmlspecialchars($t['created_at']).'</td>';
-                                echo '<td><button class="btn btn-sm btn-warning" onclick="editTeam('.$t['id'].')">Editar</button> <button class="btn btn-sm btn-danger" onclick="deleteTeam('.$t['id'].')">Excluir</button></td>';
+                                echo '<td>';
+                                echo ' <button class="btn btn-sm btn-outline-warning me-1" onclick="editTeam('.$t['id'].')" title="Editar"><i class="fa-solid fa-pen"></i></button>';
+                                echo ' <button class="btn btn-sm btn-outline-danger" onclick="deleteTeam('.$t['id'].')" title="Excluir"><i class="fa-solid fa-trash"></i></button>';
+                                echo '</td>';
                                 echo '</tr>';
                             }
                             echo '</tbody></table></div>';
@@ -198,6 +204,92 @@ include 'includes/header.php';
                         </div>
                     </div>
                 </div>
+                <!-- Aba Aparência -->
+                <div class="tab-pane fade" id="appearance" role="tabpanel" aria-labelledby="appearance-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h5 mb-0">Aparência</h2>
+                    </div>
+
+                    <div class="card card-shadow p-3">
+                        <div class="row">
+                            <div class="col-md-5">
+                                <h6>Logos</h6>
+                                <div class="d-flex gap-3 mb-3">
+                                    <div class="flex-fill text-center border p-2 rounded" style="background:#d0d0d0; min-height:120px; display:flex; align-items:center; justify-content:center;">
+                                        <div>
+                                            <div class="small text-muted mb-2">Logo padrão</div>
+                                            <img id="currentLogo" src="assets/img/logo150-b.png" alt="Logo" style="max-width:160px; max-height:80px; object-fit:contain; display:block; margin:0 auto;" />
+                                        </div>
+                                    </div>
+                                    <div style="width:120px; text-align:center;">
+                                        <div class="small text-muted">Logo encolhido</div>
+                                        <div class="border p-2 rounded mt-2" style="background:#d0d0d0; display:inline-block;">
+                                            <img id="currentLogoCollapsed" src="assets/img/logo.png" alt="Logo encolhido" style="width:48px; height:48px; object-fit:contain; display:block;" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-2">
+                                    <label class="form-label">Trocar logo (padrão)</label>
+                                    <input id="appearance_logo" type="file" accept="image/*" class="form-control form-control-sm" />
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Trocar logo (encolhido)</label>
+                                    <input id="appearance_logo_collapsed" type="file" accept="image/*" class="form-control form-control-sm" />
+                                </div>
+                                <div class="d-flex gap-3 mt-2">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="removeLogoChk" />
+                                        <label class="form-check-label" for="removeLogoChk">Remover logo padrão</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="removeLogoCollapsedChk" />
+                                        <label class="form-check-label" for="removeLogoCollapsedChk">Remover logo encolhido</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-7">
+                                <h6>Paleta</h6>
+                                <div class="row gx-2 align-items-center">
+                                    <div class="col-6 mb-2">
+                                        <label class="form-label">Cor principal</label>
+                                        <input type="color" id="primary_color" class="form-control form-control-color" value="#0b6ac1" />
+                                    </div>
+                                    <div class="col-6 mb-2">
+                                        <label class="form-label">Cor principal (escura)</label>
+                                        <input type="color" id="primary_dark" class="form-control form-control-color" value="#073b6b" />
+                                    </div>
+                                    <div class="col-6 mb-2">
+                                        <label class="form-label">Verde (acento)</label>
+                                        <input type="color" id="green_color" class="form-control form-control-color" value="#4bbf4b" />
+                                    </div>
+                                    <div class="col-6 mb-2">
+                                        <label class="form-label">Amarelo (acento)</label>
+                                        <input type="color" id="yellow_color" class="form-control form-control-color" value="#ffd24a" />
+                                    </div>
+                                </div>
+
+                                <div class="mt-3">
+                                    <label class="form-label">Pré-visualização</label>
+                                    <div class="p-3 rounded" id="appearancePreview" style="background:#fff; border:1px solid #eee;">
+                                        <div style="display:flex; align-items:center; gap:12px;">
+                                            <div style="width:56px; height:56px; background:var(--blue-700); border-radius:8px;"></div>
+                                            <div>
+                                                <div style="height:10px; width:200px; background:var(--blue-700); border-radius:6px;"></div>
+                                                <div style="height:8px; width:120px; background:var(--yellow); border-radius:6px; margin-top:6px;"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button id="btn_save_appearance" class="btn btn-primary btn-sm">Salvar Aparência</button>
+                            <button id="btn_reset_appearance" class="btn btn-outline-secondary btn-sm">Restaurar Padrão</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -224,6 +316,10 @@ include 'includes/header.php';
                     <div class="mb-3">
                         <label for="password" class="form-label">Senha</label>
                         <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="avatar" class="form-label">Foto de Perfil (Avatar)</label>
+                        <input type="file" class="form-control" id="add_user_avatar" name="avatar" accept="image/*" />
                     </div>
                     <div class="mb-3">
                         <label for="role_id" class="form-label">Papel</label>
@@ -303,6 +399,16 @@ include 'includes/header.php';
                             <option value="1">1 - Gerente</option>
                             <option value="2">2 - Administrador</option>
                         </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Avatar atual</label>
+                        <div class="d-flex align-items-center gap-3">
+                            <img id="edit_user_avatar_preview" src="assets/img/avatar-placeholder.png" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #e6e6e6;" alt="Avatar" />
+                            <div style="flex:1;">
+                                <label for="edit_user_avatar" class="form-label small">Substituir avatar</label>
+                                <input type="file" class="form-control form-control-sm" id="edit_user_avatar" name="avatar" accept="image/*" />
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -409,7 +515,15 @@ function editUser(id) {
             document.getElementById('edit_role_id').value = data.user.role_id;
             if (document.getElementById('edit_team_id')) document.getElementById('edit_team_id').value = data.user.team_id || '';
             if (document.getElementById('edit_role_level')) document.getElementById('edit_role_level').value = data.user.role_level || 0;
-            new bootstrap.Modal(document.getElementById('editUserModal')).show();
+                // set avatar preview if provided
+                try{
+                    var avatarPreview = document.getElementById('edit_user_avatar_preview');
+                    if (avatarPreview) {
+                        if (data.user.avatar) avatarPreview.src = data.user.avatar;
+                        else avatarPreview.src = 'assets/img/avatar-placeholder.png';
+                    }
+                }catch(e){}
+                new bootstrap.Modal(document.getElementById('editUserModal')).show();
         } else {
             alert('Erro: ' + data.message);
         }
@@ -490,6 +604,28 @@ document.getElementById('editUserForm').addEventListener('submit', function(e) {
         if (data.success) {
             location.reload();
         }
+    });
+});
+
+// Preview selected avatar in add/edit forms
+document.addEventListener('DOMContentLoaded', function(){
+    const addInput = document.getElementById('add_user_avatar');
+    const editInput = document.getElementById('edit_user_avatar');
+    const editPreview = document.getElementById('edit_user_avatar_preview');
+    if (addInput) addInput.addEventListener('change', function(){
+        const f = this.files && this.files[0];
+        if (!f) return;
+        const url = URL.createObjectURL(f);
+        // create a small preview element next to input
+        let p = document.getElementById('add_user_avatar_preview');
+        if (!p) {
+            p = document.createElement('img'); p.id = 'add_user_avatar_preview'; p.style.width='64px'; p.style.height='64px'; p.style.objectFit='cover'; p.style.borderRadius='6px'; p.style.border='1px solid #e6e6e6';
+            this.parentNode.insertBefore(p, this.nextSibling);
+        }
+        p.src = url;
+    });
+    if (editInput && editPreview) editInput.addEventListener('change', function(){
+        const f = this.files && this.files[0]; if (!f) return; editPreview.src = URL.createObjectURL(f);
     });
 });
 
@@ -655,3 +791,103 @@ document.addEventListener('DOMContentLoaded', function(){
     if (roleSelect.value) loadRolePermissions(roleSelect.value);
 });
 </script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        const currentLogo = document.getElementById('currentLogo');
+        const currentLogoCollapsed = document.getElementById('currentLogoCollapsed');
+        const logoInput = document.getElementById('appearance_logo');
+        const logoCollapsedInput = document.getElementById('appearance_logo_collapsed');
+        const removeChk = document.getElementById('removeLogoChk');
+        const removeCollapsedChk = document.getElementById('removeLogoCollapsedChk');
+        const primaryInput = document.getElementById('primary_color');
+        const primaryDarkInput = document.getElementById('primary_dark');
+        const greenInput = document.getElementById('green_color');
+        const yellowInput = document.getElementById('yellow_color');
+        const preview = document.getElementById('appearancePreview');
+
+        async function loadAppearance(){
+            try{
+                const res = await fetch('api/get_appearance.php');
+                const data = await res.json();
+                const s = data.appearance || {};
+                if (s.logo) {
+                    currentLogo.src = s.logo;
+                }
+                if (s.logo_collapsed) {
+                    currentLogoCollapsed.src = s.logo_collapsed;
+                }
+                if (s.primary_color) primaryInput.value = s.primary_color;
+                if (s.primary_dark) primaryDarkInput.value = s.primary_dark;
+                if (s.green) greenInput.value = s.green;
+                if (s.yellow) yellowInput.value = s.yellow;
+                applyPreviewColors();
+            }catch(e){ console.error(e); }
+        }
+
+        function applyPreviewColors(){
+            const p = primaryInput.value || '#0b6ac1';
+            const pd = primaryDarkInput.value || '#073b6b';
+            const g = greenInput.value || '#4bbf4b';
+            const y = yellowInput.value || '#ffd24a';
+            preview.querySelectorAll('div').forEach(d=>d.style.setProperty('--tmp', ''));
+            preview.style.setProperty('--tmp', '');
+            // apply inline preview colors
+            preview.querySelectorAll('div')[0].style.background = p;
+            const bars = preview.querySelectorAll('div')[1].querySelectorAll('div');
+            if (bars[0]) bars[0].style.background = p;
+            if (bars[1]) bars[1].style.background = y;
+            // also update document root for live preview
+            document.documentElement.style.setProperty('--blue-700', p);
+            document.documentElement.style.setProperty('--blue-900', pd);
+            document.documentElement.style.setProperty('--green', g);
+            document.documentElement.style.setProperty('--yellow', y);
+        }
+
+        primaryInput.addEventListener('input', applyPreviewColors);
+        primaryDarkInput.addEventListener('input', applyPreviewColors);
+        greenInput.addEventListener('input', applyPreviewColors);
+        yellowInput.addEventListener('input', applyPreviewColors);
+
+        document.getElementById('btn_save_appearance').addEventListener('click', async function(){
+            const fd = new FormData();
+            if (logoInput.files && logoInput.files[0]) fd.append('logo', logoInput.files[0]);
+            if (logoCollapsedInput.files && logoCollapsedInput.files[0]) fd.append('logo_collapsed', logoCollapsedInput.files[0]);
+            if (removeChk.checked) fd.append('remove_logo', '1');
+            if (removeCollapsedChk && removeCollapsedChk.checked) fd.append('remove_logo_collapsed', '1');
+            fd.append('primary_color', primaryInput.value || '');
+            fd.append('primary_dark', primaryDarkInput.value || '');
+            fd.append('green', greenInput.value || '');
+            fd.append('yellow', yellowInput.value || '');
+            this.disabled = true;
+            try{
+                const res = await fetch('api/save_appearance.php', { method: 'POST', body: fd });
+                const data = await res.json();
+                alert(data.message || (data.success ? 'Salvo' : 'Erro'));
+                if (data.success) {
+                    if (data.appearance && data.appearance.logo) currentLogo.src = data.appearance.logo + '?v=' + Date.now();
+                    if (data.appearance && data.appearance.logo_collapsed) currentLogoCollapsed.src = data.appearance.logo_collapsed + '?v=' + Date.now();
+                }
+            }catch(e){ alert('Erro ao salvar aparência'); console.error(e); }
+            this.disabled = false;
+        });
+
+        document.getElementById('btn_reset_appearance').addEventListener('click', async function(){
+            if (!confirm('Restaurar aparência para o padrão?')) return;
+            const fd = new FormData();
+            fd.append('remove_logo', '1');
+            fd.append('primary_color', '#0b6ac1');
+            fd.append('primary_dark', '#073b6b');
+            fd.append('green', '#4bbf4b');
+            fd.append('yellow', '#ffd24a');
+            try{
+                const res = await fetch('api/save_appearance.php', { method: 'POST', body: fd });
+                const data = await res.json();
+                alert(data.message || (data.success ? 'Restaurado' : 'Erro'));
+                if (data.success) location.reload();
+            }catch(e){ alert('Erro ao restaurar'); }
+        });
+
+        loadAppearance();
+    });
+    </script>

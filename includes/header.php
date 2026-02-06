@@ -20,14 +20,27 @@ include_once 'includes/permissions.php';
   <!-- Site theme (overrides and design system) -->
   <link rel="stylesheet" href="assets/css/theme.css">
   <link rel="stylesheet" href="assets/css/leads_gestao.css">
+  <?php
+    // Load appearance settings if available
+    $settingsPath = __DIR__ . '/../storage/settings.json';
+    $appearance = [];
+    if (file_exists($settingsPath)) {
+        $raw = @file_get_contents($settingsPath);
+        $appearance = $raw ? json_decode($raw, true) : [];
+    }
+    $primary = isset($appearance['primary_color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $appearance['primary_color']) ? $appearance['primary_color'] : '#0b6ac1';
+    $primaryDark = isset($appearance['primary_dark']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $appearance['primary_dark']) ? $appearance['primary_dark'] : '#073b6b';
+    $green = $appearance['green'] ?? '#4bbf4b';
+    $yellow = $appearance['yellow'] ?? '#ffd24a';
+  ?>
   <style>
     /* Theme derived from WR Solare logo: blues, green and yellow accents */
     :root{
-        --blue-700: #0b6ac1; /* main logo blue */
-        --blue-900: #073b6b; /* darker blue */
-        --green: #4bbf4b;    /* leaf green */
-        --yellow: #ffd24a;   /* sun yellow */
-  --muted-bg: #e9eef5;
+        --blue-700: <?php echo $primary; ?>; /* main logo blue */
+        --blue-900: <?php echo $primaryDark; ?>; /* darker blue */
+        --green: <?php echo $green; ?>;    /* leaf green */
+        --yellow: <?php echo $yellow; ?>;   /* sun yellow */
+        --muted-bg: #e9eef5;
         --sidebar-w: 260px;
         --sidebar-collapsed-w: 64px;
         --icon-size: 16px;
@@ -35,14 +48,15 @@ include_once 'includes/permissions.php';
   /* Remove default browser page margin and set base font/background
     Add top padding so fixed navbar doesn't cover content. */
   body{ margin: 0; font-family: 'Segoe UI', 'Segoe UI Variable', system-ui, -apple-system, 'Inter', Roboto, 'Helvetica Neue', Arial; background:var(--muted-bg); overflow-x: hidden; padding-top:48px; }
-  /* Keep navbar always visible: fixed at top */
-  .navbar { position: fixed; top: 0; z-index: 1040; width:100%; }
+  /* Keep navbar always visible: fixed at top and offset after sidebar */
+  .navbar { position: fixed; top: 0; left: var(--sidebar-w); z-index: 1040; width: calc(100% - var(--sidebar-w)); }
   /* Reduce the default container padding so brand sits closer to the left edge.
     Make the navbar flush with the viewport edges to maximize usable space. */
   html, body { width: 100%; }
-  .navbar { padding-left: 0; padding-right: 0; width: 100%; }
+  .navbar { padding-left: 0; padding-right: 0; }
   .navbar .container-fluid { padding-left: 6px; padding-right: 6px; max-width: 100%; margin: 0; }
-  .app-sidebar { position: fixed; top: 48px; left: 0; height: calc(100vh - 48px); overflow-y: auto; z-index: 1030; box-shadow: 2px 0 12px rgba(7,59,107,0.08); }
+  /* Sidebar: fixed full-height left rail (contains brand at top) */
+  .app-sidebar { position: fixed; top: 0; left: 0; height: 100vh; overflow-y: auto; z-index: 1030; box-shadow: 2px 0 12px rgba(7,59,107,0.08); }
   /* Main uses CSS variables so it can resize based on sidebar width */
   .app-sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); max-width: var(--sidebar-w); }
   .main-content-scroll, main.flex-grow-1 { margin-left: var(--sidebar-w); padding-left: 1rem; padding-right: 1rem; width: calc(100% - var(--sidebar-w)); transition: margin-left .22s ease, width .22s ease; }
@@ -70,8 +84,27 @@ include_once 'includes/permissions.php';
     .brand-leaf{ width:12px;height:8px;background:var(--green);display:inline-block;border-radius:4px }
     /* Ensure brand and toggle align neatly */
   .navbar-brand img { height: 32px; display:inline-block; vertical-align:middle; margin-right:.5rem; margin-top:0; margin-left:6px; }
-  /* Slight negative left margin on the toggle to pull it closer to the very left edge if needed */
-  #sidebarToggle { padding: .35rem .6rem; border-radius:8px; margin-left:4px; }
+  /* Sidebar toggle styling (now located inside sidebar) */
+  #sidebarToggle {
+    background: transparent !important;
+    border: none !important;
+    color: rgba(255,255,255,0.95);
+    padding: .15rem .35rem;
+    border-radius:6px;
+    margin-left:0;
+    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #sidebarToggle:hover, #sidebarToggle:focus {
+    background: rgba(255,255,255,0.06) !important;
+    outline: none;
+  }
+  /* ensure the toggle stays left-aligned in the top bar */
+  .sidebar-top { padding-left: 6px; }
+  /* hide duplicate brand in navbar when sidebar contains brand */
+  .navbar .navbar-brand { display: none; }
   </style>
 </head>
 <body>
@@ -79,18 +112,14 @@ include_once 'includes/permissions.php';
   <nav class="navbar navbar-light bg-white">
     <div class="container-fluid d-flex align-items-center">
       <div class="d-flex align-items-center">
-        <button id="sidebarToggle" class="btn btn-light me-2" title="Alternar menu" aria-label="Alternar menu">☰</button>
-        <a class="navbar-brand d-flex align-items-center text-dark" href="index.php">
-          <img src="assets/img/wrsolare-logo.png" alt="WR Solare" height="28" style="margin-right:.5rem;">
-          <span class="fw-semibold" style="color:var(--blue-900);"></span>
-          <?php
+        <!-- navbar brand intentionally removed (logo moved to sidebar) -->
+        <?php
             $reqHost = strtolower($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '');
-            $reqHost = preg_replace('/:\d+$/', '', $reqHost);
+            $reqHost = preg_replace('/:\\d+$/', '', $reqHost);
             if ($reqHost === 'localhost' || $reqHost === '127.0.0.1') {
-                echo '<span class="badge bg-warning text-dark ms-2">LOCAL</span>';
+                echo '<div class="me-2 d-none d-md-inline"><span class="badge bg-warning text-dark">LOCAL</span></div>';
             }
-          ?>
-        </a>
+        ?>
       </div>
       <div class="ms-auto d-flex align-items-center">
         <?php if (session_status() === PHP_SESSION_NONE) session_start(); ?>
@@ -156,6 +185,8 @@ include_once 'includes/permissions.php';
       left: 60px;
       width: calc(100% - 60px);
     }
+    /* When sidebar is collapsed move navbar accordingly */
+    body.sidebar-collapsed .navbar { left: var(--sidebar-collapsed-w); width: calc(100% - var(--sidebar-collapsed-w)); }
     /* Ensure spinner and text are visible on light background */
     .page-loading-overlay .loading-spinner {
       color: var(--blue-900);
@@ -179,14 +210,14 @@ include_once 'includes/permissions.php';
     .app-sidebar { 
       transition: width .3s cubic-bezier(0.4, 0, 0.2, 1); 
       box-sizing: border-box; 
-      width: 220px; 
-      min-width: 220px; 
-      max-width: 220px; 
-      flex: 0 0 220px; 
+      width: var(--sidebar-w); 
+      min-width: var(--sidebar-w); 
+      max-width: var(--sidebar-w); 
+      flex: 0 0 var(--sidebar-w); 
       position: fixed; 
-      top: 48px; 
+      top: 0; 
       left: 0; 
-      height: calc(100vh - 48px); 
+      height: 100vh; 
       overflow-y: auto; 
       overflow-x: hidden;
       z-index:1030; 
@@ -283,11 +314,12 @@ include_once 'includes/permissions.php';
     }
     
     .app-sidebar.collapsed .nav-link .label { 
-      opacity: 0; 
-      visibility: hidden; 
-      width: 0; 
-      margin: 0; 
-      padding: 0; 
+      opacity: 0;
+      visibility: hidden;
+      width: 0;
+      margin: 0;
+      padding: 0;
+      display: none !important;
     }
     
     .app-sidebar .icon i { 
@@ -369,7 +401,7 @@ include_once 'includes/permissions.php';
 
   /* Main content offset to avoid overlap with fixed sidebar */
   main.flex-grow-1, .main-content-scroll { 
-    margin-left: 220px; 
+    margin-left: var(--sidebar-w); 
     padding: 1.5rem; 
     transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
   }
@@ -383,8 +415,8 @@ include_once 'includes/permissions.php';
   /* When sidebar is collapsed, reduce left margin so content resizes */
   body.sidebar-collapsed main.flex-grow-1, 
   body.sidebar-collapsed .main-content-scroll { 
-    margin-left: 60px; 
-    width: calc(100% - 60px); 
+    margin-left: var(--sidebar-collapsed-w); 
+    width: calc(100% - var(--sidebar-collapsed-w)); 
   }
   
   body.sidebar-collapsed .main-content-scroll > .container-fluid { 

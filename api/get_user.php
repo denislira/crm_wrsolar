@@ -23,7 +23,20 @@ if (empty($id)) {
 }
 
 try {
-    $stmt = $pdo->prepare('SELECT id, username, email, role_id, team_id, role_level FROM users WHERE id = ?');
+    // include avatar column if present
+    $cols = ['id','username','email','role_id','team_id','role_level','avatar'];
+    $available = [];
+    try {
+        $colStmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'");
+        $colStmt->execute();
+        $allCols = $colStmt->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($cols as $c) if (in_array($c, $allCols)) $available[] = $c;
+    } catch (Exception $e) {
+        $available = ['id','username','email','role_id','team_id','role_level'];
+    }
+    if (empty($available)) $available = ['id','username','email'];
+    $select = implode(', ', $available);
+    $stmt = $pdo->prepare("SELECT $select FROM users WHERE id = ?");
     $stmt->execute([$id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($user) {

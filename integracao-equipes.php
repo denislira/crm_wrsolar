@@ -30,11 +30,26 @@ $responsaveis = array_map(function($r){return $r['responsavel'];}, $respStmt->fe
 
 // Lista de usuários para selecionar como responsável em novas tarefas
 $users = [];
+$usersMap = [];
 try {
-    $usersStmt = $pdo->query('SELECT id, username FROM users ORDER BY username');
-    $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
+    // tentar carregar avatar se a coluna existir
+    try {
+        $usersStmt = $pdo->query('SELECT id, username, avatar FROM users ORDER BY username');
+        $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $inner) {
+        // instalações antigas sem coluna `avatar`
+        $usersStmt = $pdo->query('SELECT id, username FROM users ORDER BY username');
+        $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    foreach ($users as $u) {
+        $usersMap[$u['id']] = [
+            'username' => $u['username'] ?? '',
+            'avatar' => $u['avatar'] ?? ''
+        ];
+    }
 } catch (Exception $e) {
     $users = [];
+    $usersMap = [];
 }
 
 $pageTitle = 'Integração de Equipes';
@@ -454,6 +469,7 @@ const equipes = <?php echo json_encode($equipes); ?>;
 const responsaveis = <?php echo json_encode($responsaveis); ?>;
 const userId = <?php echo json_encode($_SESSION['user_id']); ?>;
 const username = <?php echo json_encode($_SESSION['username'] ?? ''); ?>;
+const usersMap = <?php echo json_encode($usersMap); ?>;
 
 function escapeHtmlGlobal(str) {
     if (!str) return '';
@@ -506,17 +522,41 @@ async function atualizarTarefas() {
         tarefas.forEach(t => {
             const card = document.createElement('div');
             card.className = 'mb-2 p-2 border rounded d-flex align-items-center gap-3 bg-white';
-            // Avatar
-            const avatar = document.createElement('div');
-            avatar.className = 'rounded-circle d-flex align-items-center justify-content-center me-2';
-            avatar.style.width = '38px';
-            avatar.style.height = '38px';
-            avatar.style.background = equipeColor(t.equipe);
-            avatar.style.color = '#fff';
-            avatar.style.fontWeight = 'bold';
-            avatar.style.fontSize = '1.1rem';
-            avatar.textContent = t.responsavel ? initials(t.responsavel) : '?';
-            card.appendChild(avatar);
+            // Avatar (show image when available for task.user_id)
+            let avatarEl;
+            try {
+                const uinfo = (t.user_id && usersMap && usersMap[t.user_id]) ? usersMap[t.user_id] : null;
+                if (uinfo && uinfo.avatar) {
+                    avatarEl = document.createElement('img');
+                    avatarEl.src = uinfo.avatar + '?v=' + Date.now();
+                    avatarEl.className = 'rounded-circle me-2';
+                    avatarEl.style.width = '38px';
+                    avatarEl.style.height = '38px';
+                    avatarEl.style.objectFit = 'cover';
+                    avatarEl.alt = uinfo.username || t.responsavel || 'Avatar';
+                } else {
+                    avatarEl = document.createElement('div');
+                    avatarEl.className = 'rounded-circle d-flex align-items-center justify-content-center me-2';
+                    avatarEl.style.width = '38px';
+                    avatarEl.style.height = '38px';
+                    avatarEl.style.background = equipeColor(t.equipe);
+                    avatarEl.style.color = '#fff';
+                    avatarEl.style.fontWeight = 'bold';
+                    avatarEl.style.fontSize = '1.1rem';
+                    avatarEl.textContent = t.responsavel ? initials(t.responsavel) : '?';
+                }
+            } catch (e) {
+                avatarEl = document.createElement('div');
+                avatarEl.className = 'rounded-circle d-flex align-items-center justify-content-center me-2';
+                avatarEl.style.width = '38px';
+                avatarEl.style.height = '38px';
+                avatarEl.style.background = equipeColor(t.equipe);
+                avatarEl.style.color = '#fff';
+                avatarEl.style.fontWeight = 'bold';
+                avatarEl.style.fontSize = '1.1rem';
+                avatarEl.textContent = t.responsavel ? initials(t.responsavel) : '?';
+            }
+            card.appendChild(avatarEl);
             // Conteúdo
             const content = document.createElement('div');
             content.className = 'flex-grow-1';
@@ -635,25 +675,28 @@ function openEditModal(task) {
     document.getElementById('edit-status').value = task.status;
     document.getElementById('edit-data-vencimento').value = task.data_vencimento;
     document.getElementById('edit-descricao').value = task.descricao;
-    // fill avatar/name area
-        try {
+    // fill avatar/name area using usersMap if available
+    try {
         const nameEl = document.getElementById('edit-responsavel_name');
         const avatarEl = document.getElementById('edit-avatar');
         const headerAvatar = document.getElementById('modal-header-avatar');
         const idEl = document.getElementById('edit-responsavel-id');
-        if (nameEl) nameEl.textContent = task.responsavel || '';
-        if (idEl) idEl.textContent = task.responsavel_id || (task.responsavel || '').toString().slice(0,6);
-        const initials = (task.responsavel || '').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase() || '?';
-        if (avatarEl) avatarEl.textContent = initials;
-        if (headerAvatar) headerAvatar.textContent = initials;
-        // use system blue for avatar/header
-        const primary = '#0d6efd';
-        const headerColor = '#0b5ed7';
-        if (avatarEl) { avatarEl.style.background = primary; avatarEl.style.color = '#fff'; }
-        if (headerAvatar) { headerAvatar.style.background = primary; headerAvatar.style.color = '#fff'; }
+        const uinfo = (task.user_id && usersMap && usersMap[task.user_id]) ? usersMap[task.user_id] : null;
+        const displayName = (uinfo && uinfo.username) ? uinfo.username : (task.responsavel || '');
+        if (nameEl) nameEl.textContent = displayName;
+        if (idEl) idEl.textContent = task.user_id || (task.responsavel || '').toString().slice(0,6);
+        if (uinfo && uinfo.avatar) {
+            // show image
+            if (avatarEl) avatarEl.innerHTML = `<img src="${uinfo.avatar}?v=${Date.now()}" class="rounded-circle" style="width:56px;height:56px;object-fit:cover;">`;
+            if (headerAvatar) headerAvatar.innerHTML = `<img src="${uinfo.avatar}?v=${Date.now()}" class="rounded-circle" style="width:56px;height:56px;object-fit:cover;">`;
+        } else {
+            const initials = (displayName || '').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase() || '?';
+            if (avatarEl) { avatarEl.textContent = initials; avatarEl.style.background = '#0d6efd'; avatarEl.style.color = '#fff'; }
+            if (headerAvatar) { headerAvatar.textContent = initials; headerAvatar.style.background = '#0d6efd'; headerAvatar.style.color = '#fff'; }
+        }
         const modalHeader = document.querySelector('#modalEditarTarefa .modal-header');
         if (modalHeader) {
-            modalHeader.style.background = headerColor;
+            modalHeader.style.background = '#0b5ed7';
             modalHeader.style.borderBottom = '1px solid rgba(0,0,0,0.06)';
         }
     } catch(e){ console.warn('avatar fill error',e); }

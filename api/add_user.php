@@ -38,6 +38,32 @@ $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 try {
     $stmt = $pdo->prepare('INSERT INTO users (username, password, email, role_id, team_id, role_level) VALUES (?, ?, ?, ?, ?, ?)');
     $stmt->execute([$username, $hashed_password, $email, $role_id, $team_id ?: null, $role_level]);
+    $newId = $pdo->lastInsertId();
+
+    // handle avatar upload if provided
+    if (!empty($_FILES['avatar']) && isset($_FILES['avatar']['tmp_name']) && file_exists($_FILES['avatar']['tmp_name'])) {
+        $file = $_FILES['avatar'];
+        $imgInfo = @getimagesize($file['tmp_name']);
+        $ext = null;
+        $map = ['image/png'=>'.png','image/jpeg'=>'.jpg','image/gif'=>'.gif','image/webp'=>'.webp'];
+        if ($imgInfo && !empty($imgInfo['mime']) && isset($map[$imgInfo['mime']])) $ext = $map[$imgInfo['mime']];
+        if ($ext === null) {
+            $orig = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $allowed = ['png'=>'.png','jpg'=>'.jpg','jpeg'=>'.jpg','gif'=>'.gif','webp'=>'.webp'];
+            if (isset($allowed[$orig])) $ext = $allowed[$orig];
+        }
+        if ($ext !== null) {
+            $targetName = 'uploads/avatar_'.$newId.$ext;
+            $targetPath = __DIR__ . '/../' . $targetName;
+            if (!is_dir(dirname($targetPath))) @mkdir(dirname($targetPath), 0755, true);
+            if (@move_uploaded_file($file['tmp_name'], $targetPath) || @copy($file['tmp_name'], $targetPath)) {
+                @chmod($targetPath, 0644);
+                $u = $pdo->prepare('UPDATE users SET avatar = ? WHERE id = ?');
+                $u->execute([$targetName, $newId]);
+            }
+        }
+    }
+
     echo json_encode(['success' => true, 'message' => 'Usuário adicionado com sucesso']);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Erro ao adicionar usuário: ' . $e->getMessage()]);

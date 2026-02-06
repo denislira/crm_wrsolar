@@ -15,12 +15,30 @@ if ($id !== (int)$currentUserId && !hasPermission('configuracoes')) {
 }
 
 try {
-    // Fetch user basic info
-    $stmt = $pdo->prepare('SELECT id, username, email, name, role_id, team_id, created_at FROM users WHERE id = ? LIMIT 1');
+    // Fetch user basic info: select only columns that exist in this schema
+    $cols = ['id','username','email','name','role_id','team_id','created_at'];
+    $available = [];
+    try {
+        $colStmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'");
+        $colStmt->execute();
+        $allCols = $colStmt->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($cols as $c) if (in_array($c, $allCols)) $available[] = $c;
+    } catch (Exception $e) {
+        // fallback to safe defaults
+        $available = ['id','username','email','created_at'];
+    }
+    if (empty($available)) $available = ['id','username','email','created_at'];
+    $select = implode(', ', array_map(function($c){ return $c; }, $available));
+    $stmt = $pdo->prepare("SELECT $select FROM users WHERE id = ? LIMIT 1");
     $stmt->execute([$id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) { echo json_encode(['success'=>false,'message'=>'Usuário não encontrado']); exit; }
+
+    // ensure we have a friendly 'name' key for downstream code
+    if (!isset($user['name'])) {
+        $user['name'] = $user['username'] ?? ($user['email'] ?? '');
+    }
 
     // Fetch team tasks (owned or assigned)
     $tasksStmt = $pdo->prepare('SELECT * FROM team_tasks WHERE user_id = ? OR responsavel = ? ORDER BY data_vencimento ASC, criado_em DESC');

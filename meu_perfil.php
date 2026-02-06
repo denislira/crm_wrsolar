@@ -102,203 +102,428 @@ include __DIR__ . '/includes/header.php';
 // sidebar contains navigation
 include __DIR__ . '/includes/sidebar.php';
 ?>
+<style>
+    .profile-header-gradient {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        padding: 2rem;
+        color: white;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.2);
+    }
+    .profile-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        border: none;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        height: 100%;
+    }
+    .profile-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    .profile-avatar-large {
+        width: 140px;
+        height: 140px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 5px solid white;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .profile-info-item {
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .profile-info-item:last-child {
+        border-bottom: none;
+    }
+    .profile-info-label {
+        font-weight: 600;
+        color: #6c757d;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .profile-info-value {
+        color: #2d3748;
+        font-size: 1rem;
+        margin-top: 0.25rem;
+    }
+    .profile-section-title {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: #2d3748;
+        margin-bottom: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .profile-section-title::before {
+        content: '';
+        width: 4px;
+        height: 24px;
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        border-radius: 4px;
+    }
+    .task-item {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        transition: all 0.2s ease;
+    }
+    .task-item:hover {
+        border-color: #667eea;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+    }
+    .avatar-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+    .badge-custom {
+        padding: 0.375rem 0.75rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .badge-pendente { background: #fef3c7; color: #92400e; }
+    .badge-andamento { background: #dbeafe; color: #1e40af; }
+    .badge-concluida { background: #d1fae5; color: #065f46; }
+    .list-item {
+        padding: 1rem;
+        border-bottom: 1px solid #f0f0f0;
+        transition: background 0.2s ease;
+    }
+    .list-item:hover {
+        background: #f8f9fa;
+    }
+    .list-item:last-child {
+        border-bottom: none;
+    }
+    .btn-modern {
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 0.5rem 1.25rem;
+        transition: all 0.2s ease;
+    }
+    .btn-modern:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .scrollable-list {
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+    }
+    .scrollable-list::-webkit-scrollbar {
+        width: 6px;
+    }
+    .scrollable-list::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    .scrollable-list::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 10px;
+    }
+    .scrollable-list::-webkit-scrollbar-thumb:hover {
+        background: #a0aec0;
+    }
+</style>
+
 <main class="flex-grow-1 p-4 main-content-scroll">
     <div class="container-fluid">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h3>Meu Perfil</h3>
-            <div>
-                <a href="index.php" class="btn btn-sm btn-outline-secondary">Voltar</a>
-                <a href="logout.php" class="btn btn-sm btn-outline-danger">Sair</a>
-            </div>
-        </div>
-        <!-- User metrics cards (scoped to logged user) -->
-        <div class="row g-4 mb-4">
-            <div class="col-6 col-md-3">
-                <div class="dashboard-modern-card p-3 text-center">
-                    <h6 class="mb-2 text-muted">Meus Leads Ativos</h6>
-                    <div class="fs-2 fw-bold text-primary mb-1"><?= intval($totalLeadsUser) ?></div>
-                    <small class="text-muted">Em andamento</small>
+        <!-- Header com gradiente -->
+        <div class="profile-header-gradient">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-2" style="font-weight: 700;">Meu Perfil</h2>
+                    <p class="mb-0 opacity-75">Gerencie suas informações e acompanhe suas atividades</p>
                 </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="dashboard-modern-card p-3 text-center">
-                    <h6 class="mb-2 text-muted">Novos (30d)</h6>
-                    <div class="fs-2 fw-bold text-primary mb-1"><?= intval($newLeads30User) ?></div>
-                    <small class="text-muted">Últimos 30 dias</small>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="dashboard-modern-card p-3 text-center">
-                    <h6 class="mb-2 text-muted">Projetos em Andamento</h6>
-                    <div class="fs-2 fw-bold text-success mb-1"><?= intval($totalProjetosUser) ?></div>
-                    <small class="text-muted">Não finalizados</small>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="dashboard-modern-card p-3 text-center">
-                    <h6 class="mb-2 text-muted">Valor em Negociação</h6>
-                    <div class="fs-2 fw-bold text-warning mb-1">R$ <?= number_format($valorNegociacaoUser,2,',','.') ?></div>
-                    <small class="text-muted">Total proposto</small>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="dashboard-modern-card p-3 text-center">
-                    <h6 class="mb-2 text-muted">Taxa de Conversão</h6>
-                    <div class="fs-2 fw-bold text-info mb-1"><?= $conversionRateUser ?>%</div>
-                    <small class="text-muted">Projetos finalizados</small>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="dashboard-modern-card p-3 text-center">
-                    <h6 class="mb-2 text-muted">Contratado (Total)</h6>
-                    <div class="fs-2 fw-bold text-success mb-1">R$ <?= number_format($valorContratadoUser,2,',','.') ?></div>
-                    <small class="text-muted">Projetos finalizados</small>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="dashboard-modern-card p-3 text-center">
-                    <h6 class="mb-2 text-muted">Média Proposta</h6>
-                    <div class="fs-2 fw-bold text-secondary mb-1">R$ <?= number_format($avgProposalUser,2,',','.') ?></div>
-                    <small class="text-muted">Valor médio</small>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="dashboard-modern-card p-3 text-center">
-                    <h6 class="mb-2 text-muted">Forecast R$</h6>
-                    <div class="fs-2 fw-bold text-warning mb-1">R$ <?= number_format($revenueForecastUser,2,',','.') ?></div>
-                    <small class="text-muted">Estimativa simples</small>
+                <div class="d-flex gap-2">
+                    <a href="index.php" class="btn btn-light btn-modern">
+                        <i class="fas fa-arrow-left me-2"></i>Voltar
+                    </a>
+                    <a href="logout.php" class="btn btn-outline-light btn-modern">
+                        <i class="fas fa-sign-out-alt me-2"></i>Sair
+                    </a>
                 </div>
             </div>
         </div>
+
         <div id="profileDebug" class="mb-3"></div>
 
-        <div class="row g-3">
-            <div class="col-md-4">
-                <div class="card p-3" style="border-right: 3px solid #007bff;">
-                    <h6>Informações</h6>
-                    <dl class="row mb-0 mt-2">
-                        <dt class="col-4">ID</dt><dd class="col-8"><?php echo htmlspecialchars($user['id'] ?? $user_id); ?></dd>
-                        <dt class="col-4">Usuário</dt><dd class="col-8"><?php echo htmlspecialchars($user['username'] ?? ($_SESSION['username'] ?? '')); ?></dd>
-                        <dt class="col-4">Nome</dt><dd class="col-8"><?php echo htmlspecialchars($user['name'] ?? ''); ?></dd>
-                        <dt class="col-4">Email</dt><dd class="col-8"><?php echo htmlspecialchars($user['email'] ?? ''); ?></dd>
-                    </dl>
+        <div class="row g-4">
+            <!-- Coluna Esquerda - Foto e Informações -->
+            <div class="col-lg-4">
+                <!-- Card Foto de Perfil -->
+                <div class="profile-card mb-4">
+                    <h5 class="profile-section-title">Foto de Perfil</h5>
+                    <div class="text-center mb-4">
+                        <?php
+                            // load avatar if present
+                            $avatarPath = null;
+                            try {
+                                $ast = $pdo->prepare('SELECT avatar FROM users WHERE id = ? LIMIT 1');
+                                $ast->execute([$user_id]);
+                                $arow = $ast->fetch(PDO::FETCH_ASSOC);
+                                if (!empty($arow['avatar']) && file_exists(__DIR__ . '/' . $arow['avatar'])) {
+                                    $avatarPath = $arow['avatar'];
+                                }
+                            } catch (Exception $e) { }
+                            $avatarSrc = $avatarPath ?: 'assets/img/avatar-placeholder.png';
+                        ?>
+                        <img id="profileAvatar" src="<?php echo htmlspecialchars($avatarSrc); ?>" alt="Avatar" class="profile-avatar-large" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">Escolher nova foto</label>
+                        <input id="avatarInput" type="file" accept="image/*" class="form-control" />
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button id="btnUploadAvatar" class="btn btn-primary btn-modern flex-grow-1">
+                            <i class="fas fa-upload me-2"></i>Salvar
+                        </button>
+                        <button id="btnRemoveAvatar" class="btn btn-outline-danger btn-modern">
+                            <i class="fas fa-trash me-2"></i>Remover
+                        </button>
+                    </div>
+                    <div id="avatarMsg" class="mt-3"></div>
                 </div>
-                <div class="card p-3 mt-3" style="border-right: 3px solid #007bff;">
-                    <h6>Criar tarefa rápida</h6>
-                    <form id="formQuickTask">
-                        <div class="mb-2"><input name="titulo" class="form-control form-control-sm" placeholder="Título" required></div>
-                        <div class="mb-2"><textarea name="descricao" class="form-control form-control-sm" rows="2" placeholder="Descrição (opcional)"></textarea></div>
-                        <input type="hidden" name="responsavel" value="<?php echo htmlspecialchars($user['username'] ?? ($_SESSION['username'] ?? '')); ?>">
-                        <input type="hidden" name="user_id" value="<?php echo $user_id; ?>">
-                        <button class="btn btn-sm btn-primary w-100" type="submit">Salvar</button>
-                        <div id="quickTaskMsg" class="mt-2"></div>
-                    </form>
+
+                <!-- Card Informações Pessoais -->
+                <div class="profile-card">
+                    <h5 class="profile-section-title">Informações Pessoais</h5>
+                    <div>
+                        <div class="profile-info-item">
+                            <div class="profile-info-label">
+                                <i class="fas fa-hashtag me-2"></i>ID do Usuário
+                            </div>
+                            <div class="profile-info-value"><?php echo htmlspecialchars($user['id'] ?? $user_id); ?></div>
+                        </div>
+                        <div class="profile-info-item">
+                            <div class="profile-info-label">
+                                <i class="fas fa-user me-2"></i>Usuário
+                            </div>
+                            <div class="profile-info-value"><?php echo htmlspecialchars($user['username'] ?? ($_SESSION['username'] ?? '')); ?></div>
+                        </div>
+                        <div class="profile-info-item">
+                            <div class="profile-info-label">
+                                <i class="fas fa-id-card me-2"></i>Nome Completo
+                            </div>
+                            <div class="profile-info-value"><?php echo htmlspecialchars($user['name'] ?? ''); ?></div>
+                        </div>
+                        <div class="profile-info-item">
+                            <div class="profile-info-label">
+                                <i class="fas fa-envelope me-2"></i>E-mail
+                            </div>
+                            <div class="profile-info-value"><?php echo htmlspecialchars($user['email'] ?? ''); ?></div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="col-md-8">
-                <div class="card p-3" style="border-right: 3px solid #007bff;">
-                    <h6>Minhas Tarefas</h6>
-                    <div class="d-flex gap-2 mb-2">
-                        <select id="profileFiltroStatus" class="form-select form-select-sm w-auto">
-                            <option value="">Todos status</option>
-                            <option value="Pendente">Pendente</option>
-                            <option value="Em andamento">Em andamento</option>
-                            <option value="Concluída">Concluída</option>
-                        </select>
-                        <input id="profileFiltroBusca" class="form-control form-control-sm" placeholder="Buscar..." />
+
+            <!-- Coluna Direita - Tarefas -->
+            <div class="col-lg-8">
+                <div class="profile-card">
+                    <h5 class="profile-section-title">Minhas Tarefas</h5>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <select id="profileFiltroStatus" class="form-select">
+                                <option value="">📋 Todos os status</option>
+                                <option value="Pendente">⏳ Pendente</option>
+                                <option value="Em andamento">⚙️ Em andamento</option>
+                                <option value="Concluída">✅ Concluída</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <input id="profileFiltroBusca" class="form-control" placeholder="🔍 Buscar tarefas..." />
+                        </div>
                     </div>
-                    <div id="profileTasksList" style="min-height:120px; max-height:320px; overflow:auto;">
+                    <div id="profileTasksList" class="scrollable-list" style="min-height:350px;">
                         <?php if (!empty($profile_tasks)): ?>
                             <?php foreach ($profile_tasks as $t): ?>
-                                <div class="mb-2 p-2 border rounded d-flex align-items-center gap-3 bg-white">
-                                    <div class="rounded-circle d-flex align-items-center justify-content-center me-2" style="width:38px;height:38px;background:#888;color:#fff;">
-                                        <?php echo strtoupper(substr(trim($t['responsavel'] ?? ($user['username'] ?? '')),0,2)); ?>
-                                    </div>
-                                    <div class="flex-grow-1">
-                                        <div class="fw-semibold"><?php echo htmlspecialchars($t['titulo'] ?? ''); ?> <span class="badge ms-1"><?php echo htmlspecialchars($t['status'] ?? ''); ?></span></div>
-                                        <div class="small text-muted"><?php echo htmlspecialchars($t['data_vencimento'] ?? ''); ?></div>
-                                        <div class="mt-1"><?php echo htmlspecialchars($t['descricao'] ?? ''); ?></div>
-                                    </div>
-                                    <div class="d-flex flex-column gap-1">
-                                        <button class="btn btn-sm btn-outline-primary">Editar</button>
-                                        <button class="btn btn-sm btn-outline-danger">Excluir</button>
+                                <div class="task-item">
+                                    <div class="d-flex align-items-start gap-3">
+                                        <div class="avatar-circle">
+                                            <?php echo strtoupper(substr(trim($t['responsavel'] ?? ($user['username'] ?? '')),0,2)); ?>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex align-items-center gap-2 mb-2">
+                                                <h6 class="mb-0 fw-bold"><?php echo htmlspecialchars($t['titulo'] ?? ''); ?></h6>
+                                                <span class="badge-custom badge-pendente"><?php echo htmlspecialchars($t['status'] ?? ''); ?></span>
+                                            </div>
+                                            <p class="text-muted small mb-2">
+                                                <i class="far fa-calendar me-1"></i>
+                                                <?php echo htmlspecialchars($t['data_vencimento'] ?? 'Sem data'); ?>
+                                            </p>
+                                            <p class="mb-0 text-secondary"><?php echo htmlspecialchars($t['descricao'] ?? ''); ?></p>
+                                        </div>
+                                        <div class="d-flex flex-column gap-2">
+                                            <button class="btn btn-sm btn-outline-primary btn-modern">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger btn-modern">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <div class="text-muted">Nenhuma tarefa encontrada.</div>
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-tasks fa-3x mb-3 opacity-25"></i>
+                                <p>Nenhuma tarefa encontrada.</p>
+                            </div>
                         <?php endif; ?>
                     </div>
                 </div>
-            </div>
         </div>
-        <!-- Additional user activity panels -->
-        <div class="row g-3 mt-3">
-            <div class="col-md-6">
-                <div class="card p-3" style="border-right: 3px solid #007bff;">
-                    <h6>Leads</h6>
-                    <div id="profileLeadsList" class="mb-2" style="min-height:80px; max-height:220px; overflow:auto;">
+
+        <!-- Seções de Leads, Projetos, Movimentações e Lembretes -->
+        <div class="row g-4 mt-2">
+            <div class="col-lg-6">
+                <div class="profile-card">
+                    <h5 class="profile-section-title">📊 Meus Leads</h5>
+                    <div id="profileLeadsList" class="scrollable-list" style="min-height:200px;">
                         <?php if (!empty($profile_leads)): ?>
                             <?php foreach (array_slice($profile_leads,0,50) as $l): ?>
-                                <div class="py-1 border-bottom">
-                                    <div class="fw-semibold"><?php echo htmlspecialchars($l['name']); ?> <small class="text-muted">#<?php echo $l['id']; ?></small></div>
-                                    <div class="small text-muted"><?php echo htmlspecialchars($l['email'] ?? ''); ?> • <?php echo htmlspecialchars($l['phone'] ?? ''); ?> • <?php echo htmlspecialchars($l['status'] ?? ''); ?></div>
+                                <div class="list-item">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="mb-1 fw-semibold"><?php echo htmlspecialchars($l['name']); ?></h6>
+                                            <p class="mb-0 small text-muted">
+                                                <i class="fas fa-envelope me-1"></i><?php echo htmlspecialchars($l['email'] ?? ''); ?>
+                                                <span class="mx-2">•</span>
+                                                <i class="fas fa-phone me-1"></i><?php echo htmlspecialchars($l['phone'] ?? ''); ?>
+                                            </p>
+                                        </div>
+                                        <span class="badge bg-primary"><?php echo htmlspecialchars($l['status'] ?? ''); ?></span>
+                                    </div>
                                 </div>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <div class="text-muted">Nenhum lead.</div>
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-user-tie fa-3x mb-3 opacity-25"></i>
+                                <p>Nenhum lead encontrado.</p>
+                            </div>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="card p-3" style="border-right: 3px solid #007bff;">
-                    <h6>Projetos</h6>
-                    <div id="profileProjectsList" class="mb-2" style="min-height:80px; max-height:220px; overflow:auto;">
+
+            <div class="col-lg-6">
+                <div class="profile-card">
+                    <h5 class="profile-section-title">💼 Meus Projetos</h5>
+                    <div id="profileProjectsList" class="scrollable-list" style="min-height:200px;">
                         <?php if (!empty($profile_projects)): ?>
                             <?php foreach (array_slice($profile_projects,0,50) as $p): ?>
-                                <div class="py-1 border-bottom">
-                                    <div class="fw-semibold"><?php echo htmlspecialchars($p['client_name'] ?? 'Projeto'); ?> <small class="text-muted">#<?php echo $p['id']; ?></small></div>
-                                    <div class="small text-muted">R$ <?php echo number_format($p['proposal_value'] ?? 0,2,',','.'); ?> • <?php echo htmlspecialchars($p['status'] ?? ''); ?></div>
+                                <div class="list-item">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="mb-1 fw-semibold"><?php echo htmlspecialchars($p['client_name'] ?? 'Projeto'); ?></h6>
+                                            <p class="mb-0 small">
+                                                <span class="text-success fw-bold">
+                                                    <i class="fas fa-dollar-sign me-1"></i>R$ <?php echo number_format($p['proposal_value'] ?? 0,2,',','.'); ?>
+                                                </span>
+                                            </p>
+                                        </div>
+                                        <span class="badge bg-success"><?php echo htmlspecialchars($p['status'] ?? ''); ?></span>
+                                    </div>
                                 </div>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <div class="text-muted">Nenhum projeto.</div>
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-briefcase fa-3x mb-3 opacity-25"></i>
+                                <p>Nenhum projeto encontrado.</p>
+                            </div>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
+
             <div class="col-12">
-                <div class="card p-3" style="border-right: 3px solid #007bff;">
-                    <h6>Movimentações (histórico)</h6>
-                    <div id="profileMovementsList" class="mb-2" style="min-height:80px; max-height:320px; overflow:auto;">
+                <div class="profile-card">
+                    <h5 class="profile-section-title">📈 Histórico de Movimentações</h5>
+                    <div id="profileMovementsList" class="scrollable-list" style="min-height:200px;">
                         <?php if (!empty($profile_movements)): ?>
                             <?php foreach (array_slice($profile_movements,0,200) as $m): ?>
-                                <div class="py-1 border-bottom">
-                                    <div class="small"><strong><?php echo htmlspecialchars($m['changed_by'] ?: $m['user_id']); ?></strong> em <span class="text-muted"><?php echo htmlspecialchars($m['created_at']); ?></span></div>
-                                    <div class="small text-muted">Lead #<?php echo htmlspecialchars($m['lead_id']); ?> • <?php echo htmlspecialchars($m['from_status'] ?? ''); ?> → <?php echo htmlspecialchars($m['to_status'] ?? ''); ?></div>
-                                    <div class="mt-1"><?php echo htmlspecialchars($m['note'] ?? ''); ?></div>
+                                <div class="list-item">
+                                    <div class="d-flex align-items-start gap-3">
+                                        <div class="avatar-circle" style="width:32px;height:32px;font-size:0.75rem;">
+                                            <?php echo strtoupper(substr(trim($m['changed_by'] ?: $m['user_id']),0,2)); ?>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <div class="small mb-1">
+                                                <strong><?php echo htmlspecialchars($m['changed_by'] ?: $m['user_id']); ?></strong>
+                                                <span class="text-muted mx-2">•</span>
+                                                <span class="text-muted">
+                                                    <i class="far fa-clock me-1"></i><?php echo htmlspecialchars($m['created_at']); ?>
+                                                </span>
+                                            </div>
+                                            <div class="small text-muted mb-1">
+                                                Lead #<?php echo htmlspecialchars($m['lead_id']); ?>
+                                                <span class="mx-2">→</span>
+                                                <span class="badge bg-secondary"><?php echo htmlspecialchars($m['from_status'] ?? ''); ?></span>
+                                                <i class="fas fa-arrow-right mx-1"></i>
+                                                <span class="badge bg-primary"><?php echo htmlspecialchars($m['to_status'] ?? ''); ?></span>
+                                            </div>
+                                            <?php if(!empty($m['note'])): ?>
+                                                <p class="mb-0 small"><?php echo htmlspecialchars($m['note']); ?></p>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
                                 </div>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <div class="text-muted">Nenhuma movimentação encontrada.</div>
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-chart-line fa-3x mb-3 opacity-25"></i>
+                                <p>Nenhuma movimentação encontrada.</p>
+                            </div>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
+
             <div class="col-12">
-                <div class="card p-3" style="border-right: 3px solid #007bff;">
-                    <h6>Lembretes criados</h6>
-                    <div id="profileRemindersList" class="mb-2" style="min-height:80px; max-height:220px; overflow:auto;">
+                <div class="profile-card">
+                    <h5 class="profile-section-title">🔔 Lembretes Criados</h5>
+                    <div id="profileRemindersList" class="scrollable-list" style="min-height:200px;">
                         <?php if (!empty($profile_reminders)): ?>
                             <?php foreach (array_slice($profile_reminders,0,200) as $r): ?>
-                                <div class="py-1 border-bottom">
-                                    <div class="fw-semibold"><?php echo htmlspecialchars($r['message']); ?></div>
-                                    <div class="small text-muted"><?php echo htmlspecialchars($r['remind_at']); ?> • Lead: <?php echo htmlspecialchars($r['lead_name'] ?? $r['lead_id']); ?></div>
+                                <div class="list-item">
+                                    <div class="d-flex align-items-start gap-3">
+                                        <div style="color:#667eea;font-size:1.5rem;">
+                                            <i class="far fa-bell"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1 fw-semibold"><?php echo htmlspecialchars($r['message']); ?></h6>
+                                            <p class="mb-0 small text-muted">
+                                                <i class="far fa-calendar-alt me-1"></i><?php echo htmlspecialchars($r['remind_at']); ?>
+                                                <span class="mx-2">•</span>
+                                                Lead: <strong><?php echo htmlspecialchars($r['lead_name'] ?? $r['lead_id']); ?></strong>
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <div class="text-muted">Nenhum lembrete.</div>
+                            <div class="text-center text-muted py-5">
+                                <i class="far fa-bell fa-3x mb-3 opacity-25"></i>
+                                <p>Nenhum lembrete encontrado.</p>
+                            </div>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -317,28 +542,58 @@ include __DIR__ . '/includes/sidebar.php';
 
     async function loadProfileTasks(){
         const list = document.getElementById('profileTasksList');
-        list.innerHTML = '<div class="text-muted">Carregando...</div>';
+        list.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin fa-2x mb-3"></i><p>Carregando tarefas...</p></div>';
         try{
             const status = document.getElementById('profileFiltroStatus').value;
             const q = document.getElementById('profileFiltroBusca').value.trim().toLowerCase();
             const filtros = { user_id: String(PROFILE_USER_ID) };
             if(status) filtros.status = status;
             const tarefas = await fetchTasks(filtros);
-            if(!Array.isArray(tarefas) || !tarefas.length){ list.innerHTML = '<div class="text-muted">Nenhuma tarefa encontrada.</div>'; return; }
+            if(!Array.isArray(tarefas) || !tarefas.length){ 
+                list.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-tasks fa-3x mb-3 opacity-25"></i><p>Nenhuma tarefa encontrada.</p></div>'; 
+                return; 
+            }
             list.innerHTML = '';
             tarefas.forEach(t=>{
                 const card = document.createElement('div');
-                card.className = 'mb-2 p-2 border rounded d-flex align-items-center gap-3 bg-white';
-                const avatar = document.createElement('div'); avatar.className='rounded-circle d-flex align-items-center justify-content-center me-2'; avatar.style.width='38px'; avatar.style.height='38px'; avatar.style.background='#888'; avatar.style.color='#fff'; avatar.textContent = (t.responsavel||'?').split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase();
-                const content = document.createElement('div'); content.className='flex-grow-1';
-                content.innerHTML = `<div class="fw-semibold">${escapeHtml(t.titulo)} <span class="badge ms-1" style="background:${escapeHtml(t.status||'')};color:#fff;">${escapeHtml(t.status||'')}</span></div>
-                    <div class="small text-muted">${t.data_vencimento?('Venc.: '+escapeHtml(t.data_vencimento)):''}</div>
-                    <div class="mt-1">${escapeHtml(t.descricao||'')}</div>`;
-                const actions = document.createElement('div'); actions.className='d-flex flex-column gap-1'; actions.innerHTML = `<button class="btn btn-sm btn-outline-primary">Editar</button><button class="btn btn-sm btn-outline-danger">Excluir</button>`;
-                card.appendChild(avatar); card.appendChild(content); card.appendChild(actions);
+                card.className = 'task-item';
+                
+                const badgeClass = t.status === 'Pendente' ? 'badge-pendente' : 
+                                  t.status === 'Em andamento' ? 'badge-andamento' : 
+                                  t.status === 'Concluída' ? 'badge-concluida' : 'badge-pendente';
+                
+                card.innerHTML = `
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="avatar-circle">
+                            ${(t.responsavel||'?').split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()}
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <h6 class="mb-0 fw-bold">${escapeHtml(t.titulo)}</h6>
+                                <span class="badge-custom ${badgeClass}">${escapeHtml(t.status||'')}</span>
+                            </div>
+                            <p class="text-muted small mb-2">
+                                <i class="far fa-calendar me-1"></i>
+                                ${t.data_vencimento ? escapeHtml(t.data_vencimento) : 'Sem data'}
+                            </p>
+                            <p class="mb-0 text-secondary">${escapeHtml(t.descricao||'')}</p>
+                        </div>
+                        <div class="d-flex flex-column gap-2">
+                            <button class="btn btn-sm btn-outline-primary btn-modern">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger btn-modern">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
                 list.appendChild(card);
             });
-        }catch(e){ console.error(e); document.getElementById('profileTasksList').innerHTML = '<div class="text-danger">Erro ao carregar tarefas</div>'; }
+        }catch(e){ 
+            console.error(e); 
+            document.getElementById('profileTasksList').innerHTML = '<div class="text-center text-danger py-5"><i class="fas fa-exclamation-triangle fa-2x mb-3"></i><p>Erro ao carregar tarefas</p></div>'; 
+        }
     }
 
     document.addEventListener('DOMContentLoaded', ()=>{
@@ -357,16 +612,52 @@ include __DIR__ . '/includes/sidebar.php';
             loadProfileData();
         })();
 
-        // quick task form
-        const form = document.getElementById('formQuickTask');
-        form.addEventListener('submit', async (e)=>{
-            e.preventDefault();
-            const fd = new FormData(form); const data = Object.fromEntries(fd);
-            const resp = await addTask(data);
-            const msg = document.getElementById('quickTaskMsg');
-            if(resp && resp.success){ msg.innerHTML = '<div class="alert alert-success">Tarefa criada</div>'; form.reset(); setTimeout(()=>msg.innerHTML='';,1500); loadProfileTasks(); }
-            else { msg.innerHTML = '<div class="alert alert-danger">Erro</div>'; }
+        // Avatar upload handlers
+        const avatarInput = document.getElementById('avatarInput');
+        const btnUpload = document.getElementById('btnUploadAvatar');
+        const btnRemove = document.getElementById('btnRemoveAvatar');
+        const avatarMsg = document.getElementById('avatarMsg');
+        const profileAvatar = document.getElementById('profileAvatar');
+
+        if (btnUpload) btnUpload.addEventListener('click', async ()=>{
+            if (!avatarInput.files || !avatarInput.files[0]) { avatarMsg.innerHTML = '<div class="text-danger small">Selecione um arquivo.</div>'; return; }
+            const fd = new FormData(); fd.append('avatar', avatarInput.files[0]);
+            try{
+                btnUpload.disabled = true;
+                const res = await fetch('api/upload_avatar.php', { method: 'POST', body: fd, credentials: 'same-origin' });
+                const text = await res.text();
+                let data = null;
+                try { data = JSON.parse(text); } catch (e){ avatarMsg.innerHTML = '<div class="text-danger small">Resposta inválida do servidor</div>'; console.error('upload raw:', text); btnUpload.disabled = false; return; }
+                if (data.success) {
+                    avatarMsg.innerHTML = '<div class="text-success small">Foto salva.</div>';
+                    if (data.avatar) profileAvatar.src = data.avatar + '?v=' + Date.now();
+                } else {
+                    avatarMsg.innerHTML = '<div class="text-danger small">' + (data.message||'Erro') + '</div>';
+                }
+            }catch(e){ avatarMsg.innerHTML = '<div class="text-danger small">Erro ao enviar</div>'; console.error(e); }
+            btnUpload.disabled = false;
         });
+
+        if (btnRemove) btnRemove.addEventListener('click', async ()=>{
+            if (!confirm('Remover sua foto de perfil?')) return;
+            try{
+                btnRemove.disabled = true;
+                const fd = new FormData(); fd.append('remove','1');
+                const res = await fetch('api/upload_avatar.php', { method: 'POST', body: fd, credentials: 'same-origin' });
+                const text = await res.text();
+                let data = null;
+                try { data = JSON.parse(text); } catch(e){ avatarMsg.innerHTML = '<div class="text-danger small">Resposta inválida do servidor</div>'; btnRemove.disabled = false; return; }
+                if (data.success) {
+                    avatarMsg.innerHTML = '<div class="text-success small">Foto removida.</div>';
+                    profileAvatar.src = 'assets/img/avatar-placeholder.png';
+                } else {
+                    avatarMsg.innerHTML = '<div class="text-danger small">' + (data.message||'Erro') + '</div>';
+                }
+            }catch(e){ avatarMsg.innerHTML = '<div class="text-danger small">Erro ao remover</div>'; console.error(e); }
+            btnRemove.disabled = false;
+        });
+
+        
     });
 
     async function loadProfileData(){
@@ -374,9 +665,9 @@ include __DIR__ . '/includes/sidebar.php';
         try{
             const res = await fetch(base);
             const text = await res.text();
-            // show raw response for debug
+            // clear debug element (do not display raw JSON)
             const debugEl = document.getElementById('profileDebug');
-            if (debugEl) debugEl.innerHTML = '<pre class="small text-muted">' + escapeHtml(text) + '</pre>';
+            if (debugEl) debugEl.innerHTML = '';
             if(!res.ok) throw new Error('HTTP ' + res.status + ' — ' + text);
             let data = null;
             try { data = JSON.parse(text); } catch(parseErr){ throw new Error('Invalid JSON response: ' + parseErr.message); }
@@ -387,44 +678,125 @@ include __DIR__ . '/includes/sidebar.php';
             if(Array.isArray(data.leads) && data.leads.length){
                 leadsWrap.innerHTML = '';
                 data.leads.slice(0,50).forEach(l=>{
-                    const el = document.createElement('div'); el.className='py-1 border-bottom'; el.innerHTML = `<div class="fw-semibold">${escapeHtml(l.name)} <small class="text-muted">#${l.id}</small></div><div class="small text-muted">${escapeHtml(l.email||'')} • ${escapeHtml(l.phone||'')} • ${escapeHtml(l.status||'')}</div>`;
+                    const el = document.createElement('div'); 
+                    el.className='list-item'; 
+                    el.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1 fw-semibold">${escapeHtml(l.name)}</h6>
+                                <p class="mb-0 small text-muted">
+                                    <i class="fas fa-envelope me-1"></i>${escapeHtml(l.email||'')}
+                                    <span class="mx-2">•</span>
+                                    <i class="fas fa-phone me-1"></i>${escapeHtml(l.phone||'')}
+                                </p>
+                            </div>
+                            <span class="badge bg-primary">${escapeHtml(l.status||'')}</span>
+                        </div>
+                    `;
                     leadsWrap.appendChild(el);
                 });
-            } else { leadsWrap.innerHTML = '<div class="text-muted">Nenhum lead.</div>'; }
+            } else { 
+                leadsWrap.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-user-tie fa-3x mb-3 opacity-25"></i><p>Nenhum lead encontrado.</p></div>'; 
+            }
 
             // Projects
             const projWrap = document.getElementById('profileProjectsList');
             if(Array.isArray(data.projects) && data.projects.length){
                 projWrap.innerHTML = '';
                 data.projects.slice(0,50).forEach(p=>{
-                    const el = document.createElement('div'); el.className='py-1 border-bottom'; el.innerHTML = `<div class="fw-semibold">${escapeHtml(p.client_name||'Projeto')} <small class="text-muted">#${p.id}</small></div><div class="small text-muted">R$ ${Number(p.proposal_value||0).toLocaleString('pt-BR')} • ${escapeHtml(p.status||'')}</div>`;
+                    const el = document.createElement('div'); 
+                    el.className='list-item'; 
+                    el.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1 fw-semibold">${escapeHtml(p.client_name||'Projeto')}</h6>
+                                <p class="mb-0 small">
+                                    <span class="text-success fw-bold">
+                                        <i class="fas fa-dollar-sign me-1"></i>R$ ${Number(p.proposal_value||0).toLocaleString('pt-BR')}
+                                    </span>
+                                </p>
+                            </div>
+                            <span class="badge bg-success">${escapeHtml(p.status||'')}</span>
+                        </div>
+                    `;
                     projWrap.appendChild(el);
                 });
-            } else { projWrap.innerHTML = '<div class="text-muted">Nenhum projeto.</div>'; }
+            } else { 
+                projWrap.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-briefcase fa-3x mb-3 opacity-25"></i><p>Nenhum projeto encontrado.</p></div>'; 
+            }
 
             // Movements
             const movWrap = document.getElementById('profileMovementsList');
             if(Array.isArray(data.movements) && data.movements.length){
                 movWrap.innerHTML = '';
                 data.movements.slice(0,200).forEach(m=>{
-                    const el = document.createElement('div'); el.className='py-1 border-bottom';
-                    el.innerHTML = `<div class="small"><strong>${escapeHtml(m.changed_by||m.user_id||'')}</strong> em <span class="text-muted">${escapeHtml(m.created_at||'')}</span></div><div class="small text-muted">Lead #${escapeHtml(m.lead_id||'')} • ${escapeHtml(m.from_status||'')} → ${escapeHtml(m.to_status||'')}</div><div class="mt-1">${escapeHtml(m.note||'')}</div>`;
+                    const el = document.createElement('div'); 
+                    el.className='list-item';
+                    const initials = (m.changed_by||m.user_id||'?').split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase();
+                    const note = m.note ? `<p class="mb-0 small">${escapeHtml(m.note)}</p>` : '';
+                    el.innerHTML = `
+                        <div class="d-flex align-items-start gap-3">
+                            <div class="avatar-circle" style="width:32px;height:32px;font-size:0.75rem;">
+                                ${initials}
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="small mb-1">
+                                    <strong>${escapeHtml(m.changed_by||m.user_id||'')}</strong>
+                                    <span class="text-muted mx-2">•</span>
+                                    <span class="text-muted">
+                                        <i class="far fa-clock me-1"></i>${escapeHtml(m.created_at||'')}
+                                    </span>
+                                </div>
+                                <div class="small text-muted mb-1">
+                                    Lead #${escapeHtml(m.lead_id||'')}
+                                    <span class="mx-2">→</span>
+                                    <span class="badge bg-secondary">${escapeHtml(m.from_status||'')}</span>
+                                    <i class="fas fa-arrow-right mx-1"></i>
+                                    <span class="badge bg-primary">${escapeHtml(m.to_status||'')}</span>
+                                </div>
+                                ${note}
+                            </div>
+                        </div>
+                    `;
                     movWrap.appendChild(el);
                 });
-            } else { movWrap.innerHTML = '<div class="text-muted">Nenhuma movimentação encontrada.</div>'; }
+            } else { 
+                movWrap.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-chart-line fa-3x mb-3 opacity-25"></i><p>Nenhuma movimentação encontrada.</p></div>'; 
+            }
 
             // Reminders
             const remWrap = document.getElementById('profileRemindersList');
             if(Array.isArray(data.reminders) && data.reminders.length){
                 remWrap.innerHTML = '';
                 data.reminders.slice(0,200).forEach(r=>{
-                    const el = document.createElement('div'); el.className='py-1 border-bottom';
-                    el.innerHTML = `<div class="fw-semibold">${escapeHtml(r.message||'')}</div><div class="small text-muted">${escapeHtml(r.remind_at||'')} • Lead: ${escapeHtml(r.lead_name||r.lead_id||'')}</div>`;
+                    const el = document.createElement('div'); 
+                    el.className='list-item';
+                    el.innerHTML = `
+                        <div class="d-flex align-items-start gap-3">
+                            <div style="color:#667eea;font-size:1.5rem;">
+                                <i class="far fa-bell"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1 fw-semibold">${escapeHtml(r.message||'')}</h6>
+                                <p class="mb-0 small text-muted">
+                                    <i class="far fa-calendar-alt me-1"></i>${escapeHtml(r.remind_at||'')}
+                                    <span class="mx-2">•</span>
+                                    Lead: <strong>${escapeHtml(r.lead_name||r.lead_id||'')}</strong>
+                                </p>
+                            </div>
+                        </div>
+                    `;
                     remWrap.appendChild(el);
                 });
-            } else { remWrap.innerHTML = '<div class="text-muted">Nenhum lembrete.</div>'; }
+            } else { 
+                remWrap.innerHTML = '<div class="text-center text-muted py-5"><i class="far fa-bell fa-3x mb-3 opacity-25"></i><p>Nenhum lembrete encontrado.</p></div>'; 
+            }
 
-        }catch(e){ console.error('loadProfileData', e); const wrap = document.getElementById('profileLeadsList'); if(wrap) wrap.innerHTML = '<div class="text-danger">Erro ao carregar dados</div>'; }
+        }catch(e){ 
+            console.error('loadProfileData', e); 
+            const wrap = document.getElementById('profileLeadsList'); 
+            if(wrap) wrap.innerHTML = '<div class="text-center text-danger py-5"><i class="fas fa-exclamation-triangle fa-2x mb-3"></i><p>Erro ao carregar dados</p></div>'; 
+        }
     }
 </script>
 

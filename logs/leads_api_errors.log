@@ -31,3 +31,9 @@
 [2026-01-26 07:20:06] UPDATE forma_pagamento (raw): ''
 [2026-01-26 07:20:06] UPDATE _FILES keys: []
 [2026-01-26 08:29:28] UPDATE raw_input: 
+[2026-02-06 08:24:21] UPDATE payload: {"name":"Denis Andre ","email":"denisandrepaz@yahoo.com.br","cidade":"Arapiraca","phone":"(82) 99988-8888","cpf_cnpj":"088.988.544-39","source":"","status":"1","notes":"","consumo_cliente":"1222","estimativa_projeto_kwh":"1222","orcamento_value":"120.00","ultimo_contato":"2026-02-06 00:00:00","forma_pagamento":"2","data_inicio":"2026-02-06"}
+[2026-02-06 08:24:21] UPDATE forma_pagamento (raw): '2'
+[2026-02-06 08:24:21] UPDATE _FILES keys: []
+[2026-02-06 08:32:07] UPDATE payload: {"name":"Denis Andre","email":"denisandrepaz@yahoo.com.br","cidade":"Arapiraca","phone":"(82) 98323-2323","cpf_cnpj":"088.988.545-45","source":"","status":"17","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-02-06 00:00:00","forma_pagamento":"","data_inicio":"2026-02-06"}
+[2026-02-06 08:32:07] UPDATE forma_pagamento (raw): ''
+[2026-02-06 08:32:07] UPDATE _FILES keys: ["anexos"]
