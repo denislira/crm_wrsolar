@@ -25,7 +25,7 @@ $client_name = trim($_POST['client_name'] ?? '');
 $address = trim($_POST['address'] ?? '');
 $proposal_value = isset($_POST['proposal_value']) ? str_replace([',',' '], ['.',''], $_POST['proposal_value']) : 0;
 $status = $_POST['status'] ?? 'Prospecção';
-$contract = $_POST['contract'] ?? null;
+$lead_id = isset($_POST['lead_id']) ? intval($_POST['lead_id']) : null;
 $closed_date = $_POST['closed_date'] ?? null;
 
 if (empty($client_name)) {
@@ -34,8 +34,8 @@ if (empty($client_name)) {
 }
 
 try {
-    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, contract, closed_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
-    $stmt->execute([$_SESSION['user_id'], $client_name, $address, $proposal_value, $status, $contract ?: null, $closed_date ?: null]);
+    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+    $stmt->execute([$_SESSION['user_id'], $client_name, $address, $proposal_value, $status, $lead_id, $closed_date ?: null]);
     echo json_encode(['success' => true, 'message' => 'Projeto criado com sucesso']);
 } catch (Exception $e) {
     http_response_code(500);

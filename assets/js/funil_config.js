@@ -90,7 +90,7 @@
       $('#stageId').value = s.id; $('#stageName').value = s.name; $('#stageColor').value = s.color || '#6c757d'; $('#stageCardColor').value = s.card_color || '#ffffff';
     $('#stageSla').value = s.sla_days || '';
     $('#stageFinalType').value = s.final_type || 'none'; $('#stageForecast').value = (typeof s.include_in_forecast !== 'undefined') ? s.include_in_forecast : 1;
-    $('#generateTask').checked = !!s.generate_task_on_enter; $('#alertInactivity').checked = !!s.alert_on_inactivity; $('#blockAdvance').checked = !!s.block_advance;
+    $('#generateTask').checked = !!s.generate_task_on_enter; $('#alertInactivity').checked = !!s.alert_on_inactivity; $('#blockAdvance').checked = !!s.block_advance; $('#allowProjectCreation').checked = !!s.allow_project_creation;
     $('#requiredFields').value = s.required_fields || '';
     renderPreview(s);
   }
@@ -119,7 +119,7 @@
 
   async function saveStage(){
     const id = $('#stageId').value; if(!id) return alert('Selecione uma etapa');
-    const payload = { action:'update', id, name: $('#stageName').value, color: $('#stageColor').value, card_color: $('#stageCardColor').value, sla_days: $('#stageSla').value, final_type: $('#stageFinalType').value, include_in_forecast: $('#stageForecast').value, generate_task_on_enter: $('#generateTask').checked?1:0, alert_on_inactivity: $('#alertInactivity').checked?1:0, block_advance: $('#blockAdvance').checked?1:0, required_fields: parseRequiredFields() };
+    const payload = { action:'update', id, name: $('#stageName').value, color: $('#stageColor').value, card_color: $('#stageCardColor').value, sla_days: $('#stageSla').value, final_type: $('#stageFinalType').value, include_in_forecast: $('#stageForecast').value, generate_task_on_enter: $('#generateTask').checked?1:0, alert_on_inactivity: $('#alertInactivity').checked?1:0, block_advance: $('#blockAdvance').checked?1:0, allow_project_creation: $('#allowProjectCreation').checked?1:0, required_fields: parseRequiredFields() };
     try{
       const res = await fetch(api + '?action=update', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const json = await res.json(); if (json.error) throw new Error(json.error || 'Erro');

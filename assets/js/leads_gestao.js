@@ -474,7 +474,7 @@
         try{
             const res = await fetch('includes/funil_stages_api.php?action=list'); if (!res.ok) throw new Error('Falha ao carregar estágios');
             const json = await res.json();
-            STAGES = json.map(s => ({ id: String(s.id), name: s.name || s.stage_name || 'Sem nome', color: s.color || s.stage_color || '#6c757d', card_color: s.card_color || null, include_in_forecast: (typeof s.include_in_forecast !== 'undefined') ? Number(s.include_in_forecast) : ((typeof s.include_in_pipeline !== 'undefined') ? Number(s.include_in_pipeline) : 1), final_type: s.final_type || null }));
+            STAGES = json.map(s => ({ id: String(s.id), name: s.name || s.stage_name || 'Sem nome', color: s.color || s.stage_color || '#6c757d', card_color: s.card_color || null, include_in_forecast: (typeof s.include_in_forecast !== 'undefined') ? Number(s.include_in_forecast) : ((typeof s.include_in_pipeline !== 'undefined') ? Number(s.include_in_pipeline) : 1), final_type: s.final_type || null, allow_project_creation: s.allow_project_creation || 0 }));
             buildColumns();
             populateStageSelect();
             // also refresh status select so it reflects STAGES (status will store stage names)
@@ -580,6 +580,29 @@
         } catch(e){ alert('Falha ao excluir status: ' + (e.message||e)); }
     }
 
+    async function createProjectFromLead(leadId, leadName){
+        try {
+            const projectName = prompt('Nome do projeto:', leadName || '');
+            if (!projectName || projectName.trim() === '') return;
+            
+            const formData = new FormData();
+            formData.append('client_name', projectName.trim());
+            formData.append('status', 'Prospecção');
+            
+            const res = await fetch('api/add_project.php', { method: 'POST', body: formData });
+            const json = await res.json();
+            
+            if (json.success) {
+                alert('Projeto "' + projectName + '" criado com sucesso!');
+                // Optionally refresh the page or update UI
+                try { await fetchLeads(); } catch(e) {}
+            } else {
+                alert('Erro ao criar projeto: ' + (json.message || 'Erro desconhecido'));
+            }
+        } catch(e) {
+            alert('Falha ao criar projeto: ' + (e.message || e));
+        }
+    }
 
     function buildColumns(){
         const wrap = document.getElementById('kanbanWrap'); if(!wrap) return;
@@ -747,7 +770,7 @@
         } catch(e) {}
     }
 
-    function makeCard(lead){
+    function makeCard(lead, stageObj){
         const el = document.createElement('div'); el.className='lead-card'; el.draggable = true; el.dataset.id = lead.id;
         // selection checkbox for bulk actions
         const chk = document.createElement('input'); chk.type='checkbox'; chk.className = 'lead-select me-2'; chk.title = 'Selecionar para ações em massa';
@@ -780,6 +803,40 @@
         const left = document.createElement('div'); left.className = 'd-flex align-items-center'; left.appendChild(chk);
         const title = document.createElement('div'); title.className='title'; title.textContent = escapeText(lead.name || '(sem nome)');
         left.appendChild(title);
+        
+        // Add create project button in the header if stage allows it
+        console.log('makeCard - Lead:', lead.id, lead.name, 'StageObj:', stageObj);
+        if (stageObj) {
+            console.log('==> Stage:', stageObj.name, 'ID:', stageObj.id, 'allow_project_creation:', stageObj.allow_project_creation, 'Type:', typeof stageObj.allow_project_creation);
+            // Check for truthy value (1, '1', true)
+            if (stageObj.allow_project_creation == 1 || stageObj.allow_project_creation === true || stageObj.allow_project_creation === '1') {
+                console.log('✓ CRIANDO BOTÃO DE PROJETO!');
+                const createProjBtn = document.createElement('button');
+                createProjBtn.className = 'btn btn-sm btn-success ms-2';
+                createProjBtn.innerHTML = '<i class="fa fa-plus"></i> Projeto';
+                createProjBtn.title = 'Criar Projeto';
+                createProjBtn.type = 'button';
+                createProjBtn.style.padding = '4px 8px';
+                createProjBtn.style.fontSize = '11px';
+                createProjBtn.style.display = 'inline-block';
+                createProjBtn.style.backgroundColor = '#28a745';
+                createProjBtn.style.color = '#fff';
+                createProjBtn.style.border = 'none';
+                createProjBtn.style.borderRadius = '4px';
+                createProjBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    console.log('Botão clicado! Lead ID:', lead.id, 'Nome:', lead.name);
+                    createProjectFromLead(lead.id, lead.name);
+                });
+                left.appendChild(createProjBtn);
+                console.log('Botão adicionado ao card!');
+            } else {
+                console.log('✗ Condição não atendida - valor:', stageObj.allow_project_creation);
+            }
+        } else {
+            console.log('✗ stageObj é null/undefined');
+        }
+        
         head.appendChild(left);
 
         const company = document.createElement('div'); company.className='lead-meta'; company.textContent = 'Fonte: ' + (lead.source || lead.client_name || lead.company || '—');
@@ -1136,12 +1193,21 @@
     }
 
     function renderAll(){
+        console.log('=== renderAll iniciado ===');
+        console.log('STAGES:', STAGES);
+        console.log('Total de STAGES:', STAGES ? STAGES.length : 0);
+        if (STAGES && STAGES.length > 0) {
+            STAGES.forEach((s, idx) => {
+                console.log(`Stage ${idx}:`, s.id, s.name, 'allow_project_creation:', s.allow_project_creation);
+            });
+        }
         // Always refresh KPIs/top cards so totals are correct when switching views
         try { renderKpis(); } catch(e) { console.warn('renderKpis failed', e); }
         // switch to grid view if requested
         if (getViewMode() === 'grid') { renderGrid(); return; }
         clearColumns();
         const filtered = getFilteredLeads();
+        console.log('Filtered leads:', filtered.length);
         // compute sums per stage id
         const sums = {};
         STAGES.forEach(s=> sums[s.id] = 0);
@@ -1157,18 +1223,21 @@
             }
             const col = document.getElementById('col-' + stageKey);
             if (col) {
-                const card = makeCard(l);
                 // determine colors: prefer DOM dataset, then STAGES data
                 const colWrap = col.closest('.kanban-column');
                 let cardColor = colWrap?.dataset?.cardColor || '';
                 let headerColor = colWrap?.dataset?.color || '';
-                if ((!cardColor || !headerColor) && STAGES && STAGES.length) {
-                    const stageObj = STAGES.find(s => String(s.id) === String(stageKey));
+                // Always try to find stageObj for button logic
+                let stageObj = null;
+                if (STAGES && STAGES.length) {
+                    stageObj = STAGES.find(s => String(s.id) === String(stageKey));
                     if (stageObj) {
                         cardColor = cardColor || (stageObj.card_color || '');
                         headerColor = headerColor || (stageObj.color || '');
                     }
                 }
+                // Create card with stage object for button logic
+                const card = makeCard(l, stageObj);
                 if (!headerColor) headerColor = '#6c757d';
                 if (cardColor) {
                     card.style.backgroundColor = cardColor;

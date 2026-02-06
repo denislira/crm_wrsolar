@@ -186,11 +186,12 @@ include 'includes/header.php';
                                             </div>
                                             <div class="mb-2">
                                                 <label class="form-label">Responsável <i class="fa fa-user text-muted"></i></label>
-                                                <select name="responsavel" id="new-responsavel" class="form-select">
+                                                <select name="responsavel" id="new-responsavel" class="form-select" onchange="document.getElementById('new-responsavel-id').value = this.options[this.selectedIndex].dataset.userId || '';">
                                                     <?php foreach ($users as $u): ?>
-                                                        <option value="<?php echo htmlspecialchars($u['username']); ?>" <?php if (($u['username'] ?? '') === ($_SESSION['username'] ?? '')) echo 'selected'; ?>><?php echo htmlspecialchars($u['username']); ?></option>
+                                                        <option value="<?php echo htmlspecialchars($u['username']); ?>" data-user-id="<?php echo $u['id']; ?>" <?php if (($u['username'] ?? '') === ($_SESSION['username'] ?? '')) echo 'selected'; ?>><?php echo htmlspecialchars($u['username']); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
+                                                <input type="hidden" name="responsavel_id" id="new-responsavel-id" value="">
                                             </div>
                                             <div class="row g-3">
                                                 <div class="col-md-6">
@@ -293,11 +294,12 @@ include 'includes/header.php';
                                                         </div>
                                                     <div class="mb-3">
                                                         <label class="form-label">Atribuir responsável</label>
-                                                        <select name="responsavel" id="edit-responsavel" class="form-select">
+                                                        <select name="responsavel" id="edit-responsavel" class="form-select" onchange="document.getElementById('edit-responsavel-id-hidden').value = this.options[this.selectedIndex].dataset.userId || '';">
                                                             <?php foreach ($users as $u): ?>
-                                                                <option value="<?php echo htmlspecialchars($u['username']); ?>"><?php echo htmlspecialchars($u['username']); ?></option>
+                                                                <option value="<?php echo htmlspecialchars($u['username']); ?>" data-user-id="<?php echo $u['id']; ?>"><?php echo htmlspecialchars($u['username']); ?></option>
                                                             <?php endforeach; ?>
                                                         </select>
+                                                        <input type="hidden" name="responsavel_id" id="edit-responsavel-id-hidden" value="">
                                                         <div class="small text-muted mt-1">Escolha outro usuário para transferir a tarefa.</div>
                                                     </div>
                                                     <div class="mt-4">
@@ -356,11 +358,12 @@ include 'includes/header.php';
                             <div class="row g-2 mb-2">
                                 <div class="col-7">
                                         <label class="form-label small">Responsável</label>
-                                        <select name="responsavel" id="quick-new-responsavel" class="form-select form-select-sm">
+                                        <select name="responsavel" id="quick-new-responsavel" class="form-select form-select-sm" onchange="document.getElementById('quick-new-responsavel-id').value = this.options[this.selectedIndex].dataset.userId || '';">
                                             <?php foreach ($users as $u): ?>
-                                                <option value="<?php echo htmlspecialchars($u['username']); ?>" <?php if (($u['username'] ?? '') === ($_SESSION['username'] ?? '')) echo 'selected'; ?>><?php echo htmlspecialchars($u['username']); ?></option>
+                                                <option value="<?php echo htmlspecialchars($u['username']); ?>" data-user-id="<?php echo $u['id']; ?>" <?php if (($u['username'] ?? '') === ($_SESSION['username'] ?? '')) echo 'selected'; ?>><?php echo htmlspecialchars($u['username']); ?></option>
                                             <?php endforeach; ?>
                                         </select>
+                                        <input type="hidden" name="responsavel_id" id="quick-new-responsavel-id" value="">
                                     </div>
                                 <div class="col-5">
                                     <label class="form-label small">Vencimento</label>
@@ -522,46 +525,81 @@ async function atualizarTarefas() {
         tarefas.forEach(t => {
             const card = document.createElement('div');
             card.className = 'mb-2 p-2 border rounded d-flex align-items-center gap-3 bg-white';
-            // Avatar (show image when available for task.user_id)
-            let avatarEl;
-            try {
-                const uinfo = (t.user_id && usersMap && usersMap[t.user_id]) ? usersMap[t.user_id] : null;
-                if (uinfo && uinfo.avatar) {
-                    avatarEl = document.createElement('img');
-                    avatarEl.src = uinfo.avatar + '?v=' + Date.now();
-                    avatarEl.className = 'rounded-circle me-2';
-                    avatarEl.style.width = '38px';
-                    avatarEl.style.height = '38px';
-                    avatarEl.style.objectFit = 'cover';
-                    avatarEl.alt = uinfo.username || t.responsavel || 'Avatar';
-                } else {
-                    avatarEl = document.createElement('div');
-                    avatarEl.className = 'rounded-circle d-flex align-items-center justify-content-center me-2';
-                    avatarEl.style.width = '38px';
-                    avatarEl.style.height = '38px';
-                    avatarEl.style.background = equipeColor(t.equipe);
-                    avatarEl.style.color = '#fff';
-                    avatarEl.style.fontWeight = 'bold';
-                    avatarEl.style.fontSize = '1.1rem';
-                    avatarEl.textContent = t.responsavel ? initials(t.responsavel) : '?';
+            // Avatar composto: criador sobre responsável (metade sobreposta)
+            const avatarWrap = document.createElement('div');
+            avatarWrap.className = 'position-relative me-2';
+            avatarWrap.style.width = '54px';
+            avatarWrap.style.height = '38px';
+            avatarWrap.style.flex = '0 0 54px';
+            avatarWrap.style.marginRight = '12px';
+
+            function buildAvatar(userInfo, fallbackName, bgColor) {
+                if (userInfo && userInfo.avatar) {
+                    const img = document.createElement('img');
+                    img.src = userInfo.avatar + '?v=' + Date.now();
+                    img.className = 'rounded-circle';
+                    img.style.width = '38px';
+                    img.style.height = '38px';
+                    img.style.objectFit = 'cover';
+                    img.alt = userInfo.username || fallbackName || 'Avatar';
+                    return img;
                 }
-            } catch (e) {
-                avatarEl = document.createElement('div');
-                avatarEl.className = 'rounded-circle d-flex align-items-center justify-content-center me-2';
-                avatarEl.style.width = '38px';
-                avatarEl.style.height = '38px';
-                avatarEl.style.background = equipeColor(t.equipe);
-                avatarEl.style.color = '#fff';
-                avatarEl.style.fontWeight = 'bold';
-                avatarEl.style.fontSize = '1.1rem';
-                avatarEl.textContent = t.responsavel ? initials(t.responsavel) : '?';
+                const d = document.createElement('div');
+                d.className = 'rounded-circle d-flex align-items-center justify-content-center';
+                d.style.width = '38px';
+                d.style.height = '38px';
+                d.style.background = bgColor;
+                d.style.color = '#fff';
+                d.style.fontWeight = 'bold';
+                d.style.fontSize = '1.1rem';
+                d.textContent = fallbackName ? initials(fallbackName) : '?';
+                return d;
             }
-            card.appendChild(avatarEl);
+
+            try {
+                const responsavelId = t.responsavel_id || null;
+                const criadorId = t.user_id || null;
+                const responsavelInfo = (responsavelId && usersMap && usersMap[responsavelId]) ? usersMap[responsavelId] : null;
+                const criadorInfo = (criadorId && usersMap && usersMap[criadorId]) ? usersMap[criadorId] : null;
+                const responsavelNome = responsavelInfo && responsavelInfo.username ? responsavelInfo.username : t.responsavel;
+                const criadorNome = criadorInfo && criadorInfo.username ? criadorInfo.username : 'Criador';
+
+                const creatorEl = buildAvatar(criadorInfo, criadorNome, '#6c757d');
+                creatorEl.style.position = 'absolute';
+                creatorEl.style.left = '0';
+                creatorEl.style.top = '0';
+                creatorEl.style.zIndex = '2';
+
+                const respEl = buildAvatar(responsavelInfo, responsavelNome, equipeColor(t.equipe));
+                respEl.style.position = 'absolute';
+                respEl.style.left = '22px';
+                respEl.style.top = '0';
+                respEl.style.zIndex = '1';
+
+                avatarWrap.appendChild(respEl);
+                avatarWrap.appendChild(creatorEl);
+            } catch (e) {
+                const fallback = document.createElement('div');
+                fallback.className = 'rounded-circle d-flex align-items-center justify-content-center';
+                fallback.style.width = '38px';
+                fallback.style.height = '38px';
+                fallback.style.background = equipeColor(t.equipe);
+                fallback.style.color = '#fff';
+                fallback.style.fontWeight = 'bold';
+                fallback.style.fontSize = '1.1rem';
+                fallback.textContent = t.responsavel ? initials(t.responsavel) : '?';
+                avatarWrap.appendChild(fallback);
+            }
+
+            card.appendChild(avatarWrap);
             // Conteúdo
             const content = document.createElement('div');
             content.className = 'flex-grow-1';
+            const responsavelId = t.responsavel_id || t.user_id;
+            const responsavelInfo = (responsavelId && usersMap && usersMap[responsavelId]) ? usersMap[responsavelId] : null;
+            const responsavelNome = responsavelInfo && responsavelInfo.username ? responsavelInfo.username : t.responsavel;
             content.innerHTML = `<div class="fw-semibold">${escapeHtml(t.titulo)} <span class="badge ms-2" style="background:${equipeColor(t.equipe)};color:#fff;">${escapeHtml(t.equipe)}</span> <span class="badge ms-1" style="background:${statusColor(t.status)};color:#fff;">${escapeHtml(t.status)}</span></div>
-                <div class="small text-muted">${t.responsavel ? 'Responsável: ' + escapeHtml(t.responsavel) : ''} ${t.data_vencimento ? ' | Vencimento: ' + t.data_vencimento : ''}</div>
+                <div class="small text-muted">${responsavelNome ? 'Responsável: ' + escapeHtml(responsavelNome) : ''} ${t.data_vencimento ? ' | Vencimento: ' + t.data_vencimento : ''}</div>
                 <div class="mt-1">${escapeHtml(t.descricao || '')}</div>`;
             card.appendChild(content);
             // Ações
@@ -670,7 +708,24 @@ function openEditModal(task) {
     document.getElementById('edit-equipe').value = task.equipe;
     // set select value (responsável)
     const sel = document.getElementById('edit-responsavel');
-    if (sel) sel.value = task.responsavel || '';
+    if (sel) {
+        let selectedName = task.responsavel || '';
+        if (task.responsavel_id && usersMap && usersMap[task.responsavel_id]) {
+            selectedName = usersMap[task.responsavel_id].username || selectedName;
+        }
+        sel.value = selectedName;
+    }
+    // Initialize responsavel_id field
+    const editRespIdHidden = document.getElementById('edit-responsavel-id-hidden');
+    if (editRespIdHidden) {
+        if (task.responsavel_id) {
+            editRespIdHidden.value = task.responsavel_id;
+        } else if (sel && sel.options[sel.selectedIndex]) {
+            editRespIdHidden.value = sel.options[sel.selectedIndex].dataset.userId || '';
+        } else {
+            editRespIdHidden.value = '';
+        }
+    }
     document.getElementById('edit-titulo').value = task.titulo;
     document.getElementById('edit-status').value = task.status;
     document.getElementById('edit-data-vencimento').value = task.data_vencimento;
@@ -878,6 +933,13 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const formData = new FormData(this);
             const novaTarefa = Object.fromEntries(formData);
+            // Initialize responsavel_id from select element
+            const responsavelSelect = document.getElementById('quick-new-responsavel');
+            if (responsavelSelect) {
+                const selectedOption = responsavelSelect.options[responsavelSelect.selectedIndex];
+                const userId_resp = selectedOption.dataset.userId || '';
+                novaTarefa.responsavel_id = userId_resp;
+            }
             novaTarefa.user_id = userId;
             const resposta = await addTask(novaTarefa);
             if (resposta.success) {
@@ -892,7 +954,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Abrir modal de Nova Tarefa a partir do botão na lista e do link superior
     const btnNovaTarefa = document.getElementById('btnNovaTarefa');
     const modalNovaEl = document.getElementById('modalNovaTarefa');
-    if (btnNovaTarefa) btnNovaTarefa.addEventListener('click', ()=>{ new bootstrap.Modal(modalNovaEl).show(); });
+    if (btnNovaTarefa) {
+        btnNovaTarefa.addEventListener('click', function() {
+            // Inicializar responsavel_id quando abre o modal
+            const responsavelSelect = document.getElementById('new-responsavel');
+            if (responsavelSelect) {
+                const selectedOption = responsavelSelect.options[responsavelSelect.selectedIndex];
+                const userId = selectedOption.dataset.userId || '';
+                document.getElementById('new-responsavel-id').value = userId;
+            }
+            new bootstrap.Modal(modalNovaEl).show();
+        });
+    }
 
     // Submissão do formulário do modal
     const btnSalvarNovaModal = document.getElementById('btnSalvarNovaModal');
@@ -1045,6 +1118,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('formEditarTarefa');
             const formData = new FormData(form);
             const data = Object.fromEntries(formData);
+            if (!data.responsavel_id) {
+                const sel = document.getElementById('edit-responsavel');
+                if (sel && sel.options[sel.selectedIndex]) {
+                    data.responsavel_id = sel.options[sel.selectedIndex].dataset.userId || '';
+                }
+            }
             const id = data.id;
             delete data.id;
             const resposta = await updateTask(id, data);
@@ -1057,7 +1136,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     atualizarTarefas();
                 }, 1000);
             } else {
-                document.getElementById('editarTarefaMsg').innerHTML = '<div class="alert alert-danger">Erro ao atualizar tarefa</div>';
+                const msg = resposta && resposta.error ? resposta.error : 'Erro ao atualizar tarefa';
+                document.getElementById('editarTarefaMsg').innerHTML = `<div class="alert alert-danger">${msg}</div>`;
             }
         });
     }

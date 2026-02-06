@@ -23,8 +23,8 @@ $profile_movements = [];
 $profile_reminders = [];
 $profile_tasks = [];
 try {
-    $tstmt = $pdo->prepare('SELECT * FROM team_tasks WHERE user_id = ? OR responsavel = ? ORDER BY data_vencimento ASC, criado_em DESC LIMIT 500');
-    $tstmt->execute([$user_id, $user['username'] ?? '']);
+    $tstmt = $pdo->prepare('SELECT * FROM team_tasks WHERE user_id = ? OR responsavel_id = ? OR responsavel = ? ORDER BY data_vencimento ASC, criado_em DESC LIMIT 500');
+    $tstmt->execute([$user_id, $user_id, $user['username'] ?? '']);
     $profile_tasks = $tstmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { /* ignore */ }
 try {
@@ -371,8 +371,8 @@ include __DIR__ . '/includes/sidebar.php';
                             <?php foreach ($profile_tasks as $t): ?>
                                 <div class="task-item">
                                     <div class="d-flex align-items-start gap-3">
-                                        <div class="avatar-circle">
-                                            <?php echo strtoupper(substr(trim($t['responsavel'] ?? ($user['username'] ?? '')),0,2)); ?>
+                                        <div class="position-relative" style="width: 52px; height: 38px; flex-shrink: 0;">
+                                            <!-- Avatares: criador à esquerda, responsável à direita -->
                                         </div>
                                         <div class="flex-grow-1">
                                             <div class="d-flex align-items-center gap-2 mb-2">
@@ -386,10 +386,10 @@ include __DIR__ . '/includes/sidebar.php';
                                             <p class="mb-0 text-secondary"><?php echo htmlspecialchars($t['descricao'] ?? ''); ?></p>
                                         </div>
                                         <div class="d-flex flex-column gap-2">
-                                            <button class="btn btn-sm btn-outline-primary btn-modern">
+                                            <button class="btn btn-sm btn-outline-primary btn-modern" data-task-id="<?php echo $t['id']; ?>" onclick="openEditTaskModal(this)">
                                                 <i class="fas fa-edit"></i>
                                             </button>
-                                            <button class="btn btn-sm btn-outline-danger btn-modern">
+                                            <button class="btn btn-sm btn-outline-danger btn-modern" data-task-id="<?php echo $t['id']; ?>" onclick="deleteTaskConfirm(this)">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </div>
@@ -548,12 +548,45 @@ include __DIR__ . '/includes/sidebar.php';
 </main>
 
 <script type="module">
-    let fetchTasks = null, addTask = null;
+    let fetchTasks = null, addTask = null, updateTask = null, deleteTask = null;
     const PROFILE_USER_ID = <?php echo json_encode($user_id); ?>;
+    const usersMap = <?php echo json_encode($usersMap ?? []); ?>;
     // show numeric id for debug
     (function(){ const el = document.querySelector('.card p-3 dl'); if(el){ const info = document.createElement('div'); info.className='small text-muted mt-2'; info.textContent = 'PROFILE_USER_ID: ' + PROFILE_USER_ID; el.appendChild(info); } })();
 
     function escapeHtml(str){ if(!str) return ''; return String(str).replace(/[&<>'"]/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":"&#39;",'"':'&quot;'})[s]); }
+
+    function initials(nome) {
+        return nome.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2);
+    }
+
+    function equipeColor(eq) {
+        const map = {Marketing:'#3bb273',Vendas:'#0b6ac1',Atendimento:'#ffd24a',Técnica:'#7c3aed',Financeiro:'#ef4444'};
+        return map[eq]||'#888';
+    }
+
+    function buildAvatar(userInfo, fallbackName, bgColor) {
+        if (userInfo && userInfo.avatar) {
+            const img = document.createElement('img');
+            img.src = userInfo.avatar + '?v=' + Date.now();
+            img.className = 'rounded-circle';
+            img.style.width = '38px';
+            img.style.height = '38px';
+            img.style.objectFit = 'cover';
+            img.alt = userInfo.username || fallbackName || 'Avatar';
+            return img;
+        }
+        const d = document.createElement('div');
+        d.className = 'rounded-circle d-flex align-items-center justify-content-center';
+        d.style.width = '38px';
+        d.style.height = '38px';
+        d.style.background = bgColor;
+        d.style.color = '#fff';
+        d.style.fontWeight = 'bold';
+        d.style.fontSize = '1.1rem';
+        d.textContent = fallbackName ? initials(fallbackName) : '?';
+        return d;
+    }
 
     async function loadProfileTasks(){
         const list = document.getElementById('profileTasksList');
@@ -561,7 +594,7 @@ include __DIR__ . '/includes/sidebar.php';
         try{
             const status = document.getElementById('profileFiltroStatus').value;
             const q = document.getElementById('profileFiltroBusca').value.trim().toLowerCase();
-            const filtros = { user_id: String(PROFILE_USER_ID) };
+            const filtros = {};
             if(status) filtros.status = status;
             const tarefas = await fetchTasks(filtros);
             if(!Array.isArray(tarefas) || !tarefas.length){ 
@@ -569,10 +602,13 @@ include __DIR__ . '/includes/sidebar.php';
                 return; 
             }
             
-            // Filtrar por texto de busca
-            let tarefasFiltradas = tarefas;
+            // Filtrar por user_id ou responsavel_id, e depois por busca
+            let tarefasFiltradas = tarefas.filter(t => {
+                return (t.user_id == PROFILE_USER_ID || t.responsavel_id == PROFILE_USER_ID || t.responsavel === '<?php echo ($_SESSION['username'] ?? ''); ?>');
+            });
+            
             if(q) {
-                tarefasFiltradas = tarefas.filter(t => {
+                tarefasFiltradas = tarefasFiltradas.filter(t => {
                     const titulo = (t.titulo || '').toLowerCase();
                     const descricao = (t.descricao || '').toLowerCase();
                     const responsavel = (t.responsavel || '').toLowerCase();
@@ -585,41 +621,81 @@ include __DIR__ . '/includes/sidebar.php';
                 return; 
             }
             
-            list.innerHTML = '';
             tarefasFiltradas.forEach(t=>{
                 const card = document.createElement('div');
                 card.className = 'task-item';
+                card.style.display = 'flex';
+                card.style.alignItems = 'center';
+                card.style.gap = '12px';
                 
                 const badgeClass = t.status === 'Pendente' ? 'badge-pendente' : 
                                   t.status === 'Em andamento' ? 'badge-andamento' : 
                                   t.status === 'Concluída' ? 'badge-concluida' : 'badge-pendente';
                 
-                card.innerHTML = `
-                    <div class="d-flex align-items-start gap-3">
-                        <div class="avatar-circle">
-                            ${(t.responsavel||'?').split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()}
-                        </div>
-                        <div class="flex-grow-1">
-                            <div class="d-flex align-items-center gap-2 mb-2">
-                                <h6 class="mb-0 fw-bold">${escapeHtml(t.titulo)}</h6>
-                                <span class="badge-custom ${badgeClass}">${escapeHtml(t.status||'')}</span>
-                            </div>
-                            <p class="text-muted small mb-2">
-                                <i class="far fa-calendar me-1"></i>
-                                ${t.data_vencimento ? escapeHtml(t.data_vencimento) : 'Sem data'}
-                            </p>
-                            <p class="mb-0 text-secondary">${escapeHtml(t.descricao||'')}</p>
-                        </div>
-                        <div class="d-flex flex-column gap-2">
-                            <button class="btn btn-sm btn-outline-primary btn-modern">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger btn-modern">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
+                // Avatares sobrepostos
+                const avatarWrap = document.createElement('div');
+                avatarWrap.className = 'position-relative';
+                avatarWrap.style.width = '52px';
+                avatarWrap.style.height = '38px';
+                avatarWrap.style.flex = '0 0 52px';
+
+                const criadorId = t.user_id || null;
+                const responsavelId = t.responsavel_id || null;
+                const criadorInfo = (criadorId && usersMap && usersMap[criadorId]) ? usersMap[criadorId] : null;
+                const responsavelInfo = (responsavelId && usersMap && usersMap[responsavelId]) ? usersMap[responsavelId] : null;
+                const criadorNome = criadorInfo && criadorInfo.username ? criadorInfo.username : 'Criador';
+                const responsavelNome = responsavelInfo && responsavelInfo.username ? responsavelInfo.username : t.responsavel;
+
+                const creatorEl = buildAvatar(criadorInfo, criadorNome, '#6c757d');
+                creatorEl.style.position = 'absolute';
+                creatorEl.style.left = '0';
+                creatorEl.style.top = '0';
+                creatorEl.style.zIndex = '2';
+
+                const respEl = buildAvatar(responsavelInfo, responsavelNome, equipeColor(t.equipe));
+                respEl.style.position = 'absolute';
+                respEl.style.left = '22px';
+                respEl.style.top = '0';
+                respEl.style.zIndex = '1';
+
+                avatarWrap.appendChild(respEl);
+                avatarWrap.appendChild(creatorEl);
+                
+                const content = document.createElement('div');
+                content.className = 'flex-grow-1';
+                content.innerHTML = `
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <h6 class="mb-0 fw-bold">${escapeHtml(t.titulo)}</h6>
+                        <span class="badge-custom ${badgeClass}">${escapeHtml(t.status||'')}</span>
                     </div>
+                    <p class="text-muted small mb-2">
+                        <i class="far fa-calendar me-1"></i>
+                        ${t.data_vencimento ? escapeHtml(t.data_vencimento) : 'Sem data'} | Responsável: ${escapeHtml(responsavelNome || '')}
+                    </p>
+                    <p class="mb-0 text-secondary">${escapeHtml(t.descricao||'')}</p>
                 `;
+
+                const actions = document.createElement('div');
+                actions.className = 'd-flex gap-2';
+                actions.style.flex = '0 0 auto';
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-sm btn-outline-primary btn-modern';
+                editBtn.setAttribute('data-task-id', t.id);
+                editBtn.onclick = openEditTaskModal;
+                editBtn.innerHTML = '<i class="fas fa-edit"></i>';
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-sm btn-outline-danger btn-modern';
+                deleteBtn.setAttribute('data-task-id', t.id);
+                deleteBtn.onclick = deleteTaskConfirm;
+                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+
+                actions.appendChild(editBtn);
+                actions.appendChild(deleteBtn);
+
+                card.appendChild(avatarWrap);
+                card.appendChild(content);
+                card.appendChild(actions);
                 list.appendChild(card);
             });
         }catch(e){ 
@@ -628,12 +704,35 @@ include __DIR__ . '/includes/sidebar.php';
         }
     }
 
+    window.openEditTaskModal = async function(e) {
+        const taskId = e.currentTarget.getAttribute('data-task-id');
+        console.log('Edit task:', taskId);
+        alert('Editar tarefa ' + taskId + ' (em desenvolvimento)');
+    };
+
+    window.deleteTaskConfirm = async function(e) {
+        const taskId = e.currentTarget.getAttribute('data-task-id');
+        if (!confirm('Tem certeza que deseja deletar essa tarefa?')) return;
+        try {
+            const resp = await deleteTask(taskId);
+            if (resp.success) {
+                alert('Tarefa deletada com sucesso!');
+                loadProfileTasks();
+            } else {
+                alert('Erro ao deletar: ' + (resp.error || 'erro desconhecido'));
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Erro ao deletar tarefa');
+        }
+    };
+
     document.addEventListener('DOMContentLoaded', ()=>{
         // Try to dynamically import team_tasks helper; don't block the rest on failure
         (async function(){
             try{
                 const mod = await import('./assets/js/team_tasks.js');
-                fetchTasks = mod.fetchTasks; addTask = mod.addTask;
+                fetchTasks = mod.fetchTasks; addTask = mod.addTask; updateTask = mod.updateTask; deleteTask = mod.deleteTask;
             }catch(e){
                 console.warn('dynamic import team_tasks failed', e);
             }

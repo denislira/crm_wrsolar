@@ -37,3 +37,34 @@
 [2026-02-06 08:32:07] UPDATE payload: {"name":"Denis Andre","email":"denisandrepaz@yahoo.com.br","cidade":"Arapiraca","phone":"(82) 98323-2323","cpf_cnpj":"088.988.545-45","source":"","status":"17","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-02-06 00:00:00","forma_pagamento":"","data_inicio":"2026-02-06"}
 [2026-02-06 08:32:07] UPDATE forma_pagamento (raw): ''
 [2026-02-06 08:32:07] UPDATE _FILES keys: ["anexos"]
+[2026-02-06 09:55:16] UPDATE raw_input: 
+[2026-02-06 09:55:16] update:leads failed: SQLSTATE[HY000]: General error: 1366 Incorrect integer value: 'VENDA CONCLUÍDA' for column 'stage_id' at row 1
+[2026-02-06 09:55:29] UPDATE raw_input: 
+[2026-02-06 09:55:29] update:leads failed: SQLSTATE[HY000]: General error: 1366 Incorrect integer value: 'VENDA CONCLUÍDA' for column 'stage_id' at row 1
+[2026-02-06 09:56:06] UPDATE raw_input: 
+[2026-02-06 09:56:06] update:leads failed: SQLSTATE[HY000]: General error: 1366 Incorrect integer value: 'VENDA CONCLUÍDA' for column 'stage_id' at row 1
+[2026-02-06 09:56:16] UPDATE raw_input: 
+[2026-02-06 09:56:16] update:leads failed: SQLSTATE[HY000]: General error: 1366 Incorrect integer value: 'VENDA CONCLUÍDA' for column 'stage_id' at row 1
+[2026-02-06 09:56:40] UPDATE raw_input: 
+[2026-02-06 09:56:40] update:leads failed: SQLSTATE[HY000]: General error: 1366 Incorrect integer value: 'AGUARDARÁ...' for column 'stage_id' at row 1
+[2026-02-06 09:57:06] UPDATE raw_input: 
+[2026-02-06 09:57:06] update:leads failed: SQLSTATE[HY000]: General error: 1366 Incorrect integer value: 'VENDA CONCLUÍDA' for column 'stage_id' at row 1
+[2026-02-06 10:00:30] UPDATE payload: {"name":"teste","email":"","cidade":"","phone":"","cpf_cnpj":"","source":"","status":"EM ATENDIMENTO","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-02-06 00:00:00","forma_pagamento":"","created_at":"2026-02-06 00:00:00"}
+[2026-02-06 10:00:30] UPDATE forma_pagamento (raw): ''
+[2026-02-06 10:00:30] UPDATE _FILES keys: []
+[2026-02-06 10:00:30] add:insert failed: SQLSTATE[HY000]: General error: 1366 Incorrect integer value: 'EM ATENDIMENTO' for column 'stage_id' at row 1
+[2026-02-06 10:01:44] UPDATE payload: {"name":"teste","email":"","cidade":"","phone":"","cpf_cnpj":"","source":"","status":"","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-02-06 00:00:00","forma_pagamento":"","created_at":"2026-02-06 00:00:00"}
+[2026-02-06 10:01:44] UPDATE forma_pagamento (raw): ''
+[2026-02-06 10:01:44] UPDATE _FILES keys: []
+[2026-02-06 10:01:58] UPDATE payload: {"name":"teste 3","email":"","cidade":"","phone":"","cpf_cnpj":"","source":"","status":"EM ATENDIMENTO","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-02-06 00:00:00","forma_pagamento":"","created_at":"2026-02-06 00:00:00"}
+[2026-02-06 10:01:58] UPDATE forma_pagamento (raw): ''
+[2026-02-06 10:01:58] UPDATE _FILES keys: []
+[2026-02-06 10:01:58] add:insert failed: SQLSTATE[HY000]: General error: 1366 Incorrect integer value: 'EM ATENDIMENTO' for column 'stage_id' at row 1
+[2026-02-06 10:02:44] UPDATE raw_input: 
+[2026-02-06T10:02:44+01:00] Uncaught exception: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'field list'
+[2026-02-06 10:03:50] UPDATE raw_input: 
+[2026-02-06 10:03:59] UPDATE raw_input: 
+[2026-02-06 10:04:09] UPDATE raw_input: 
+[2026-02-06 10:05:02] UPDATE payload: {"name":"teste 4","email":"","cidade":"","phone":"","cpf_cnpj":"","source":"","status":"PROPOSTA ENVIADA","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-02-06 00:00:00","forma_pagamento":"","created_at":"2026-02-06 00:00:00"}
+[2026-02-06 10:05:02] UPDATE forma_pagamento (raw): ''
+[2026-02-06 10:05:02] UPDATE _FILES keys: []

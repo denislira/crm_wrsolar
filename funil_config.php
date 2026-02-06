@@ -61,6 +61,10 @@ include 'includes/header.php';
                     <input id="blockAdvance" class="form-check-input" type="checkbox">
                     <label class="form-check-label small">Bloquear avanço sem ação <i class="fa fa-info-circle ms-1 text-muted" data-bs-toggle="tooltip" title="Impede mover a etapa sem ações obrigatórias."></i></label>
                   </div>
+                  <div class="form-check">
+                    <input id="allowProjectCreation" class="form-check-input" type="checkbox">
+                    <label class="form-check-label small">Permitir criar projeto <i class="fa fa-info-circle ms-1 text-muted" data-bs-toggle="tooltip" title="Mostra botão de criar projeto no lead para esta etapa."></i></label>
+                  </div>
                 </div>
 
                 <div class="mt-3 d-none">

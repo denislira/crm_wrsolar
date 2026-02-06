@@ -52,6 +52,45 @@ try {
     $qualifyCol = in_array('is_qualification', $existingCols) ? 'is_qualification' : null;
     $conversionCol = in_array('is_conversion', $existingCols) ? 'is_conversion' : null;
     $trackTimeCol = in_array('track_time_in_stage', $existingCols) ? 'track_time_in_stage' : null;
+    $allowProjectCreationCol = in_array('allow_project_creation', $existingCols) ? 'allow_project_creation' : null;
+
+    // Auto-create missing columns if they don't exist
+    if (!$cardColorCol) {
+        try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN card_color VARCHAR(7)"); $existingCols[] = 'card_color'; } catch(Exception $e) { /* column may already exist */ }
+        $cardColorCol = 'card_color';
+    }
+    if (!$iconCol) {
+        try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN icon VARCHAR(50)"); $existingCols[] = 'icon'; } catch(Exception $e) { /* column may already exist */ }
+        $iconCol = 'icon';
+    }
+    if (!$finalTypeCol) {
+        try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN final_type VARCHAR(50)"); $existingCols[] = 'final_type'; } catch(Exception $e) { /* column may already exist */ }
+        $finalTypeCol = 'final_type';
+    }
+    if (!$generateTaskCol) {
+        try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN generate_task_on_enter TINYINT DEFAULT 0"); $existingCols[] = 'generate_task_on_enter'; } catch(Exception $e) { /* column may already exist */ }
+        $generateTaskCol = 'generate_task_on_enter';
+    }
+    if (!$alertInactivityCol) {
+        try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN alert_on_inactivity TINYINT DEFAULT 0"); $existingCols[] = 'alert_on_inactivity'; } catch(Exception $e) { /* column may already exist */ }
+        $alertInactivityCol = 'alert_on_inactivity';
+    }
+    if (!$slaDaysCol) {
+        try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN sla_days INT"); $existingCols[] = 'sla_days'; } catch(Exception $e) { /* column may already exist */ }
+        $slaDaysCol = 'sla_days';
+    }
+    if (!$blockAdvanceCol) {
+        try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN block_advance TINYINT DEFAULT 0"); $existingCols[] = 'block_advance'; } catch(Exception $e) { /* column may already exist */ }
+        $blockAdvanceCol = 'block_advance';
+    }
+    if (!$includeForecastCol) {
+        try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN include_in_forecast TINYINT DEFAULT 1"); $existingCols[] = 'include_in_forecast'; } catch(Exception $e) { /* column may already exist */ }
+        $includeForecastCol = 'include_in_forecast';
+    }
+    if (!$allowProjectCreationCol) {
+        try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN allow_project_creation TINYINT DEFAULT 0"); $existingCols[] = 'allow_project_creation'; } catch(Exception $e) { /* column may already exist */ }
+        $allowProjectCreationCol = 'allow_project_creation';
+    }
 
     // Ensure history table exists
     try {
@@ -82,6 +121,7 @@ try {
         if ($qualifyCol) $cols[] = "{$qualifyCol} AS is_qualification";
         if ($conversionCol) $cols[] = "{$conversionCol} AS is_conversion";
         if ($trackTimeCol) $cols[] = "{$trackTimeCol} AS track_time_in_stage";
+        if ($allowProjectCreationCol) $cols[] = "{$allowProjectCreationCol} AS allow_project_creation";
         
         $sql = "SELECT " . implode(', ', $cols) . " FROM funil_stages ORDER BY {$positionCol} ASC, id ASC";
         $stmt = $pdo->prepare($sql);
@@ -115,6 +155,7 @@ try {
         $isQualification = !empty($data['is_qualification']) ? 1 : 0;
         $isConversion = !empty($data['is_conversion']) ? 1 : 0;
         $trackTime = !empty($data['track_time_in_stage']) ? 1 : 0;
+        $allowProjectCreation = !empty($data['allow_project_creation']) ? 1 : 0;
 
         $stmt = $pdo->prepare("SELECT COALESCE(MAX({$positionCol}),0) as mx FROM funil_stages");
         $stmt->execute();
@@ -136,6 +177,7 @@ try {
         if ($qualifyCol) { $cols[] = $qualifyCol; $vals[] = "?"; $params[] = $isQualification; }
         if ($conversionCol) { $cols[] = $conversionCol; $vals[] = "?"; $params[] = $isConversion; }
         if ($trackTimeCol) { $cols[] = $trackTimeCol; $vals[] = "?"; $params[] = $trackTime; }
+        if ($allowProjectCreationCol) { $cols[] = $allowProjectCreationCol; $vals[] = "?"; $params[] = $allowProjectCreation; }
 
         $sql = "INSERT INTO funil_stages (" . implode(',', $cols) . ") VALUES (" . implode(',', $vals) . ")";
         $stmt = $pdo->prepare($sql);
@@ -171,6 +213,7 @@ try {
         $isQualification = isset($data['is_qualification']) ? (int)$data['is_qualification'] : ($prev['is_qualification'] ?? 0);
         $isConversion = isset($data['is_conversion']) ? (int)$data['is_conversion'] : ($prev['is_conversion'] ?? 0);
         $trackTime = isset($data['track_time_in_stage']) ? (int)$data['track_time_in_stage'] : ($prev['track_time_in_stage'] ?? 0);
+        $allowProjectCreation = isset($data['allow_project_creation']) ? (int)$data['allow_project_creation'] : ($prev['allow_project_creation'] ?? 0);
 
         $sets = ["{$nameCol} = ?", "{$colorCol} = ?"];
         $params = [$data['name'], $color];
@@ -187,6 +230,7 @@ try {
         if ($qualifyCol) { $sets[] = "{$qualifyCol} = ?"; $params[] = $isQualification; }
         if ($conversionCol) { $sets[] = "{$conversionCol} = ?"; $params[] = $isConversion; }
         if ($trackTimeCol) { $sets[] = "{$trackTimeCol} = ?"; $params[] = $trackTime; }
+        if ($allowProjectCreationCol) { $sets[] = "{$allowProjectCreationCol} = ?"; $params[] = $allowProjectCreation; }
 
         $params[] = $data['id'];
 
