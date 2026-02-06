@@ -48,6 +48,16 @@ try {
     $profile_reminders = $rstmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { }
 
+// Build usersMap for avatar display
+$usersMap = [];
+try {
+    $usersStmt = $pdo->query('SELECT id, username, name, email, avatar FROM users ORDER BY id');
+    $allUsers = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($allUsers as $u) {
+        $usersMap[$u['id']] = $u;
+    }
+} catch (Exception $e) { /* ignore */ }
+
 // User-scoped metrics (cards similar to dashboard but only for this user)
 try {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE user_id = ? AND deleted = 0 AND status NOT IN ('Convertido','Perdido')");
@@ -588,16 +598,29 @@ include __DIR__ . '/includes/sidebar.php';
         return d;
     }
 
+    function withTimeout(fn, ms){
+        return async (...args) => {
+            return await Promise.race([
+                fn(...args),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+            ]);
+        };
+    }
+
     async function loadProfileTasks(){
         const list = document.getElementById('profileTasksList');
         list.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin fa-2x mb-3"></i><p>Carregando tarefas...</p></div>';
+        console.debug('loadProfileTasks: start');
         try{
             const status = document.getElementById('profileFiltroStatus').value;
             const q = document.getElementById('profileFiltroBusca').value.trim().toLowerCase();
             const filtros = {};
             if(status) filtros.status = status;
+            if (typeof fetchTasks !== 'function') throw new Error('fetchTasks not defined');
+            console.debug('Calling fetchTasks with filters', filtros);
             const tarefas = await fetchTasks(filtros);
-            if(!Array.isArray(tarefas) || !tarefas.length){ 
+            console.debug('fetchTasks result', tarefas && tarefas.length ? tarefas.length : tarefas);
+            if(!tarefas || !Array.isArray(tarefas) || !tarefas.length){ 
                 list.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-tasks fa-3x mb-3 opacity-25"></i><p>Nenhuma tarefa encontrada.</p></div>'; 
                 return; 
             }
@@ -699,8 +722,8 @@ include __DIR__ . '/includes/sidebar.php';
                 list.appendChild(card);
             });
         }catch(e){ 
-            console.error(e); 
-            document.getElementById('profileTasksList').innerHTML = '<div class="text-center text-danger py-5"><i class="fas fa-exclamation-triangle fa-2x mb-3"></i><p>Erro ao carregar tarefas</p></div>'; 
+            console.error('loadProfileTasks error:', e); 
+            list.innerHTML = '<div class="text-center text-danger py-5"><i class="fas fa-exclamation-triangle fa-2x mb-3"></i><p>Erro ao carregar tarefas: ' + (e.message || 'desconhecido') + '</p></div>'; 
         }
     }
 
@@ -730,12 +753,56 @@ include __DIR__ . '/includes/sidebar.php';
     document.addEventListener('DOMContentLoaded', ()=>{
         // Try to dynamically import team_tasks helper; don't block the rest on failure
         (async function(){
+            let imported = false;
             try{
-                const mod = await import('./assets/js/team_tasks.js');
-                fetchTasks = mod.fetchTasks; addTask = mod.addTask; updateTask = mod.updateTask; deleteTask = mod.deleteTask;
-            }catch(e){
-                console.warn('dynamic import team_tasks failed', e);
+                const mod = await import('/assets/js/team_tasks.js');
+                fetchTasks = withTimeout(mod.fetchTasks.bind(mod), 8000);
+                addTask = withTimeout(mod.addTask.bind(mod), 8000);
+                updateTask = withTimeout(mod.updateTask.bind(mod), 8000);
+                deleteTask = withTimeout(mod.deleteTask.bind(mod), 8000);
+                imported = true;
+            }catch(e1){
+                try{
+                    const mod = await import('./assets/js/team_tasks.js');
+                    fetchTasks = withTimeout(mod.fetchTasks.bind(mod), 8000);
+                    addTask = withTimeout(mod.addTask.bind(mod), 8000);
+                    updateTask = withTimeout(mod.updateTask.bind(mod), 8000);
+                    deleteTask = withTimeout(mod.deleteTask.bind(mod), 8000);
+                    imported = true;
+                }catch(e2){
+                    console.warn('dynamic import team_tasks failed', e1, e2);
+                }
             }
+
+            // Fallback implementations using direct fetch if dynamic import isn't available
+            if(!imported){
+                const _fetchTasks = async (filters = {}) => {
+                    console.debug('fallback fetchTasks called with', filters);
+                    const params = new URLSearchParams(Object.assign({action:'list'}, filters));
+                    const res = await fetch('includes/team_tasks_api.php?' + params, {credentials: 'same-origin'});
+                    return await res.json();
+                };
+                const _addTask = async (data) => {
+                    const res = await fetch('includes/team_tasks_api.php?action=add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data), credentials: 'same-origin'});
+                    return await res.json();
+                };
+                const _updateTask = async (id, data) => {
+                    const res = await fetch('includes/team_tasks_api.php?action=update&id=' + encodeURIComponent(id), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data), credentials: 'same-origin'});
+                    return await res.json();
+                };
+                const _deleteTask = async (id) => {
+                    const res = await fetch('includes/team_tasks_api.php?action=delete&id=' + encodeURIComponent(id), {method:'POST', credentials: 'same-origin'});
+                    return await res.json();
+                };
+
+                fetchTasks = withTimeout(_fetchTasks, 8000);
+                addTask = withTimeout(_addTask, 8000);
+                updateTask = withTimeout(_updateTask, 8000);
+                deleteTask = withTimeout(_deleteTask, 8000);
+            }
+
+            console.debug('Functions initialized:', {fetchTasks: typeof fetchTasks, addTask: typeof addTask, updateTask: typeof updateTask, deleteTask: typeof deleteTask});
+
             // wire filters after attempting import
             document.getElementById('profileFiltroStatus').addEventListener('change', loadProfileTasks);
             document.getElementById('profileFiltroBusca').addEventListener('input', loadProfileTasks);

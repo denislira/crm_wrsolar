@@ -462,6 +462,13 @@
     let STAGES = [];
     // Statuses (separate table) - UI should load these independently from stages
     let STATUSES = [];
+    
+    // Helper function to get stage name by stage_id
+    function getStageName(stageId) {
+        if (!stageId) return '';
+        const stage = STAGES.find(s => String(s.id) === String(stageId));
+        return stage ? stage.name : '';
+    }
     // whether the Anúncios column should be shown (only when there are rows in leads_anuncios)
     let ANUNCIOS_PRESENT = false;
     // Sem Status column: present when there are leads with stage_id === 0
@@ -991,7 +998,7 @@
                 if (key === 'status') {
                     const sel = document.createElement('select'); sel.className = 'form-select form-select-sm';
                     const optAll = document.createElement('option'); optAll.value = ''; optAll.textContent = 'Todos'; sel.appendChild(optAll);
-                    const uniqueStatuses = [...new Set(allLeads.map(l=>l.status).filter(s=>s))];
+                    const uniqueStatuses = [...new Set(allLeads.map(l=>getStageName(l.stage_id)).filter(s=>s))];
                     uniqueStatuses.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; if ((GRID_FILTERS[key]||'') === s) o.selected = true; sel.appendChild(o); });
                     popup.appendChild(sel);
                     const btns = document.createElement('div'); btns.className = 'd-flex gap-2 mt-2';
@@ -1061,7 +1068,7 @@
                     if (!Object.prototype.hasOwnProperty.call(GRID_FILTERS,k)) continue;
                     const f = GRID_FILTERS[k]; if (f === null || f === undefined || f === '') continue;
                     if (k === 'status') {
-                        if ((lead.status||'') !== f) return false;
+                        if (getStageName(lead.stage_id) !== f) return false;
                     } else if (k === 'criado' || k === 'ultimo_contato') {
                         const dt = (k === 'criado') ? (lead.created_at || lead.createdAt || lead.created) : (lead.ultimo_contato);
                         if (!dt) return false;
@@ -1082,7 +1089,7 @@
                 try {
                     if (key === 'name') return String(item.name || '').toLowerCase();
                     if (key === 'source') return String(item.source || item.client_name || item.company || '').toLowerCase();
-                    if (key === 'status') return String(item.status || '').toLowerCase();
+                    if (key === 'status') return String(getStageName(item.stage_id) || '').toLowerCase();
                     if (key === 'phone') return String(item.phone || '').toLowerCase();
                     if (key === 'score') return Number(item.score || computeScore(item) || 0);
                     if (key === 'valor' || key === 'value') return Number(item.orcamento_value || item.proposal_value || item.value || 0) || 0;
@@ -1131,7 +1138,7 @@
             });
             const nameTd = document.createElement('td'); nameTd.textContent = (lead.name || '(sem nome)').length > 20 ? (lead.name || '(sem nome)').substring(0, 20) + '...' : (lead.name || '(sem nome)');
             const compTd = document.createElement('td'); compTd.textContent = lead.source || lead.client_name || lead.company || '—';
-            const statusTd = document.createElement('td'); statusTd.textContent = lead.status || '';
+            const statusTd = document.createElement('td'); statusTd.textContent = getStageName(lead.stage_id) || '';
             const phoneTd = document.createElement('td'); phoneTd.textContent = lead.phone || '';
             const valTd = document.createElement('td'); valTd.textContent = toCurrency(lead.orcamento_value || lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
             const scoreTd = document.createElement('td'); scoreTd.innerHTML = '<span class="badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')) + '">' + (lead.score||0) + '</span>';
@@ -2126,6 +2133,12 @@
             const sourceValue = (F('leadSource')||$('#lead-source')) ? (F('leadSource')||$('#lead-source')).value : 'web';
             const statusEl = (F('leadStatus')||$('#lead-status'));
             const statusValue = statusEl ? statusEl.value : '';
+            // Find stage_id based on status name
+            let stageIdValue = '';
+            if (statusValue && STAGES && STAGES.length) {
+                const stage = STAGES.find(s => s.name === statusValue);
+                if (stage) stageIdValue = stage.id;
+            }
             const notesValue = (F('leadNotes')||$('#lead-notes')) ? (F('leadNotes')||$('#lead-notes')).value : '';
             const consumoValue = (F('leadConsumo')||$('#lead-consumo')) ? (F('leadConsumo')||$('#lead-consumo')).value : '';
             const estimativaValue = (F('leadEstimativa')||$('#lead-estimativa-kwh')) ? (F('leadEstimativa')||$('#lead-estimativa-kwh')).value : '';
@@ -2135,8 +2148,8 @@
             const createdAtValue = (document.getElementById('lead-created-at') || { value: '' }).value;
             const formaPagamentoValue = (document.getElementById('lead-forma-pagamento')||{value:''}).value || '';
             
-            console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, notesValue, consumoValue, estimativaValue, orcamentoValue, formattedUltimoContato});
-            console.log('Status element:', statusEl, 'Status value:', statusValue);
+            console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, stageIdValue, notesValue, consumoValue, estimativaValue, orcamentoValue, formattedUltimoContato});
+            console.log('Status element:', statusEl, 'Status value:', statusValue, 'Stage ID:', stageIdValue);
             
             // Check if files are present
             const filesEl = (F('leadAnexos')||$('#leadAnexos'));
@@ -2153,6 +2166,7 @@
             fd.append('cpf_cnpj', cpfValue);
             fd.append('source', sourceValue);
             fd.append('status', statusValue);
+            fd.append('stage_id', stageIdValue);
             fd.append('notes', notesValue);
             fd.append('consumo_cliente', consumoValue);
             fd.append('estimativa_projeto_kwh', estimativaValue);

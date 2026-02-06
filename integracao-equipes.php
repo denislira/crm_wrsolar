@@ -668,13 +668,33 @@ async function loadRecentActivities() {
         activities.forEach(a => {
             const li = document.createElement('li');
             li.className = 'mb-2 d-flex align-items-center gap-2';
-            const badgeClass = a.type === 'created' ? 'bg-success' : 'bg-warning';
-            const icon = a.type === 'created' ? 'fa-user-plus' : 'fa-edit';
-            const actionText = a.type === 'created' ? 'adicionou nova tarefa' : 'atualizou tarefa';
-            const name = a.responsavel || a.equipe;
+
+            // parse details if available (may be JSON with before/after or simple snapshot)
+            let parsed = null;
+            if (a.details) {
+                try { parsed = JSON.parse(a.details); } catch(e){ parsed = null; }
+            }
+            const getFromDetails = (k) => {
+                if (!parsed) return null;
+                if (parsed[k]) return parsed[k];
+                if (parsed.before && parsed.before[k]) return parsed.before[k];
+                if (parsed.after && parsed.after[k]) return parsed.after[k];
+                return null;
+            };
+
+            const isCreated = a.type === 'created';
+            const isDeleted = a.type === 'deleted';
+            const badgeClass = isCreated ? 'bg-success' : (isDeleted ? 'bg-danger' : 'bg-warning');
+            const icon = isCreated ? 'fa-user-plus' : (isDeleted ? 'fa-trash' : 'fa-edit');
+            const actionText = isCreated ? 'adicionou nova tarefa' : (isDeleted ? 'excluiu tarefa' : 'atualizou tarefa');
+
+            const title = a.titulo || getFromDetails('titulo') || '';
+            const equipe = a.equipe || getFromDetails('equipe') || '';
+            const name = a.username || a.responsavel || equipe || '';
+
             li.innerHTML = `
                 <span class="badge ${badgeClass}"><i class="fa ${icon}"></i></span>
-                <span><strong>${escapeHtml(name)}</strong> ${actionText} <span class="text-info">"${escapeHtml(a.titulo)}"</span> <span class="text-muted">(${escapeHtml(a.equipe)})</span></span>
+                <span><strong>${escapeHtml(name)}</strong> ${actionText} ${title ? '<span class="text-info">"' + escapeHtml(title) + '"</span>' : ''} ${equipe ? '<span class="text-muted">(' + escapeHtml(equipe) + ')</span>' : ''}</span>
                 <span class="ms-auto small text-muted">${formatDate(a.timestamp)}</span>
             `;
             list.appendChild(li);

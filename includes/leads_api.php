@@ -369,28 +369,43 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
     }
 
     if ($action === 'add') {
-        // Status can be either a stage_id (numeric) or a stage name (text)
-        // Need to resolve to numeric stage_id for database
-        $incomingStatus = isset($data['status']) && trim($data['status']) !== '' ? trim($data['status']) : '0';
+        // Status should be stage name (text), stage_id should be numeric
+        // JavaScript now sends both status (name) and stage_id (id)
+        $incomingStatus = isset($data['status']) && trim($data['status']) !== '' ? trim($data['status']) : '';
+        $incomingStageId = isset($data['stage_id']) && trim($data['stage_id']) !== '' ? trim($data['stage_id']) : '';
         
-        // If incoming status is numeric, use it as stage_id
-        if (is_numeric($incomingStatus)) {
+        // If stage_id is provided, use it directly along with status name
+        if (!empty($incomingStageId) && is_numeric($incomingStageId)) {
+            $resolvedStageId = (int)$incomingStageId;
+            $resolvedStatus = $incomingStatus; // Keep the name
+        } 
+        // If status is numeric (legacy behavior), use it as stage_id
+        elseif (is_numeric($incomingStatus)) {
             $resolvedStageId = (int)$incomingStatus;
-            $resolvedStatus = $incomingStatus;
-        } else {
-            // If it's a text name, look up the stage_id from funil_stages
+            // Try to get the stage name from funil_stages
+            $stageQuery = $pdo->prepare("SELECT stage_name FROM funil_stages WHERE id = ? LIMIT 1");
+            $stageQuery->execute([$resolvedStageId]);
+            $stageRow = $stageQuery->fetch(PDO::FETCH_ASSOC);
+            $resolvedStatus = $stageRow ? $stageRow['stage_name'] : $incomingStatus;
+        } 
+        // If status is a text name, look up the stage_id from funil_stages
+        elseif (!empty($incomingStatus)) {
             $stageQuery = $pdo->prepare("SELECT id, stage_name FROM funil_stages WHERE stage_name = ? LIMIT 1");
             $stageQuery->execute([$incomingStatus]);
             $stageRow = $stageQuery->fetch(PDO::FETCH_ASSOC);
             
             if ($stageRow) {
                 $resolvedStageId = (int)$stageRow['id'];
-                $resolvedStatus = $incomingStatus;
+                $resolvedStatus = $stageRow['stage_name'];
             } else {
-                // Stage name not found - default to 0
                 $resolvedStageId = 0;
                 $resolvedStatus = $incomingStatus;
             }
+        } 
+        // Default to 0 if nothing provided
+        else {
+            $resolvedStageId = 0;
+            $resolvedStatus = '';
         }
 
         // Insert lead (without blobs) first
@@ -546,28 +561,44 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         $fromStatus = $prev['status'] ?? null;
         $fromStageId = isset($prev['stage_id']) ? (int)$prev['stage_id'] : null;
 
-        // Status can be either a stage_id (numeric) or a stage name (text)
-        // Need to resolve to numeric stage_id for database
-        $incomingStatus = isset($data['status']) && trim($data['status']) !== '' ? trim($data['status']) : ($fromStatus ?? '0');
+        // Status should be stage name (text), stage_id should be numeric
+        // JavaScript now sends both status (name) and stage_id (id)
+        $incomingStatus = isset($data['status']) && trim($data['status']) !== '' ? trim($data['status']) : ($fromStatus ?? '');
+        $incomingStageId = isset($data['stage_id']) && trim($data['stage_id']) !== '' ? trim($data['stage_id']) : '';
         
-        // If incoming status is numeric, use it as stage_id
-        if (is_numeric($incomingStatus)) {
+        // If stage_id is provided, use it directly along with status name
+        if (!empty($incomingStageId) && is_numeric($incomingStageId)) {
+            $resolvedStageId = (int)$incomingStageId;
+            $resolvedStatus = $incomingStatus; // Keep the name
+        } 
+        // If status is numeric (legacy behavior), use it as stage_id
+        elseif (is_numeric($incomingStatus)) {
             $resolvedStageId = (int)$incomingStatus;
-            $resolvedStatus = $incomingStatus;
-        } else {
-            // If it's a text name, look up the stage_id from funil_stages
+            // Try to get the stage name from funil_stages
+            $stageQuery = $pdo->prepare("SELECT stage_name FROM funil_stages WHERE id = ? LIMIT 1");
+            $stageQuery->execute([$resolvedStageId]);
+            $stageRow = $stageQuery->fetch(PDO::FETCH_ASSOC);
+            $resolvedStatus = $stageRow ? $stageRow['stage_name'] : $incomingStatus;
+        } 
+        // If status is a text name, look up the stage_id from funil_stages
+        elseif (!empty($incomingStatus)) {
             $stageQuery = $pdo->prepare("SELECT id, stage_name FROM funil_stages WHERE stage_name = ? LIMIT 1");
             $stageQuery->execute([$incomingStatus]);
             $stageRow = $stageQuery->fetch(PDO::FETCH_ASSOC);
             
             if ($stageRow) {
                 $resolvedStageId = (int)$stageRow['id'];
-                $resolvedStatus = $incomingStatus;
+                $resolvedStatus = $stageRow['stage_name'];
             } else {
                 // Stage name not found - keep previous or default to 0
                 $resolvedStageId = $fromStageId ?? 0;
                 $resolvedStatus = $incomingStatus;
             }
+        }
+        // Keep previous values if nothing provided
+        else {
+            $resolvedStageId = $fromStageId ?? 0;
+            $resolvedStatus = $fromStatus ?? '';
         }
 
         // Processar arquivos anexados se houver novos

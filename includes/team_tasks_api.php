@@ -26,6 +26,47 @@ function columnExists($pdo, $table, $column) {
     }
 }
 
+/**
+ * Ensure activities table exists (silent on failure).
+ */
+function ensureActivityTableExists($pdo) {
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS team_tasks_activities (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            task_id INT DEFAULT NULL,
+            action VARCHAR(50) NOT NULL,
+            user_id INT DEFAULT NULL,
+            username VARCHAR(150) DEFAULT NULL,
+            details TEXT,
+            equipe VARCHAR(150) DEFAULT NULL,
+            titulo VARCHAR(255) DEFAULT NULL,
+            responsavel VARCHAR(150) DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        // ignore
+    }
+}
+
+function logTaskActivity($pdo, $data) {
+    try {
+        ensureActivityTableExists($pdo);
+        $stmt = $pdo->prepare("INSERT INTO team_tasks_activities (task_id, action, user_id, username, details, equipe, titulo, responsavel) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $data['task_id'] ?? null,
+            $data['action'] ?? null,
+            $data['user_id'] ?? null,
+            $data['username'] ?? null,
+            $data['details'] ?? null,
+            $data['equipe'] ?? null,
+            $data['titulo'] ?? null,
+            $data['responsavel'] ?? null,
+        ]);
+    } catch (Exception $e) {
+        // ignore logging failures
+    }
+}
+
 $hasResponsavelId = columnExists($pdo, 'team_tasks', 'responsavel_id');
 
 switch ($action) {
@@ -99,7 +140,19 @@ switch ($action) {
                     $data_venc
                 ]);
             }
-            echo json_encode(['success'=>true, 'id'=>$pdo->lastInsertId()]);
+            $newId = $pdo->lastInsertId();
+            // log creation activity (best-effort)
+            logTaskActivity($pdo, [
+                'task_id' => $newId,
+                'action' => 'created',
+                'user_id' => $userId,
+                'username' => $_SESSION['username'] ?? null,
+                'details' => json_encode(['titulo'=>$data['titulo'] ?? null,'equipe'=>$data['equipe'] ?? null], JSON_UNESCAPED_UNICODE),
+                'equipe' => $data['equipe'] ?? null,
+                'titulo' => $data['titulo'] ?? null,
+                'responsavel' => $responsavel
+            ]);
+            echo json_encode(['success'=>true, 'id'=>$newId]);
         } catch (Exception $e) {
             echo json_encode(['success'=>false, 'error'=>$e->getMessage()]);
         }
@@ -108,7 +161,7 @@ switch ($action) {
         $id = $_GET['id'] ?? 0;
         $data = json_decode(file_get_contents('php://input'), true);
         // Fetch existing row and check permissions (owner or assigned responsavel)
-        $curSql = $hasResponsavelId ? "SELECT user_id, responsavel, responsavel_id FROM team_tasks WHERE id = ?" : "SELECT user_id, responsavel FROM team_tasks WHERE id = ?";
+        $curSql = "SELECT * FROM team_tasks WHERE id = ?";
         $cur = $pdo->prepare($curSql);
         $cur->execute([$id]);
         $row = $cur->fetch(PDO::FETCH_ASSOC);
@@ -120,7 +173,7 @@ switch ($action) {
         $isDirector = function_exists('isDirector') ? isDirector() : false;
         if (!($isOwner || $isResponsavelName || $isResponsavelId || $isDirector)) { echo json_encode(['success'=>false,'error'=>'No permission']); break; }
         // Allow changing responsavel when provided (owner or current responsavel already checked above)
-        $responsavel = $row['responsavel'];
+        $responsavel = $row['responsavel'] ?? null;
         $responsavel_id = $hasResponsavelId ? ($row['responsavel_id'] ?? null) : null;
         if (isset($data['responsavel']) && trim($data['responsavel']) !== '') {
             $responsavel = $data['responsavel'];
@@ -137,6 +190,13 @@ switch ($action) {
             }
         }
         $data_venc = (isset($data['data_vencimento']) && trim($data['data_vencimento']) !== '') ? $data['data_vencimento'] : null;
+        // prepare snapshot before/after for logging
+        $keys = ['titulo','equipe','descricao','status','responsavel','data_vencimento'];
+        $before = [];
+        foreach ($keys as $k) { $before[$k] = $row[$k] ?? null; }
+        $after = [];
+        foreach ($keys as $k) { $after[$k] = $data[$k] ?? ($row[$k] ?? null); }
+
         try {
             if ($hasResponsavelId) {
                 $stmt = $pdo->prepare("UPDATE team_tasks SET equipe=?, titulo=?, descricao=?, status=?, responsavel=?, responsavel_id=?, data_vencimento=? WHERE id=?");
@@ -162,6 +222,17 @@ switch ($action) {
                     $id
                 ]);
             }
+            // log update activity (best-effort)
+            logTaskActivity($pdo, [
+                'task_id' => $id,
+                'action' => 'updated',
+                'user_id' => $userId,
+                'username' => $_SESSION['username'] ?? null,
+                'details' => json_encode(['before'=>$before,'after'=>$after], JSON_UNESCAPED_UNICODE),
+                'equipe' => $after['equipe'] ?? null,
+                'titulo' => $after['titulo'] ?? null,
+                'responsavel' => $after['responsavel'] ?? null
+            ]);
             echo json_encode(['success'=>true]);
         } catch (Exception $e) {
             echo json_encode(['success'=>false, 'error'=>$e->getMessage()]);
@@ -169,15 +240,37 @@ switch ($action) {
         break;
     case 'recent_activities':
         $username = $_SESSION['username'] ?? '';
-        $sql = "SELECT id, equipe, titulo, responsavel, criado_em, atualizado_em FROM team_tasks WHERE (user_id = ? OR responsavel = ?) AND (criado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY) OR atualizado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)) ORDER BY GREATEST(criado_em, atualizado_em) DESC LIMIT 10";
+        $combined = [];
+        // 1) read explicit activities from team_tasks_activities (if present)
+        try {
+            ensureActivityTableExists($pdo);
+            $stmt = $pdo->prepare("SELECT task_id, action, user_id, username, details, equipe, titulo, responsavel, created_at FROM team_tasks_activities WHERE (user_id = ? OR username = ?) AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY created_at DESC LIMIT 50");
+            $stmt->execute([$userId, $username]);
+            $acts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if ($acts) {
+                foreach ($acts as $a) {
+                    $combined[] = [
+                        'type' => $a['action'],
+                        'titulo' => $a['titulo'] ?? null,
+                        'equipe' => $a['equipe'] ?? null,
+                        'responsavel' => $a['responsavel'] ?? null,
+                        'timestamp' => $a['created_at'],
+                        'details' => $a['details'] ?? null
+                    ];
+                }
+            }
+        } catch (Exception $e) {
+            // ignore and fall back to tasks-only
+        }
+        // 2) also include inferred activities from team_tasks (preserve old behavior)
+        $sql = "SELECT id, equipe, titulo, responsavel, criado_em, atualizado_em FROM team_tasks WHERE (user_id = ? OR responsavel = ?) AND (criado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY) OR atualizado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)) ORDER BY GREATEST(criado_em, atualizado_em) DESC LIMIT 50";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$userId, $username]);
         $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $activities = [];
         foreach ($tasks as $t) {
             $isNew = $t['criado_em'] == $t['atualizado_em'];
             $timestamp = $isNew ? $t['criado_em'] : $t['atualizado_em'];
-            $activities[] = [
+            $combined[] = [
                 'type' => $isNew ? 'created' : 'updated',
                 'titulo' => $t['titulo'],
                 'equipe' => $t['equipe'],
@@ -185,13 +278,29 @@ switch ($action) {
                 'timestamp' => $timestamp
             ];
         }
-        echo json_encode($activities);
+        // deduplicate combined activities by type|titulo|equipe|timestamp
+        $unique = [];
+        $deduped = [];
+        foreach ($combined as $c) {
+            $key = ($c['type'] ?? '') . '|' . ($c['titulo'] ?? '') . '|' . ($c['equipe'] ?? '') . '|' . ($c['timestamp'] ?? '');
+            $hash = md5($key);
+            if (isset($unique[$hash])) continue;
+            $unique[$hash] = true;
+            $deduped[] = $c;
+        }
+        usort($deduped, function($a,$b){
+            $ta = strtotime($a['timestamp'] ?? '1970-01-01');
+            $tb = strtotime($b['timestamp'] ?? '1970-01-01');
+            return $tb <=> $ta;
+        });
+        $combined = array_slice($deduped, 0, 10);
+        echo json_encode($combined, JSON_UNESCAPED_UNICODE);
         break;
     case 'delete':
         $id = $_GET['id'] ?? 0;
         if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); break; }
         // Check permission: owner or assigned responsavel
-        $curSql = $hasResponsavelId ? "SELECT user_id, responsavel, responsavel_id FROM team_tasks WHERE id = ?" : "SELECT user_id, responsavel FROM team_tasks WHERE id = ?";
+        $curSql = "SELECT * FROM team_tasks WHERE id = ?";
         $cur = $pdo->prepare($curSql);
         $cur->execute([$id]);
         $row = $cur->fetch(PDO::FETCH_ASSOC);
@@ -206,9 +315,26 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => "No permission (own=$isOwner, resp_name=$isResponsavelName, resp_id=$isResponsavelId, dir=$isDirector)"]); 
             break; 
         }
+        // preserve snapshot for activity
+        $taskSnapshot = [
+            'titulo' => $row['titulo'] ?? null,
+            'equipe' => $row['equipe'] ?? null,
+            'responsavel' => $row['responsavel'] ?? null,
+        ];
         $stmt = $pdo->prepare("DELETE FROM team_tasks WHERE id = ?");
         $stmt->execute([$id]);
         if ($stmt->rowCount() > 0) {
+            // log deletion (best-effort)
+            logTaskActivity($pdo, [
+                'task_id' => $id,
+                'action' => 'deleted',
+                'user_id' => $userId,
+                'username' => $_SESSION['username'] ?? null,
+                'details' => json_encode($taskSnapshot, JSON_UNESCAPED_UNICODE),
+                'equipe' => $taskSnapshot['equipe'] ?? null,
+                'titulo' => $taskSnapshot['titulo'] ?? null,
+                'responsavel' => $taskSnapshot['responsavel'] ?? null
+            ]);
             echo json_encode(['success' => true]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Delete failed']);
