@@ -61,6 +61,32 @@ include 'includes/header.php';
 .section-left-border.secondary { border-left-color: #6c757d !important; }
 .section-left-border.primary { border-left-color: #0d6efd !important; }
 .section-left-border.success { border-left-color: #198754 !important; }
+
+/* Estilos modernos para filtros */
+#filtroMinhas:hover {
+    background: #f1f5f9 !important;
+    border-color: #94a3b8 !important;
+}
+
+.form-select:focus, .form-control:focus {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 0.15rem rgba(59, 130, 246, 0.1) !important;
+}
+
+.form-select, .form-control {
+    transition: all 0.2s ease;
+}
+
+.form-select:hover, .form-control:hover {
+    border-color: #94a3b8 !important;
+}
+
+.vr {
+    width: 1px;
+    height: 24px;
+    background-color: #cbd5e1;
+    opacity: 0.3;
+}
 </style>
 
 <div class="d-flex">
@@ -142,30 +168,67 @@ include 'includes/header.php';
             <div id="tarefasArea">
             <div class="row g-3">
                 <div class="col-lg-8">
-                    <div class="card card-shadow p-3 mb-3 border-start border-3 border-secondary section-left-border secondary">
-                        <h6 class="mb-3">Tarefas de Equipe</h6>
-                        <div class="d-flex gap-2 flex-wrap mb-2">
-                            <div class="form-check form-check-inline align-items-center">
-                                <input class="form-check-input" type="checkbox" id="filtroMinhas">
-                                <label class="form-check-label small" for="filtroMinhas">Minhas tarefas</label>
+                    <div class="card card-shadow border-0 rounded-3 mb-3" style="box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                        <div class="card-header bg-white border-0 px-4 py-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0 fw-semibold d-flex align-items-center gap-2" style="color: #1e293b; font-size: 1rem;">
+                                    <i class="fa fa-tasks" style="color: #3b82f6;"></i>
+                                    Tarefas de Equipe
+                                </h6>
+                                <span id="taskCount" class="badge rounded-pill" style="background: #e0e7ff; color: #4f46e5; font-size: 0.75rem; padding: 0.35em 0.75em;">0 tarefas</span>
                             </div>
-                            <select id="filtroEquipe" class="form-select form-select-sm w-auto" style="display:none;">
-                                <option value="">Todas equipes</option>
-                                <?php foreach ($equipes as $eq): ?><option value="<?php echo $eq; ?>"><?php echo $eq; ?></option><?php endforeach; ?>
-                            </select>
-                            <select id="filtroResp" class="form-select form-select-sm w-auto">
-                                <option value="">Todos responsáveis</option>
-                                <?php foreach ($responsaveis as $r): ?><option value="<?php echo htmlspecialchars($r); ?>"><?php echo htmlspecialchars($r); ?></option><?php endforeach; ?>
-                            </select>
-                            <select id="filtroStatus" class="form-select form-select-sm w-auto">
-                                <option value="">Todos status</option>
-                                <option value="Pendente">Pendente</option>
-                                <option value="Em andamento">Em andamento</option>
-                                <option value="Concluída">Concluída</option>
-                            </select>
-                            <input type="search" id="filtroBusca" class="form-control form-control-sm w-50" placeholder="Buscar tarefa...">
                         </div>
-                        <div id="tasksList"></div>
+                        <div class="card-body px-4 py-3">
+                            <!-- Filtros Modernos e Compactos -->
+                            <div class="bg-light rounded-3 p-3 mb-3" style="background: #f8fafc !important; border: 1px solid #e2e8f0;">
+                                <div class="row g-2 align-items-center">
+                                    <!-- Linha 1: Filtros principais -->
+                                    <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
+                                        <button id="filtroMinhas" class="btn btn-sm" style="font-size: 0.8rem; padding: 0.35rem 0.85rem; border: 1px solid #cbd5e1; background: white; color: #64748b; border-radius: 6px; transition: all 0.2s;">
+                                            <i class="fa fa-user me-1" style="font-size: 0.75rem;"></i>
+                                            <span>Minhas</span>
+                                        </button>
+                                        
+                                        <div class="vr" style="opacity: 0.2;"></div>
+                                        
+                                        <div class="d-flex align-items-center gap-2 flex-grow-1 flex-wrap">
+                                            <select id="filtroEquipe" class="form-select form-select-sm" style="width: auto; min-width: 140px; font-size: 0.8rem; padding: 0.35rem 2rem 0.35rem 0.75rem; border-color: #cbd5e1; border-radius: 6px; display:none;">
+                                                <option value="">🏛️ Todas equipes</option>
+                                                <?php foreach ($equipes as $eq): ?><option value="<?php echo $eq; ?>"><?php echo $eq; ?></option><?php endforeach; ?>
+                                            </select>
+                                            
+                                            <select id="filtroResp" class="form-select form-select-sm" style="width: auto; min-width: 160px; font-size: 0.8rem; padding: 0.35rem 2rem 0.35rem 0.75rem; border-color: #cbd5e1; border-radius: 6px;">
+                                                <option value="">👥 Todos responsáveis</option>
+                                                <?php foreach ($responsaveis as $r): ?><option value="<?php echo htmlspecialchars($r); ?>"><?php echo htmlspecialchars($r); ?></option><?php endforeach; ?>
+                                            </select>
+                                            
+                                            <select id="filtroStatus" class="form-select form-select-sm" style="width: auto; min-width: 130px; font-size: 0.8rem; padding: 0.35rem 2rem 0.35rem 0.75rem; border-color: #cbd5e1; border-radius: 6px;">
+                                                <option value="">🎯 Todos status</option>
+                                                <option value="Pendente">⏳ Pendente</option>
+                                                <option value="Em andamento">▶️ Em andamento</option>
+                                                <option value="Concluída">✅ Concluída</option>
+                                            </select>
+                                            
+                                            <select id="filtroOrdem" class="form-select form-select-sm" style="width: auto; min-width: 135px; font-size: 0.8rem; padding: 0.35rem 2rem 0.35rem 0.75rem; border-color: #cbd5e1; border-radius: 6px;">
+                                                <option value="desc">🔽 Mais recentes</option>
+                                                <option value="asc">🔼 Mais antigas</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Linha 2: Busca -->
+                                    <div class="col-12">
+                                        <div class="position-relative">
+                                            <i class="fa fa-search position-absolute" style="left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.85rem;"></i>
+                                            <input type="search" id="filtroBusca" class="form-control form-control-sm" style="padding-left: 36px; font-size: 0.85rem; border-color: #cbd5e1; border-radius: 6px; padding-top: 0.45rem; padding-bottom: 0.45rem;" placeholder="Buscar por título, descrição, responsável...">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body px-4 py-2">
+                            <div id="tasksList"></div>
+                        </div>
                         <!-- Modal Nova Tarefa -->
                         <div class="modal fade" id="modalNovaTarefa" tabindex="-1" aria-labelledby="modalNovaTarefaLabel" aria-hidden="true">
                             <div class="modal-dialog modal-lg">
@@ -319,10 +382,33 @@ include 'includes/header.php';
                             </div>
                         </div>
                     </div>
-                    <div class="card card-shadow p-3 border-start border-3 border-secondary section-left-border secondary">
-                        <h6 class="mb-2">Atividades recentes</h6>
-                        <ul id="teamTimeline" class="list-unstyled mb-0">
-                        </ul>
+                    <div class="card card-shadow border-0 rounded-3" style="box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                        <div class="card-header bg-white border-0 px-4 py-3">
+                            <h6 class="mb-3 fw-semibold d-flex align-items-center gap-2" style="color: #1e293b; font-size: 1rem;">
+                                <i class="fa fa-clock-o" style="color: #3b82f6;"></i>
+                                Atividades Recentes
+                            </h6>
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <span class="text-muted" style="font-size: 0.75rem; font-weight: 500;">Tipo:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-sm activity-filter-type active" data-type="all" style="font-size: 0.75rem; padding: 0.25rem 0.6rem; border-color: #e2e8f0;">Todas</button>
+                                    <button type="button" class="btn btn-sm activity-filter-type" data-type="created" style="font-size: 0.75rem; padding: 0.25rem 0.6rem; border-color: #e2e8f0;">Criadas</button>
+                                    <button type="button" class="btn btn-sm activity-filter-type" data-type="updated" style="font-size: 0.75rem; padding: 0.25rem 0.6rem; border-color: #e2e8f0;">Editadas</button>
+                                    <button type="button" class="btn btn-sm activity-filter-type" data-type="deleted" style="font-size: 0.75rem; padding: 0.25rem 0.6rem; border-color: #e2e8f0;">Excluídas</button>
+                                </div>
+                                <span class="text-muted ms-2" style="font-size: 0.75rem; font-weight: 500;">Equipe:</span>
+                                <select id="activityEquipeFilter" class="form-select form-select-sm" style="width: auto; font-size: 0.75rem; padding: 0.25rem 2rem 0.25rem 0.6rem; border-color: #e2e8f0;">
+                                    <option value="">Todas</option>
+                                    <?php foreach ($equipes as $eq): ?>
+                                        <option value="<?php echo htmlspecialchars($eq); ?>"><?php echo htmlspecialchars($eq); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body px-4 py-3">
+                            <ul id="teamTimeline" class="list-unstyled mb-0">
+                            </ul>
+                        </div>
                     </div>
                 </div>
 
@@ -482,11 +568,14 @@ function escapeHtmlGlobal(str) {
 // Alias para compatibilidade
 const escapeHtml = escapeHtmlGlobal;
 
+// Estado do filtro "Minhas tarefas"
+let filtroMinhasAtivo = false;
+
 // Funções para atualizar a lista de tarefas e a linha do tempo
 async function atualizarTarefas() {
     const equipeFiltro = document.getElementById('filtroEquipe').value;
     const respFiltro = document.getElementById('filtroResp').value;
-    const mineChecked = document.getElementById('filtroMinhas') ? document.getElementById('filtroMinhas').checked : false;
+    const mineChecked = filtroMinhasAtivo;
     const statusFiltro = document.getElementById('filtroStatus').value;
     const buscaFiltro = document.getElementById('filtroBusca').value;
 
@@ -518,9 +607,29 @@ async function atualizarTarefas() {
         return;
     }
     const responsavelParam = mineChecked ? username : respFiltro;
-    const tarefas = await fetchTasks({equipe: equipeFiltro, responsavel: responsavelParam, status: statusFiltro});
+    let tarefas = await fetchTasks({equipe: equipeFiltro, responsavel: responsavelParam, status: statusFiltro});
+    
+    // Aplicar filtro de busca
+    if (buscaFiltro && buscaFiltro.trim() !== '') {
+        const busca = buscaFiltro.toLowerCase();
+        tarefas = tarefas.filter(t => {
+            return (t.titulo && t.titulo.toLowerCase().includes(busca)) ||
+                   (t.descricao && t.descricao.toLowerCase().includes(busca)) ||
+                   (t.responsavel && t.responsavel.toLowerCase().includes(busca)) ||
+                   (t.equipe && t.equipe.toLowerCase().includes(busca));
+        });
+    }
+    
+    // Aplicar ordenação por data de criação
+    const ordem = document.getElementById('filtroOrdem')?.value || 'desc';
+    tarefas.sort((a, b) => {
+        const dateA = new Date(a.criado_em || 0);
+        const dateB = new Date(b.criado_em || 0);
+        return ordem === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+    
     if (!tarefas.length) {
-        list.innerHTML = '<div class="text-muted">Nenhuma tarefa encontrada.</div>';
+        list.innerHTML = '<div class="text-muted text-center py-4" style="font-size: 0.9rem;">Nenhuma tarefa encontrada.</div>';
     } else {
         tarefas.forEach(t => {
             const card = document.createElement('div');
@@ -618,6 +727,12 @@ async function atualizarTarefas() {
             list.appendChild(card);
         });
     }
+    
+    // Atualizar contador de tarefas
+    const taskCount = document.getElementById('taskCount');
+    if (taskCount) {
+        taskCount.textContent = tarefas.length + (tarefas.length === 1 ? ' tarefa' : ' tarefas');
+    }
     // Adicionar eventos aos checkboxes
     document.querySelectorAll('.task-checkbox').forEach(cb => {
         cb.addEventListener('change', updateBulkActions);
@@ -657,19 +772,66 @@ function showNotification(msg, tipo='success') {
 // Carregar tarefas iniciais
 atualizarTarefas();
 
+// Estado dos filtros de atividades
+let activityFilters = {
+    type: 'all',
+    equipe: ''
+};
+
+let allActivities = [];
+
 // Função para carregar atividades recentes
 async function loadRecentActivities() {
     const list = document.getElementById('teamTimeline');
     list.innerHTML = '';
     try {
         const activities = await fetchRecentActivities();
-        if (!activities.length) {
-            list.innerHTML = '<li class="text-muted small">Nenhuma atividade recente.</li>';
-            return;
+        allActivities = activities;
+        renderActivities(activities);
+    } catch (e) {
+        console.error(e);
+        list.innerHTML = '<li class="text-danger small">Erro ao carregar atividades.</li>';
+    }
+}
+
+// Função para renderizar atividades com filtros aplicados
+function renderActivities(activities) {
+    const list = document.getElementById('teamTimeline');
+    list.innerHTML = '';
+    
+    // Aplicar filtros
+    let filtered = activities.filter(a => {
+        // Filtro de tipo
+        if (activityFilters.type !== 'all' && a.type !== activityFilters.type) {
+            return false;
         }
-        activities.forEach(a => {
+        // Filtro de equipe
+        if (activityFilters.equipe !== '') {
+            const equipe = a.equipe || getEquipeFromDetails(a);
+            if (equipe !== activityFilters.equipe) {
+                return false;
+            }
+        }
+        return true;
+    });
+    
+    if (!filtered.length) {
+        list.innerHTML = '<li class="text-muted text-center py-4" style="font-size: 0.9rem;">Nenhuma atividade encontrada.</li>';
+        return;
+    }
+    
+    filtered.forEach(a => {
             const li = document.createElement('li');
-            li.className = 'mb-2 d-flex align-items-center gap-2';
+            li.className = 'mb-3 pb-3 border-bottom';
+            li.style.cssText = 'transition: all 0.2s ease;';
+            li.addEventListener('mouseenter', () => {
+                li.style.background = '#f8fafc';
+                li.style.marginLeft = '4px';
+            });
+            li.addEventListener('mouseleave', () => {
+                li.style.background = 'transparent';
+                li.style.marginLeft = '0';
+            });
 
             // parse details if available (may be JSON with before/after or simple snapshot)
             let parsed = null;
@@ -686,8 +848,8 @@ async function loadRecentActivities() {
 
             const isCreated = a.type === 'created';
             const isDeleted = a.type === 'deleted';
-            const badgeClass = isCreated ? 'bg-success' : (isDeleted ? 'bg-danger' : 'bg-warning');
-            const icon = isCreated ? 'fa-user-plus' : (isDeleted ? 'fa-trash' : 'fa-edit');
+            const badgeColor = isCreated ? '#10b981' : (isDeleted ? '#ef4444' : '#f59e0b');
+            const icon = isCreated ? 'fa-plus-circle' : (isDeleted ? 'fa-trash' : 'fa-edit');
             const actionText = isCreated ? 'adicionou nova tarefa' : (isDeleted ? 'excluiu tarefa' : 'atualizou tarefa');
 
             const title = a.titulo || getFromDetails('titulo') || '';
@@ -695,17 +857,67 @@ async function loadRecentActivities() {
             const name = a.username || a.responsavel || equipe || '';
 
             li.innerHTML = `
-                <span class="badge ${badgeClass}"><i class="fa ${icon}"></i></span>
-                <span><strong>${escapeHtml(name)}</strong> ${actionText} ${title ? '<span class="text-info">"' + escapeHtml(title) + '"</span>' : ''} ${equipe ? '<span class="text-muted">(' + escapeHtml(equipe) + ')</span>' : ''}</span>
-                <span class="ms-auto small text-muted">${formatDate(a.timestamp)}</span>
+                <div class="d-flex align-items-start gap-3">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center" style="min-width: 40px; width: 40px; height: 40px; background: ${badgeColor}15; color: ${badgeColor};">
+                        <i class="fa ${icon}" style="font-size: 1rem;"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="mb-1">
+                            <span class="fw-semibold" style="color: #1e293b; font-size: 0.9rem;">${escapeHtml(name)}</span>
+                            <span class="text-muted" style="font-size: 0.85rem;"> ${actionText}</span>
+                        </div>
+                        ${title ? '<div class="mb-1" style="color: #3b82f6; font-size: 0.85rem; font-weight: 500;">"' + escapeHtml(title) + '"</div>' : ''}
+                        <div class="d-flex align-items-center gap-2">
+                            ${equipe ? '<span class="badge rounded-pill" style="background: #e0e7ff; color: #4f46e5; font-size: 0.7rem; padding: 0.25em 0.6em;">' + escapeHtml(equipe) + '</span>' : ''}
+                            <span class="text-muted" style="font-size: 0.75rem;"><i class="fa fa-clock-o me-1"></i>${formatDate(a.timestamp)}</span>
+                        </div>
+                    </div>
+                </div>
             `;
             list.appendChild(li);
         });
-    } catch (e) {
-        console.error(e);
-        list.innerHTML = '<li class="text-danger small">Erro ao carregar atividades.</li>';
-    }
 }
+
+// Função auxiliar para extrair equipe dos detalhes
+function getEquipeFromDetails(a) {
+    if (a.details) {
+        try {
+            const parsed = JSON.parse(a.details);
+            if (parsed.equipe) return parsed.equipe;
+            if (parsed.before && parsed.before.equipe) return parsed.before.equipe;
+            if (parsed.after && parsed.after.equipe) return parsed.after.equipe;
+        } catch(e) {}
+    }
+    return null;
+}
+
+// Event listeners para filtros de atividades
+document.querySelectorAll('.activity-filter-type').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.activity-filter-type').forEach(b => {
+            b.classList.remove('active', 'btn-primary');
+            b.classList.add('btn-outline-secondary');
+        });
+        this.classList.remove('btn-outline-secondary');
+        this.classList.add('active', 'btn-primary');
+        activityFilters.type = this.dataset.type;
+        renderActivities(allActivities);
+    });
+});
+
+document.getElementById('activityEquipeFilter')?.addEventListener('change', function() {
+    activityFilters.equipe = this.value;
+    renderActivities(allActivities);
+});
+
+// Aplicar estilo inicial aos botões
+document.querySelectorAll('.activity-filter-type').forEach(btn => {
+    if (!btn.classList.contains('active')) {
+        btn.classList.add('btn-outline-secondary');
+    } else {
+        btn.classList.add('btn-primary');
+    }
+});
 
 function updateBulkActions() {
     const checked = document.querySelectorAll('.task-checkbox:checked');
@@ -940,12 +1152,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // Evento de mudança nos filtros
     const filtroEquipe = document.getElementById('filtroEquipe');
     if (filtroEquipe) filtroEquipe.addEventListener('change', atualizarTarefas);
+    const filtroOrdem = document.getElementById('filtroOrdem');
+    if (filtroOrdem) filtroOrdem.addEventListener('change', atualizarTarefas);
     const filtroResp = document.getElementById('filtroResp');
     if (filtroResp) filtroResp.addEventListener('change', atualizarTarefas);
     const filtroStatus = document.getElementById('filtroStatus');
     if (filtroStatus) filtroStatus.addEventListener('change', atualizarTarefas);
-    const filtroMinhas = document.getElementById('filtroMinhas');
-    if (filtroMinhas) filtroMinhas.addEventListener('change', atualizarTarefas);
+    
+    // Botão toggle "Minhas tarefas"
+    const btnFiltroMinhas = document.getElementById('filtroMinhas');
+    if (btnFiltroMinhas) {
+        btnFiltroMinhas.addEventListener('click', function() {
+            filtroMinhasAtivo = !filtroMinhasAtivo;
+            if (filtroMinhasAtivo) {
+                this.style.background = '#3b82f6';
+                this.style.color = 'white';
+                this.style.borderColor = '#3b82f6';
+            } else {
+                this.style.background = 'white';
+                this.style.color = '#64748b';
+                this.style.borderColor = '#cbd5e1';
+            }
+            atualizarTarefas();
+        });
+    }
+    
     const filtroBusca = document.getElementById('filtroBusca');
     if (filtroBusca) filtroBusca.addEventListener('input', atualizarTarefas);
     // Evento de submissão do formulário de nova tarefa
