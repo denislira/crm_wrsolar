@@ -433,11 +433,19 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             elseif (strpos($d, 'T') !== false) { $dataInicio = substr($d, 0, 10); }
         }
 
+        // Log data_inicio for debugging
+        try {
+            _leads_api_log('ADD data_inicio (raw): ' . var_export($data['data_inicio'] ?? null, true));
+            _leads_api_log('ADD data_inicio (parsed): ' . var_export($dataInicio, true));
+        } catch (Exception $e) { /* ignore */ }
+
         // Debug logging: record incoming update payload and files (temporary)
         try {
-            _leads_api_log('UPDATE payload: ' . json_encode($data, JSON_UNESCAPED_UNICODE));
-            _leads_api_log('UPDATE forma_pagamento (raw): ' . var_export($data['forma_pagamento'] ?? null, true));
-            _leads_api_log('UPDATE _FILES keys: ' . json_encode(array_keys($_FILES), JSON_UNESCAPED_UNICODE));
+            _leads_api_log('ADD payload: ' . json_encode($data, JSON_UNESCAPED_UNICODE));
+            _leads_api_log('ADD data_inicio (raw): ' . var_export($data['data_inicio'] ?? null, true));
+            _leads_api_log('ADD data_inicio (parsed): ' . var_export($dataInicio, true));
+            _leads_api_log('ADD forma_pagamento (raw): ' . var_export($data['forma_pagamento'] ?? null, true));
+            _leads_api_log('ADD _FILES keys: ' . json_encode(array_keys($_FILES), JSON_UNESCAPED_UNICODE));
         } catch (Exception $e) { /* ignore logging errors */ }
 
         // Parse forma_pagamento for update
@@ -546,6 +554,9 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
     if ($action === 'update') {
         if (empty($data['id'])) { throw new Exception('Missing id'); }
 
+        // TEST LOG - immediate to confirm logging works
+        file_put_contents(__DIR__ . '/../logs/test_update.log', '[' . date('Y-m-d H:i:s') . '] UPDATE started - ID: ' . ($data['id'] ?? 'NONE') . ' - data_inicio: ' . ($data['data_inicio'] ?? 'NONE') . "\n", FILE_APPEND);
+
         // parse forma_pagamento from incoming data (ensure defined)
         $formaPagamento = null;
         if (!empty($data['forma_pagamento'])) {
@@ -646,6 +657,12 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) { $dataInicio = $d; }
             elseif (strpos($d, 'T') !== false) { $dataInicio = substr($d, 0, 10); }
         }
+
+        // Log data_inicio for debugging
+        try {
+            _leads_api_log('UPDATE data_inicio (raw): ' . var_export($data['data_inicio'] ?? null, true));
+            _leads_api_log('UPDATE data_inicio (parsed): ' . var_export($dataInicio, true));
+        } catch (Exception $e) { /* ignore */ }
 
         $params = [
             $data['name'] ?? '',

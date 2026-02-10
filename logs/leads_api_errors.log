@@ -68,3 +68,17 @@
 [2026-02-06 10:05:02] UPDATE payload: {"name":"teste 4","email":"","cidade":"","phone":"","cpf_cnpj":"","source":"","status":"PROPOSTA ENVIADA","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-02-06 00:00:00","forma_pagamento":"","created_at":"2026-02-06 00:00:00"}
 [2026-02-06 10:05:02] UPDATE forma_pagamento (raw): ''
 [2026-02-06 10:05:02] UPDATE _FILES keys: []
+[2026-02-10 01:29:58] ADD data_inicio (raw): '2026-02-10'
+[2026-02-10 01:29:58] ADD data_inicio (parsed): '2026-02-10'
+[2026-02-10 01:29:58] ADD payload: {"name":"teste 5555","email":"","cidade":"","phone":"","cpf_cnpj":"","source":"","status":"QUALIFICADO","stage_id":"1","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-02-10 00:00:00","forma_pagamento":"","created_at":"2026-02-10 00:00:00","data_inicio":"2026-02-10"}
+[2026-02-10 01:29:58] ADD data_inicio (raw): '2026-02-10'
+[2026-02-10 01:29:58] ADD data_inicio (parsed): '2026-02-10'
+[2026-02-10 01:29:58] ADD forma_pagamento (raw): ''
+[2026-02-10 01:29:58] ADD _FILES keys: []
+[2026-02-10 01:30:08] ADD data_inicio (raw): '2026-02-10'
+[2026-02-10 01:30:08] ADD data_inicio (parsed): '2026-02-10'
+[2026-02-10 01:30:08] ADD payload: {"name":"teste 777","email":"","cidade":"","phone":"","cpf_cnpj":"","source":"","status":"EM NEGOCIAÇÃO","stage_id":"11","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-02-10 00:00:00","forma_pagamento":"","created_at":"2026-02-10 00:00:00","data_inicio":"2026-02-10"}
+[2026-02-10 01:30:08] ADD data_inicio (raw): '2026-02-10'
+[2026-02-10 01:30:08] ADD data_inicio (parsed): '2026-02-10'
+[2026-02-10 01:30:08] ADD forma_pagamento (raw): ''
+[2026-02-10 01:30:08] ADD _FILES keys: []

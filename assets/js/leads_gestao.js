@@ -875,7 +875,7 @@
         el.appendChild(head); el.appendChild(company); el.appendChild(meta);
 
         // created date and days active
-        const createdRaw = (lead.created_at || lead.createdAt || lead.created);
+        const createdRaw = (lead.data_inicio || lead.created_at || lead.createdAt || lead.created);
         const createdText = document.body.classList.contains('kanban-compact') ? formatDateCompact(createdRaw) : formatDateBR(createdRaw);
         const daysActive = daysSince(lead.created_at || lead.createdAt || lead.created);
         const noMovement = leadUpdatedDaysAgo(lead);
@@ -1070,7 +1070,7 @@
                     if (k === 'status') {
                         if (getStageName(lead.stage_id) !== f) return false;
                     } else if (k === 'criado' || k === 'ultimo_contato') {
-                        const dt = (k === 'criado') ? (lead.created_at || lead.createdAt || lead.created) : (lead.ultimo_contato);
+                        const dt = (k === 'criado') ? (lead.data_inicio || lead.created_at || lead.createdAt || lead.created) : (lead.ultimo_contato);
                         if (!dt) return false;
                         const t = new Date(String(dt).replace(' ', 'T')); if (isNaN(t.getTime())) return false;
                         const from = f.from ? new Date(f.from) : null; const to = f.to ? new Date(f.to) : null;
@@ -1094,7 +1094,7 @@
                     if (key === 'score') return Number(item.score || computeScore(item) || 0);
                     if (key === 'valor' || key === 'value') return Number(item.orcamento_value || item.proposal_value || item.value || 0) || 0;
                     if (key === 'criado') {
-                        const dt = item.created_at || item.createdAt || item.created || null;
+                        const dt = item.data_inicio || item.created_at || item.createdAt || item.created || null;
                         const t = dt ? (new Date(String(dt).replace(' ', 'T')).getTime() || 0) : 0;
                         return Number(t);
                     }
@@ -1142,7 +1142,7 @@
             const phoneTd = document.createElement('td'); phoneTd.textContent = lead.phone || '';
             const valTd = document.createElement('td'); valTd.textContent = toCurrency(lead.orcamento_value || lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
             const scoreTd = document.createElement('td'); scoreTd.innerHTML = '<span class="badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')) + '">' + (lead.score||0) + '</span>';
-            const createdTd = document.createElement('td'); createdTd.className='small text-muted'; createdTd.textContent = formatDateBR(lead.created_at || lead.createdAt || lead.created);
+            const createdTd = document.createElement('td'); createdTd.className='small text-muted'; createdTd.textContent = formatDateBR(lead.data_inicio || lead.created_at || lead.createdAt || lead.created);
             const updatedTd = document.createElement('td'); updatedTd.className='small text-muted'; updatedTd.textContent = formatDateBR(lead.ultimo_contato);
             const actTd = document.createElement('td'); actTd.className='small';
             const openBtn = document.createElement('button');
@@ -1679,14 +1679,15 @@
             }
         }
         const ultimoContatoEl = document.getElementById('lead-ultimo-contato'); if (ultimoContatoEl) ultimoContatoEl.value = lead.ultimo_contato ? lead.ultimo_contato.substring(0,10) : '';
-        // Data de Entrada (created_at) - show value but disable editing when opening edit modal
+        // Data de Entrada (data_inicio) - show value and keep editable when opening edit modal
         try {
             const createdEl = document.getElementById('lead-created-at');
-            const createdVal = lead.created_at || lead.createdAt || lead.data_criacao || lead.data_criado || '';
+            const createdVal = lead.data_inicio || lead.created_at || lead.createdAt || lead.data_criacao || lead.data_criado || '';
             if (createdEl) {
                 createdEl.value = createdVal ? String(createdVal).substring(0,10) : '';
-                createdEl.disabled = true;
-                createdEl.readOnly = true;
+                // Ensure the field is editable so user can choose any date
+                createdEl.disabled = false;
+                createdEl.readOnly = false;
             }
         } catch(e) { console.warn('Failed setting created_at in form', e); }
         // set payment method (ensure options are loaded)
@@ -2175,6 +2176,13 @@
             fd.append('forma_pagamento', formaPagamentoValue);
             // include created_at only when creating a new lead
             if (!id && createdAtValue) fd.append('created_at', createdAtValue + ' 00:00:00');
+            // Always include data_inicio (Data de Entrada) when present so updates keep the chosen date
+            if (createdAtValue) {
+                console.log('Data de Entrada (data_inicio) to send:', createdAtValue);
+                fd.append('data_inicio', createdAtValue);
+                // also append created_at for compatibility so the server receives the exact timestamp (useful for debugging)
+                try { fd.append('created_at', createdAtValue + ' 00:00:00'); } catch(e) {}
+            }
             if (id) fd.append('id', id);
             
             // Append files if present
