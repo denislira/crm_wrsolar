@@ -26,8 +26,7 @@ $avgTicket = null;
 $sources = [];
 
 try {
-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE user_id = ?');
-        $stmt->execute([$userId]);
+        $stmt = $pdo->query('SELECT COUNT(*) FROM leads');
         $leadsTotal = (int)$stmt->fetchColumn();
 } catch (Exception $e) { $leadsTotal = 0; }
 
@@ -40,20 +39,18 @@ try {
         $colorCol = in_array('color', $cols) ? 'color' : (in_array('stage_color', $cols) ? 'stage_color' : null);
         $selectCols = "id, {$nameCol} AS name";
         if ($colorCol) $selectCols .= ", {$colorCol} AS color";
-        $q = $pdo->prepare("SELECT {$selectCols} FROM funil_stages WHERE user_id = ? ORDER BY COALESCE({$positionCol}, id) ASC");
-        $q->execute([$userId]);
+        $q = $pdo->query("SELECT {$selectCols} FROM funil_stages ORDER BY COALESCE({$positionCol}, id) ASC");
         $stages = $q->fetchAll(PDO::FETCH_ASSOC);
         foreach ($stages as $s) {
-                $c = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE user_id = ? AND (stage_id = ? OR status = ?)');
-                $c->execute([$userId, $s['id'], $s['name']]);
+                $c = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE (stage_id = ? OR status = ?)');
+                $c->execute([$s['id'], $s['name']]);
                 $stageCounts[] = (int)$c->fetchColumn();
         }
 } catch (Exception $e) { $stages = []; $stageCounts = []; }
 
 // Last 12 months created
 try {
-        $m = $pdo->prepare("SELECT DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE user_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym ASC");
-        $m->execute([$userId]);
+        $m = $pdo->query("SELECT DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym ASC");
         $monthsRows = $m->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { $monthsRows = []; }
 
@@ -68,30 +65,26 @@ try {
         foreach (['source','origem','lead_source'] as $sc) if (in_array($sc, $leadCols)) { $sourceCol = $sc; break; }
 
         if ($hasClosedAt) {
-                $mc = $pdo->prepare("SELECT DATE_FORMAT(closed_at, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE user_id = ? AND closed_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym ASC");
-                $mc->execute([$userId]);
+                $mc = $pdo->query("SELECT DATE_FORMAT(closed_at, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE closed_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym ASC");
                 $monthsClosedRows = $mc->fetchAll(PDO::FETCH_ASSOC);
         }
 
         // avg days to close
         if ($hasClosedAt) {
-                $ad = $pdo->prepare("SELECT AVG(DATEDIFF(closed_at, created_at)) as avgd FROM leads WHERE user_id = ? AND closed_at IS NOT NULL");
-                $ad->execute([$userId]);
+                $ad = $pdo->query("SELECT AVG(DATEDIFF(closed_at, created_at)) as avgd FROM leads WHERE closed_at IS NOT NULL");
                 $avgDaysToClose = round((float)$ad->fetchColumn(),2);
         }
 
         // avg ticket
         if ($valueCol) {
-                $at = $pdo->prepare("SELECT AVG(CASE WHEN {$valueCol} IS NULL OR {$valueCol} = '' THEN NULL ELSE {$valueCol} END) FROM leads WHERE user_id = ?");
-                $at->execute([$userId]);
+                $at = $pdo->query("SELECT AVG(CASE WHEN {$valueCol} IS NULL OR {$valueCol} = '' THEN NULL ELSE {$valueCol} END) FROM leads");
                 $avgTicket = $at->fetchColumn();
                 if ($avgTicket !== null) $avgTicket = round((float)$avgTicket,2);
         }
 
         // sources
         if ($sourceCol) {
-                $sstmt = $pdo->prepare("SELECT {$sourceCol} AS source, COUNT(*) AS cnt FROM leads WHERE user_id = ? GROUP BY {$sourceCol} ORDER BY cnt DESC LIMIT 10");
-                $sstmt->execute([$userId]);
+                $sstmt = $pdo->query("SELECT {$sourceCol} AS source, COUNT(*) AS cnt FROM leads GROUP BY {$sourceCol} ORDER BY cnt DESC LIMIT 10");
                 $sources = $sstmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
@@ -106,9 +99,8 @@ try {
         if (in_array('user_id', $actCols)) { $select[] = 'a.user_id'; $select[] = 'COALESCE(u.username, "(desconhecido)") AS username'; $joins .= ' LEFT JOIN users u ON u.id = a.user_id '; }
         if (in_array('event_type', $actCols)) { $select[] = 'a.event_type'; }
         $selectSql = implode(', ', $select);
-        $timelineSql = "SELECT {$selectSql} FROM activity_log a {$joins} WHERE a.user_id = ? OR ? IS NULL ORDER BY a.created_at DESC LIMIT 500";
-        $tStmt = $pdo->prepare($timelineSql);
-        $tStmt->execute([$userId, null]);
+        $timelineSql = "SELECT {$selectSql} FROM activity_log a {$joins} ORDER BY a.created_at DESC LIMIT 500";
+        $tStmt = $pdo->query($timelineSql);
         $timeline = $tStmt->fetchAll(PDO::FETCH_ASSOC);
         // derive users and types
         $usersMap = [];
@@ -126,8 +118,8 @@ $finalStageCount = 0; $conversionRate = 0.0;
 if (count($stages) > 0) {
         $final = end($stages);
         try {
-                $fstmt = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE user_id = ? AND (stage_id = ? OR status = ?)');
-                $fstmt->execute([$userId, $final['id'], $final['name']]);
+                $fstmt = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE (stage_id = ? OR status = ?)');
+                $fstmt->execute([$final['id'], $final['name']]);
                 $finalStageCount = (int)$fstmt->fetchColumn();
                 $conversionRate = $leadsTotal > 0 ? round(($finalStageCount / $leadsTotal) * 100, 2) : 0;
         } catch (Exception $e) { }
