@@ -11,6 +11,15 @@ $pageTitle = 'Gestão de Leads';
 include 'includes/header.php';
 ?>
 <link rel="stylesheet" href="assets/css/leads_gestao.css">
+
+<!-- Preloader: shown until initial render completes (Kanban/List) -->
+<div id="leadsPreloader" class="leads-preloader" role="status" aria-live="polite">
+    <div class="leads-preloader-inner text-center">
+        <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+        <div id="leadsPreloaderText" class="mt-2 small text-muted">Carregando...</div>
+    </div>
+</div>
+
 <div class="d-flex">
     <?php include 'includes/sidebar.php'; ?>
     <main class="flex-grow-1 p-4 main-content-scroll">
@@ -79,6 +88,10 @@ include 'includes/header.php';
                     </button>
                     
                 </div>
+            </div>
+            <!-- Top scrollbar -->
+            <div id="topScrollbar" class="kanban-top-scrollbar">
+                <div id="topScrollbarContent"></div>
             </div>
             <div id="kanbanWrap" class="kanban-wrap">
                 <div id="kanbanLoading" class="p-4 text-muted">Carregando etapas do funil...</div>

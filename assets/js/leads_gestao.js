@@ -46,6 +46,19 @@
     function $(sel){return document.querySelector(sel)}
     function $all(sel){return Array.from(document.querySelectorAll(sel))}
 
+    function setPreloaderVisible(visible, text){
+        const el = document.getElementById('leadsPreloader');
+        if (!el) return;
+        const txt = document.getElementById('leadsPreloaderText');
+        if (typeof text === 'string' && txt) txt.textContent = text;
+        el.classList.toggle('hidden', !visible);
+    }
+    function showPreloader(text){ setPreloaderVisible(true, text || 'Carregando...'); }
+    function hidePreloader(){ setPreloaderVisible(false); }
+    function nextPaint(){
+        return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+
     // Field adapter: maps common field keys to multiple possible modal input IDs
     const FIELD_MAP = {
         leadId: ['#leadId','#lead-id'],
@@ -722,6 +735,57 @@
             } catch(e){ console.warn('failed creating Sem Status column', e); }
         }
         const loading = document.getElementById('kanbanLoading'); if (loading) loading.remove();
+        
+        // Set up top scrollbar synchronization
+        syncTopScrollbar();
+    }
+
+    function syncTopScrollbar() {
+        const wrap = document.getElementById('kanbanWrap');
+        const topScrollbar = document.getElementById('topScrollbar');
+        const topContent = document.getElementById('topScrollbarContent');
+        
+        if (!wrap || !topScrollbar || !topContent) return;
+        
+        // Set the width of the top scrollbar content to match kanban content
+        const updateTopScrollbarWidth = () => {
+            try { topContent.style.width = wrap.scrollWidth + 'px'; } catch(e) {}
+        };
+
+        // Always update width when called (content may have changed)
+        updateTopScrollbarWidth();
+
+        // Avoid duplicating observers/listeners on rebuilds
+        if (topScrollbar.dataset.synced === '1') return;
+        topScrollbar.dataset.synced = '1';
+
+        // Update on resize (best effort)
+        if (typeof ResizeObserver !== 'undefined') {
+            try {
+                const resizeObserver = new ResizeObserver(updateTopScrollbarWidth);
+                resizeObserver.observe(wrap);
+            } catch(e) {}
+        } else {
+            window.addEventListener('resize', updateTopScrollbarWidth);
+        }
+
+        // Sync scroll positions
+        let syncingTop = false;
+        let syncingBottom = false;
+
+        topScrollbar.addEventListener('scroll', () => {
+            if (syncingBottom) return;
+            syncingTop = true;
+            wrap.scrollLeft = topScrollbar.scrollLeft;
+            setTimeout(() => syncingTop = false, 10);
+        });
+
+        wrap.addEventListener('scroll', () => {
+            if (syncingTop) return;
+            syncingBottom = true;
+            topScrollbar.scrollLeft = wrap.scrollLeft;
+            setTimeout(() => syncingBottom = false, 10);
+        });
     }
 
     function toCurrency(v){ return 'R$ ' + (Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -1961,14 +2025,19 @@
         if (toggleBtn) {
             // apply saved view
             setViewMode(localStorage.getItem('leadsView') || 'kanban');
-            toggleBtn.addEventListener('click', ()=>{
+            toggleBtn.addEventListener('click', async ()=>{
                 // cycle views: kanban -> list -> kanban
                 const order = ['kanban','list'];
                 const cur = getViewMode() || 'kanban';
                 const idx = order.indexOf(cur);
                 const next = order[(idx + 1) % order.length];
+
+                showPreloader('Carregando visualização...');
                 setViewMode(next);
+                await nextPaint();
                 renderAll();
+                await nextPaint();
+                hidePreloader();
             });
         }
         const closeBtn = $('#closeLeadPanel');
@@ -2706,6 +2775,7 @@
 
     // initial
     document.addEventListener('DOMContentLoaded', async ()=>{
+        showPreloader('Carregando dados...');
         try{
             await fetchStatuses(); await fetchStages(); await fetchLeads();
             // fetch anuncios and render KPI/card
@@ -2718,6 +2788,7 @@
             await loadPaymentMethods();
             // ensure view mode applied after initial data load
             renderAll();
+            await nextPaint();
             const bulkDeleteBtn = $('#bulkDeleteBtn');
             if (bulkDeleteBtn) {
                 bulkDeleteBtn.addEventListener('click', async () => {
@@ -2739,6 +2810,7 @@
                 });
             }
         }catch(err){ console.error(err); alert('Erro inicial: '+err.message); }
+        finally { hidePreloader(); }
     });
 
     // Load payment methods and populate select

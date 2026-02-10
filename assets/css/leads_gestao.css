@@ -1,6 +1,18 @@
 /* Minimal modern styles for Gestão de Leads */
 :root{--bg:#f8fafc;--card:#fff;--muted:#6b7280;--accent:#0b6ac1;--danger:#ef4444}
 body{background:#e9eef5}
+
+/* Full-page preloader for initial load + view switches */
+.leads-preloader{position:fixed;inset:0;z-index:2500;display:flex;align-items:center;justify-content:center;background:rgba(233,238,245,0.78);backdrop-filter:blur(2px)}
+.leads-preloader.hidden{display:none}
+.leads-preloader-inner{background:var(--card);border:1px solid rgba(11,26,49,0.06);border-radius:12px;padding:16px 18px;box-shadow:0 10px 30px rgba(11,26,49,0.08);min-width:220px}
+
+.kanban-top-scrollbar{overflow-x:auto;overflow-y:hidden;height:12px;margin:0 2px 4px 2px}
+.kanban-top-scrollbar::-webkit-scrollbar{height:12px}
+.kanban-top-scrollbar::-webkit-scrollbar-track{background:#e9eef5;border-radius:6px}
+.kanban-top-scrollbar::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:6px}
+.kanban-top-scrollbar::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+#topScrollbarContent{height:1px}
 .kanban-wrap{display:flex;gap:16px;overflow:auto;padding:8px 2px}
 .kanban-wrap.panel-open{margin-right:420px}
 .kanban-wrap.panel-open.panel-expanded{margin-right:820px}
