@@ -25,8 +25,12 @@ $client_name = trim($_POST['client_name'] ?? '');
 $address = trim($_POST['address'] ?? '');
 $proposal_value = isset($_POST['proposal_value']) ? str_replace([',',' '], ['.',''], $_POST['proposal_value']) : 0;
 $status = $_POST['status'] ?? 'Prospecção';
-$lead_id = isset($_POST['lead_id']) ? intval($_POST['lead_id']) : null;
+$lead_id = isset($_POST['lead_id']) && $_POST['lead_id'] !== '' ? intval($_POST['lead_id']) : null;
 $closed_date = $_POST['closed_date'] ?? null;
+
+// Debug log
+error_log("add_project.php - Recebido lead_id: " . print_r($_POST['lead_id'] ?? 'NOT SET', true));
+error_log("add_project.php - Processado lead_id: " . ($lead_id ?? 'NULL'));
 
 if (empty($client_name)) {
     echo json_encode(['success' => false, 'message' => 'Nome do cliente obrigatório']);

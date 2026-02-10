@@ -609,15 +609,27 @@
 
     async function createProjectFromLead(leadId, leadName){
         try {
+            console.log('createProjectFromLead - leadId:', leadId, 'type:', typeof leadId);
+            
+            if (!leadId) {
+                alert('Lead ID não encontrado. Não é possível criar o projeto.');
+                return;
+            }
+            
             const projectName = prompt('Nome do projeto:', leadName || '');
             if (!projectName || projectName.trim() === '') return;
             
             const formData = new FormData();
             formData.append('client_name', projectName.trim());
             formData.append('status', 'Prospecção');
+            formData.append('lead_id', String(leadId));
+            
+            console.log('Enviando FormData - lead_id:', formData.get('lead_id'));
             
             const res = await fetch('api/add_project.php', { method: 'POST', body: formData });
             const json = await res.json();
+            
+            console.log('Resposta da API:', json);
             
             if (json.success) {
                 alert('Projeto "' + projectName + '" criado com sucesso!');
@@ -627,6 +639,7 @@
                 alert('Erro ao criar projeto: ' + (json.message || 'Erro desconhecido'));
             }
         } catch(e) {
+            console.error('Erro ao criar projeto:', e);
             alert('Falha ao criar projeto: ' + (e.message || e));
         }
     }
@@ -840,20 +853,32 @@
                 console.log('✓ CRIANDO BOTÃO DE PROJETO!');
                 const createProjBtn = document.createElement('button');
                 createProjBtn.className = 'btn btn-sm btn-success ms-2';
-                createProjBtn.innerHTML = '<i class="fa fa-plus"></i> Projeto';
+                createProjBtn.innerHTML = '<i class="fa fa-plus" style="font-size: 8px; margin-right: 2px;"></i><span style="font-size: 9px;">Projeto</span>';
                 createProjBtn.title = 'Criar Projeto';
                 createProjBtn.type = 'button';
-                createProjBtn.style.padding = '4px 8px';
-                createProjBtn.style.fontSize = '11px';
-                createProjBtn.style.display = 'inline-block';
+                createProjBtn.style.padding = '1px 4px';
+                createProjBtn.style.fontSize = '9px';
+                createProjBtn.style.display = 'inline-flex';
+                createProjBtn.style.alignItems = 'center';
+                createProjBtn.style.height = '18px';
+                createProjBtn.style.lineHeight = '1';
                 createProjBtn.style.backgroundColor = '#28a745';
                 createProjBtn.style.color = '#fff';
                 createProjBtn.style.border = 'none';
-                createProjBtn.style.borderRadius = '4px';
+                createProjBtn.style.borderRadius = '2px';
+                createProjBtn.style.whiteSpace = 'nowrap';
+                createProjBtn.style.gap = '2px';
                 createProjBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    console.log('Botão clicado! Lead ID:', lead.id, 'Nome:', lead.name);
-                    createProjectFromLead(lead.id, lead.name);
+                    console.log('Botão clicado! Lead completo:', lead);
+                    console.log('Lead ID:', lead.id, 'Type:', typeof lead.id);
+                    console.log('Nome:', lead.name);
+                    const leadIdToUse = lead.id || lead.lead_id || lead.ID;
+                    if (!leadIdToUse) {
+                        alert('ID do lead não encontrado. Não é possível criar projeto.');
+                        return;
+                    }
+                    createProjectFromLead(leadIdToUse, lead.name);
                 });
                 left.appendChild(createProjBtn);
                 console.log('Botão adicionado ao card!');

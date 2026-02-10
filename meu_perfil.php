@@ -616,7 +616,16 @@ include __DIR__ . '/includes/sidebar.php';
             const q = document.getElementById('profileFiltroBusca').value.trim().toLowerCase();
             const filtros = {};
             if(status) filtros.status = status;
-            if (typeof fetchTasks !== 'function') throw new Error('fetchTasks not defined');
+            
+            // Aguardar fetchTasks estar disponível
+            if (typeof fetchTasks !== 'function') {
+                console.warn('fetchTasks not ready, waiting...');
+                await new Promise(resolve => setTimeout(resolve, 100));
+                if (typeof fetchTasks !== 'function') {
+                    throw new Error('fetchTasks não está disponível. Recarregue a página.');
+                }
+            }
+            
             console.debug('Calling fetchTasks with filters', filtros);
             const tarefas = await fetchTasks(filtros);
             console.debug('fetchTasks result', tarefas && tarefas.length ? tarefas.length : tarefas);
@@ -806,9 +815,16 @@ include __DIR__ . '/includes/sidebar.php';
             // wire filters after attempting import
             document.getElementById('profileFiltroStatus').addEventListener('change', loadProfileTasks);
             document.getElementById('profileFiltroBusca').addEventListener('input', loadProfileTasks);
-            loadProfileTasks();
+            
+            // Carregar tarefas somente após as funções estarem inicializadas
+            console.debug('Calling loadProfileTasks after init');
+            await loadProfileTasks();
             loadProfileData();
-        })();
+        })().catch(e => {
+            console.error('Initialization error:', e);
+            const list = document.getElementById('profileTasksList');
+            if(list) list.innerHTML = '<div class="text-center text-danger py-5"><i class="fas fa-exclamation-triangle fa-2x mb-3"></i><p>Erro ao inicializar: ' + (e.message || 'desconhecido') + '</p></div>';
+        });
 
         // Avatar upload handlers
         const avatarInput = document.getElementById('avatarInput');
