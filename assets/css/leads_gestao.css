@@ -10,6 +10,8 @@ body{background:#e9eef5}
 .column-content{min-height:160px;padding:12px;display:flex;flex-direction:column;gap:10px}
 .lead-card{background:#fff;padding:12px;border-radius:12px;border:1px solid rgba(11,26,49,0.06);border-left:4px solid transparent;cursor:grab;transition:transform .12s ease,box-shadow .12s ease,border-left .12s ease,outline .12s ease;box-shadow:0 6px 18px rgba(11,26,49,0.06);position:relative}
 .lead-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(11,26,49,0.06)}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.card-grid .lead-card{cursor:pointer;width:100%;border-radius:10px}
 .lead-card .lead-select{transform:scale(1.05)}
 .lead-card.selected{outline:3px solid var(--selected-color,#6c757d);outline-offset:-3px}
 .lead-card .title{font-weight:600}
@@ -556,6 +558,13 @@ body.theme-dark #leadsTableContainer table.table-hover tbody tr:hover {
 body.kanban-only .main-content-scroll { padding: 4px !important; }
 /* make the main content area flush to the right edge when kanban-only is active
    keep the left sidebar visible, but remove right padding/margin so kanban fills
+
+/* Filter icon (inline funnel) for list headers */
+.filter-icon{display:inline-flex;align-items:center;justify-content:center;margin-left:.5rem;position:relative}
+.filter-icon i{font-size:0.65rem;color:#9ca3af !important;position:relative;z-index:1;background:transparent}
+.filter-icon.active i{color:var(--accent) !important}
+.filter-caret{line-height:1}
+
    the remaining horizontal space without extra gap on the right */
 body.kanban-only main.flex-grow-1,
 body.kanban-only .main-content-scroll {

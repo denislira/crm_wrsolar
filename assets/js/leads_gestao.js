@@ -915,19 +915,27 @@
         const btn = document.getElementById('toggleViewBtn');
         const semStatusBtn = document.getElementById('toggleSemStatusBtn');
         const anunciosBtn = document.getElementById('toggleAnunciosBtn');
-        if (mode === 'grid') {
-            GRID_PAGE = 1; // reset page when switching to grid
-            if (kanban) kanban.classList.add('d-none');
-            if (list) list.classList.remove('d-none');
-            if (semStatusBtn) semStatusBtn.classList.add('d-none');
-            if (anunciosBtn) anunciosBtn.classList.add('d-none');
-            if (btn) btn.innerHTML = '<i class="fa fa-columns"></i>';
-        } else {
+        // support three modes: 'kanban', 'list' (table) and 'grid' (card grid)
+        if (mode === 'kanban') {
             if (kanban) kanban.classList.remove('d-none');
             if (list) list.classList.add('d-none');
             if (semStatusBtn) semStatusBtn.classList.remove('d-none');
             if (anunciosBtn) anunciosBtn.classList.remove('d-none');
             if (btn) btn.innerHTML = '<i class="fa fa-list"></i>';
+        } else if (mode === 'list') {
+            GRID_PAGE = 1;
+            if (kanban) kanban.classList.add('d-none');
+            if (list) list.classList.remove('d-none');
+            if (semStatusBtn) semStatusBtn.classList.add('d-none');
+            if (anunciosBtn) anunciosBtn.classList.add('d-none');
+            if (btn) btn.innerHTML = '<i class="fa fa-th-list"></i>';
+        } else if (mode === 'grid') {
+            GRID_PAGE = 1;
+            if (kanban) kanban.classList.add('d-none');
+            if (list) list.classList.remove('d-none');
+            if (semStatusBtn) semStatusBtn.classList.add('d-none');
+            if (anunciosBtn) anunciosBtn.classList.add('d-none');
+            if (btn) btn.innerHTML = '<i class="fa fa-th-large"></i>';
         }
     }
 
@@ -982,7 +990,12 @@
                 th.appendChild(span); th.appendChild(ind);
                 th.addEventListener('click', (e)=>{ e.stopPropagation(); toggleGridSort(key); });
 
-                const caret = document.createElement('span'); caret.className = 'ms-2 text-muted filter-caret'; caret.style.cursor = 'pointer'; caret.title = 'Filtro'; caret.textContent = '▾';
+                const caret = document.createElement('span');
+                caret.className = 'ms-2 filter-caret filter-icon half';
+                caret.style.cursor = 'pointer';
+                caret.title = 'Filtro';
+                caret.innerHTML = '<i class="fa-solid fa-filter" aria-hidden="true"></i>';
+                if (GRID_FILTERS && GRID_FILTERS[key]) caret.classList.add('active');
                 caret.addEventListener('click', (e)=>{ e.stopPropagation(); openHeaderFilter(th, key); });
                 th.appendChild(caret);
                 return th;
@@ -1072,9 +1085,20 @@
                     } else if (k === 'criado' || k === 'ultimo_contato') {
                         const dt = (k === 'criado') ? (lead.data_inicio || lead.created_at || lead.createdAt || lead.created) : (lead.ultimo_contato);
                         if (!dt) return false;
-                        const t = new Date(String(dt).replace(' ', 'T')); if (isNaN(t.getTime())) return false;
-                        const from = f.from ? new Date(f.from) : null; const to = f.to ? new Date(f.to) : null;
-                        if (from && t < from) return false; if (to && t > (new Date(to.getFullYear(), to.getMonth(), to.getDate(),23,59,59))) return false;
+                        // Extract date portion (YYYY-MM-DD) to avoid timezone shifts when creating Date objects
+                        const raw = String(dt || '');
+                        const m = raw.match(/(\d{4}-\d{2}-\d{2})/);
+                        const dtDateStr = m ? m[1] : raw.slice(0,10);
+                        if (!dtDateStr || dtDateStr.length < 8) return false;
+                        // input date fields from <input type=date> are already in YYYY-MM-DD format
+                        const fromStr = f.from || null;
+                        const toStr = f.to || null;
+                        if (fromStr) {
+                            if (dtDateStr < fromStr) return false;
+                        }
+                        if (toStr) {
+                            if (dtDateStr > toStr) return false;
+                        }
                     } else {
                         const val = (k === 'valor') ? String(toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0)).toLowerCase() : String((lead[k] || lead.source || lead.client_name || lead.company || '')).toLowerCase();
                         if (!val.includes(String(f).toLowerCase())) return false;
@@ -1199,6 +1223,32 @@
         }
     }
 
+    // Card-grid view: render cards in a responsive grid instead of kanban columns
+    function renderCardGrid(){
+        const container = document.getElementById('leadsTableContainer'); if (!container) return;
+        container.innerHTML = '';
+        const selectedWrap = document.createElement('div');
+        selectedWrap.id = 'listSelectedCount'; selectedWrap.className = 'mb-2 text-muted fw-semibold fs-5';
+        selectedWrap.textContent = 'Selecionados: ' + String(getSelectedLeadIds().length);
+        container.appendChild(selectedWrap);
+
+        const grid = document.createElement('div'); grid.className = 'card-grid';
+        const filtered = getFilteredLeads();
+        filtered.forEach(lead => {
+            // try to find stage object for styling/actions
+            let stageObj = null;
+            if (STAGES && STAGES.length) stageObj = STAGES.find(s => String(s.id) === String(lead.stage_id));
+            const card = makeCard(lead, stageObj);
+            card.style.width = '100%';
+            grid.appendChild(card);
+        });
+        container.appendChild(grid);
+        updateBulkDeleteVisibility();
+        // mirror theme
+        const prefersDark = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
+        container.classList.toggle('theme-dark', prefersDark);
+    }
+
     function renderAll(){
         console.log('=== renderAll iniciado ===');
         console.log('STAGES:', STAGES);
@@ -1210,8 +1260,10 @@
         }
         // Always refresh KPIs/top cards so totals are correct when switching views
         try { renderKpis(); } catch(e) { console.warn('renderKpis failed', e); }
-        // switch to grid view if requested
-        if (getViewMode() === 'grid') { renderGrid(); return; }
+        // switch to alternate views if requested: 'list' => table, 'grid' => card grid
+        const vm = getViewMode();
+        if (vm === 'list') { renderGrid(); return; }
+        if (vm === 'grid') { renderCardGrid(); return; }
         clearColumns();
         const filtered = getFilteredLeads();
         console.log('Filtered leads:', filtered.length);
@@ -1786,7 +1838,11 @@
             // apply saved view
             setViewMode(localStorage.getItem('leadsView') || 'kanban');
             toggleBtn.addEventListener('click', ()=>{
-                const next = getViewMode() === 'grid' ? 'kanban' : 'grid';
+                // cycle views: kanban -> list -> grid -> kanban
+                const order = ['kanban','list','grid'];
+                const cur = getViewMode() || 'kanban';
+                const idx = order.indexOf(cur);
+                const next = order[(idx + 1) % order.length];
                 setViewMode(next);
                 renderAll();
             });

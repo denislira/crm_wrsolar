@@ -82,3 +82,36 @@
 [2026-02-10 01:30:08] ADD data_inicio (parsed): '2026-02-10'
 [2026-02-10 01:30:08] ADD forma_pagamento (raw): ''
 [2026-02-10 01:30:08] ADD _FILES keys: []
+[2026-02-10 01:38:47] UPDATE raw_input: 
+[2026-02-10 01:38:47] UPDATE data_inicio (raw): '2026-02-10'
+[2026-02-10 01:38:47] UPDATE data_inicio (parsed): '2026-02-10'
+[2026-02-10 01:38:55] UPDATE raw_input: 
+[2026-02-10 01:38:55] UPDATE data_inicio (raw): '2026-02-10'
+[2026-02-10 01:38:55] UPDATE data_inicio (parsed): '2026-02-10'
+[2026-02-10 01:39:02] UPDATE raw_input: 
+[2026-02-10 01:39:02] UPDATE data_inicio (raw): '2026-02-06'
+[2026-02-10 01:39:02] UPDATE data_inicio (parsed): '2026-02-06'
+[2026-02-10 01:39:10] UPDATE raw_input: 
+[2026-02-10 01:39:10] UPDATE data_inicio (raw): '2026-02-10'
+[2026-02-10 01:39:10] UPDATE data_inicio (parsed): '2026-02-10'
+[2026-02-10 01:39:19] UPDATE raw_input: 
+[2026-02-10 01:39:19] UPDATE data_inicio (raw): '2026-02-06'
+[2026-02-10 01:39:19] UPDATE data_inicio (parsed): '2026-02-06'
+[2026-02-10 01:56:36] UPDATE raw_input: 
+[2026-02-10 01:56:36] UPDATE data_inicio (raw): '2026-02-06'
+[2026-02-10 01:56:36] UPDATE data_inicio (parsed): '2026-02-06'
+[2026-02-10 01:56:39] UPDATE raw_input: 
+[2026-02-10 01:56:39] UPDATE data_inicio (raw): '2026-02-06'
+[2026-02-10 01:56:39] UPDATE data_inicio (parsed): '2026-02-06'
+[2026-02-10 01:56:44] UPDATE raw_input: 
+[2026-02-10 01:56:44] UPDATE data_inicio (raw): '2026-02-06'
+[2026-02-10 01:56:44] UPDATE data_inicio (parsed): '2026-02-06'
+[2026-02-10 01:56:49] UPDATE raw_input: 
+[2026-02-10 01:56:49] UPDATE data_inicio (raw): '2026-02-06'
+[2026-02-10 01:56:49] UPDATE data_inicio (parsed): '2026-02-06'
+[2026-02-10 01:56:54] UPDATE raw_input: 
+[2026-02-10 01:56:54] UPDATE data_inicio (raw): '2026-02-06'
+[2026-02-10 01:56:54] UPDATE data_inicio (parsed): '2026-02-06'
+[2026-02-10 01:57:00] UPDATE raw_input: 
+[2026-02-10 01:57:00] UPDATE data_inicio (raw): '2026-02-10'
+[2026-02-10 01:57:00] UPDATE data_inicio (parsed): '2026-02-10'
