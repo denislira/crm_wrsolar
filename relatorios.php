@@ -13,6 +13,109 @@ include 'includes/header.php';
 // Defensive server-side data collection
 $userId = $_SESSION['user_id'];
 
+// Active tab (keep user on the chosen report after submit)
+$activeTab = isset($_GET['tab']) ? (string)$_GET['tab'] : 'overview';
+$allowedTabs = ['overview','funnel','temporal','consultores','sources','daily'];
+if (!in_array($activeTab, $allowedTabs, true)) $activeTab = 'overview';
+
+// Daily report (leads created on a specific day)
+$dailyDate = isset($_GET['daily_date']) ? (string)$_GET['daily_date'] : date('Y-m-d');
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dailyDate)) $dailyDate = date('Y-m-d');
+$dailyCount = 0;
+$dailyLeads = [];
+$dailyBySource = [];
+$dailyByStatus = [];
+$dailyByStage = [];
+$dailyByHour = array_fill(0, 24, 0);
+try {
+    // best-effort schema detection
+    $leadColsStmtDaily = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
+    $leadColsDaily = $leadColsStmtDaily->fetchAll(PDO::FETCH_COLUMN);
+    $hasDeleted = in_array('deleted', $leadColsDaily, true);
+    $hasCreatedAt = in_array('created_at', $leadColsDaily, true);
+    $dateCol = $hasCreatedAt ? 'created_at' : (in_array('data_inicio', $leadColsDaily, true) ? 'data_inicio' : 'created_at');
+
+    $start = new DateTime($dailyDate . ' 00:00:00');
+    $end = (clone $start)->modify('+1 day');
+
+    $where = "{$dateCol} >= ? AND {$dateCol} < ?";
+    if ($hasDeleted) $where .= " AND deleted = 0";
+
+    $cntStmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE {$where}");
+    $cntStmt->execute([$start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')]);
+    $dailyCount = (int)$cntStmt->fetchColumn();
+
+    $listCols = ['id'];
+    foreach (['name','source','status','created_at'] as $c) if (in_array($c, $leadColsDaily, true)) $listCols[] = $c;
+    $selectCols = implode(', ', array_unique($listCols));
+    $listStmt = $pdo->prepare("SELECT {$selectCols} FROM leads WHERE {$where} ORDER BY {$dateCol} DESC LIMIT 500");
+    $listStmt->execute([$start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')]);
+    $dailyLeads = $listStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Aggregations (advanced): by source / status / stage / hour
+    if (in_array('source', $leadColsDaily, true)) {
+        $srcStmt = $pdo->prepare(
+            "SELECT COALESCE(NULLIF(source,''),'Sem origem') AS label, COUNT(*) AS cnt
+             FROM leads WHERE {$where}
+             GROUP BY label ORDER BY cnt DESC LIMIT 10"
+        );
+        $srcStmt->execute([$start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')]);
+        $dailyBySource = $srcStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    if (in_array('status', $leadColsDaily, true)) {
+        $stStmt = $pdo->prepare(
+            "SELECT COALESCE(NULLIF(status,''),'Sem status') AS label, COUNT(*) AS cnt
+             FROM leads WHERE {$where}
+             GROUP BY label ORDER BY cnt DESC LIMIT 12"
+        );
+        $stStmt->execute([$start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')]);
+        $dailyByStatus = $stStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // by hour (0-23)
+    try {
+        $hrStmt = $pdo->prepare(
+            "SELECT HOUR({$dateCol}) AS h, COUNT(*) AS cnt
+             FROM leads WHERE {$where}
+             GROUP BY h ORDER BY h ASC"
+        );
+        $hrStmt->execute([$start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')]);
+        $rows = $hrStmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $r) {
+            $h = isset($r['h']) ? (int)$r['h'] : null;
+            if ($h !== null && $h >= 0 && $h <= 23) $dailyByHour[$h] = (int)($r['cnt'] ?? 0);
+        }
+    } catch (Exception $e) { /* ignore */ }
+
+    // by stage (if stage_id exists)
+    if (in_array('stage_id', $leadColsDaily, true)) {
+        $whereL = "l.{$dateCol} >= ? AND l.{$dateCol} < ?";
+        if ($hasDeleted) $whereL .= " AND l.deleted = 0";
+
+        $stageNameCol = 'name';
+        try {
+            $fsColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
+            $fsCols = $fsColsStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (in_array('stage_name', $fsCols, true)) $stageNameCol = 'stage_name';
+            else if (!in_array('name', $fsCols, true) && in_array('stage', $fsCols, true)) $stageNameCol = 'stage';
+        } catch (Exception $e) { /* ignore */ }
+
+        $sgStmt = $pdo->prepare(
+            "SELECT l.stage_id AS stage_id,
+                COALESCE(NULLIF(fs.{$stageNameCol},''),'Sem Status') AS label,
+                COUNT(*) AS cnt
+             FROM leads l
+             LEFT JOIN funil_stages fs ON fs.id = l.stage_id
+             WHERE {$whereL}
+             GROUP BY l.stage_id, label
+             ORDER BY cnt DESC LIMIT 20"
+        );
+        $sgStmt->execute([$start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')]);
+        $dailyByStage = $sgStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+} catch (Exception $e) { $dailyCount = 0; $dailyLeads = []; }
+
 $leadsTotal = 0;
 $stages = [];
 $stageCounts = [];
@@ -269,28 +372,33 @@ try {
             <!-- Tabs Navigation -->
             <ul class="nav nav-pills mb-4" id="reportTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='overview'?'active':''; ?>" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button" role="tab">
                         <i class="fa fa-home"></i> Visão Geral
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="funnel-tab" data-bs-toggle="pill" data-bs-target="#funnel" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='funnel'?'active':''; ?>" id="funnel-tab" data-bs-toggle="pill" data-bs-target="#funnel" type="button" role="tab">
                         <i class="fa fa-filter"></i> Funil de Vendas
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="temporal-tab" data-bs-toggle="pill" data-bs-target="#temporal" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='temporal'?'active':''; ?>" id="temporal-tab" data-bs-toggle="pill" data-bs-target="#temporal" type="button" role="tab">
                         <i class="fa fa-chart-line"></i> Análise Temporal
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="consultores-tab" data-bs-toggle="pill" data-bs-target="#consultores" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='consultores'?'active':''; ?>" id="consultores-tab" data-bs-toggle="pill" data-bs-target="#consultores" type="button" role="tab">
                         <i class="fa fa-users"></i> Consultores
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="sources-tab" data-bs-toggle="pill" data-bs-target="#sources" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='sources'?'active':''; ?>" id="sources-tab" data-bs-toggle="pill" data-bs-target="#sources" type="button" role="tab">
                         <i class="fa fa-bullseye"></i> Fontes e Origem
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link <?php echo $activeTab==='daily'?'active':''; ?>" id="daily-tab" data-bs-toggle="pill" data-bs-target="#daily" type="button" role="tab">
+                        <i class="fa fa-calendar-day"></i> Por Dia
                     </button>
                 </li>
             </ul>
@@ -299,7 +407,7 @@ try {
             <div class="tab-content" id="reportTabsContent">
                 
                 <!-- Overview Tab -->
-                <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                <div class="tab-pane fade <?php echo $activeTab==='overview'?'show active':''; ?>" id="overview" role="tabpanel">
                     <!-- KPIs -->
                     <div id="reportKpis" class="row g-3 mb-4"></div>
 
@@ -343,7 +451,7 @@ try {
                 </div>
 
                 <!-- Funnel Tab -->
-                <div class="tab-pane fade" id="funnel" role="tabpanel">
+                <div class="tab-pane fade <?php echo $activeTab==='funnel'?'show active':''; ?>" id="funnel" role="tabpanel">
                     <div class="row g-3 mb-4">
                         <div class="col-12">
                             <div class="report-card">
@@ -355,7 +463,7 @@ try {
                 </div>
 
                 <!-- Temporal Tab -->
-                <div class="tab-pane fade" id="temporal" role="tabpanel">
+                <div class="tab-pane fade <?php echo $activeTab==='temporal'?'show active':''; ?>" id="temporal" role="tabpanel">
                     <div class="row g-3 mb-4">
                         <div class="col-lg-4">
                             <div class="report-card">
@@ -385,7 +493,7 @@ try {
                 </div>
 
                 <!-- Consultores Tab -->
-                <div class="tab-pane fade" id="consultores" role="tabpanel">
+                <div class="tab-pane fade <?php echo $activeTab==='consultores'?'show active':''; ?>" id="consultores" role="tabpanel">
                     <div class="row g-3 mb-4">
                         <div class="col-12">
                             <div class="report-card">
@@ -428,7 +536,7 @@ try {
                 </div>
 
                 <!-- Sources Tab -->
-                <div class="tab-pane fade" id="sources" role="tabpanel">
+                <div class="tab-pane fade <?php echo $activeTab==='sources'?'show active':''; ?>" id="sources" role="tabpanel">
                     <div class="row g-3 mb-4">
                         <div class="col-lg-6">
                             <div class="report-card">
@@ -442,6 +550,113 @@ try {
                             <div class="report-card">
                                 <div class="report-card-title"><i class="fa fa-table"></i> Top 10 Fontes de Leads</div>
                                 <div id="tableTopSources"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Daily Tab -->
+                <div class="tab-pane fade <?php echo $activeTab==='daily'?'show active':''; ?>" id="daily" role="tabpanel">
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-calendar-day"></i> Leads criados no dia</div>
+                                <form class="d-flex gap-2 align-items-end flex-wrap" method="get" action="relatorios.php">
+                                    <input type="hidden" name="tab" value="daily" />
+                                    <div>
+                                        <label class="small text-muted">Data</label>
+                                        <input type="date" name="daily_date" class="form-control form-control-sm" value="<?php echo htmlspecialchars($dailyDate, ENT_QUOTES, 'UTF-8'); ?>" />
+                                    </div>
+                                    <div>
+                                        <button type="submit" class="btn btn-sm btn-primary">Ver</button>
+                                    </div>
+                                    <div class="ms-auto">
+                                        <div class="small text-muted">Total no dia</div>
+                                        <div class="h4 mb-0"><?php echo (int)$dailyCount; ?></div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-list"></i> Lista de leads do dia</div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover align-middle mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:90px;">ID</th>
+                                                <th>Nome</th>
+                                                <th>Fonte</th>
+                                                <th>Status</th>
+                                                <th style="width:170px;">Criado em</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php if (empty($dailyLeads)): ?>
+                                                <tr><td colspan="5" class="text-center text-muted py-4">Nenhum lead criado neste dia.</td></tr>
+                                            <?php else: ?>
+                                                <?php foreach ($dailyLeads as $l): ?>
+                                                    <tr>
+                                                        <td><?php echo (int)($l['id'] ?? 0); ?></td>
+                                                        <td><?php echo htmlspecialchars((string)($l['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                        <td><?php echo htmlspecialchars((string)($l['source'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                        <td><?php echo htmlspecialchars((string)($l['status'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                        <td>
+                                                            <?php
+                                                                $raw = $l['created_at'] ?? null;
+                                                                $out = '';
+                                                                if ($raw) {
+                                                                    try { $dt = new DateTime((string)$raw); $out = $dt->format('d/m/Y H:i'); } catch (Exception $e) { $out = (string)$raw; }
+                                                                }
+                                                                echo htmlspecialchars($out, ENT_QUOTES, 'UTF-8');
+                                                            ?>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-lg-6">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-bullseye"></i> Leads do dia por origem</div>
+                                <div class="chart-container" style="height: 320px;">
+                                    <canvas id="chartDailyBySource"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-tags"></i> Leads do dia por status</div>
+                                <div class="chart-container" style="height: 320px;">
+                                    <canvas id="chartDailyByStatus"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-lg-6">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-filter"></i> Leads do dia por etapa</div>
+                                <div class="chart-container" style="height: 320px;">
+                                    <canvas id="chartDailyByStage"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-clock"></i> Leads do dia por hora</div>
+                                <div class="chart-container" style="height: 320px;">
+                                    <canvas id="chartDailyByHour"></canvas>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -469,6 +684,14 @@ const REPORT_AVG_TICKET = <?php echo json_encode($avgTicket, JSON_HEX_TAG|JSON_H
 const REPORT_SOURCES = <?php echo json_encode($sources, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_USERS_RANKING = <?php echo json_encode($usersRanking, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_USERS_TASKS = <?php echo json_encode($usersTasks, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+
+// Daily report data
+const REPORT_DAILY_DATE = <?php echo json_encode($dailyDate, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_DAILY_COUNT = <?php echo json_encode($dailyCount, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_DAILY_BY_SOURCE = <?php echo json_encode($dailyBySource, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_DAILY_BY_STATUS = <?php echo json_encode($dailyByStatus, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_DAILY_BY_STAGE = <?php echo json_encode($dailyByStage, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_DAILY_BY_HOUR = <?php echo json_encode($dailyByHour, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 
 let chartInstances = {};
 
@@ -512,6 +735,115 @@ function destroyChart(id) {
     if (chartInstances[id]) {
         chartInstances[id].destroy();
         delete chartInstances[id];
+    }
+}
+
+function renderDailyCharts(){
+    // Source pie
+    const srcEl = document.getElementById('chartDailyBySource');
+    if (srcEl) {
+        destroyChart('chartDailyBySource');
+        const rows = Array.isArray(REPORT_DAILY_BY_SOURCE) ? REPORT_DAILY_BY_SOURCE : [];
+        const labels = rows.map(r => r.label || 'Sem origem');
+        const data = rows.map(r => Number(r.cnt) || 0);
+        chartInstances['chartDailyBySource'] = new Chart(srcEl, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{ data, backgroundColor: labels.map((_,i)=>defaultPalette(i)), borderWidth: 0 }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+
+    // Status bar
+    const stEl = document.getElementById('chartDailyByStatus');
+    if (stEl) {
+        destroyChart('chartDailyByStatus');
+        const rows = Array.isArray(REPORT_DAILY_BY_STATUS) ? REPORT_DAILY_BY_STATUS : [];
+        const labels = rows.map(r => r.label || 'Sem status');
+        const data = rows.map(r => Number(r.cnt) || 0);
+        chartInstances['chartDailyByStatus'] = new Chart(stEl, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Leads',
+                    data,
+                    backgroundColor: labels.map((_,i)=>defaultPalette(i)),
+                    borderRadius: 6,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+        });
+    }
+
+    // Stage bar
+    const sgEl = document.getElementById('chartDailyByStage');
+    if (sgEl) {
+        destroyChart('chartDailyByStage');
+        const rows = Array.isArray(REPORT_DAILY_BY_STAGE) ? REPORT_DAILY_BY_STAGE : [];
+        const labels = rows.map(r => r.label || 'Sem Status');
+        const data = rows.map(r => Number(r.cnt) || 0);
+        chartInstances['chartDailyByStage'] = new Chart(sgEl, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Leads',
+                    data,
+                    backgroundColor: labels.map((_,i)=>defaultPalette(i)),
+                    borderRadius: 6,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+        });
+    }
+
+    // Hour line
+    const hrEl = document.getElementById('chartDailyByHour');
+    if (hrEl) {
+        destroyChart('chartDailyByHour');
+        const hours = Array.from({length:24}, (_,i)=>String(i).padStart(2,'0') + ':00');
+        const data = Array.isArray(REPORT_DAILY_BY_HOUR) ? REPORT_DAILY_BY_HOUR.map(v=>Number(v)||0) : new Array(24).fill(0);
+        chartInstances['chartDailyByHour'] = new Chart(hrEl, {
+            type: 'line',
+            data: {
+                labels: hours,
+                datasets: [{
+                    label: 'Leads',
+                    data,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59,130,246,0.12)',
+                    fill: true,
+                    tension: 0.35,
+                    borderWidth: 2,
+                    pointRadius: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+        });
     }
 }
 
@@ -1209,6 +1541,7 @@ function renderReports(){
         renderUserTasksChart();
         renderTopSellersTable();
         renderUsersTasksTable();
+        renderDailyCharts();
     } catch(e) { 
         console.error('Render reports failed', e); 
     }
@@ -1228,8 +1561,91 @@ function resetFilters() {
 }
 
 function exportReport(format) {
-    alert('Exportação para ' + format.toUpperCase() + ' será implementada em breve!');
-    // Implementation for PDF/Excel export would go here
+    if (String(format).toLowerCase() !== 'pdf') {
+        alert('Exportação para ' + String(format).toUpperCase() + ' será implementada em breve!');
+        return;
+    }
+
+    try {
+        const activePane = document.querySelector('#reportTabsContent .tab-pane.show.active')
+            || document.querySelector('#reportTabsContent .tab-pane.active')
+            || document.querySelector('#overview');
+        if (!activePane) return;
+
+        const tabBtn = document.querySelector(`#reportTabs [data-bs-target="#${activePane.id}"]`);
+        const tabTitle = tabBtn ? tabBtn.textContent.replace(/\s+/g,' ').trim() : 'Relatório';
+
+        const clone = activePane.cloneNode(true);
+
+        // Replace chart canvases with static images so the print window keeps them
+        const canvases = Array.from(activePane.querySelectorAll('canvas'));
+        canvases.forEach((canvas) => {
+            try {
+                const id = canvas.id;
+                if (!id) return;
+                const cloneCanvas = clone.querySelector(`#${CSS.escape(id)}`);
+                if (!cloneCanvas) return;
+                const dataUrl = canvas.toDataURL('image/png');
+                const img = document.createElement('img');
+                img.src = dataUrl;
+                img.alt = id;
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                // Keep roughly the same height as the chart container
+                img.style.display = 'block';
+                cloneCanvas.replaceWith(img);
+            } catch (e) {
+                // ignore and keep canvas
+            }
+        });
+
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const title = `Relatórios - ${tabTitle}`;
+
+        const w = window.open('', '_blank');
+        if (!w) {
+            alert('Não foi possível abrir a janela de exportação (popup bloqueado).');
+            return;
+        }
+
+        const styles = `
+            body{font-family:Arial, sans-serif; padding:16px; color:#111827;}
+            h1{font-size:18px; margin:0 0 4px 0;}
+            .meta{color:#6b7280; font-size:12px; margin-bottom:12px;}
+            .report-card{background:#fff; border-radius:12px; border:1px solid #e2e8f0; padding:16px; margin-bottom:12px;}
+            .report-card-title{font-size:14px; font-weight:600; color:#1f2937; margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+            .chart-container{height:auto !important;}
+            table{width:100%; border-collapse:collapse;}
+            th,td{border-bottom:1px solid #f1f5f9; padding:8px 10px; text-align:left; font-size:12px;}
+            thead th{background:#f8fafc; border-bottom:2px solid #e2e8f0; color:#475569;}
+            @page { margin: 12mm; }
+        `;
+
+        w.document.open();
+        w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>${styles}</style></head><body></body></html>`);
+        w.document.close();
+
+        const body = w.document.body;
+        const h1 = w.document.createElement('h1');
+        h1.textContent = title;
+        const meta = w.document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = `Gerado em: ${dateStr}`;
+        body.appendChild(h1);
+        body.appendChild(meta);
+        body.appendChild(w.document.importNode(clone, true));
+
+        // Give the browser a moment to paint images before printing
+        setTimeout(() => {
+            try { w.focus(); } catch(e) {}
+            try { w.print(); } catch(e) {}
+            try { w.close(); } catch(e) {}
+        }, 400);
+    } catch (e) {
+        console.error('Export PDF failed', e);
+        alert('Falha ao exportar PDF.');
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function(){ 
