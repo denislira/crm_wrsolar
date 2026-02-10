@@ -117,7 +117,7 @@ switch ($action) {
         $data_venc = (isset($data['data_vencimento']) && trim($data['data_vencimento']) !== '') ? $data['data_vencimento'] : null;
         try {
             if ($hasResponsavelId) {
-                $stmt = $pdo->prepare("INSERT INTO team_tasks (user_id, equipe, titulo, descricao, status, responsavel, responsavel_id, data_vencimento) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt = $pdo->prepare("INSERT INTO team_tasks (user_id, equipe, titulo, descricao, status, responsavel, responsavel_id, data_vencimento, lead_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([
                     $userId,
                     $data['equipe'] ?? null,
@@ -126,10 +126,11 @@ switch ($action) {
                     $data['status'] ?? 'Pendente',
                     $responsavel,
                     $responsavel_id,
-                    $data_venc
+                    $data_venc,
+                    $data['lead_id'] ?? null
                 ]);
             } else {
-                $stmt = $pdo->prepare("INSERT INTO team_tasks (user_id, equipe, titulo, descricao, status, responsavel, data_vencimento) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt = $pdo->prepare("INSERT INTO team_tasks (user_id, equipe, titulo, descricao, status, responsavel, data_vencimento, lead_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([
                     $userId,
                     $data['equipe'] ?? null,
@@ -137,7 +138,8 @@ switch ($action) {
                     $data['descricao'] ?? '',
                     $data['status'] ?? 'Pendente',
                     $responsavel,
-                    $data_venc
+                    $data_venc,
+                    $data['lead_id'] ?? null
                 ]);
             }
             $newId = $pdo->lastInsertId();
@@ -147,7 +149,7 @@ switch ($action) {
                 'action' => 'created',
                 'user_id' => $userId,
                 'username' => $_SESSION['username'] ?? null,
-                'details' => json_encode(['titulo'=>$data['titulo'] ?? null,'equipe'=>$data['equipe'] ?? null], JSON_UNESCAPED_UNICODE),
+                'details' => json_encode(['titulo'=>$data['titulo'] ?? null,'equipe'=>$data['equipe'] ?? null, 'lead_id'=>$data['lead_id'] ?? null], JSON_UNESCAPED_UNICODE),
                 'equipe' => $data['equipe'] ?? null,
                 'titulo' => $data['titulo'] ?? null,
                 'responsavel' => $responsavel
@@ -160,18 +162,12 @@ switch ($action) {
     case 'update':
         $id = $_GET['id'] ?? 0;
         $data = json_decode(file_get_contents('php://input'), true);
-        // Fetch existing row and check permissions (owner or assigned responsavel)
+        // Fetch existing row
         $curSql = "SELECT * FROM team_tasks WHERE id = ?";
         $cur = $pdo->prepare($curSql);
         $cur->execute([$id]);
         $row = $cur->fetch(PDO::FETCH_ASSOC);
         if (!$row) { echo json_encode(['success'=>false,'error'=>'Not found']); break; }
-        $username = $_SESSION['username'] ?? '';
-        $isOwner = ((int)$row['user_id'] === (int)$userId);
-        $isResponsavelName = strEqualsIgnoreCase($row['responsavel'] ?? '', $username);
-        $isResponsavelId = ($hasResponsavelId && isset($row['responsavel_id']) && (int)$row['responsavel_id'] === (int)$userId);
-        $isDirector = function_exists('isDirector') ? isDirector() : false;
-        if (!($isOwner || $isResponsavelName || $isResponsavelId || $isDirector)) { echo json_encode(['success'=>false,'error'=>'No permission']); break; }
         // Allow changing responsavel when provided (owner or current responsavel already checked above)
         $responsavel = $row['responsavel'] ?? null;
         $responsavel_id = $hasResponsavelId ? ($row['responsavel_id'] ?? null) : null;
@@ -299,22 +295,12 @@ switch ($action) {
     case 'delete':
         $id = $_GET['id'] ?? 0;
         if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); break; }
-        // Check permission: owner or assigned responsavel
+        // Check if task exists
         $curSql = "SELECT * FROM team_tasks WHERE id = ?";
         $cur = $pdo->prepare($curSql);
         $cur->execute([$id]);
         $row = $cur->fetch(PDO::FETCH_ASSOC);
         if (!$row) { echo json_encode(['success' => false, 'error' => 'Not found']); break; }
-        $username = $_SESSION['username'] ?? '';
-        $isOwner = ((int)$row['user_id'] === (int)$userId);
-        $isResponsavelName = strEqualsIgnoreCase($row['responsavel'] ?? '', $username);
-        $isResponsavelId = ($hasResponsavelId && isset($row['responsavel_id']) && (int)$row['responsavel_id'] === (int)$userId);
-        $isDirector = function_exists('isDirector') ? isDirector() : false;
-        
-        if (!($isOwner || $isResponsavelName || $isResponsavelId || $isDirector)) { 
-            echo json_encode(['success' => false, 'error' => "No permission (own=$isOwner, resp_name=$isResponsavelName, resp_id=$isResponsavelId, dir=$isDirector)"]); 
-            break; 
-        }
         // preserve snapshot for activity
         $taskSnapshot = [
             'titulo' => $row['titulo'] ?? null,

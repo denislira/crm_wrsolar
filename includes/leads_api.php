@@ -1088,6 +1088,21 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         }
     }
 
+    // Get current user ID
+    if ($action === 'get_user_id') {
+        echo json_encode(['user_id' => $userId]);
+        exit;
+    }
+
+    // Get list of users
+    if ($action === 'get_users') {
+        $stmt = $pdo->prepare('SELECT id, username, email FROM users ORDER BY username');
+        $stmt->execute();
+        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode($users);
+        exit;
+    }
+
     http_response_code(400);
     echo json_encode(['error' => 'Unknown action']);
 

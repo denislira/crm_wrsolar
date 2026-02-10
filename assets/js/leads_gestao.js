@@ -376,15 +376,28 @@
         if (created) subParts.push('Criado: ' + created);
         sub.textContent = subParts.join(' • ');
         left.appendChild(title); left.appendChild(sub);
-        const actions = document.createElement('div'); actions.className = 'd-flex gap-2';
+        const actions = document.createElement('div'); actions.className = 'd-flex gap-2 align-items-center';
+        // Stage select
+        const stageSelect = document.createElement('select'); stageSelect.className = 'form-select form-select-sm'; stageSelect.style.width = 'auto'; stageSelect.style.minWidth = '120px';
+        stageSelect.innerHTML = '<option value="">-- Escolher Estágio --</option>';
+        if (STAGES && STAGES.length) {
+            STAGES.forEach(s => {
+                const opt = document.createElement('option'); opt.value = s.id; opt.textContent = s.name;
+                stageSelect.appendChild(opt);
+            });
+        }
+        actions.appendChild(stageSelect);
         const addBtn = document.createElement('button'); addBtn.className = 'btn btn-sm btn-primary'; addBtn.type='button'; addBtn.textContent = 'Adicionar ao Kanban';
         addBtn.addEventListener('click', async ()=>{
+            const selectedStage = stageSelect.value;
+            if (!selectedStage) { alert('Por favor, selecione um estágio.'); return; }
             addBtn.disabled = true; addBtn.textContent = 'Adicionando...';
             try {
-                const fd = new FormData(); fd.append('action','promote_anuncio'); fd.append('id', an.id);
+                const fd = new FormData(); fd.append('action','promote_anuncio'); fd.append('id', an.id); fd.append('stage_id', selectedStage);
                 const r = await fetch(apiBase, { method:'POST', body: fd });
                 const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error || 'Erro');
                 await fetchLeads(); // reload kanban
+                it.remove(); // remove the item from the list
                 const modalEl = document.getElementById('anunciosModal'); if (modalEl) new bootstrap.Modal(modalEl).hide();
             } catch(err){ console.error(err); alert('Falha ao adicionar: ' + (err.message||err)); }
             addBtn.disabled = false; addBtn.textContent = 'Adicionar ao Kanban';
@@ -441,6 +454,13 @@
         rows.forEach(r=> wrap.appendChild(makeAnuncioItem(r)));
         // show modal
         const m = new bootstrap.Modal(modalEl); m.show();
+        // ensure close buttons work
+        setTimeout(() => {
+            const closeBtns = modalEl.querySelectorAll('[data-bs-dismiss="modal"], .btn-close');
+            closeBtns.forEach(btn => {
+                btn.addEventListener('click', () => m.hide());
+            });
+        }, 100);
     }
 
     let REMINDER_TEMPLATES = [];
@@ -915,7 +935,7 @@
         const btn = document.getElementById('toggleViewBtn');
         const semStatusBtn = document.getElementById('toggleSemStatusBtn');
         const anunciosBtn = document.getElementById('toggleAnunciosBtn');
-        // support three modes: 'kanban', 'list' (table) and 'grid' (card grid)
+        // support two modes: 'kanban' and 'list' (table)
         if (mode === 'kanban') {
             if (kanban) kanban.classList.remove('d-none');
             if (list) list.classList.add('d-none');
@@ -929,13 +949,6 @@
             if (semStatusBtn) semStatusBtn.classList.add('d-none');
             if (anunciosBtn) anunciosBtn.classList.add('d-none');
             if (btn) btn.innerHTML = '<i class="fa fa-th-list"></i>';
-        } else if (mode === 'grid') {
-            GRID_PAGE = 1;
-            if (kanban) kanban.classList.add('d-none');
-            if (list) list.classList.remove('d-none');
-            if (semStatusBtn) semStatusBtn.classList.add('d-none');
-            if (anunciosBtn) anunciosBtn.classList.add('d-none');
-            if (btn) btn.innerHTML = '<i class="fa fa-th-large"></i>';
         }
     }
 
@@ -1223,32 +1236,6 @@
         }
     }
 
-    // Card-grid view: render cards in a responsive grid instead of kanban columns
-    function renderCardGrid(){
-        const container = document.getElementById('leadsTableContainer'); if (!container) return;
-        container.innerHTML = '';
-        const selectedWrap = document.createElement('div');
-        selectedWrap.id = 'listSelectedCount'; selectedWrap.className = 'mb-2 text-muted fw-semibold fs-5';
-        selectedWrap.textContent = 'Selecionados: ' + String(getSelectedLeadIds().length);
-        container.appendChild(selectedWrap);
-
-        const grid = document.createElement('div'); grid.className = 'card-grid';
-        const filtered = getFilteredLeads();
-        filtered.forEach(lead => {
-            // try to find stage object for styling/actions
-            let stageObj = null;
-            if (STAGES && STAGES.length) stageObj = STAGES.find(s => String(s.id) === String(lead.stage_id));
-            const card = makeCard(lead, stageObj);
-            card.style.width = '100%';
-            grid.appendChild(card);
-        });
-        container.appendChild(grid);
-        updateBulkDeleteVisibility();
-        // mirror theme
-        const prefersDark = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
-        container.classList.toggle('theme-dark', prefersDark);
-    }
-
     function renderAll(){
         console.log('=== renderAll iniciado ===');
         console.log('STAGES:', STAGES);
@@ -1260,10 +1247,9 @@
         }
         // Always refresh KPIs/top cards so totals are correct when switching views
         try { renderKpis(); } catch(e) { console.warn('renderKpis failed', e); }
-        // switch to alternate views if requested: 'list' => table, 'grid' => card grid
+        // switch to alternate views if requested: 'list' => table
         const vm = getViewMode();
         if (vm === 'list') { renderGrid(); return; }
-        if (vm === 'grid') { renderCardGrid(); return; }
         clearColumns();
         const filtered = getFilteredLeads();
         console.log('Filtered leads:', filtered.length);
@@ -1569,6 +1555,119 @@
                         }, {once:true});
                     });
                 });
+        const taskBtn = document.createElement('button');
+        taskBtn.className = 'btn btn-sm btn-outline-warning';
+        taskBtn.type = 'button';
+        taskBtn.innerHTML = '<i class="fa fa-tasks"></i>';
+        taskBtn.title = 'Adicionar Tarefa';
+        taskBtn.addEventListener('click', async (e)=>{
+            e.stopPropagation();
+            // Obter lista de usuários
+            let users = [];
+            try {
+                const res = await fetch('includes/leads_api.php?action=get_users');
+                users = await res.json();
+            } catch (err) {
+                console.error('Erro ao obter usuários:', err);
+            }
+            // Criar modal para adicionar tarefa
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = 'addTaskModal';
+            const options = users.map(u => `<option value="${u.username}">${u.username}</option>`).join('');
+            modal.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background-color: #0b6ac1; color: white;">
+                            <h5 class="modal-title">Adicionar Tarefa para Lead</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="addTaskForm">
+                                <div class="mb-3">
+                                    <label for="taskTitle" class="form-label">Título</label>
+                                    <input type="text" class="form-control" id="taskTitle" value="${(lead.name || 'Sem nome').charAt(0).toUpperCase() + (lead.name || 'Sem nome').slice(1)}, ${lead.cidade || ''}, ${lead.phone || ''}" style="border-color: #0b6ac1;" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="taskDescription" class="form-label">Descrição</label>
+                                    <textarea class="form-control" id="taskDescription" rows="3" style="border-color: #0b6ac1;"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="taskResponsavel" class="form-label">Responsável</label>
+                                    <select class="form-select" id="taskResponsavel" style="border-color: #0b6ac1;">
+                                        <option value="">Selecione...</option>
+                                        ${options}
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="taskDueDate" class="form-label">Data de Vencimento</label>
+                                    <input type="date" class="form-control" id="taskDueDate" value="${new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0]}" style="border-color: #0b6ac1;" required>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="saveTaskBtn">Salvar Tarefa</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+
+            // Pre-selecionar responsável se o lead tiver
+            if (lead.responsavel) {
+                const select = document.getElementById('taskResponsavel');
+                const option = Array.from(select.options).find(opt => opt.value === lead.responsavel);
+                if (option) option.selected = true;
+            }
+
+            // Event listener para salvar
+            document.getElementById('saveTaskBtn').addEventListener('click', async () => {
+                const title = document.getElementById('taskTitle').value.trim();
+                const description = document.getElementById('taskDescription').value.trim();
+                const responsavel = document.getElementById('taskResponsavel').value;
+                const dueDate = document.getElementById('taskDueDate').value;
+                if (!title || !dueDate) {
+                    alert('Preencha título e data de vencimento.');
+                    return;
+                }
+                try {
+                    let userId = window.userId;
+                    if (!userId) {
+                        const res = await fetch('includes/leads_api.php?action=get_user_id');
+                        const json = await res.json();
+                        userId = json.user_id;
+                    }
+                    const mod = await import('./team_tasks.js');
+                    const addTask = mod.addTask;
+                    const taskData = {
+                        user_id: userId,
+                        titulo: title,
+                        descricao: description,
+                        status: 'Pendente',
+                        responsavel: responsavel,
+                        data_vencimento: dueDate,
+                        lead_id: lead.id
+                    };
+                    const result = await addTask(taskData);
+                    if (result.success) {
+                        alert('Tarefa criada com sucesso!');
+                        bsModal.hide();
+                        modal.remove();
+                    } else {
+                        alert('Erro ao criar tarefa: ' + (result.error || 'Desconhecido'));
+                    }
+                } catch (err) {
+                    console.error('Erro ao adicionar tarefa:', err);
+                    alert('Erro ao adicionar tarefa.');
+                }
+            });
+
+            // Remover modal do DOM ao fechar
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        });
         const editBtn = document.createElement('button'); editBtn.className='btn btn-sm btn-outline-primary'; editBtn.type='button'; editBtn.innerHTML='<i class="fa fa-edit"></i>'; editBtn.title='Editar';
         editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); populateLeadForm(lead); });
         const deleteBtn = document.createElement('button'); deleteBtn.className='btn btn-sm btn-outline-danger'; deleteBtn.type='button'; deleteBtn.innerHTML='<i class="fa fa-trash"></i>'; deleteBtn.title='Mover para lixeira';
@@ -1593,7 +1692,7 @@
         const whatsappBtn = document.createElement('a'); whatsappBtn.className='btn btn-sm btn-outline-success'; whatsappBtn.href = lead.phone? 'https://wa.me/'+lead.phone.replace(/\D/g,''):'#'; whatsappBtn.target='_blank'; whatsappBtn.innerHTML='<i class="fa-brands fa-whatsapp"></i>'; whatsappBtn.title='WhatsApp';
         const proposalBtn = document.createElement('button'); proposalBtn.className='btn btn-sm btn-primary'; proposalBtn.type='button'; proposalBtn.innerHTML='<i class="fa fa-paper-plane"></i>'; proposalBtn.title='Enviar proposta';
         proposalBtn.classList.add('d-none');
-        btns.appendChild(reminderBtn); btns.appendChild(editBtn); btns.appendChild(deleteBtn); btns.appendChild(whatsappBtn); btns.appendChild(proposalBtn);
+        btns.appendChild(reminderBtn); btns.appendChild(taskBtn); btns.appendChild(editBtn); btns.appendChild(deleteBtn); btns.appendChild(whatsappBtn); btns.appendChild(proposalBtn);
 
         // Movement timeline
         const timelineWrap = document.createElement('div'); timelineWrap.className = 'my-5'; timelineWrap.innerHTML = '<h6>Histórico de movimentações</h6><div id="timeline"></div>';
@@ -1838,8 +1937,8 @@
             // apply saved view
             setViewMode(localStorage.getItem('leadsView') || 'kanban');
             toggleBtn.addEventListener('click', ()=>{
-                // cycle views: kanban -> list -> grid -> kanban
-                const order = ['kanban','list','grid'];
+                // cycle views: kanban -> list -> kanban
+                const order = ['kanban','list'];
                 const cur = getViewMode() || 'kanban';
                 const idx = order.indexOf(cur);
                 const next = order[(idx + 1) % order.length];

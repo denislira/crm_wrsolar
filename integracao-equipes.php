@@ -524,14 +524,22 @@ async function atualizarTarefas() {
     } else {
         tarefas.forEach(t => {
             const card = document.createElement('div');
-            card.className = 'mb-2 p-2 border rounded d-flex align-items-center gap-3 bg-white';
+            card.className = 'mb-3 p-3 rounded-3 d-flex align-items-start gap-3 bg-white position-relative';
+            card.style.cssText = 'border: 1px solid #e8ecf1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.3s ease; cursor: pointer;';
+            card.addEventListener('mouseenter', () => {
+                card.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+                card.style.transform = 'translateY(-2px)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+                card.style.transform = 'translateY(0)';
+            });
             // Avatar composto: criador sobre responsável (metade sobreposta)
             const avatarWrap = document.createElement('div');
-            avatarWrap.className = 'position-relative me-2';
-            avatarWrap.style.width = '54px';
+            avatarWrap.className = 'me-2';
+            avatarWrap.style.width = '38px';
             avatarWrap.style.height = '38px';
-            avatarWrap.style.flex = '0 0 54px';
-            avatarWrap.style.marginRight = '12px';
+            avatarWrap.style.flex = '0 0 38px';
 
             function buildAvatar(userInfo, fallbackName, bgColor) {
                 if (userInfo && userInfo.avatar) {
@@ -558,26 +566,12 @@ async function atualizarTarefas() {
 
             try {
                 const responsavelId = t.responsavel_id || null;
-                const criadorId = t.user_id || null;
                 const responsavelInfo = (responsavelId && usersMap && usersMap[responsavelId]) ? usersMap[responsavelId] : null;
-                const criadorInfo = (criadorId && usersMap && usersMap[criadorId]) ? usersMap[criadorId] : null;
                 const responsavelNome = responsavelInfo && responsavelInfo.username ? responsavelInfo.username : t.responsavel;
-                const criadorNome = criadorInfo && criadorInfo.username ? criadorInfo.username : 'Criador';
-
-                const creatorEl = buildAvatar(criadorInfo, criadorNome, '#6c757d');
-                creatorEl.style.position = 'absolute';
-                creatorEl.style.left = '0';
-                creatorEl.style.top = '0';
-                creatorEl.style.zIndex = '2';
 
                 const respEl = buildAvatar(responsavelInfo, responsavelNome, equipeColor(t.equipe));
-                respEl.style.position = 'absolute';
-                respEl.style.left = '22px';
-                respEl.style.top = '0';
-                respEl.style.zIndex = '1';
 
                 avatarWrap.appendChild(respEl);
-                avatarWrap.appendChild(creatorEl);
             } catch (e) {
                 const fallback = document.createElement('div');
                 fallback.className = 'rounded-circle d-flex align-items-center justify-content-center';
@@ -598,20 +592,28 @@ async function atualizarTarefas() {
             const responsavelId = t.responsavel_id || t.user_id;
             const responsavelInfo = (responsavelId && usersMap && usersMap[responsavelId]) ? usersMap[responsavelId] : null;
             const responsavelNome = responsavelInfo && responsavelInfo.username ? responsavelInfo.username : t.responsavel;
-            content.innerHTML = `<div class="fw-semibold">${escapeHtml(t.titulo)} <span class="badge ms-2" style="background:${equipeColor(t.equipe)};color:#fff;">${escapeHtml(t.equipe)}</span> <span class="badge ms-1" style="background:${statusColor(t.status)};color:#fff;">${escapeHtml(t.status)}</span></div>
-                <div class="small text-muted">${responsavelNome ? 'Responsável: ' + escapeHtml(responsavelNome) : ''} ${t.data_vencimento ? ' | Vencimento: ' + t.data_vencimento : ''}</div>
-                <div class="mt-1">${escapeHtml(t.descricao || '')}</div>`;
+            content.innerHTML = `<div class="d-flex align-items-center gap-2 mb-2">
+                <h6 class="mb-0 fw-semibold" style="color: #1e293b; font-size: 0.95rem;">${escapeHtml(t.titulo)}</h6>
+                <span class="badge rounded-pill" style="background:${equipeColor(t.equipe)};color:#fff;padding:0.35em 0.75em;font-size:0.7rem;font-weight:500;">${escapeHtml(t.equipe)}</span>
+                <span class="badge rounded-pill" style="background:${statusColor(t.status)};color:#fff;padding:0.35em 0.75em;font-size:0.7rem;font-weight:500;">${escapeHtml(t.status)}</span>
+            </div>
+            <div class="d-flex align-items-center gap-3 mb-2" style="font-size: 0.8rem;">
+                ${responsavelNome ? '<div class="text-muted"><i class="fa fa-user me-1" style="opacity:0.6;"></i><span>' + escapeHtml(responsavelNome) + '</span></div>' : ''}
+                ${t.data_vencimento ? '<div class="text-muted"><i class="fa fa-calendar me-1" style="opacity:0.6;"></i><span>' + t.data_vencimento + '</span></div>' : ''}
+            </div>
+            ${t.descricao ? '<div class="text-secondary" style="font-size: 0.85rem; line-height: 1.5; color: #64748b !important;">' + escapeHtml(t.descricao) + '</div>' : ''}`;
             card.appendChild(content);
             // Ações
             const actions = document.createElement('div');
-            actions.className = 'd-flex flex-column gap-1';
-            actions.innerHTML = `<button class="btn btn-sm btn-outline-primary" title="Editar"><i class="fa fa-edit"></i></button>
-                <button class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa fa-trash"></i></button>`;
+            actions.className = 'd-flex gap-2 position-absolute';
+            actions.style.cssText = 'top: 12px; right: 12px;';
+            actions.innerHTML = `<button class="btn btn-link btn-sm text-primary p-1" title="Editar" style="opacity: 0.5; transition: all 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'"><i class="fa fa-edit" style="font-size: 0.9rem;"></i></button>
+                <button class="btn btn-link btn-sm text-danger p-1" title="Excluir" style="opacity: 0.5; transition: all 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'"><i class="fa fa-trash" style="font-size: 0.9rem;"></i></button>`;
             // Adicionar eventos de editar/excluir
-            const editBtn = actions.querySelector('.btn-outline-primary');
-            const deleteBtn = actions.querySelector('.btn-outline-danger');
-            editBtn.addEventListener('click', () => openEditModal(t));
-            deleteBtn.addEventListener('click', () => deleteTaskConfirm(t.id));
+            const editBtn = actions.querySelector('.text-primary');
+            const deleteBtn = actions.querySelector('.text-danger');
+            editBtn.addEventListener('click', (e) => { e.stopPropagation(); openEditModal(t); });
+            deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteTaskConfirm(t.id); });
             card.appendChild(actions);
             list.appendChild(card);
         });

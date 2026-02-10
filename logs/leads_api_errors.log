@@ -115,3 +115,12 @@
 [2026-02-10 01:57:00] UPDATE raw_input: 
 [2026-02-10 01:57:00] UPDATE data_inicio (raw): '2026-02-10'
 [2026-02-10 01:57:00] UPDATE data_inicio (parsed): '2026-02-10'
+[2026-02-10 02:43:55] promote_anuncio: deleted leads_anuncios id 4
+[2026-02-10 02:43:58] promote_anuncio: deleted leads_anuncios id 3
+[2026-02-10 02:48:08] promote_anuncio: deleted leads_anuncios id 5
+[2026-02-10 03:13:53] UPDATE raw_input: 
+[2026-02-10 03:13:53] UPDATE data_inicio (raw): '2026-02-09'
+[2026-02-10 03:13:53] UPDATE data_inicio (parsed): '2026-02-09'
+[2026-02-10 03:15:48] UPDATE raw_input: 
+[2026-02-10 03:15:48] UPDATE data_inicio (raw): '2026-02-09'
+[2026-02-10 03:15:48] UPDATE data_inicio (parsed): '2026-02-09'
