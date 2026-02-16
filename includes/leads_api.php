@@ -580,7 +580,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         } catch (Exception $e) {}
 
         // Fetch previous state to detect changes
-        $pre = $pdo->prepare('SELECT id, status, stage_id FROM leads WHERE id = ? LIMIT 1');
+        $pre = $pdo->prepare('SELECT id, status, stage_id, notes FROM leads WHERE id = ? LIMIT 1');
         $pre->execute([$data['id']]);
         $prev = $pre->fetch(PDO::FETCH_ASSOC);
         $fromStatus = $prev['status'] ?? null;
@@ -754,6 +754,24 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             if ($fromStatus !== $resolvedStatus || $fromStageId !== $resolvedStageId) {
                 $changedBy = $_SESSION['user_id'] ?? null;
                 _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $resolvedStatus, $changedBy, 'Atualização via edit', 0);
+            }
+        } catch (Exception $e) { /* swallow */ }
+
+        // If notes changed, record an immutable movement entry for history
+        try {
+            if (array_key_exists('notes', $data)) {
+                $oldNotes = isset($prev['notes']) ? $prev['notes'] : '';
+                $newNotes = $data['notes'] ?? '';
+                if (trim($oldNotes) !== trim($newNotes)) {
+                    $changedBy = $_SESSION['user_id'] ?? null;
+                    $noteLog = 'Notas atualizadas';
+                    // include short diffs for traceability
+                    $snippetOld = mb_substr((string)$oldNotes, 0, 1000);
+                    $snippetNew = mb_substr((string)$newNotes, 0, 1000);
+                    $noteLog .= ' | Antes: ' . $snippetOld . ' | Depois: ' . $snippetNew;
+                    // For notes-only changes we avoid recording stage/status values to keep the movement text focused
+                    _log_lead_movement($pdo, (int)$data['id'], $userId, null, null, null, null, $changedBy, $noteLog, 0);
+                }
             }
         } catch (Exception $e) { /* swallow */ }
 

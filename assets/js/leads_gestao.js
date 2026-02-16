@@ -493,6 +493,46 @@
 
     // Stages loaded from DB (funil_stages)
     let STAGES = [];
+    let APP_APPEARANCE = null;
+
+    async function loadAppearance(){
+        if (APP_APPEARANCE !== null) return APP_APPEARANCE;
+        try {
+            const r = await fetch('api/get_appearance.php');
+            if (!r.ok) return null;
+            const j = await r.json();
+            APP_APPEARANCE = j && j.appearance ? j.appearance : {};
+            return APP_APPEARANCE;
+        } catch(e){ return null; }
+    }
+
+    function applyLeadModalPrimaryColor(color){
+        if (!color) return;
+        try {
+            const modalEl = document.getElementById('leadModal');
+            if (!modalEl) return;
+            const header = modalEl.querySelector('.modal-header');
+            if (header) {
+                // remove bootstrap light bg which may override visuals
+                try { header.classList.remove('bg-light'); } catch(e){}
+                header.style.backgroundColor = color;
+                // choose readable text color
+                try {
+                    const rgb = color.replace('#','');
+                    let r,g,b;
+                    if (rgb.length === 3) { r = parseInt(rgb[0]+rgb[0],16); g = parseInt(rgb[1]+rgb[1],16); b = parseInt(rgb[2]+rgb[2],16); }
+                    else { r = parseInt(rgb.slice(0,2),16); g = parseInt(rgb.slice(2,4),16); b = parseInt(rgb.slice(4,6),16); }
+                    const brightness = (r*299 + g*587 + b*114) / 1000;
+                    header.style.color = brightness > 125 ? '#000' : '#fff';
+                    // also set bottom border to a slightly darker shade for separation
+                    try { header.style.borderBottom = '1px solid ' + color; } catch(e){}
+                } catch(e) { header.style.color = '#fff'; }
+            }
+            // set border color for inputs inside the modal
+            const inputs = modalEl.querySelectorAll('input, textarea, select');
+            inputs.forEach(i=>{ try { i.style.borderColor = color; } catch(e){} });
+        } catch(e){}
+    }
     // Statuses (separate table) - UI should load these independently from stages
     let STATUSES = [];
     
@@ -1799,13 +1839,95 @@
         // fetch and render movements
         const timeline = timelineWrap.querySelector('#timeline'); timeline.innerHTML = '<div class="small text-muted">Carregando...</div>';
         const moves = await fetchMovements(id);
+        // ensure movements render newest-first (decrescente)
+        try { if (moves && moves.length) moves.sort((a,b)=> new Date(b.created_at) - new Date(a.created_at)); } catch(e) { /* ignore sort errors */ }
         if (moves && moves.length) {
             timeline.innerHTML = '';
+            // fetch users mapping to resolve consultant names (changed_by)
+            let usersMap = {};
+            try {
+                const ur = await fetch('includes/leads_api.php?action=get_users');
+                if (ur.ok) {
+                    const us = await ur.json();
+                    if (Array.isArray(us)) us.forEach(u=> usersMap[String(u.id)] = u.username || (u.email||('user:'+u.id)) );
+                }
+            } catch(e) { /* ignore user fetch errors */ }
+
+            // load appearance to pick primary color for movement title styling
+            let primaryColor = null;
+            try {
+                const app = await loadAppearance();
+                primaryColor = (app && (app.primary_color || app.primary || app.color_primary)) ? (app.primary_color || app.primary || app.color_primary) : null;
+            } catch(e) { primaryColor = null; }
+
             moves.forEach(m=>{
                 const item = document.createElement('div'); item.className = 'movement-row';
                 const ts = document.createElement('div'); ts.className='small text-muted'; ts.textContent = new Date(m.created_at).toLocaleString();
-                const txt = document.createElement('div'); txt.textContent = `${m.from_status || '—'} → ${m.to_status || '—'}` + (m.note ? ` — ${m.note}` : '');
-                item.appendChild(ts); item.appendChild(txt); timeline.appendChild(item);
+                const txt = document.createElement('div');
+                // main movement text: if there is a from/to status show arrow, otherwise show only note
+                let main = '';
+                const hasFromTo = (m.from_status && String(m.from_status).trim() !== '') || (m.to_status && String(m.to_status).trim() !== '');
+                if (hasFromTo) {
+                    main = `${m.from_status || '—'} → ${m.to_status || '—'}`;
+                }
+                // include note if present
+                if (m.note) {
+                    // detect 'Notas atualizadas' prefix separated by ' | ' and style it
+                    const noteStr = String(m.note || '');
+                    const parts = noteStr.split(' | ');
+                    let titlePart = null;
+                    let restPart = null;
+                    if (parts.length > 1 && /notas\s*atualizad/i.test(parts[0])) {
+                        titlePart = parts.shift();
+                        restPart = parts.join(' | ');
+                    } else {
+                        restPart = noteStr;
+                    }
+
+                    if (main) {
+                        // keep main (from->to) and append note text
+                        if (titlePart) {
+                            main += ' — ';
+                            txt.textContent = main;
+                            const titleSpan = document.createElement('span');
+                            titleSpan.textContent = titlePart;
+                            titleSpan.style.fontWeight = '600';
+                            if (primaryColor) titleSpan.style.color = primaryColor;
+                            txt.appendChild(titleSpan);
+                            if (restPart) txt.appendChild(document.createTextNode(' | ' + restPart));
+                        } else {
+                            txt.textContent = main + ' — ' + restPart;
+                        }
+                    } else {
+                        // no main: show styled title (if any) then rest
+                        if (titlePart) {
+                            const titleSpan = document.createElement('span');
+                            titleSpan.textContent = titlePart;
+                            titleSpan.style.fontWeight = '600';
+                            if (primaryColor) titleSpan.style.color = primaryColor;
+                            txt.appendChild(titleSpan);
+                            if (restPart) txt.appendChild(document.createTextNode(' | ' + restPart));
+                        } else {
+                            txt.textContent = restPart;
+                        }
+                    }
+                } else {
+                    txt.textContent = main;
+                }
+
+                item.appendChild(ts); item.appendChild(txt);
+
+                // show consultant/changed_by if available
+                try {
+                    const changer = m.changed_by || m.user_id || null;
+                    if (changer) {
+                        const who = usersMap[String(changer)] || String(changer);
+                        const whoEl = document.createElement('div'); whoEl.className = 'small text-muted mt-1'; whoEl.textContent = 'Consultor: ' + who;
+                        item.appendChild(whoEl);
+                    }
+                } catch(e) {}
+
+                timeline.appendChild(item);
             });
         } else {
             timeline.innerHTML = '<div class="small text-muted">Nenhuma movimentação registrada</div>';
@@ -1951,6 +2073,8 @@
         try { renderExistingAttachments(lead); } catch(e){ console.warn('Failed rendering attachments', e); }
         const m = new bootstrap.Modal($('#leadModal'));
         const titleEl = F('leadModalTitle') || $('#leadModalTitle'); if (titleEl) titleEl.textContent = 'Editar Lead';
+        // apply configured primary color (if any)
+        try { loadAppearance().then(a=>{ const color = (a && (a.primary_color || a.primary || a.color_primary)) ? (a.primary_color||a.primary||a.color_primary) : null; if (color) applyLeadModalPrimaryColor(color); }); } catch(e){}
         m.show();
     }
 
@@ -2096,6 +2220,8 @@
                     if (!found && statusSel.options.length > 0) statusSel.selectedIndex = 0;
                 }
             } catch(e) { /* ignore */ }
+            // apply configured primary color (if any) for new lead modal
+            try { loadAppearance().then(a=>{ const color = (a && (a.primary_color || a.primary || a.color_primary)) ? (a.primary_color||a.primary||a.color_primary) : null; if (color) applyLeadModalPrimaryColor(color); }); } catch(e){}
             m.show(); 
         });
         }
