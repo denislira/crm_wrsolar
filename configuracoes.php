@@ -46,6 +46,9 @@ include 'includes/header.php';
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="appearance-tab" data-bs-toggle="tab" data-bs-target="#appearance" type="button" role="tab" aria-controls="appearance" aria-selected="false">Aparência</button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="smtp-tab" data-bs-toggle="tab" data-bs-target="#smtp" type="button" role="tab" aria-controls="smtp" aria-selected="false">SMTP</button>
+                </li>
                 <!-- Adicionar mais abas aqui no futuro -->
             </ul>
             
@@ -287,6 +290,59 @@ include 'includes/header.php';
                         <div class="d-flex justify-content-end gap-2 mt-3">
                             <button id="btn_save_appearance" class="btn btn-primary btn-sm">Salvar Aparência</button>
                             <button id="btn_reset_appearance" class="btn btn-outline-secondary btn-sm">Restaurar Padrão</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Aba SMTP -->
+                <div class="tab-pane fade" id="smtp" role="tabpanel" aria-labelledby="smtp-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h5 mb-0">SMTP</h2>
+                    </div>
+                    <div class="card card-shadow p-3">
+                        <form id="smtpForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Host</label>
+                                    <input type="text" id="smtp_host" name="host" class="form-control" />
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label">Porta</label>
+                                    <input type="number" id="smtp_port" name="port" class="form-control" />
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label">Segurança</label>
+                                    <select id="smtp_secure" name="secure" class="form-select">
+                                        <option value="">Nenhuma</option>
+                                        <option value="ssl">SSL</option>
+                                        <option value="tls">TLS</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Usuário</label>
+                                    <input type="text" id="smtp_user" name="user" class="form-control" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Senha</label>
+                                    <input type="password" id="smtp_pass" name="pass" class="form-control" autocomplete="new-password" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">From Email</label>
+                                    <input type="email" id="smtp_from_email" name="from_email" class="form-control" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">From Name</label>
+                                    <input type="text" id="smtp_from_name" name="from_name" class="form-control" />
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="smtp_auth" name="auth" value="1" />
+                                        <label class="form-check-label" for="smtp_auth">Requer autenticação</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button id="btn_save_smtp" class="btn btn-primary btn-sm">Salvar SMTP</button>
                         </div>
                     </div>
                 </div>
@@ -889,5 +945,41 @@ document.addEventListener('DOMContentLoaded', function(){
         });
 
         loadAppearance();
+    });
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        async function loadSmtp(){
+            try{
+                const res = await fetch('api/get_smtp.php');
+                const data = await res.json();
+                const s = data.smtp || {};
+                document.getElementById('smtp_host').value = s.host || '';
+                document.getElementById('smtp_port').value = s.port || '';
+                document.getElementById('smtp_secure').value = s.secure || '';
+                document.getElementById('smtp_user').value = s.user || '';
+                // do not pre-fill password for safety unless explicitly provided
+                document.getElementById('smtp_pass').value = s.pass || '';
+                document.getElementById('smtp_from_email').value = s.from_email || '';
+                document.getElementById('smtp_from_name').value = s.from_name || '';
+                document.getElementById('smtp_auth').checked = !!s.auth;
+            }catch(e){ console.error('Erro ao carregar SMTP', e); }
+        }
+
+        document.getElementById('btn_save_smtp').addEventListener('click', async function(){
+            const btn = this; btn.disabled = true;
+            try{
+                const fd = new FormData(document.getElementById('smtpForm'));
+                // ensure auth checkbox included
+                if (!fd.has('auth')) fd.append('auth', document.getElementById('smtp_auth').checked ? '1' : '0');
+                const res = await fetch('api/save_smtp.php', { method: 'POST', body: fd });
+                const data = await res.json();
+                alert(data.message || (data.success ? 'Salvo' : 'Erro'));
+            }catch(e){ alert('Erro ao salvar SMTP'); console.error(e); }
+            btn.disabled = false;
+        });
+
+        // initial load when opening tab
+        loadSmtp();
     });
     </script>
