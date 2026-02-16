@@ -564,12 +564,18 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         // so fall back to logging $_POST keys and $_FILES keys to avoid confusing empty logs.
         try {
             $rawInput = @file_get_contents('php://input');
+            $postKeysArr = array_keys($_POST);
+            $filesKeysArr = array_keys($_FILES);
+            // Log only when there is raw input, or when both $_POST and $_FILES are empty
             if (is_string($rawInput) && trim($rawInput) !== '') {
                 _leads_api_log('UPDATE raw_input: ' . substr($rawInput, 0, 4096));
-            } else {
-                $postKeys = @json_encode(array_keys($_POST), JSON_UNESCAPED_UNICODE);
-                $filesKeys = @json_encode(array_keys($_FILES), JSON_UNESCAPED_UNICODE);
+            } elseif (empty($postKeysArr) && empty($filesKeysArr)) {
+                // real empty POST (possible post_max_size/upload_max_filesize issue)
+                $postKeys = @json_encode($postKeysArr, JSON_UNESCAPED_UNICODE);
+                $filesKeys = @json_encode($filesKeysArr, JSON_UNESCAPED_UNICODE);
                 _leads_api_log('UPDATE raw_input: [empty] $_POST keys: ' . $postKeys . ' $_FILES keys: ' . $filesKeys);
+            } else {
+                // typical multipart/form-data case: $_POST populated but php://input empty — do not spam logs
             }
         } catch (Exception $e) {}
 
@@ -951,10 +957,17 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             exit;
         }
 
+        // Audit log: record who requested the deletion and which file
+        try {
+            _leads_api_log('DELETE_ATTACHMENT requested: user=' . ($userId ?? 'unknown') . ' lead=' . ($leadId ?? 'unknown') . ' file=' . ($fileId ?? 'unknown') . ' filename=' . ($row['filename'] ?? '')); 
+        } catch (Exception $e) { /* ignore logging errors */ }
+
         // Delete the attachment
         try {
             $del = $pdo->prepare('DELETE FROM leads_attachments WHERE id = ?');
             $del->execute([$fileId]);
+            // Log success for audit
+            try { _leads_api_log('DELETE_ATTACHMENT success: user=' . ($userId ?? 'unknown') . ' lead=' . ($leadId ?? 'unknown') . ' file=' . ($fileId ?? 'unknown') . ' filename=' . ($row['filename'] ?? '')); } catch (Exception $e) {}
         } catch (Exception $e) {
             _leads_api_log('Failed to delete attachment: ' . $e->getMessage());
             http_response_code(500);

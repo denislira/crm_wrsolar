@@ -124,3 +124,5 @@
 [2026-02-10 03:15:48] UPDATE raw_input: 
 [2026-02-10 03:15:48] UPDATE data_inicio (raw): '2026-02-09'
 [2026-02-10 03:15:48] UPDATE data_inicio (parsed): '2026-02-09'
+[2026-02-16 20:03:38] UPDATE data_inicio (raw): '2026-02-09'
+[2026-02-16 20:03:38] UPDATE data_inicio (parsed): '2026-02-09'

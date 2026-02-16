@@ -163,7 +163,7 @@
         `).join('');
     }
 
-    async function restoreLead(id){
+    async function restoreLead(id) {
         if (!confirm('Restaurar este lead?')) return;
         try {
             const formData = new FormData();
@@ -1993,6 +1993,8 @@
                                     // if details panel open for same lead, re-open to refresh
                                     const openId = document.querySelector('#leadDetailContent')?.querySelector('h4')?.textContent;
                                 }
+                                // clear file input to avoid accidental re-uploads
+                                try { const fileInput = document.getElementById('lead-anexos'); if (fileInput) fileInput.value = ''; } catch(e) {}
                             }
                         } catch (err) { console.error(err); alert('Erro ao excluir anexo'); }
                     });
@@ -2127,7 +2129,7 @@
                         fileInput.value = '';
                     }
                 } catch (err) { console.error(err); alert('Erro ao enviar anexos'); }
-                finally { uploadAnexosBtn.disabled = false; uploadAnexosBtn.innerHTML = origHtml; }
+                finally { uploadAnexosBtn.disabled = false; uploadAnexosBtn.innerHTML = origHtml; try { fileInput.value = ''; } catch(e) {} }
             });
         }
 
@@ -2481,6 +2483,8 @@
                     document.body.style.overflow = '';
                     document.body.style.paddingRight = '';
                 }, 300);
+                // clear file input after closing modal to avoid leftover files
+                try { const fileInput = document.getElementById('lead-anexos'); if (fileInput) fileInput.value = ''; } catch(e) {}
             } catch (err) { 
                 console.error('Fetch error:', err); 
                 alert('Falha ao salvar: ' + (err.message || err)); 
