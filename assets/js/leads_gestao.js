@@ -1868,7 +1868,9 @@
                 let main = '';
                 const hasFromTo = (m.from_status && String(m.from_status).trim() !== '') || (m.to_status && String(m.to_status).trim() !== '');
                 if (hasFromTo) {
-                    main = `${m.from_status || '—'} → ${m.to_status || '—'}`;
+                    const toLabel = m.to_stage_name || m.to_status || '—';
+                    const fromLabel = m.from_status || '—';
+                    main = `${fromLabel} → ${toLabel}`;
                 }
                 // include note if present
                 if (m.note) {

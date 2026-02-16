@@ -1,0 +1,16 @@
+[2026-02-16 21:54:32] UPDATE data_inicio (raw): '2026-02-16'
+[2026-02-16 21:54:32] UPDATE data_inicio (parsed): '2026-02-16'
+[2026-02-16 21:54:57] ADD data_inicio (raw): '2026-02-16'
+[2026-02-16 21:54:57] ADD data_inicio (parsed): '2026-02-16'
+[2026-02-16 21:54:57] ADD payload: {"name":"teste 3","email":"","cidade":"","phone":"","cpf_cnpj":"","source":"","status":"EM ATENDIMENTO","stage_id":"17","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-02-16 00:00:00","forma_pagamento":"","created_at":"2026-02-16 00:00:00","data_inicio":"2026-02-16"}
+[2026-02-16 21:54:57] ADD data_inicio (raw): '2026-02-16'
+[2026-02-16 21:54:57] ADD data_inicio (parsed): '2026-02-16'
+[2026-02-16 21:54:57] ADD forma_pagamento (raw): ''
+[2026-02-16 21:54:57] ADD _FILES keys: []
+[2026-02-16 22:19:42] ADD data_inicio (raw): '2026-02-16'
+[2026-02-16 22:19:42] ADD data_inicio (parsed): '2026-02-16'
+[2026-02-16 22:19:42] ADD payload: {"name":"teste4","email":"","cidade":"","phone":"","cpf_cnpj":"","source":"","status":"EM ATENDIMENTO","stage_id":"17","notes":"","consumo_cliente":"","estimativa_projeto_kwh":"","orcamento_value":"","ultimo_contato":"2026-02-16 00:00:00","forma_pagamento":"","created_at":"2026-02-16 00:00:00","data_inicio":"2026-02-16"}
+[2026-02-16 22:19:42] ADD data_inicio (raw): '2026-02-16'
+[2026-02-16 22:19:42] ADD data_inicio (parsed): '2026-02-16'
+[2026-02-16 22:19:42] ADD forma_pagamento (raw): ''
+[2026-02-16 22:19:42] ADD _FILES keys: []

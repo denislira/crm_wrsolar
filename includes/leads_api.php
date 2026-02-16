@@ -467,7 +467,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $formaPagamento = trim($data['forma_pagamento']);
         }
 
-        $stmt = $pdo->prepare('INSERT INTO leads (user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, forma_pagamento, data_inicio, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+        $stmt = $pdo->prepare('INSERT INTO leads (user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, initial_stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, forma_pagamento, data_inicio, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
         $params = [
             $userId,
             $data['name'] ?? '',
@@ -477,6 +477,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $data['cpf_cnpj'] ?? '',
             $data['source'] ?? '',
             $resolvedStatus,
+            $resolvedStageId,
             $resolvedStageId,
             $data['notes'] ?? '',
             !empty($data['consumo_cliente']) ? $data['consumo_cliente'] : null,
@@ -544,16 +545,49 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
                 }
             }
         }
-        // Record an initial movement for lead creation (include destination stage/status)
+        // Create an initial immutable movement entry using the lead's own created_at and user_id.
+        // This avoids inserting a generic "Lead criado" movement when the lead already has created_at/user information.
         try {
-            $changedBy = $_SESSION['user_id'] ?? $userId;
-            $note = 'Lead criado';
-            if (!empty($data['notes'])) {
-                $note .= ' | Notas iniciais: ' . mb_substr((string)$data['notes'], 0, 1000);
+            // Fetch created_at and user_id from the inserted lead
+            $g = $pdo->prepare('SELECT created_at, user_id FROM leads WHERE id = ? LIMIT 1');
+            $g->execute([(int)$leadId]);
+            $leadRow = $g->fetch(PDO::FETCH_ASSOC);
+            $movementCreatedAt = ($leadRow && !empty($leadRow['created_at'])) ? $leadRow['created_at'] : date('Y-m-d H:i:s');
+            $movementUserId = ($leadRow && !empty($leadRow['user_id'])) ? (int)$leadRow['user_id'] : $userId;
+
+            // Only insert if there are no existing movements for this lead (prevents duplicates)
+            $chk = $pdo->prepare('SELECT COUNT(*) AS c FROM lead_movements WHERE lead_id = ?');
+            $chk->execute([(int)$leadId]);
+            $cnt = (int)($chk->fetchColumn() ?: 0);
+            if ($cnt === 0) {
+                // Try to find username for nicer note; fallback to user id
+                $uname = null;
+                try {
+                    $u = $pdo->prepare('SELECT username FROM users WHERE id = ? LIMIT 1');
+                    $u->execute([$movementUserId]);
+                    $uu = $u->fetch(PDO::FETCH_ASSOC);
+                    if ($uu && !empty($uu['username'])) $uname = $uu['username'];
+                } catch (Exception $e) { /* ignore */ }
+
+                $note = $uname ? ('Criado por ' . $uname) : ('Criado por user_id ' . $movementUserId);
                 $note = ensure_utf8_local($note);
+
+                // Insert movement using explicit created_at timestamp
+                $ins = $pdo->prepare('INSERT INTO lead_movements (lead_id, user_id, from_stage_id, to_stage_id, from_status, to_status, changed_by, note, is_alert, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                $ins->execute([
+                    (int)$leadId,
+                    $movementUserId,
+                    null,
+                    ($resolvedStageId ?? null),
+                    null,
+                    ($resolvedStatus ?? null),
+                    $movementUserId,
+                    $note,
+                    0,
+                    $movementCreatedAt
+                ]);
             }
-            _log_lead_movement($pdo, (int)$leadId, $userId, null, $resolvedStageId ?? null, null, $resolvedStatus ?? null, $changedBy, $note, 0);
-        } catch (Exception $e) { /* swallow */ }
+        } catch (Exception $e) { /* swallow errors - movement logging is best-effort */ }
 
         echo json_encode(['ok' => true, 'id' => $leadId]);
         exit;
@@ -704,7 +738,8 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $envio,
             $ultimoContato,
             $formaPagamento,
-            $dataInicio
+            $dataInicio,
+            $userId /* user_id_update: user who made this update */
         ];
 
         if (!empty($_FILES['anexos'])) {
@@ -749,7 +784,8 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         $params[] = $data['id'];
 
         // Include stage_id column in the update SQL. Allow updates regardless of original user_id
-        $stmt = $pdo->prepare('UPDATE leads SET name=?, cidade=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, orcamento_value=?, envio_proposta=?, ultimo_contato=?, forma_pagamento=?, data_inicio=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=?');
+        // Set user_id_update to track who last edited the lead
+        $stmt = $pdo->prepare('UPDATE leads SET name=?, cidade=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, orcamento_value=?, envio_proposta=?, ultimo_contato=?, forma_pagamento=?, data_inicio=?, user_id_update=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=?');
         try {
             $stmt->execute($params);
         } catch (Exception $e) {
@@ -1029,9 +1065,92 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
     if ($action === 'movements') {
         $leadId = $_GET['lead_id'] ?? ($_POST['lead_id'] ?? null);
         if (empty($leadId)) { throw new Exception('Missing lead_id'); }
+        // Fetch lead info to build a synthetic initial movement from created_at/user_id/initial_stage_id
+        $leadStmt = $pdo->prepare('SELECT id, user_id, created_at, stage_id, initial_stage_id, status FROM leads WHERE id = ? LIMIT 1');
+        $leadStmt->execute([(int)$leadId]);
+        $leadRow = $leadStmt->fetch(PDO::FETCH_ASSOC);
+
         $m = $pdo->prepare('SELECT id, lead_id, from_stage_id, to_stage_id, from_status, to_status, changed_by, note, is_alert, created_at FROM lead_movements WHERE lead_id = ? ORDER BY created_at ASC');
         $m->execute([$leadId]);
         $rows = $m->fetchAll(PDO::FETCH_ASSOC);
+
+        // If lead exists and has a created_at, consider prepending a synthetic "created" movement
+        if ($leadRow && !empty($leadRow['created_at'])) {
+            $leadCreatedAt = $leadRow['created_at'];
+            $leadUserId = isset($leadRow['user_id']) ? (int)$leadRow['user_id'] : null;
+            // Prefer initial_stage_id when available to preserve the stage where the lead started
+            // Only use initial_stage_id for the synthetic created movement.
+            // If initial_stage_id is empty, we will not set a stage name (to avoid showing current stage).
+            $initialStageId = null;
+            if (isset($leadRow['initial_stage_id']) && $leadRow['initial_stage_id'] !== null && $leadRow['initial_stage_id'] !== '') {
+                $initialStageId = (int)$leadRow['initial_stage_id'];
+            }
+            $leadStatus = $leadRow['status'] ?? null;
+
+            $prepend = false;
+            if (empty($rows)) {
+                $prepend = true;
+            } else {
+                // compare earliest movement timestamp
+                $first = $rows[0];
+                if (!empty($first['created_at'])) {
+                    // If earliest movement is after lead.created_at, prepend
+                    if (strtotime($first['created_at']) > strtotime($leadCreatedAt)) {
+                        $prepend = true;
+                    } else {
+                        // If earliest movement equals created_at but by a different user, still do not duplicate
+                        // No action needed
+                    }
+                } else {
+                    $prepend = true;
+                }
+            }
+
+                if ($prepend) {
+                // try to resolve username for note
+                $uname = null;
+                if ($leadUserId) {
+                    try {
+                        $u = $pdo->prepare('SELECT username FROM users WHERE id = ? LIMIT 1');
+                        $u->execute([$leadUserId]);
+                        $uu = $u->fetch(PDO::FETCH_ASSOC);
+                        if ($uu && !empty($uu['username'])) $uname = $uu['username'];
+                    } catch (Exception $e) { /* ignore */ }
+                }
+
+                $note = $uname ? ('Criado por ' . $uname) : ('Criado por user_id ' . ($leadUserId ?? 'N/A'));
+
+                // Resolve stage name only when initial_stage_id is present
+                $stageName = null;
+                if ($initialStageId) {
+                    try {
+                        $s = $pdo->prepare('SELECT stage_name FROM funil_stages WHERE id = ? LIMIT 1');
+                        $s->execute([$initialStageId]);
+                        $sr = $s->fetch(PDO::FETCH_ASSOC);
+                        if ($sr && !empty($sr['stage_name'])) $stageName = $sr['stage_name'];
+                    } catch (Exception $e) { /* ignore */ }
+                }
+
+                $synthetic = [
+                    'id' => null,
+                    'lead_id' => (int)$leadId,
+                    'from_stage_id' => null,
+                    'to_stage_id' => $initialStageId !== null ? (int)$initialStageId : null,
+                    'from_status' => null,
+                    // Only include to_status when initial_stage_id is present – otherwise keep it null
+                    'to_status' => ($initialStageId !== null ? $leadStatus : null),
+                    'changed_by' => $leadUserId,
+                    'note' => $note,
+                    // include to_stage_name only when we resolved it from initial_stage_id
+                    'to_stage_name' => $stageName,
+                    'is_alert' => 0,
+                    'created_at' => $leadCreatedAt
+                ];
+
+                array_unshift($rows, $synthetic);
+            }
+        }
+
         echo json_encode($rows);
         exit;
     }

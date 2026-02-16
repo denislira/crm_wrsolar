@@ -312,6 +312,8 @@ include 'includes/header.php';
                                         <option value="sendgrid">SendGrid (smtp.sendgrid.net, TLS 587)</option>
                                     </select>
                                     <small class="text-muted">Escolha um modelo para preencher automaticamente os campos.</small>
+
+                                
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Host</label>
@@ -355,6 +357,93 @@ include 'includes/header.php';
                         </form>
                         <div class="d-flex justify-content-end gap-2 mt-3">
                             <button id="btn_save_smtp" class="btn btn-primary btn-sm">Salvar SMTP</button>
+                        </div>
+
+                        <div class="mt-3">
+                            <div class="accordion" id="smtp_help">
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="heading_gmail_tls">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#help_gmail_tls" aria-expanded="false" aria-controls="help_gmail_tls">
+                                            Gmail (TLS 587) — Como configurar
+                                        </button>
+                                    </h2>
+                                    <div id="help_gmail_tls" class="accordion-collapse collapse" aria-labelledby="heading_gmail_tls" data-bs-parent="#smtp_help">
+                                        <div class="accordion-body small">
+                                            Host: <strong>smtp.gmail.com</strong><br>
+                                            Porta: <strong>587</strong> (TLS)<br>
+                                            Segurança: <strong>TLS</strong><br>
+                                            Usuário: seu email completo (ex: usuario@gmail.com).<br>
+                                            Senha: use sua senha ou, se tiver 2FA ativado, gere uma <strong>App Password</strong> no Google Account → Segurança → Senhas de App.<br>
+                                            Observação: o método "Permitir apps menos seguros" foi descontinuado; prefira App Password ou OAuth2.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="heading_gmail_ssl">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#help_gmail_ssl" aria-expanded="false" aria-controls="help_gmail_ssl">
+                                            Gmail (SSL 465) — Como configurar
+                                        </button>
+                                    </h2>
+                                    <div id="help_gmail_ssl" class="accordion-collapse collapse" aria-labelledby="heading_gmail_ssl" data-bs-parent="#smtp_help">
+                                        <div class="accordion-body small">
+                                            Host: <strong>smtp.gmail.com</strong><br>
+                                            Porta: <strong>465</strong> (SSL)<br>
+                                            Segurança: <strong>SSL</strong><br>
+                                            Senha: utilize App Passwords se sua conta tiver 2FA.<br>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="heading_outlook">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#help_outlook" aria-expanded="false" aria-controls="help_outlook">
+                                            Outlook / Office365 — Como configurar
+                                        </button>
+                                    </h2>
+                                    <div id="help_outlook" class="accordion-collapse collapse" aria-labelledby="heading_outlook" data-bs-parent="#smtp_help">
+                                        <div class="accordion-body small">
+                                            Host: <strong>smtp.office365.com</strong><br>
+                                            Porta: <strong>587</strong> (TLS)<br>
+                                            Segurança: <strong>TLS</strong><br>
+                                            Observação: em contas corporativas pode ser necessário habilitar o envio SMTP (Authenticated SMTP) para a mailbox no painel do administrador.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="heading_yahoo">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#help_yahoo" aria-expanded="false" aria-controls="help_yahoo">
+                                            Yahoo — Como configurar
+                                        </button>
+                                    </h2>
+                                    <div id="help_yahoo" class="accordion-collapse collapse" aria-labelledby="heading_yahoo" data-bs-parent="#smtp_help">
+                                        <div class="accordion-body small">
+                                            Host: <strong>smtp.mail.yahoo.com</strong><br>
+                                            Porta: <strong>465</strong> (SSL) ou 587 (TLS)<br>
+                                            Segurança: <strong>SSL/TLS</strong><br>
+                                            Senha: se usar 2FA gere um <strong>App Password</strong> nas configurações da conta.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="heading_sendgrid">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#help_sendgrid" aria-expanded="false" aria-controls="help_sendgrid">
+                                            SendGrid — Como configurar
+                                        </button>
+                                    </h2>
+                                    <div id="help_sendgrid" class="accordion-collapse collapse" aria-labelledby="heading_sendgrid" data-bs-parent="#smtp_help">
+                                        <div class="accordion-body small">
+                                            Host: <strong>smtp.sendgrid.net</strong><br>
+                                            Porta: <strong>587</strong> (TLS)<br>
+                                            Usuário: <strong>apikey</strong> (quando usar API Key como senha)<br>
+                                            Senha: sua API Key gerada no painel SendGrid.<br>
+                                            Observação: SendGrid recomenda usar a API para entregabilidade, mas o SMTP funciona com as credenciais acima.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1021,11 +1110,35 @@ document.addEventListener('DOMContentLoaded', function(){
                 const v = this.value;
                 if (!v) return; // personalizado
                 const p = smtpPresets[v];
-                if (!p) return;
-                document.getElementById('smtp_host').value = p.host;
-                document.getElementById('smtp_port').value = p.port;
-                document.getElementById('smtp_secure').value = p.secure;
-                document.getElementById('smtp_auth').checked = !!p.auth;
+                if (p) {
+                    document.getElementById('smtp_host').value = p.host;
+                    document.getElementById('smtp_port').value = p.port;
+                    document.getElementById('smtp_secure').value = p.secure;
+                    document.getElementById('smtp_auth').checked = !!p.auth;
+                }
+                // abrir o painel de ajuda correspondente (accordion)
+                try {
+                    const collapseMap = {
+                        'gmail_tls':'help_gmail_tls',
+                        'gmail_ssl':'help_gmail_ssl',
+                        'outlook':'help_outlook',
+                        'yahoo':'help_yahoo',
+                        'sendgrid':'help_sendgrid'
+                    };
+                    const targetId = collapseMap[v];
+                    document.querySelectorAll('#smtp_help .accordion-collapse').forEach(function(el){
+                        const inst = bootstrap.Collapse.getInstance(el) || new bootstrap.Collapse(el, {toggle:false});
+                        inst.hide();
+                    });
+                    if (targetId) {
+                        const el = document.getElementById(targetId);
+                        if (el) {
+                            const inst2 = bootstrap.Collapse.getInstance(el) || new bootstrap.Collapse(el, {toggle:false});
+                            inst2.show();
+                            el.scrollIntoView({behavior:'smooth', block:'nearest'});
+                        }
+                    }
+                } catch(e) { console.error(e); }
             });
         }
 
