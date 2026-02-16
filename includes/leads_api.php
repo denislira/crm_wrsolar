@@ -544,6 +544,16 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
                 }
             }
         }
+        // Record an initial movement for lead creation (include destination stage/status)
+        try {
+            $changedBy = $_SESSION['user_id'] ?? $userId;
+            $note = 'Lead criado';
+            if (!empty($data['notes'])) {
+                $note .= ' | Notas iniciais: ' . mb_substr((string)$data['notes'], 0, 1000);
+                $note = ensure_utf8_local($note);
+            }
+            _log_lead_movement($pdo, (int)$leadId, $userId, null, $resolvedStageId ?? null, null, $resolvedStatus ?? null, $changedBy, $note, 0);
+        } catch (Exception $e) { /* swallow */ }
 
         echo json_encode(['ok' => true, 'id' => $leadId]);
         exit;
