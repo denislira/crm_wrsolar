@@ -301,6 +301,18 @@ include 'includes/header.php';
                     <div class="card card-shadow p-3">
                         <form id="smtpForm">
                             <div class="row">
+                                <div class="col-12 mb-3">
+                                    <label class="form-label">Modelo SMTP</label>
+                                    <select id="smtp_preset" class="form-select">
+                                        <option value="">Personalizado</option>
+                                        <option value="gmail_tls">Gmail (smtp.gmail.com, TLS 587)</option>
+                                        <option value="gmail_ssl">Gmail (smtp.gmail.com, SSL 465)</option>
+                                        <option value="outlook">Outlook / Office365 (smtp.office365.com, TLS 587)</option>
+                                        <option value="yahoo">Yahoo (smtp.mail.yahoo.com, SSL 465)</option>
+                                        <option value="sendgrid">SendGrid (smtp.sendgrid.net, TLS 587)</option>
+                                    </select>
+                                    <small class="text-muted">Escolha um modelo para preencher automaticamente os campos.</small>
+                                </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Host</label>
                                     <input type="text" id="smtp_host" name="host" class="form-control" />
@@ -963,6 +975,21 @@ document.addEventListener('DOMContentLoaded', function(){
                 document.getElementById('smtp_from_email').value = s.from_email || '';
                 document.getElementById('smtp_from_name').value = s.from_name || '';
                 document.getElementById('smtp_auth').checked = !!s.auth;
+                // try to detect a known preset based on loaded values
+                try {
+                    const presetSelect = document.getElementById('smtp_preset');
+                    if (presetSelect) {
+                        const host = (s.host||'').toLowerCase();
+                        const port = String(s.port||'');
+                        const secure = (s.secure||'').toLowerCase();
+                        if (host.indexOf('smtp.gmail.com') !== -1 && port === '587' && secure === 'tls') presetSelect.value = 'gmail_tls';
+                        else if (host.indexOf('smtp.gmail.com') !== -1 && port === '465' && secure === 'ssl') presetSelect.value = 'gmail_ssl';
+                        else if (host.indexOf('smtp.office365.com') !== -1) presetSelect.value = 'outlook';
+                        else if (host.indexOf('smtp.mail.yahoo.com') !== -1) presetSelect.value = 'yahoo';
+                        else if (host.indexOf('smtp.sendgrid.net') !== -1) presetSelect.value = 'sendgrid';
+                        else presetSelect.value = '';
+                    }
+                } catch(e){}
             }catch(e){ console.error('Erro ao carregar SMTP', e); }
         }
 
@@ -978,6 +1005,29 @@ document.addEventListener('DOMContentLoaded', function(){
             }catch(e){ alert('Erro ao salvar SMTP'); console.error(e); }
             btn.disabled = false;
         });
+
+        // preset definitions and handlers
+        const smtpPresets = {
+            'gmail_tls': { host: 'smtp.gmail.com', port: 587, secure: 'tls', auth: 1 },
+            'gmail_ssl': { host: 'smtp.gmail.com', port: 465, secure: 'ssl', auth: 1 },
+            'outlook': { host: 'smtp.office365.com', port: 587, secure: 'tls', auth: 1 },
+            'yahoo': { host: 'smtp.mail.yahoo.com', port: 465, secure: 'ssl', auth: 1 },
+            'sendgrid': { host: 'smtp.sendgrid.net', port: 587, secure: 'tls', auth: 1 }
+        };
+
+        const presetSelect = document.getElementById('smtp_preset');
+        if (presetSelect) {
+            presetSelect.addEventListener('change', function(){
+                const v = this.value;
+                if (!v) return; // personalizado
+                const p = smtpPresets[v];
+                if (!p) return;
+                document.getElementById('smtp_host').value = p.host;
+                document.getElementById('smtp_port').value = p.port;
+                document.getElementById('smtp_secure').value = p.secure;
+                document.getElementById('smtp_auth').checked = !!p.auth;
+            });
+        }
 
         // initial load when opening tab
         loadSmtp();

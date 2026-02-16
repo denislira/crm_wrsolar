@@ -54,6 +54,39 @@ try {
 
 $pageTitle = 'Integração de Equipes';
 include 'includes/header.php';
+// Preparar resumo por usuário para a aba "Minhas Integrações"
+// coletamos as últimas tarefas de cada usuário e inferimos um 'last_activity' simples
+$userIntegrations = [];
+try {
+    foreach ($users as $u) {
+        $uid = $u['id'];
+        $uname = $u['username'] ?? '';
+        $tasksStmt = $pdo->prepare('SELECT id,titulo,status,data_vencimento,criado_em,responsavel FROM team_tasks WHERE user_id = ? OR responsavel = ? ORDER BY criado_em DESC LIMIT 6');
+        $tasksStmt->execute([$uid, $uname]);
+        $tasks = $tasksStmt->fetchAll(PDO::FETCH_ASSOC);
+        $lastActivity = null;
+        if (!empty($tasks) && !empty($tasks[0]['criado_em'])) {
+            $lastActivity = $tasks[0]['criado_em'];
+        }
+        // inferir online se última atividade há menos de 15 minutos
+        $isOnline = false;
+        if ($lastActivity) {
+            $ts = strtotime($lastActivity);
+            if ($ts !== false && ($ts > time() - 15*60)) $isOnline = true;
+        }
+        $userIntegrations[] = [
+            'id' => $uid,
+            'username' => $uname,
+            'avatar' => $u['avatar'] ?? '',
+            'tasks' => $tasks,
+            'last_activity' => $lastActivity,
+            'online' => $isOnline,
+        ];
+    }
+} catch (Exception $e) {
+    // em caso de erro, deixamos lista vazia e prosseguimos sem travar a página
+    $userIntegrations = [];
+}
 ?>
 
 <style>
@@ -161,6 +194,7 @@ include 'includes/header.php';
                 <div class="btn-group" role="group" aria-label="view-tabs">
                     <button id="tabTarefas" type="button" class="btn btn-primary active">Tarefas de Equipe</button>
                     <button id="tabLembretesBtn" type="button" class="btn btn-outline-primary">Lembretes</button>
+                    <button id="tabMinhasIntegracoes" type="button" class="btn btn-outline-primary">Minhas Integrações</button>
                 </div>
             </div>
 
@@ -544,6 +578,23 @@ include 'includes/header.php';
                 </div>
             </div>
             <!-- Fim Aba Lembretes -->
+
+            <!-- Aba: Minhas Integrações -->
+            <div id="minhasIntegracoesArea" style="display:none;">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="card card-shadow p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0"><i class="fa fa-plug text-primary"></i> Minhas Integrações</h6>
+                                <small class="text-muted">Visão por consultor — status e atividades recentes</small>
+                            </div>
+                            <div class="row" id="integrationsColumns">
+                                <div class="col-12 text-muted">Carregando integrações...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
         </div>
     </main>
@@ -1007,8 +1058,10 @@ async function deleteTaskConfirm(id) {
 // --- Abas: Tarefas / Lembretes ---
 const tabTarefas = document.getElementById('tabTarefas');
 const tabLembretesBtn = document.getElementById('tabLembretesBtn');
+const tabMinhasIntegracoes = document.getElementById('tabMinhasIntegracoes');
 const tarefasArea = document.getElementById('tarefasArea');
 const minhasArea = document.getElementById('minhasArea');
+const minhasIntegracoesArea = document.getElementById('minhasIntegracoesArea');
 const lembretesArea = document.getElementById('lembretesArea');
 
 // Note: tab click listeners are attached after DOMContentLoaded to avoid duplicates
@@ -1020,13 +1073,26 @@ function showTab(name) {
     if (tabLembretesBtn) { tabLembretesBtn.classList.remove('btn-outline-primary', 'btn-primary', 'active'); tabLembretesBtn.classList.add('btn-outline-primary'); }
     if (tarefasArea) tarefasArea.style.display = 'none';
     if (minhasArea) minhasArea.style.display = 'none';
+    if (minhasIntegracoesArea) minhasIntegracoesArea.style.display = 'none';
     if (lembretesArea) lembretesArea.style.display = 'none';
 
     if (name === 'tarefas') {
         if (tabTarefas) { tabTarefas.classList.remove('btn-outline-primary'); tabTarefas.classList.add('btn-primary', 'active'); }
         if (tarefasArea) tarefasArea.style.display = '';
         atualizarTarefas();
+    } else if (name === 'lembretes') {
+        if (tabLembretesBtn) { tabLembretesBtn.classList.remove('btn-outline-primary'); tabLembretesBtn.classList.add('btn-primary', 'active'); }
+        if (lembretesArea) lembretesArea.style.display = '';
+        loadRemindersLayout();
+    } else if (name === 'integracoes') {
+        if (tabMinhasIntegracoes) { tabMinhasIntegracoes.classList.remove('btn-outline-primary'); tabMinhasIntegracoes.classList.add('btn-primary', 'active'); }
+        if (minhasIntegracoesArea) minhasIntegracoesArea.style.display = '';
+        // carregar integrações via AJAX e iniciar polling
+        if (typeof loadIntegrations === 'function') loadIntegrations();
+        if (window.__integrationsPollId) clearInterval(window.__integrationsPollId);
+        window.__integrationsPollId = setInterval(function(){ if (document.getElementById('minhasIntegracoesArea') && document.getElementById('minhasIntegracoesArea').style.display !== 'none') loadIntegrations(); }, 30000);
     } else {
+        // fallback to lembretes
         if (tabLembretesBtn) { tabLembretesBtn.classList.remove('btn-outline-primary'); tabLembretesBtn.classList.add('btn-primary', 'active'); }
         if (lembretesArea) lembretesArea.style.display = '';
         loadRemindersLayout();
@@ -1034,6 +1100,50 @@ function showTab(name) {
 }
 
 // Minhas Tarefas removed
+
+// --- Integrações: carregamento AJAX e renderização ---
+async function loadIntegrations() {
+    const container = document.getElementById('integrationsColumns');
+    if (!container) return;
+    container.innerHTML = '<div class="col-12 text-muted text-center py-3">Carregando integrações...</div>';
+    try {
+        const res = await fetch('api/get_integrations.php');
+        if (!res.ok) throw new Error('Falha ao carregar integrações');
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.integrations)) {
+            container.innerHTML = '<div class="col-12 text-muted">Nenhuma integração disponível.</div>';
+            return;
+        }
+        renderIntegrations(data.integrations);
+    } catch (e) {
+        console.error('loadIntegrations error', e);
+        container.innerHTML = '<div class="col-12 text-danger">Erro ao carregar integrações</div>';
+    }
+}
+
+function renderIntegrations(list) {
+    const container = document.getElementById('integrationsColumns');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!list.length) {
+        container.innerHTML = '<div class="col-12 text-muted">Nenhum consultor encontrado para integrar.</div>';
+        return;
+    }
+    list.forEach(ui => {
+        const col = document.createElement('div'); col.className = 'col-md-3 col-sm-6 mb-3';
+        const avatarHtml = ui.avatar ? ('<img src="'+escapeHtmlGlobal(ui.avatar)+'" style="width:44px;height:44px;object-fit:cover;">') : ('<div style="width:44px;height:44px;background:#cbd5e1;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">'+escapeHtmlGlobal((ui.username||'U').charAt(0).toUpperCase())+'</div>');
+        const tasksHtml = (ui.tasks && ui.tasks.length) ? ui.tasks.map(t => '<div class="mb-2 p-2 rounded" style="background:#f8fafc;border:1px solid #eef2f7;"><div class="fw-semibold" style="font-size:0.9rem;">'+escapeHtmlGlobal(t.titulo||'(sem título)')+'</div><div class="small text-muted">'+escapeHtmlGlobal(t.status||'')+(t.data_vencimento? ' • '+escapeHtmlGlobal(t.data_vencimento):'')+'</div></div>').join('') : '<div class="text-muted small">Nenhuma atividade encontrada.</div>';
+        col.innerHTML = '<div class="p-3 bg-white rounded-3" style="border:1px solid #eef2f7;">'+
+            '<div class="d-flex align-items-center gap-2 mb-2">'+
+                '<div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex:0 0 44px;">'+avatarHtml+'</div>'+
+                '<div class="flex-grow-1"><div class="fw-semibold">'+escapeHtmlGlobal(ui.username)+'</div><div class="small text-muted">'+(ui.last_activity? 'Última atividade: '+escapeHtmlGlobal(ui.last_activity) : 'Sem atividade recente')+'</div></div>'+
+                '<div>'+(ui.online? '<span class="badge rounded-pill" style="background:#10b981;color:#fff;">Online</span>':'<span class="badge rounded-pill" style="background:#e2e8f0;color:#64748b;">Offline</span>')+'</div>'+
+            '</div>'+
+            '<div class="mt-2"><div class="small text-muted mb-2">Atividades recentes</div>'+tasksHtml+'</div>'+
+        '</div>';
+        container.appendChild(col);
+    });
+}
 
 async function fetchReminderTemplates() {
     try {
@@ -1400,6 +1510,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabLembretesBtn = document.getElementById('tabLembretesBtn');
     if (tabTarefas) tabTarefas.addEventListener('click', () => { showTab('tarefas'); });
     if (tabLembretesBtn) tabLembretesBtn.addEventListener('click', () => { showTab('lembretes'); });
+    if (tabMinhasIntegracoes) tabMinhasIntegracoes.addEventListener('click', () => { showTab('integracoes'); });
 });
 
 // --- Reminders: edit/delete helpers and modal handling ---
