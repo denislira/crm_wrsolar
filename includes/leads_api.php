@@ -168,13 +168,9 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
     if ($action === 'list_trash') {
         try {
-            if ($isAdmin) {
-                $stmt = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, forma_pagamento, anexos_filename, anexos_mimetype, created_at, data_inicio, updated_at, deleted, deleted_at FROM leads WHERE deleted = 1 ORDER BY deleted_at DESC');
-                $stmt->execute();
-            } else {
-                $stmt = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, forma_pagamento, anexos_filename, anexos_mimetype, created_at, data_inicio, updated_at, deleted, deleted_at FROM leads WHERE deleted = 1 AND user_id = ? ORDER BY deleted_at DESC');
-                $stmt->execute([$userId]);
-            }
+            // Allow all users to view trashed leads (no user_id restriction)
+            $stmt = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, forma_pagamento, anexos_filename, anexos_mimetype, created_at, data_inicio, updated_at, deleted, deleted_at FROM leads WHERE deleted = 1 ORDER BY deleted_at DESC');
+            $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
             // fallback if error
@@ -217,15 +213,17 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
     if ($action === 'get') {
         if (empty($_GET['id'])) { throw new Exception('Missing id'); }
         try {
-                    $sql = 'SELECT l.id, l.user_id, l.name, l.cidade, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.orcamento_value, l.envio_proposta, l.ultimo_contato, l.forma_pagamento, l.anexos_filename, l.anexos_mimetype, l.created_at, l.data_inicio, l.updated_at, l.deleted, l.deleted_at '
-                      . 'FROM leads l '
-                      . 'WHERE l.id = ? AND l.user_id = ? AND l.deleted = 0 LIMIT 1';
-                $stmt = $pdo->prepare($sql);
-                $stmt->execute([$_GET['id'], $userId]);
+            // Allow all users to fetch any lead (read-only access)
+            $sql = 'SELECT l.id, l.user_id, l.name, l.cidade, l.email, l.phone, l.cpf_cnpj, l.source, l.status, l.stage_id, l.notes, l.consumo_cliente, l.estimativa_projeto_kwh, l.orcamento_value, l.envio_proposta, l.ultimo_contato, l.forma_pagamento, l.anexos_filename, l.anexos_mimetype, l.created_at, l.data_inicio, l.updated_at, l.deleted, l.deleted_at '
+                . 'FROM leads l '
+                . 'WHERE l.id = ? AND l.deleted = 0 LIMIT 1';
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$_GET['id']]);
             $lead = $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
-            $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, anexos_filename, anexos_mimetype, created_at, data_inicio, updated_at, deleted, deleted_at FROM leads WHERE id = ? AND user_id = ? AND deleted = 0');
-            $stmt->execute([$_GET['id'], $userId]);
+            // Fallback select
+            $stmt = $pdo->prepare('SELECT id, user_id, name, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, anexos_filename, anexos_mimetype, created_at, data_inicio, updated_at, deleted, deleted_at FROM leads WHERE id = ? AND deleted = 0');
+            $stmt->execute([$_GET['id']]);
             $lead = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($lead && !isset($lead['orcamento_value'])) $lead['orcamento_value'] = 0;
         }
@@ -562,8 +560,18 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         if (!empty($data['forma_pagamento'])) {
             $formaPagamento = trim($data['forma_pagamento']);
         }
-        // Log raw request body for debugging
-        try { _leads_api_log('UPDATE raw_input: ' . substr(file_get_contents('php://input'), 0, 4096)); } catch (Exception $e) {}
+        // Log raw request body for debugging. For multipart/form-data php://input may be empty,
+        // so fall back to logging $_POST keys and $_FILES keys to avoid confusing empty logs.
+        try {
+            $rawInput = @file_get_contents('php://input');
+            if (is_string($rawInput) && trim($rawInput) !== '') {
+                _leads_api_log('UPDATE raw_input: ' . substr($rawInput, 0, 4096));
+            } else {
+                $postKeys = @json_encode(array_keys($_POST), JSON_UNESCAPED_UNICODE);
+                $filesKeys = @json_encode(array_keys($_FILES), JSON_UNESCAPED_UNICODE);
+                _leads_api_log('UPDATE raw_input: [empty] $_POST keys: ' . $postKeys . ' $_FILES keys: ' . $filesKeys);
+            }
+        } catch (Exception $e) {}
 
         // Fetch previous state to detect changes
         $pre = $pdo->prepare('SELECT id, status, stage_id FROM leads WHERE id = ? LIMIT 1');
