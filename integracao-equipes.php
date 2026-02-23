@@ -752,6 +752,10 @@ async function atualizarTarefas() {
             const responsavelId = t.responsavel_id || t.user_id;
             const responsavelInfo = (responsavelId && usersMap && usersMap[responsavelId]) ? usersMap[responsavelId] : null;
             const responsavelNome = responsavelInfo && responsavelInfo.username ? responsavelInfo.username : t.responsavel;
+            // Criador da tarefa (user_id) — usar usersMap quando disponível
+            const criadorId = t.user_id || null;
+            const criadorInfo = (criadorId && usersMap && usersMap[criadorId]) ? usersMap[criadorId] : null;
+            const criadorNome = criadorInfo && criadorInfo.username ? criadorInfo.username : (t.username || t.user || '');
             content.innerHTML = `<div class="d-flex align-items-center gap-2 mb-2">
                 <h6 class="mb-0 fw-semibold" style="color: #1e293b; font-size: 0.95rem;">${escapeHtml(t.titulo)}</h6>
                 <span class="badge rounded-pill" style="background:${equipeColor(t.equipe)};color:#fff;padding:0.35em 0.75em;font-size:0.7rem;font-weight:500;">${escapeHtml(t.equipe)}</span>
@@ -759,7 +763,7 @@ async function atualizarTarefas() {
             </div>
             <div class="d-flex align-items-center gap-3 mb-2" style="font-size: 0.8rem;">
                 ${responsavelNome ? '<div class="text-muted"><i class="fa fa-user me-1" style="opacity:0.6;"></i><span>' + escapeHtml(responsavelNome) + '</span></div>' : ''}
-                ${t.data_vencimento ? '<div class="text-muted"><i class="fa fa-calendar me-1" style="opacity:0.6;"></i><span>' + t.data_vencimento + '</span></div>' : ''}
+                ${t.data_vencimento ? '<div class="text-muted"><i class="fa fa-calendar me-1" style="opacity:0.6;"></i><span>' + t.data_vencimento + (criadorNome && criadorNome !== responsavelNome ? ' • Criado por: <b>' + escapeHtml(criadorNome) + '</b>' : '') + '</span></div>' : ''}
             </div>
             ${t.descricao ? '<div class="text-secondary" style="font-size: 0.85rem; line-height: 1.5; color: #64748b !important;">' + escapeHtml(t.descricao) + '</div>' : ''}`;
             card.appendChild(content);
