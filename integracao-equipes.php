@@ -128,6 +128,9 @@ try {
 }
 
 .task-avatar { overflow: hidden; }
+/* Card action buttons: manter semi-transparente por padrão e ficar totalmente opaco ao hover */
+#tasksList .btn-link { opacity: 0.5 !important; transition: opacity .12s ease; }
+#tasksList .btn-link:hover { opacity: 1 !important; }
 </style>
 
 <div class="d-flex">
@@ -697,11 +700,15 @@ async function atualizarTarefas() {
             card.addEventListener('mouseenter', () => {
                 card.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
                 card.style.transform = 'translateY(-2px)';
+                try { card.style.borderColor = 'var(--blue-700)'; } catch(e){}
             });
             card.addEventListener('mouseleave', () => {
                 card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
                 card.style.transform = 'translateY(0)';
+                try { card.style.border = '1px solid #e8ecf1'; } catch(e){}
             });
+            // clicar no card abre o modal de edição
+            card.addEventListener('click', () => { openEditModal(t); });
             // Avatar composto: criador sobre responsável (metade sobreposta)
             const avatarWrap = document.createElement('div');
             avatarWrap.className = 'me-2';
@@ -775,17 +782,47 @@ async function atualizarTarefas() {
             </div>
             ${t.descricao ? '<div class="text-secondary" style="font-size: 0.85rem; line-height: 1.5; color: #64748b !important;">' + escapeHtml(t.descricao) + '</div>' : ''}`;
             card.appendChild(content);
-            // Ações
+            // Ações (concluir se for responsável, editar, excluir)
             const actions = document.createElement('div');
             actions.className = 'd-flex gap-2 position-absolute';
             actions.style.cssText = 'top: 12px; right: 12px;';
-            actions.innerHTML = `<button class="btn btn-link btn-sm text-primary p-1" title="Editar" style="opacity: 0.5; transition: all 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'"><i class="fa fa-edit" style="font-size: 0.9rem;"></i></button>
-                <button class="btn btn-link btn-sm text-danger p-1" title="Excluir" style="opacity: 0.5; transition: all 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'"><i class="fa fa-trash" style="font-size: 0.9rem;"></i></button>`;
-            // Adicionar eventos de editar/excluir
-            const editBtn = actions.querySelector('.text-primary');
-            const deleteBtn = actions.querySelector('.text-danger');
+
+            // verificar se usuário logado é responsável
+            const canComplete = (t.responsavel_id && String(t.responsavel_id) === String(userId)) || (!t.responsavel_id && username && t.responsavel && t.responsavel === username);
+            if (canComplete) {
+                const completeBtn = document.createElement('button');
+                completeBtn.className = 'btn btn-link btn-sm text-success p-1';
+                completeBtn.title = 'Concluir';
+                completeBtn.style.opacity = '0.5';
+                completeBtn.innerHTML = '<i class="fa fa-check" style="font-size: 0.9rem;"></i>';
+                completeBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    completeBtn.disabled = true;
+                    try {
+                        const resp = await updateTask(t.id, { status: 'Concluída' });
+                        if (resp && resp.success) atualizarTarefas(); else alert('Erro ao concluir tarefa');
+                    } catch (err) { console.error(err); alert('Erro ao concluir tarefa'); }
+                    completeBtn.disabled = false;
+                });
+                actions.appendChild(completeBtn);
+            }
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-link btn-sm text-primary p-1';
+            editBtn.title = 'Editar';
+            editBtn.style.opacity = '0.5';
+            editBtn.innerHTML = '<i class="fa fa-edit" style="font-size: 0.9rem;"></i>';
             editBtn.addEventListener('click', (e) => { e.stopPropagation(); openEditModal(t); });
+            actions.appendChild(editBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-link btn-sm text-danger p-1';
+            deleteBtn.title = 'Excluir';
+            deleteBtn.style.opacity = '0.5';
+            deleteBtn.innerHTML = '<i class="fa fa-trash" style="font-size: 0.9rem;"></i>';
             deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteTaskConfirm(t.id); });
+            actions.appendChild(deleteBtn);
+
             card.appendChild(actions);
             list.appendChild(card);
         });
