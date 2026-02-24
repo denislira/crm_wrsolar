@@ -120,6 +120,14 @@ try {
     background-color: #cbd5e1;
     opacity: 0.3;
 }
+/* Avatares/fotos: borda primária personalizada (usa --blue-700 do includes/header.php) */
+.avatar-border, .task-avatar, .rounded-circle, .rounded-circle img, #modal-header-avatar img, #edit-avatar img, .task-avatar img {
+    box-sizing: border-box;
+    border: 2px solid var(--blue-700) !important;
+    border-radius: 50% !important;
+}
+
+.task-avatar { overflow: hidden; }
 </style>
 
 <div class="d-flex">
@@ -1025,18 +1033,26 @@ function openEditModal(task) {
         const avatarEl = document.getElementById('edit-avatar');
         const headerAvatar = document.getElementById('modal-header-avatar');
         const idEl = document.getElementById('edit-responsavel-id');
-        const uinfo = (task.user_id && usersMap && usersMap[task.user_id]) ? usersMap[task.user_id] : null;
-        const displayName = (uinfo && uinfo.username) ? uinfo.username : (task.responsavel || '');
-        if (nameEl) nameEl.textContent = displayName;
-        if (idEl) idEl.textContent = task.user_id || (task.responsavel || '').toString().slice(0,6);
-        if (uinfo && uinfo.avatar) {
-            // show image
-            if (avatarEl) avatarEl.innerHTML = `<img src="${uinfo.avatar}?v=${Date.now()}" class="rounded-circle" style="width:56px;height:56px;object-fit:cover;">`;
-            if (headerAvatar) headerAvatar.innerHTML = `<img src="${uinfo.avatar}?v=${Date.now()}" class="rounded-circle" style="width:56px;height:56px;object-fit:cover;">`;
+        // Header: mostrar foto do RESPONSÁVEL (responsavel_id) ao lado do título
+        const respIdForHeader = task.responsavel_id || null;
+        const respInfo = (respIdForHeader && usersMap && usersMap[respIdForHeader]) ? usersMap[respIdForHeader] : null;
+        if (respInfo && respInfo.avatar) {
+            if (headerAvatar) headerAvatar.innerHTML = `<img src="${respInfo.avatar}?v=${Date.now()}" class="rounded-circle" style="width:56px;height:56px;object-fit:cover;">`;
+        } else if (headerAvatar) {
+            const initialsH = (respInfo && respInfo.username ? respInfo.username : (task.responsavel || '')).split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase() || '?';
+            headerAvatar.textContent = initialsH; headerAvatar.style.background = '#0d6efd'; headerAvatar.style.color = '#fff';
+        }
+        // Body: mostrar a foto e nome do CRIADOR (user_id) e prefixo "Criador por "
+        const creatorId = task.user_id || null;
+        const creatorInfo = (creatorId && usersMap && usersMap[creatorId]) ? usersMap[creatorId] : null;
+        const creatorName = (creatorInfo && creatorInfo.username) ? creatorInfo.username : (task.username || '');
+        if (nameEl) nameEl.textContent = 'Criador por ' + (creatorName || '');
+        if (idEl) idEl.textContent = creatorId || '-';
+        if (creatorInfo && creatorInfo.avatar) {
+            if (avatarEl) avatarEl.innerHTML = `<img src="${creatorInfo.avatar}?v=${Date.now()}" class="rounded-circle" style="width:56px;height:56px;object-fit:cover;">`;
         } else {
-            const initials = (displayName || '').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase() || '?';
-            if (avatarEl) { avatarEl.textContent = initials; avatarEl.style.background = '#0d6efd'; avatarEl.style.color = '#fff'; }
-            if (headerAvatar) { headerAvatar.textContent = initials; headerAvatar.style.background = '#0d6efd'; headerAvatar.style.color = '#fff'; }
+            const initialsC = (creatorName || '').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase() || '?';
+            if (avatarEl) { avatarEl.textContent = initialsC; avatarEl.style.background = '#6c757d'; avatarEl.style.color = '#fff'; }
         }
         const modalHeader = document.querySelector('#modalEditarTarefa .modal-header');
         if (modalHeader) {
