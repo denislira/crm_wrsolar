@@ -14,6 +14,8 @@ try {
         $message = trim($_POST['message'] ?? '');
         $templateId = isset($_POST['template_id']) ? ($_POST['template_id'] ? (int)$_POST['template_id'] : null) : null;
         $datetime = $_POST['datetime'] ?? null; // expected 'YYYY-MM-DD HH:MM'
+        $contactName = trim($_POST['contact_name'] ?? '');
+        $contactPhone = trim($_POST['contact_phone'] ?? '');
         // allow lead_id numeric; if not provided try to resolve by lead_ident, otherwise fallback to 0
         if (!$leadId && $leadIdent) {
             $s = $pdo->prepare('SELECT id FROM leads WHERE name LIKE ? LIMIT 1');
@@ -25,8 +27,9 @@ try {
         if (!$message || !$datetime) { http_response_code(400); echo json_encode(['error'=>'Missing fields']); exit; }
         // validate datetime
         $dt = date('Y-m-d H:i:s', strtotime($datetime));
-        $stmt = $pdo->prepare('INSERT INTO reminders (lead_id, message, remind_at, template_id, status, created_by) VALUES (?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$leadId, $message, $dt, $templateId, 'pending', $userId]);
+        // insert including optional contact fields (contact_name, contact_phone)
+        $stmt = $pdo->prepare('INSERT INTO reminders (lead_id, message, remind_at, template_id, status, created_by, contact_name, contact_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$leadId, $message, $dt, $templateId, 'pending', $userId, $contactName ?: null, $contactPhone ?: null]);
         $id = $pdo->lastInsertId();
         echo json_encode(['ok'=>true,'id'=>$id]);
         exit;
@@ -34,7 +37,7 @@ try {
     if ($action === 'list') {
         $status = $_GET['status'] ?? null;
         $leadId = $_GET['lead_id'] ?? null;
-        $sql = 'SELECT r.id, r.lead_id, r.message, r.remind_at, r.status, r.template_id, r.created_by, r.created_at, l.name AS lead_name FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id';
+        $sql = 'SELECT r.id, r.lead_id, r.message, r.remind_at, r.status, r.template_id, r.created_by, r.created_at, l.name AS lead_name, l.phone AS lead_phone, r.contact_name, r.contact_phone FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id';
         $w = [];
         $params = [];
         if ($status) { $w[] = 'r.status = ?'; $params[] = $status; }
@@ -51,7 +54,7 @@ try {
     if ($action === 'get') {
         $id = $_GET['id'] ?? null;
         if (!$id) { http_response_code(400); echo json_encode(['error'=>'Missing id']); exit; }
-        $stmt = $pdo->prepare('SELECT r.*, l.name AS lead_name, l.phone AS lead_phone FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id WHERE r.id = ? LIMIT 1');
+        $stmt = $pdo->prepare('SELECT r.*, l.name AS lead_name, l.phone AS lead_phone, r.contact_name, r.contact_phone FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id WHERE r.id = ? LIMIT 1');
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         echo json_encode($row ?: []);
@@ -65,10 +68,12 @@ try {
         $datetime = $_POST['datetime'] ?? null;
         $statusNew = $_POST['status'] ?? null;
         $templateId = isset($_POST['template_id']) ? ($_POST['template_id'] ? (int)$_POST['template_id'] : null) : null;
+        $contactName = trim($_POST['contact_name'] ?? '');
+        $contactPhone = trim($_POST['contact_phone'] ?? '');
         if (!$id || !$message || !$datetime) { http_response_code(400); echo json_encode(['error'=>'Missing fields']); exit; }
         $dt = date('Y-m-d H:i:s', strtotime($datetime));
-        $stmt = $pdo->prepare('UPDATE reminders SET message = ?, remind_at = ?, template_id = ?, status = ? WHERE id = ?');
-        $stmt->execute([$message, $dt, $templateId, $statusNew ?: 'pending', $id]);
+        $stmt = $pdo->prepare('UPDATE reminders SET message = ?, remind_at = ?, template_id = ?, status = ?, contact_name = ?, contact_phone = ? WHERE id = ?');
+        $stmt->execute([$message, $dt, $templateId, $statusNew ?: 'pending', $contactName ?: null, $contactPhone ?: null, $id]);
         echo json_encode(['ok'=>true]);
         exit;
     }

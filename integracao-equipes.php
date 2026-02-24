@@ -552,14 +552,35 @@ try {
                                 <h6>Agendar Lembrete</h6>
                             </div>
                             <form id="formNovoLembrete">
-                                <div class="mb-2 position-relative">
+                                <div class="mb-2">
+                                    <label class="form-label">Tipo de lembrete</label>
+                                    <div class="d-flex gap-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="rem_type" id="rem-type-lead" value="lead" checked>
+                                            <label class="form-check-label small" for="rem-type-lead">Associar a um lead</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="rem_type" id="rem-type-contact" value="contact">
+                                            <label class="form-check-label small" for="rem-type-contact">Contato livre (nome + telefone)</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="rem-lead-block" class="mb-2 position-relative">
                                     <label class="form-label">Identificação do Lead</label>
                                     <input type="text" name="lead_ident" id="rem-lead-ident" class="form-control form-control-sm" placeholder="Digite nome, email ou telefone do lead" autocomplete="off">
                                     <div id="leadSuggestions" class="list-group position-absolute bg-white border" style="display:none; z-index:1000; max-height:200px; overflow-y:auto; width:100%;"></div>
                                 </div>
-                                <div class="mb-2">
+                                <div id="rem-lead-id-block" class="mb-2">
                                     <label class="form-label">Lead ID (automático)</label>
                                     <input type="text" name="lead_id" id="rem-lead-id" class="form-control form-control-sm" readonly placeholder="Será preenchido automaticamente">
+                                </div>
+                                <div id="rem-contact-block" class="mb-2" style="display:none;">
+                                    <label class="form-label">Nome do Contato</label>
+                                    <input type="text" name="contact_name" id="rem-contact-name" class="form-control form-control-sm" placeholder="Nome do cliente">
+                                </div>
+                                <div id="rem-contact-phone-block" class="mb-2" style="display:none;">
+                                    <label class="form-label">Telefone do Contato</label>
+                                    <input type="text" name="contact_phone" id="rem-contact-phone" class="form-control form-control-sm" placeholder="(99) 99999-9999">
                                 </div>
                                 <div class="mb-2 d-flex gap-2">
                                     <div class="flex-fill">
@@ -1440,13 +1461,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // submissão do novo lembrete
     const formNovoLembrete = document.getElementById('formNovoLembrete');
     if (formNovoLembrete) {
+        // toggle between lead search and manual contact
+        const remTypeRadios = document.querySelectorAll('input[name="rem_type"]');
+        function updateRemTypeUI() {
+            const val = document.querySelector('input[name="rem_type"]:checked')?.value || 'lead';
+            const leadBlock = document.getElementById('rem-lead-block');
+            const leadIdBlock = document.getElementById('rem-lead-id-block');
+            const contactBlock = document.getElementById('rem-contact-block');
+            const contactPhoneBlock = document.getElementById('rem-contact-phone-block');
+            if (val === 'lead') {
+                if (leadBlock) leadBlock.style.display = 'block';
+                if (leadIdBlock) leadIdBlock.style.display = 'block';
+                if (contactBlock) contactBlock.style.display = 'none';
+                if (contactPhoneBlock) contactPhoneBlock.style.display = 'none';
+            } else {
+                if (leadBlock) leadBlock.style.display = 'none';
+                if (leadIdBlock) leadIdBlock.style.display = 'none';
+                if (contactBlock) contactBlock.style.display = 'block';
+                if (contactPhoneBlock) contactPhoneBlock.style.display = 'block';
+            }
+        }
+        remTypeRadios.forEach(r => r.addEventListener('change', updateRemTypeUI));
+        updateRemTypeUI();
+
         formNovoLembrete.addEventListener('submit', async function(e){
             e.preventDefault();
+            const remType = document.querySelector('input[name="rem_type"]:checked')?.value || 'lead';
             const leadIdRaw = document.getElementById('rem-lead-id').value.trim();
             const leadId = leadIdRaw && !isNaN(Number(leadIdRaw)) ? Number(leadIdRaw) : null;
+            const contactName = document.getElementById('rem-contact-name') ? document.getElementById('rem-contact-name').value.trim() : '';
+            const contactPhone = document.getElementById('rem-contact-phone') ? document.getElementById('rem-contact-phone').value.trim() : '';
             if (!document.getElementById('rem-message').value.trim()) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Mensagem obrigatória</div>'; return; }
             if (!document.getElementById('rem-date').value || !document.getElementById('rem-time').value) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Data e hora obrigatórias</div>'; return; }
-            if (!leadId) { document.getElementById('remMsg').innerHTML = '<div class="text-warning">Recomenda-se informar o Lead ID numérico. Use o campo opcional se souber o ID.</div>'; }
+            if (remType === 'lead' && !leadId) { document.getElementById('remMsg').innerHTML = '<div class="text-warning">Recomenda-se selecionar um lead válido ou mudar para "Contato livre".</div>'; }
+            if (remType === 'contact' && (!contactName || !contactPhone)) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Nome e telefone do contato são obrigatórios para contato livre.</div>'; return; }
             const datetime = document.getElementById('rem-date').value + ' ' + document.getElementById('rem-time').value;
             const payload = new URLSearchParams();
             payload.append('action','add');
@@ -1454,13 +1502,20 @@ document.addEventListener('DOMContentLoaded', () => {
             payload.append('message', document.getElementById('rem-message').value.trim());
             payload.append('template_id', document.getElementById('rem-template').value || '');
             payload.append('lead_ident', document.getElementById('rem-lead-ident').value.trim());
-            if (leadId) payload.append('lead_id', String(leadId)); else payload.append('lead_id','0');
+            if (remType === 'lead') {
+                if (leadId) payload.append('lead_id', String(leadId)); else payload.append('lead_id','0');
+            } else {
+                payload.append('lead_id','0');
+                payload.append('contact_name', contactName);
+                payload.append('contact_phone', contactPhone);
+            }
             try {
                 const res = await fetch('includes/reminders_api.php', { method: 'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: payload.toString() });
                 const data = await res.json();
                 if (data.ok) {
                     document.getElementById('remMsg').innerHTML = '<div class="alert alert-success">Lembrete salvo</div>';
                     this.reset();
+                    updateRemTypeUI();
                     loadRemindersLayout();
                     setTimeout(()=>{ document.getElementById('remMsg').innerHTML=''; }, 2500);
                 } else {
