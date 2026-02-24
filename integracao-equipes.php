@@ -131,6 +131,19 @@ try {
 /* Card action buttons: manter semi-transparente por padrão e ficar totalmente opaco ao hover */
 #tasksList .btn-link { opacity: 0.5 !important; transition: opacity .12s ease; }
 #tasksList .btn-link:hover { opacity: 1 !important; }
+/* Integrações: cartão, avatar e itens suaves de atividades */
+.integration-card { transition: border-color .15s ease, transform .12s ease; }
+.integration-card:hover { border-color: var(--blue-700); transform: translateY(-4px); }
+.integration-avatar-img { width:48px; height:48px; object-fit:cover; border-radius:50%; border:2px solid var(--blue-700); }
+.integration-avatar-fallback { display:flex; align-items:center; justify-content:center; }
+.integration-tasks-list { display:flex; flex-direction:column; gap:8px; }
+.integration-task-item { padding:8px; border-radius:8px; border:1px solid transparent; display:flex; flex-direction:column; }
+.integration-task-item .task-title { font-weight:600; color:#0f172a; font-size:0.92rem; }
+.integration-task-item .task-meta { font-size:0.78rem; color:#475569; }
+.status-Pendente { background: linear-gradient(180deg, rgba(249,115,22,0.06), rgba(249,115,22,0.03)); border-color: rgba(249,115,22,0.12); }
+.status-Em\ andamento { background: linear-gradient(180deg, rgba(13,110,253,0.06), rgba(13,110,253,0.03)); border-color: rgba(13,110,253,0.12); }
+.status-Conclu\00edda, .status-Concluida { background: linear-gradient(180deg, rgba(59,181,115,0.06), rgba(59,181,115,0.03)); border-color: rgba(59,181,115,0.12); }
+
 </style>
 
 <div class="d-flex">
@@ -205,7 +218,7 @@ try {
                 <div class="btn-group" role="group" aria-label="view-tabs">
                     <button id="tabTarefas" type="button" class="btn btn-primary active">Tarefas de Equipe</button>
                     <button id="tabLembretesBtn" type="button" class="btn btn-outline-primary">Lembretes</button>
-                    <button id="tabMinhasIntegracoes" type="button" class="btn btn-outline-primary">Minhas Integrações</button>
+                    <button id="tabMinhasIntegracoes" type="button" class="btn btn-outline-primary">Integrações</button>
                 </div>
             </div>
 
@@ -1187,17 +1200,31 @@ function renderIntegrations(list) {
         return;
     }
     list.forEach(ui => {
-        const col = document.createElement('div'); col.className = 'col-md-3 col-sm-6 mb-3';
-        const avatarHtml = ui.avatar ? ('<img src="'+escapeHtmlGlobal(ui.avatar)+'" style="width:44px;height:44px;object-fit:cover;">') : ('<div style="width:44px;height:44px;background:#cbd5e1;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">'+escapeHtmlGlobal((ui.username||'U').charAt(0).toUpperCase())+'</div>');
-        const tasksHtml = (ui.tasks && ui.tasks.length) ? ui.tasks.map(t => '<div class="mb-2 p-2 rounded" style="background:#f8fafc;border:1px solid #eef2f7;"><div class="fw-semibold" style="font-size:0.9rem;">'+escapeHtmlGlobal(t.titulo||'(sem título)')+'</div><div class="small text-muted">'+escapeHtmlGlobal(t.status||'')+(t.data_vencimento? ' • '+escapeHtmlGlobal(t.data_vencimento):'')+'</div></div>').join('') : '<div class="text-muted small">Nenhuma atividade encontrada.</div>';
-        col.innerHTML = '<div class="p-3 bg-white rounded-3" style="border:1px solid #eef2f7;">'+
-            '<div class="d-flex align-items-center gap-2 mb-2">'+
-                '<div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex:0 0 44px;">'+avatarHtml+'</div>'+
-                '<div class="flex-grow-1"><div class="fw-semibold">'+escapeHtmlGlobal(ui.username)+'</div><div class="small text-muted">'+(ui.last_activity? 'Última atividade: '+escapeHtmlGlobal(ui.last_activity) : 'Sem atividade recente')+'</div></div>'+
-                '<div>'+(ui.online? '<span class="badge rounded-pill" style="background:#10b981;color:#fff;">Online</span>':'<span class="badge rounded-pill" style="background:#e2e8f0;color:#64748b;">Offline</span>')+'</div>'+
-            '</div>'+
-            '<div class="mt-2"><div class="small text-muted mb-2">Atividades recentes</div>'+tasksHtml+'</div>'+
-        '</div>';
+        const col = document.createElement('div'); col.className = 'col-md-4 col-sm-6 mb-3';
+                const avatarHtml = ui.avatar ? (`<img src="${escapeHtmlGlobal(ui.avatar)}" class="integration-avatar-img rounded-circle" style="width:48px;height:48px;object-fit:cover;">`) : (`<div class="integration-avatar-fallback" style="width:48px;height:48px;background:#cbd5e1;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;border-radius:50%;">${escapeHtmlGlobal((ui.username||'U').charAt(0).toUpperCase())}</div>`);
+                const tasksHtml = (ui.tasks && ui.tasks.length) ? ui.tasks.map(t => {
+                    const statusCls = 'status-' + String((t.status||'').replace(/\s+/g, '-'));
+                    const titulo = escapeHtmlGlobal(t.titulo||'(sem título)');
+                    const meta = escapeHtmlGlobal(t.status||'') + (t.data_vencimento? ' • '+escapeHtmlGlobal(t.data_vencimento):'');
+                    return `<div class="integration-task-item ${statusCls}"><div class="task-title">${titulo}</div><div class="task-meta">${meta}</div></div>`;
+                }).join('') : '<div class="text-muted small">Nenhuma atividade encontrada.</div>';
+                col.innerHTML = `
+                <div class="p-3 bg-white rounded-3 integration-card" style="border:1px solid var(--blue-700); box-shadow: 0 6px 20px rgba(11,26,50,0.04);">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div style="width:48px;height:48px;border-radius:50%;overflow:hidden;flex:0 0 48px;">${avatarHtml}</div>
+                        <div class="flex-grow-1">
+                            <div class="fw-semibold" style="font-size:0.98rem;">${escapeHtmlGlobal(ui.username)}</div>
+                            <div class="small text-muted">${(ui.last_activity? 'Última: '+escapeHtmlGlobal(ui.last_activity) : 'Sem atividade recente')}</div>
+                        </div>
+                        <div>
+                            ${ui.online? '<span class="badge rounded-pill" style="background:var(--green);color:#fff;">Online</span>':'<span class="badge rounded-pill" style="background:#e2e8f0;color:#64748b;">Offline</span>'}
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <div class="small text-muted mb-2" style="font-weight:600;letter-spacing:0.2px;">Atividades recentes</div>
+                        <div class="integration-tasks-list">${tasksHtml}</div>
+                    </div>
+                </div>`;
         container.appendChild(col);
     });
 }
