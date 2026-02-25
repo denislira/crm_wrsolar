@@ -70,10 +70,21 @@ try {
         $templateId = isset($_POST['template_id']) ? ($_POST['template_id'] ? (int)$_POST['template_id'] : null) : null;
         $contactName = trim($_POST['contact_name'] ?? '');
         $contactPhone = trim($_POST['contact_phone'] ?? '');
+        // optionally update lead association when provided
+        $leadIdParam = array_key_exists('lead_id', $_POST) ? ($_POST['lead_id'] !== '' ? (int)$_POST['lead_id'] : 0) : null;
         if (!$id || !$message || !$datetime) { http_response_code(400); echo json_encode(['error'=>'Missing fields']); exit; }
         $dt = date('Y-m-d H:i:s', strtotime($datetime));
-        $stmt = $pdo->prepare('UPDATE reminders SET message = ?, remind_at = ?, template_id = ?, status = ?, contact_name = ?, contact_phone = ? WHERE id = ?');
-        $stmt->execute([$message, $dt, $templateId, $statusNew ?: 'pending', $contactName ?: null, $contactPhone ?: null, $id]);
+        // determine current lead_id if none provided
+        if ($leadIdParam === null) {
+            $s = $pdo->prepare('SELECT lead_id FROM reminders WHERE id = ? LIMIT 1');
+            $s->execute([$id]);
+            $existingLead = $s->fetchColumn();
+            $leadToSave = ($existingLead !== false) ? (int)$existingLead : 0;
+        } else {
+            $leadToSave = $leadIdParam;
+        }
+        $stmt = $pdo->prepare('UPDATE reminders SET message = ?, remind_at = ?, template_id = ?, status = ?, contact_name = ?, contact_phone = ?, lead_id = ? WHERE id = ?');
+        $stmt->execute([$message, $dt, $templateId, $statusNew ?: 'pending', $contactName ?: null, $contactPhone ?: null, $leadToSave, $id]);
         echo json_encode(['ok'=>true]);
         exit;
     }

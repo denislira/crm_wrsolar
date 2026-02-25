@@ -175,6 +175,17 @@ try {
                             </div>
                         </div>
                     </div>
+                    <div id="editRem-contact-block" class="mb-2" style="display:none;">
+                        <label class="form-label">Contato (livre)</label>
+                        <div class="row g-2">
+                            <div class="col-md-8">
+                                <input type="text" id="editRem-contact-name" name="contact_name" class="form-control form-control-sm" placeholder="Nome do contato">
+                            </div>
+                            <div class="col-md-4">
+                                <input type="text" id="editRem-contact-phone" name="contact_phone" class="form-control form-control-sm" placeholder="Telefone do contato">
+                            </div>
+                        </div>
+                    </div>
                     <div class="row g-2">
                         <div class="col-7">
                             <label class="form-label">Data</label>
@@ -602,6 +613,12 @@ try {
                                     <label class="form-label">Mensagem</label>
                                     <textarea name="message" id="rem-message" class="form-control form-control-sm" rows="3" required></textarea>
                                 </div>
+                                <div class="mb-2 position-relative">
+                                    <label class="form-label">Responsável</label>
+                                    <input type="text" name="responsavel" id="rem-responsavel" class="form-control form-control-sm" placeholder="Digite nome do responsável" autocomplete="off">
+                                    <input type="hidden" name="responsavel_id" id="rem-responsavel-id" value="">
+                                    <div id="remResponsavelSuggestions" class="list-group position-absolute bg-white border" style="display:none; z-index:1000; max-height:200px; overflow-y:auto; width:100%;"></div>
+                                </div>
                                 <button type="submit" class="btn btn-primary btn-sm">Salvar Lembrete</button>
                                 <div id="remMsg" class="mt-2"></div>
                             </form>
@@ -690,7 +707,11 @@ async function atualizarTarefas() {
                 const avatar = document.createElement('div'); avatar.className = 'rounded-circle d-flex align-items-center justify-content-center me-2'; avatar.style.width = '38px'; avatar.style.height = '38px'; avatar.style.background = '#0b6ac1'; avatar.style.color = '#fff'; avatar.style.fontWeight = 'bold'; avatar.style.fontSize = '1.1rem'; avatar.textContent = 'L';
                 card.appendChild(avatar);
                 const content = document.createElement('div'); content.className = 'flex-grow-1';
-                content.innerHTML = `<div class="fw-semibold">${escapeHtml(r.lead_name || ('Lead #' + r.lead_id))} <span class="badge ms-2" style="background:#0b6ac1;color:#fff;">Lembrete</span></div>
+                // prefer contact_name for free contacts when no lead_id is set
+                const reminderTitle = (r.lead_id && Number(r.lead_id) > 0)
+                    ? (r.lead_name || ('Lead #' + r.lead_id))
+                    : ((r.contact_name || 'Contato') + (r.contact_phone ? (' • ' + r.contact_phone) : ''));
+                content.innerHTML = `<div class="fw-semibold">${escapeHtml(reminderTitle)} <span class="badge ms-2" style="background:#0b6ac1;color:#fff;">Lembrete</span></div>
                     <div class="small text-muted">Agendado: ${r.remind_at} • Status: ${escapeHtml(r.status)}</div>
                     <div class="mt-1">${escapeHtml(r.message || '')}</div>`;
                 card.appendChild(content);
@@ -1278,13 +1299,16 @@ async function loadRemindersLayout() {
                 const it = document.createElement('div');
                 it.className = 'reminder-card-modern';
                 it.dataset.reminderId = r.id || '';
+                const titleToday = (r.lead_id && Number(r.lead_id) > 0)
+                    ? (r.lead_name || ('Lead #' + r.lead_id))
+                    : ((r.contact_name || 'Contato') + (r.contact_phone ? (' • ' + r.contact_phone) : ''));
                 it.innerHTML = `
                     <div class="reminder-icon-circle">
                         <i class="fa fa-clock-o"></i>
                     </div>
                     <div class="reminder-content-modern">
                         <div class="reminder-title-modern">
-                            ${escapeHtmlGlobal(r.lead_name||('Lead #'+r.lead_id))}
+                            ${escapeHtmlGlobal(titleToday)}
                         </div>
                         <div class="reminder-time-modern">${timeStr}</div>
                     </div>`;
@@ -1327,7 +1351,12 @@ async function loadRemindersLayout() {
                     </div>
                     <div class="evento-content-modern">
                         <div class="evento-title-modern">
-                            ${escapeHtmlGlobal(r.lead_name ? r.lead_name + ' (#' + r.lead_id + ')' : 'Lead #' + r.lead_id)}
+                            ${(() => {
+                                if (r.lead_id && Number(r.lead_id) > 0) {
+                                    return escapeHtmlGlobal(r.lead_name ? (r.lead_name + ' (#' + r.lead_id + ')') : ('Lead #' + r.lead_id));
+                                }
+                                return escapeHtmlGlobal((r.contact_name || 'Contato') + (r.contact_phone ? (' • ' + r.contact_phone) : ''));
+                            })()}
                             ${isToday ? '<span class="reminder-badge-hoje">HOJE</span>' : ''}
                         </div>
                         <div class="evento-time-icon">
@@ -1583,6 +1612,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Autocomplete de responsáveis para lembrete (debounce 500ms)
+    const remResponsavelInput = document.getElementById('rem-responsavel');
+    const remRespHidden = document.getElementById('rem-responsavel-id');
+    const remRespSuggestions = document.getElementById('remResponsavelSuggestions');
+    let remRespTimer = null;
+
+    function debounceDelay(fn, delay) {
+        return function(...args) {
+            if (remRespTimer) clearTimeout(remRespTimer);
+            remRespTimer = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
+
+    async function fetchResponsaveis(query) {
+        try {
+            const res = await fetch(`api/search_users.php?q=${encodeURIComponent(query)}`);
+            if (!res.ok) return [];
+            const list = await res.json();
+            return Array.isArray(list) ? list : [];
+        } catch (e) { console.error('erro fetchResponsaveis', e); return []; }
+    }
+
+    if (remResponsavelInput) {
+        remResponsavelInput.addEventListener('input', debounceDelay(async function() {
+            const q = this.value.trim();
+            remRespHidden.value = '';
+            if (q.length < 2) { if (remRespSuggestions) remRespSuggestions.style.display = 'none'; return; }
+            const users = await fetchResponsaveis(q);
+            if (!remRespSuggestions) return;
+            remRespSuggestions.innerHTML = '';
+            if (!users.length) { remRespSuggestions.style.display = 'none'; return; }
+            users.forEach(u => {
+                const item = document.createElement('a');
+                item.className = 'list-group-item list-group-item-action py-2 d-flex align-items-center gap-2';
+                item.style.cursor = 'pointer';
+                const avatarHtml = u.avatar ? `<img src="${escapeHtmlGlobal(u.avatar)}" style="width:32px;height:32px;object-fit:cover;border-radius:50%;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#cbd5e1;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">${escapeHtmlGlobal((u.username||'U').charAt(0).toUpperCase())}</div>`;
+                item.innerHTML = `<div style="flex:0 0 36px">${avatarHtml}</div><div style="flex:1"><div style="font-weight:600;">${escapeHtmlGlobal(u.username)}</div><div class="small text-muted">${escapeHtmlGlobal(u.email||'')}</div></div>`;
+                item.addEventListener('click', () => {
+                    remResponsavelInput.value = u.username || '';
+                    remRespHidden.value = u.id || '';
+                    remRespSuggestions.style.display = 'none';
+                });
+                remRespSuggestions.appendChild(item);
+            });
+            remRespSuggestions.style.display = 'block';
+        }, 500));
+
+        // hide suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (remResponsavelInput && remRespSuggestions && !remResponsavelInput.contains(e.target) && !remRespSuggestions.contains(e.target)) {
+                remRespSuggestions.style.display = 'none';
+            }
+        });
+    }
+
     // Evento para carregar mensagem do template
     const templateSel = document.getElementById('rem-template');
     if (templateSel) {
@@ -1674,6 +1758,24 @@ async function openEditReminderModal(id) {
         templates.forEach(t=>{ const o = document.createElement('option'); o.value = t.id; o.textContent = t.name || t.title || ('template '+t.id); sel.appendChild(o); });
         sel.value = r.template_id || '';
         const modalEl = document.getElementById('modalEditarLembrete');
+        // show/hide contact fields vs lead info
+        const contactBlock = document.getElementById('editRem-contact-block');
+        const contactNameEl = document.getElementById('editRem-contact-name');
+        const contactPhoneEl = document.getElementById('editRem-contact-phone');
+        const leadIdVal = r.lead_id ? Number(r.lead_id) : 0;
+        if (leadIdVal && leadIdVal > 0) {
+            if (contactBlock) contactBlock.style.display = 'none';
+            if (contactNameEl) contactNameEl.value = '';
+            if (contactPhoneEl) contactPhoneEl.value = '';
+        } else {
+            if (contactBlock) contactBlock.style.display = 'block';
+            if (contactNameEl) contactNameEl.value = r.contact_name || '';
+            if (contactPhoneEl) contactPhoneEl.value = r.contact_phone || '';
+            // clear lead display since this is a free contact
+            document.getElementById('editRem-lead-ident').value = '';
+            document.getElementById('editRem-lead-id').value = '';
+            document.getElementById('editRem-lead-phone').value = '';
+        }
         // reuse existing instance when possible to avoid duplicate backdrops
         let modal = bootstrap.Modal.getInstance ? bootstrap.Modal.getInstance(modalEl) : null;
         if (!modal) {
@@ -1727,6 +1829,14 @@ document.addEventListener('DOMContentLoaded', ()=>{
             payload.append('datetime', date + ' ' + time);
             payload.append('message', message);
             payload.append('template_id', templateId);
+            // include contact fields if present
+            const contactName = document.getElementById('editRem-contact-name') ? document.getElementById('editRem-contact-name').value.trim() : '';
+            const contactPhone = document.getElementById('editRem-contact-phone') ? document.getElementById('editRem-contact-phone').value.trim() : '';
+            if (contactName) payload.append('contact_name', contactName);
+            if (contactPhone) payload.append('contact_phone', contactPhone);
+            // allow updating lead association when editRem-lead-id contains a numeric value
+            const leadIdVal = document.getElementById('editRem-lead-id') ? document.getElementById('editRem-lead-id').value.trim() : '';
+            if (leadIdVal !== '') payload.append('lead_id', String(leadIdVal));
             const res = await fetch('includes/reminders_api.php', { method: 'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: payload.toString() });
             const data = await res.json();
             if (data.ok) {
