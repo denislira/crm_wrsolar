@@ -219,6 +219,98 @@ try {
 
 } catch (Exception $e) { /* ignore and continue */ }
 
+// --- Temporal analysis heuristics (automated insights) ---
+$temporalInsights = [];
+$activityCount = 0;
+$activityProposalCount = 0;
+$activityByUser = [];
+$conversionBySource = [];
+$avgActivitiesPerLead = null;
+$stageDropoffs = [];
+try {
+    $tStart = (new DateTime())->modify('-90 days');
+    $tEnd = new DateTime();
+
+    // activity counts
+    $actStmt = $pdo->prepare("SELECT COUNT(*) FROM activity_log WHERE created_at >= ? AND created_at <= ?");
+    $actStmt->execute([$tStart->format('Y-m-d H:i:s'), $tEnd->format('Y-m-d H:i:s')]);
+    $activityCount = (int)$actStmt->fetchColumn();
+
+    $propStmt = $pdo->prepare("SELECT COUNT(*) FROM activity_log WHERE created_at >= ? AND created_at <= ? AND message LIKE ?");
+    $propStmt->execute([$tStart->format('Y-m-d H:i:s'), $tEnd->format('Y-m-d H:i:s'), '%proposta%']);
+    $activityProposalCount = (int)$propStmt->fetchColumn();
+
+    // activity by user
+    $abu = $pdo->prepare("SELECT COALESCE(u.username,'(desconhecido)') AS username, COUNT(*) as cnt FROM activity_log a LEFT JOIN users u ON u.id = a.user_id WHERE a.created_at >= ? AND a.created_at <= ? GROUP BY a.user_id ORDER BY cnt DESC LIMIT 12");
+    $abu->execute([$tStart->format('Y-m-d H:i:s'), $tEnd->format('Y-m-d H:i:s')]);
+    $activityByUser = $abu->fetchAll(PDO::FETCH_ASSOC);
+
+    // conversion by source in period (defensive: only use closed_at if column exists)
+    $leadColsCheck = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
+    $leadColsList = $leadColsCheck->fetchAll(PDO::FETCH_COLUMN);
+    $hasClosedAtCol = in_array('closed_at', $leadColsList, true);
+    if ($hasClosedAtCol) {
+        $convSql = "SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, SUM(CASE WHEN closed_at IS NOT NULL THEN 1 ELSE 0 END) AS closed FROM leads WHERE created_at >= ? AND created_at <= ? GROUP BY source ORDER BY total DESC LIMIT 20";
+    } else {
+        $convSql = "SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, 0 AS closed FROM leads WHERE created_at >= ? AND created_at <= ? GROUP BY source ORDER BY total DESC LIMIT 20";
+    }
+    $convStmt = $pdo->prepare($convSql);
+    $convStmt->execute([$tStart->format('Y-m-d H:i:s'), $tEnd->format('Y-m-d H:i:s')]);
+    $conversionBySource = $convStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // avg activities per lead (approx)
+    $leadsCntStmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE created_at >= ? AND created_at <= ?");
+    $leadsCntStmt->execute([$tStart->format('Y-m-d H:i:s'), $tEnd->format('Y-m-d H:i:s')]);
+    $leadsCreated = max(1, (int)$leadsCntStmt->fetchColumn());
+    $avgActivitiesPerLead = round($activityCount / $leadsCreated, 2);
+
+    // stage drop-offs using previously loaded $stages and $stageCounts
+    if (count($stages) > 1 && count($stageCounts) === count($stages)) {
+        for ($i = 0; $i < count($stages)-1; $i++) {
+            $from = (int)$stageCounts[$i];
+            $to = (int)$stageCounts[$i+1];
+            $dropPct = $from > 0 ? round((($from - $to) / $from) * 100, 1) : 0;
+            $stageDropoffs[] = ['from'=>$stages[$i]['name'] ?? 'Sem nome', 'to'=>$stages[$i+1]['name'] ?? 'Sem nome', 'from_count'=>$from, 'to_count'=>$to, 'drop_pct'=>$dropPct];
+        }
+    }
+
+    // Heuristics for insights
+    if ($activityCount < max(10, $leadsCreated * 0.5)) {
+        $temporalInsights[] = 'Atividade geral baixa no período. A equipe precisa aumentar toques e follow-ups; sugerido: +2 contatos por lead.';
+    }
+    if ($avgActivitiesPerLead < 1.5) {
+        $temporalInsights[] = 'Poucas ações por lead (média de ' . $avgActivitiesPerLead . '). Aumente cadência de contato e registre ações na plataforma.';
+    }
+    if ($activityProposalCount < max(5, $leadsCreated * 0.05)) {
+        $temporalInsights[] = 'Poucas propostas enviadas no período; reveja o processo de qualificação e prepare templates de proposta.';
+    }
+    if ($avgDaysToClose !== null && $avgDaysToClose > 14) {
+        $temporalInsights[] = 'Tempo médio para fechar é alto (' . $avgDaysToClose . ' dias). Analise gargalos entre primeiro contato e proposta.';
+    }
+
+    // sources: flag high volume but low conversion
+    foreach ($conversionBySource as $s) {
+        $total = (int)$s['total']; $closed = (int)$s['closed'];
+        $conv = $total>0?round(($closed/$total)*100,1):0;
+        if ($total > 20 && $conv < 5) {
+            $temporalInsights[] = 'Fonte "' . ($s['source']?:'Sem origem') . '" tem alto volume (' . $total . ') e baixa conversão (' . $conv . '%) — investigar qualidade da origem.';
+        }
+    }
+
+    // stages with big drop-offs
+    foreach ($stageDropoffs as $d) {
+        if ($d['drop_pct'] >= 50) {
+            $temporalInsights[] = 'Grande perda entre "' . $d['from'] . '" → "' . $d['to'] . '" (' . $d['drop_pct'] . '%). Reveja critérios de passagem de etapa.';
+        }
+    }
+
+    if (empty($temporalInsights)) $temporalInsights[] = 'Nenhum problema crítico detectado no período; continue monitorando os indicadores.';
+
+} catch (Exception $e) {
+    // fallback
+    $temporalInsights[] = 'Não foi possível gerar insights automáticos (erro de análise).';
+}
+
 // Timeline
 try {
         $actColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'activity_log'");
@@ -630,6 +722,56 @@ try {
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Automated Insights -->
+                        <div class="col-12 mt-3">
+                            <style>
+                            /* Ultra-modern insights cards */
+                            .insights-grid { display:flex; gap:12px; flex-wrap:wrap; }
+                            .insight-card { flex:1 1 280px; background:linear-gradient(180deg,#ffffffcc,#f7fbff); border-radius:12px; padding:14px; box-shadow:0 6px 18px rgba(14,30,60,0.08); display:flex; gap:12px; align-items:flex-start; border-left:6px solid transparent; transition:transform .18s ease, box-shadow .18s ease; }
+                            .insight-card:hover { transform:translateY(-6px); box-shadow:0 12px 30px rgba(14,30,60,0.12); }
+                            .insight-icon { width:44px; height:44px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; color:#fff; font-weight:700; flex-shrink:0; }
+                            .insight-body { flex:1; }
+                            .insight-title { font-weight:700; margin:0 0 6px 0; color:#0f172a; font-size:0.95rem; white-space:normal; word-break:break-word; }
+                            .insight-text { margin:0; color:#475569; font-size:0.875rem; line-height:1.3; white-space:normal; word-break:break-word; }
+                            .insight-meta { margin-top:8px; display:flex; gap:8px; align-items:center; }
+                            .insight-badge { font-size:0.75rem; padding:6px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
+                            .insight-cta { margin-left:auto; display:flex; gap:8px; }
+                            .insight-cta button { border:0; padding:6px 10px; border-radius:8px; font-size:0.8rem; cursor:pointer; }
+                            .insight-cta .btn-primary { background:#2563eb; color:#fff; }
+                            .insight-cta .btn-outline { background:transparent; border:1px solid #e6eef7; color:#0f172a; }
+                            .insight-high { border-left-color: #ef4444; }
+                            .insight-medium { border-left-color: #f59e0b; }
+                            .insight-low { border-left-color: #10b981; }
+                            .insight-icon.high { background:linear-gradient(135deg,#ef4444,#f97316); }
+                            .insight-icon.medium { background:linear-gradient(135deg,#f59e0b,#fb923c); }
+                            .insight-icon.low { background:linear-gradient(135deg,#10b981,#34d399); }
+                            @media (max-width:800px){ .insight-card { flex:1 1 100%; } }
+                            </style>
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-lightbulb"></i> Insights automáticos (Análise Temporal)</div>
+                                <div id="temporalInsights" style="min-height:120px;">
+                                    <div id="temporalInsightsGrid" class="insights-grid">
+                                        <?php if (!empty($temporalInsights) && is_array($temporalInsights)): ?>
+                                            <?php foreach ($temporalInsights as $ti): ?>
+                                                <div class="insight-card insight-low">
+                                                    <div class="insight-icon low">✅</div>
+                                                    <div class="insight-body">
+                                                        <div class="insight-title"><?php echo htmlspecialchars($ti, ENT_QUOTES, 'UTF-8'); ?></div>
+                                                        <div class="insight-text"><?php echo htmlspecialchars($ti, ENT_QUOTES, 'UTF-8'); ?></div>
+                                                        <div class="insight-meta"><div class="insight-badge">Info</div></div>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <div style="margin-top:12px;">
+                                    <strong>Atividade por usuário (últimos 90 dias)</strong>
+                                    <div id="temporalActivityByUser" style="margin-top:8px;"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -844,6 +986,12 @@ const REPORT_LAST24_LEADS = <?php echo json_encode($last24Leads ?? [], JSON_HEX_
 const REPORT_LAST24_TOTAL = <?php echo json_encode($last24Total ?? 0, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_LAST24_PROPOSTA = <?php echo json_encode($last24Proposta ?? 0, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_LAST24_ATENDIMENTO = <?php echo json_encode($last24Atendimento ?? 0, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+// Temporal analysis results
+const REPORT_TEMPORAL_INSIGHTS = <?php echo json_encode($temporalInsights ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_ACTIVITY_BY_USER = <?php echo json_encode($activityByUser ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_CONVERSION_BY_SOURCE = <?php echo json_encode($conversionBySource ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_AVG_ACTIVITIES_PER_LEAD = <?php echo json_encode($avgActivitiesPerLead ?? null, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_STAGE_DROPOFFS = <?php echo json_encode($stageDropoffs ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 
 let chartInstances = {};
 
@@ -1343,6 +1491,58 @@ function renderTrendsChart() {
     });
 }
 
+function renderTemporalInsights() {
+    const grid = document.getElementById('temporalInsightsGrid');
+    const insights = Array.isArray(REPORT_TEMPORAL_INSIGHTS) ? REPORT_TEMPORAL_INSIGHTS : [];
+    if (!grid) return;
+    // If server already rendered fallback and there are no client-side insights, keep the server markup
+    if (!insights || insights.length === 0) return;
+    grid.innerHTML = '';
+
+    function detectSeverity(text){
+        if (!text) return 'low';
+        const t = String(text).toLowerCase();
+        if (/grande perda|perda|alto tempo|alto|muito baixo|muito pouco/.test(t)) return 'high';
+        if (/poucas|baixa|média|muito|reduzido/.test(t)) return 'medium';
+        return 'low';
+    }
+
+    insights.forEach((ins, idx) => {
+        const sev = detectSeverity(ins);
+        const card = document.createElement('div');
+        card.className = `insight-card insight-${sev}`;
+        const icon = document.createElement('div');
+        icon.className = `insight-icon ${sev}`;
+        icon.innerHTML = sev === 'high' ? '⚠' : (sev === 'medium' ? '💡' : '✅');
+        const body = document.createElement('div');
+        body.className = 'insight-body';
+        const title = document.createElement('div');
+        title.className = 'insight-title';
+        title.textContent = ins;
+        const meta = document.createElement('div');
+        meta.className = 'insight-meta';
+        const badge = document.createElement('div');
+        badge.className = 'insight-badge';
+        badge.textContent = sev === 'high' ? 'Alto' : sev === 'medium' ? 'Médio' : 'Baixo';
+        meta.appendChild(badge);
+        body.appendChild(title); body.appendChild(meta);
+        card.appendChild(icon); card.appendChild(body);
+        grid.appendChild(card);
+    });
+
+    // Activity by user small table (kept compact)
+    const abContainer = document.getElementById('temporalActivityByUser');
+    if (!abContainer) return;
+    const rows = Array.isArray(REPORT_ACTIVITY_BY_USER) ? REPORT_ACTIVITY_BY_USER : [];
+    let html = '<div style="overflow:auto"><table class="data-table"><thead><tr><th>Usuário</th><th>Atividades</th></tr></thead><tbody>';
+    rows.forEach(r => {
+        html += `<tr><td>${escapeHtml(r.username||'(desconhecido)')}</td><td>${formatNumber(r.cnt||0)}</td></tr>`;
+    });
+    if (rows.length === 0) html += '<tr><td colspan="2" class="text-center text-muted py-3">Nenhuma atividade registrada</td></tr>';
+    html += '</tbody></table></div>';
+    abContainer.innerHTML = html;
+}
+
 function renderFunnel() {
     const container = document.getElementById('chartFunnel');
     if(!container) return;
@@ -1709,6 +1909,7 @@ function renderReports(){
         renderUsersTasksTable();
         renderDailyCharts();
         renderFilteredStatusChart();
+        renderTemporalInsights();
     } catch(e) { 
         console.error('Render reports failed', e); 
     }
