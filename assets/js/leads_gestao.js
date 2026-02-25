@@ -191,7 +191,21 @@
                 await loadTrashedModal();
                 updateTrashedCount();
             } else {
-                alert('Erro ao excluir lead');
+                // Try to parse JSON error message
+                let errorMsg = 'Erro ao excluir lead';
+                try {
+                    const data = await res.json();
+                    if (data.error) {
+                        errorMsg = data.error;
+                        // Show more user-friendly message for permission errors
+                        if (data.error.includes('insufficient permissions')) {
+                            errorMsg = 'Você não tem permissão para excluir leads permanentemente. Peça ao administrador para autorizar esta ação em Configurações > Permissões.';
+                        }
+                    }
+                } catch (e) {
+                    // JSON parse failed, use generic error
+                }
+                alert(errorMsg);
             }
         } catch (err) {
             console.error(err);

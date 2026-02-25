@@ -177,7 +177,9 @@ include 'includes/header.php';
                         </div>
                     </div>
 
-                    <div class="card card-shadow p-3">
+                    <!-- Permissões de Tela/Páginas -->
+                    <div class="card card-shadow p-3 mb-4">
+                        <h6 class="mb-3 text-muted">Acesso a Telas e Módulos</h6>
                         <div class="mb-2 d-flex justify-content-between align-items-center">
                             <div>
                                 <button id="btn_reload_permissions" class="btn btn-sm btn-outline-secondary">Recarregar</button>
@@ -204,6 +206,29 @@ include 'includes/header.php';
                         <div class="d-flex justify-content-end gap-2 mt-3">
                             <button id="btn_clone_permissions" class="btn btn-outline-secondary btn-sm">Clonar para outro papel</button>
                             <button id="btn_save_permissions" class="btn btn-primary btn-sm">Salvar alterações</button>
+                        </div>
+                    </div>
+
+                    <!-- Ações Granulares -->
+                    <div class="card card-shadow p-3">
+                        <h6 class="mb-3 text-muted d-flex align-items-center gap-2">
+                            <i class="fas fa-sliders-h"></i> Ações Granulares de Leads
+                        </h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover" id="actions_table">
+                                <thead>
+                                    <tr>
+                                        <th>Ação</th>
+                                        <th style="width:120px;">Permitido</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="actions_tbody">
+                                    <tr><td colspan="2" class="text-muted text-center py-3">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="alert alert-info alert-sm mt-3 mb-0">
+                            <small><i class="fas fa-info-circle"></i> Estas são ações específicas que complementam o acesso às telas. Um usuário pode ter acesso à tela, mas sem permissão para executar certas ações.</small>
                         </div>
                     </div>
                 </div>
@@ -850,8 +875,29 @@ document.getElementById('changePasswordForm').addEventListener('submit', functio
 <script>
 document.addEventListener('DOMContentLoaded', function(){
     const roleSelect = document.getElementById('perm_role_select');
-    const tbody = document.getElementById('permissions_tbody');
+    const permTbody = document.getElementById('permissions_tbody');
+    const actionsTbody = document.getElementById('actions_tbody');
     const filterInput = document.getElementById('filter_permission');
+
+    // List of action permissions (these go in the separate section)
+    const actionPermissions = ['delete_leads_permanent'];
+
+    // Permission descriptions for better UI
+    const permDescriptions = {
+        'dashboard': 'Acessar Dashboard',
+        'projetos': 'Acessar Projetos',
+        'pos-venda': 'Acessar Pós-venda',
+        'relatorios': 'Acessar Relatórios',
+        'leads_gestao': 'Acessar Gestão de Leads',
+        'integracao-equipes': 'Acessar Equipes & Tarefas',
+        'funil_config': 'Personalizar Funil de Vendas',
+        'configuracoes': 'Acessar Configurações',
+        'delete_leads_permanent': 'Excluir leads permanentemente da lixeira'
+    };
+
+    const actionDescriptions = {
+        'delete_leads_permanent': 'Excluir leads permanentemente da lixeira'
+    };
 
     async function loadScreens() {
         const res = await fetch('api/get_all_screens.php');
@@ -860,7 +906,9 @@ document.addEventListener('DOMContentLoaded', function(){
     }
 
     async function loadRolePermissions(roleId) {
-        tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Carregando...</td></tr>';
+        permTbody.innerHTML = '<tr><td colspan="2" class="text-muted">Carregando...</td></tr>';
+        actionsTbody.innerHTML = '<tr><td colspan="2" class="text-muted text-center">Carregando...</td></tr>';
+        
         const [screensRes, roleRes] = await Promise.all([
             fetch('api/get_all_screens.php'),
             fetch('api/get_role_permissions.php?role_id='+encodeURIComponent(roleId))
@@ -870,27 +918,61 @@ document.addEventListener('DOMContentLoaded', function(){
         const screens = screensData.screens || [];
         const allowed = roleData.allowed || {};
 
-        if (screens.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhuma permissão registrada.</td></tr>';
-            return;
+        // Separate screens and actions
+        const screensList = screens.filter(s => !actionPermissions.includes(s));
+        const actionsList = screens.filter(s => actionPermissions.includes(s));
+
+        // Load screen permissions
+        if (screensList.length === 0) {
+            permTbody.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhuma permissão registrada.</td></tr>';
+        } else {
+            permTbody.innerHTML = '';
+            for (const s of screensList) {
+                const tr = document.createElement('tr');
+                tr.dataset.screen = s;
+                const tdName = document.createElement('td');
+                const label = permDescriptions[s] || s;
+                tdName.textContent = label;
+                const tdCheck = document.createElement('td');
+                const chk = document.createElement('input');
+                chk.type = 'checkbox';
+                chk.className = 'form-check-input';
+                chk.checked = !!allowed[s];
+                tdCheck.appendChild(chk);
+                tr.appendChild(tdName);
+                tr.appendChild(tdCheck);
+                permTbody.appendChild(tr);
+            }
         }
 
-        tbody.innerHTML = '';
-        for (const s of screens) {
-            const tr = document.createElement('tr');
-            tr.dataset.screen = s;
-            const tdName = document.createElement('td');
-            tdName.textContent = s;
-            const tdCheck = document.createElement('td');
-            const chk = document.createElement('input');
-            chk.type = 'checkbox';
-            chk.className = 'form-check-input';
-            chk.checked = !!allowed[s];
-            tdCheck.appendChild(chk);
-            tr.appendChild(tdName);
-            tr.appendChild(tdCheck);
-            tbody.appendChild(tr);
+        // Load action permissions
+        if (actionsList.length === 0) {
+            actionsTbody.innerHTML = '<tr><td colspan="2" class="text-muted text-center py-3">Nenhuma ação disponível.</td></tr>';
+        } else {
+            actionsTbody.innerHTML = '';
+            for (const s of actionsList) {
+                const tr = document.createElement('tr');
+                tr.dataset.screen = s;
+                const tdName = document.createElement('td');
+                const label = actionDescriptions[s] || permDescriptions[s] || s;
+                tdName.innerHTML = `<i class="fas fa-cogs text-primary me-2"></i>${escapeHtml(label)}`;
+                const tdCheck = document.createElement('td');
+                const chk = document.createElement('input');
+                chk.type = 'checkbox';
+                chk.className = 'form-check-input';
+                chk.checked = !!allowed[s];
+                tdCheck.appendChild(chk);
+                tr.appendChild(tdName);
+                tr.appendChild(tdCheck);
+                actionsTbody.appendChild(tr);
+            }
         }
+    }
+
+    function escapeHtml(txt) {
+        const div = document.createElement('div');
+        div.textContent = txt;
+        return div.innerHTML;
     }
 
     roleSelect.addEventListener('change', ()=> loadRolePermissions(roleSelect.value));
@@ -898,16 +980,30 @@ document.addEventListener('DOMContentLoaded', function(){
 
     filterInput.addEventListener('input', function(){
         const q = this.value.trim().toLowerCase();
-        for (const tr of tbody.querySelectorAll('tr')) {
+        // Filter both tables
+        for (const tr of permTbody.querySelectorAll('tr')) {
             const s = (tr.dataset.screen||'').toLowerCase();
-            tr.style.display = q === '' || s.indexOf(q) !== -1 ? '' : 'none';
+            const label = (permDescriptions[s] || s).toLowerCase();
+            tr.style.display = q === '' || s.indexOf(q) !== -1 || label.indexOf(q) !== -1 ? '' : 'none';
+        }
+        for (const tr of actionsTbody.querySelectorAll('tr')) {
+            const s = (tr.dataset.screen||'').toLowerCase();
+            const label = (actionDescriptions[s] || permDescriptions[s] || s).toLowerCase();
+            tr.style.display = q === '' || s.indexOf(q) !== -1 || label.indexOf(q) !== -1 ? '' : 'none';
         }
     });
 
     document.getElementById('btn_save_permissions').addEventListener('click', async function(){
         const roleId = roleSelect.value;
         const permissions = [];
-        for (const tr of tbody.querySelectorAll('tr')) {
+        // Collect from both tables
+        for (const tr of permTbody.querySelectorAll('tr')) {
+            const chk = tr.querySelector('input[type="checkbox"]');
+            const screen = tr.dataset.screen;
+            if (!screen) continue;
+            if (chk && chk.checked) permissions.push(screen);
+        }
+        for (const tr of actionsTbody.querySelectorAll('tr')) {
             const chk = tr.querySelector('input[type="checkbox"]');
             const screen = tr.dataset.screen;
             if (!screen) continue;
@@ -927,9 +1023,15 @@ document.addEventListener('DOMContentLoaded', function(){
         const target = prompt('Digite o ID do papel alvo para clonar as permissões:');
         if (!target) return;
         if (target == sourceRole) { alert('Papel de destino igual ao de origem.'); return; }
-        // read current checked
+        // read current checked from both tables
         const permissions = [];
-        for (const tr of tbody.querySelectorAll('tr')) {
+        for (const tr of permTbody.querySelectorAll('tr')) {
+            const chk = tr.querySelector('input[type="checkbox"]');
+            const screen = tr.dataset.screen;
+            if (!screen) continue;
+            if (chk && chk.checked) permissions.push(screen);
+        }
+        for (const tr of actionsTbody.querySelectorAll('tr')) {
             const chk = tr.querySelector('input[type="checkbox"]');
             const screen = tr.dataset.screen;
             if (!screen) continue;
@@ -941,8 +1043,6 @@ document.addEventListener('DOMContentLoaded', function(){
         const data = await res.json();
         alert(data.message || (data.success ? 'Clonado' : 'Erro'));
     });
-
-    // init button removed — initialization handled via migrations or API when needed
 
     // initial load
     if (roleSelect.value) loadRolePermissions(roleSelect.value);

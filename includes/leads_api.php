@@ -46,6 +46,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/permissions.php';
 
 // Ensure FS_NAME_COL default (some installs use 'stage_name' column)
 if (!isset($FS_NAME_COL) || !$FS_NAME_COL) {
@@ -827,8 +828,22 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
     if ($action === 'delete') {
         if (empty($data['id'])) { throw new Exception('Missing id'); }
-        $stmt = $pdo->prepare('UPDATE leads SET deleted=1, deleted_at=NOW() WHERE id=? AND user_id=?');
-        $stmt->execute([$data['id'], $userId]);
+
+        // Allow admins to move any lead to trash. Also allow roles with the
+        // granular delete permission to move any lead to trash. Otherwise,
+        // restrict to leads owned by the current user.
+        if ($isAdmin || hasPermission('delete_leads_permanent')) {
+            $stmt = $pdo->prepare('UPDATE leads SET deleted=1, deleted_at=NOW() WHERE id=?');
+            $stmt->execute([$data['id']]);
+        } else {
+            $stmt = $pdo->prepare('UPDATE leads SET deleted=1, deleted_at=NOW() WHERE id=? AND user_id=?');
+            $stmt->execute([$data['id'], $userId]);
+        }
+
+        if ($stmt->rowCount() === 0) {
+            throw new Exception('Lead not found or insufficient permissions to delete');
+        }
+
         echo json_encode(['ok' => true]);
         exit;
     }
@@ -851,13 +866,21 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
 
     if ($action === 'delete_permanent') {
         if (empty($data['id'])) { throw new Exception('Missing id'); }
-        if ($isAdmin) {
+        // Only admins or roles explicitly granted this permission may permanently delete leads
+        if (!hasPermission('delete_leads_permanent') && !$isAdmin) {
+            throw new Exception('Lead not found or insufficient permissions to delete permanently');
+        }
+
+        // If user is admin or has the granular permission, allow deleting any trashed lead
+        if ($isAdmin || hasPermission('delete_leads_permanent')) {
             $stmt = $pdo->prepare('DELETE FROM leads WHERE id=? AND deleted=1');
             $stmt->execute([$data['id']]);
         } else {
+            // Fallback: restrict to own leads
             $stmt = $pdo->prepare('DELETE FROM leads WHERE id=? AND user_id=? AND deleted=1');
             $stmt->execute([$data['id'], $userId]);
         }
+
         if ($stmt->rowCount() === 0) {
             throw new Exception('Lead not found or insufficient permissions to delete permanently');
         }
