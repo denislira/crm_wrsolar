@@ -27,6 +27,32 @@ $dailyBySource = [];
 $dailyByStatus = [];
 $dailyByStage = [];
 $dailyByHour = array_fill(0, 24, 0);
+// Filters: period and sources (multi-select)
+$filterPeriod = isset($_GET['period']) ? (int)$_GET['period'] : 365;
+$filterStartDate = isset($_GET['start_date']) ? (string)$_GET['start_date'] : '';
+$filterEndDate = isset($_GET['end_date']) ? (string)$_GET['end_date'] : '';
+$filterSources = isset($_GET['sources']) ? (array)$_GET['sources'] : [];
+
+// Prepare a default filtered range (used for filtered status counts)
+try {
+    if ($filterStartDate && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filterStartDate)) {
+        $fStart = new DateTime($filterStartDate . ' 00:00:00');
+    } else {
+        $fStart = new DateTime(); $fStart->modify('-' . max(1, $filterPeriod) . ' days');
+    }
+    if ($filterEndDate && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filterEndDate)) {
+        $fEnd = new DateTime($filterEndDate . ' 23:59:59');
+    } else {
+        $fEnd = new DateTime();
+    }
+} catch (Exception $e) { $fEnd = new DateTime(); $fStart = (clone $fEnd)->modify('-365 days'); }
+
+// Variables to be filled for filtered view
+$filteredStatusCounts = [];
+$last24Leads = [];
+$last24Total = 0;
+$last24Proposta = 0;
+$last24Atendimento = 0;
 try {
     // best-effort schema detection
     $leadColsStmtDaily = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
@@ -278,6 +304,45 @@ try {
         $usersTasks = []; 
 }
 
+// --- Filtered status counts and last-24h summary ---
+try {
+    $leadColsStmt2 = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
+    $leadCols2 = $leadColsStmt2->fetchAll(PDO::FETCH_COLUMN);
+    $dateCol2 = in_array('created_at', $leadCols2, true) ? 'created_at' : (in_array('data_inicio', $leadCols2, true) ? 'data_inicio' : 'created_at');
+    $hasDeleted2 = in_array('deleted', $leadCols2, true);
+
+    $where = "{$dateCol2} >= ? AND {$dateCol2} <= ?";
+    if ($hasDeleted2) $where .= " AND deleted = 0";
+
+    $params = [$fStart->format('Y-m-d H:i:s'), $fEnd->format('Y-m-d H:i:s')];
+    if (!empty($filterSources)) {
+        $placeholders = implode(',', array_fill(0, count($filterSources), '?'));
+        $where .= " AND COALESCE(NULLIF(source,''),'') IN ($placeholders)";
+        foreach ($filterSources as $s) $params[] = (string)$s;
+    }
+
+    $fsStmt = $pdo->prepare("SELECT COALESCE(NULLIF(status,''),'Sem status') AS label, COUNT(*) AS cnt FROM leads WHERE {$where} GROUP BY label ORDER BY cnt DESC");
+    $fsStmt->execute($params);
+    $filteredStatusCounts = $fsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // last 24 hours
+    $lStart = (new DateTime())->modify('-24 hours');
+    $lEnd = new DateTime();
+    $lWhere = "{$dateCol2} >= ? AND {$dateCol2} <= ?";
+    if ($hasDeleted2) $lWhere .= " AND deleted = 0";
+    $lStmt = $pdo->prepare("SELECT id, name, COALESCE(NULLIF(source,''),'Sem origem') AS source, COALESCE(NULLIF(status,''),'Sem status') AS status, {$dateCol2} AS created_at FROM leads WHERE {$lWhere} ORDER BY {$dateCol2} DESC LIMIT 200");
+    $lStmt->execute([$lStart->format('Y-m-d H:i:s'), $lEnd->format('Y-m-d H:i:s')]);
+    $last24Leads = $lStmt->fetchAll(PDO::FETCH_ASSOC);
+    $last24Total = count($last24Leads);
+    foreach ($last24Leads as $r) {
+        $st = mb_strtolower((string)$r['status']);
+        if (strpos($st, 'proposta') !== false) $last24Proposta++;
+        if (strpos($st, 'atendimento') !== false || strpos($st, 'atendim') !== false) $last24Atendimento++;
+    }
+} catch (Exception $e) {
+    // ignore and continue
+}
+
 ?>
 
 <style>
@@ -356,17 +421,93 @@ try {
             </div>
 
             <!-- Filters -->
-            <div class="filter-bar">
+            <form class="filter-bar" method="get" action="relatorios.php">
+                <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8'); ?>" />
                 <label class="mb-0 fw-semibold">Período:</label>
-                <select id="filterPeriod" onchange="updateReports()">
-                    <option value="30">Últimos 30 dias</option>
-                    <option value="90">Últimos 90 dias</option>
-                    <option value="180">Últimos 6 meses</option>
-                    <option value="365" selected>Último ano</option>
+                <select id="filterPeriod" name="period">
+                    <option value="30" <?php echo $filterPeriod===30?'selected':''; ?>>Últimos 30 dias</option>
+                    <option value="90" <?php echo $filterPeriod===90?'selected':''; ?>>Últimos 90 dias</option>
+                    <option value="180" <?php echo $filterPeriod===180?'selected':''; ?>>Últimos 6 meses</option>
+                    <option value="365" <?php echo $filterPeriod===365?'selected':''; ?>>Último ano</option>
                 </select>
-                <input type="date" id="filterStartDate" onchange="updateReports()" />
-                <input type="date" id="filterEndDate" onchange="updateReports()" />
-                <button class="btn btn-sm btn-outline-primary" onclick="resetFilters()">Limpar Filtros</button>
+                <input type="date" id="filterStartDate" name="start_date" value="<?php echo htmlspecialchars($filterStartDate, ENT_QUOTES, 'UTF-8'); ?>" />
+                <input type="date" id="filterEndDate" name="end_date" value="<?php echo htmlspecialchars($filterEndDate, ENT_QUOTES, 'UTF-8'); ?>" />
+                <label class="mb-0 fw-semibold">Fontes:</label>
+                <select name="sources[]" multiple size="1" style="min-width:160px;">
+                    <?php foreach ($sources as $s): ?>
+                        <option value="<?php echo htmlspecialchars((string)($s['source'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" <?php echo in_array(($s['source'] ?? ''), $filterSources, true)?'selected':''; ?>><?php echo htmlspecialchars((string)($s['source'] ?? 'Sem origem'), ENT_QUOTES, 'UTF-8'); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div style="margin-left:auto; display:flex; gap:0.5rem;">
+                    <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
+                    <a class="btn btn-sm btn-outline-secondary" href="relatorios.php">Limpar</a>
+                </div>
+            </form>
+
+            <!-- Last 24h summary -->
+            <div class="row g-3 mb-4">
+                <div class="col-lg-4">
+                    <div class="report-card">
+                        <div class="report-card-title"><i class="fa fa-clock"></i> Últimas 24 horas</div>
+                        <div class="d-flex align-items-center gap-3">
+                            <div>
+                                <div class="small text-muted">Total</div>
+                                <div class="h4 mb-0"><?php echo (int)$last24Total; ?></div>
+                            </div>
+                            <div>
+                                <div class="small text-muted">Proposta enviada</div>
+                                <div class="h5 mb-0 text-success"><?php echo (int)$last24Proposta; ?></div>
+                            </div>
+                            <div>
+                                <div class="small text-muted">Em atendimento</div>
+                                <div class="h5 mb-0 text-primary"><?php echo (int)$last24Atendimento; ?></div>
+                            </div>
+                        </div>
+                        <div style="margin-top:12px; height:180px;" class="chart-container">
+                            <canvas id="chartFilteredByStatus"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-8">
+                    <div class="report-card">
+                        <div class="report-card-title"><i class="fa fa-list"></i> Leads (últimas 24h)</div>
+                        <div class="table-responsive" style="max-height:220px; overflow:auto;">
+                            <table class="table table-sm table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width:70px;">ID</th>
+                                        <th>Nome</th>
+                                        <th style="width:160px;">Fonte</th>
+                                        <th style="width:160px;">Criado em</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (empty($last24Leads)): ?>
+                                        <tr><td colspan="4" class="text-center text-muted py-4">Nenhum lead nas últimas 24 horas.</td></tr>
+                                    <?php else: ?>
+                                        <?php foreach ($last24Leads as $l): ?>
+                                            <tr>
+                                                <td><?php echo (int)($l['id'] ?? 0); ?></td>
+                                                <td><?php echo htmlspecialchars((string)($l['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                <td><?php echo htmlspecialchars((string)($l['source'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                <td>
+                                                    <?php
+                                                        $raw = $l['created_at'] ?? null;
+                                                        $out = '';
+                                                        if ($raw) {
+                                                            try { $dt = new DateTime((string)$raw); $out = $dt->format('d/m/Y H:i'); } catch (Exception $e) { $out = (string)$raw; }
+                                                        }
+                                                        echo htmlspecialchars($out, ENT_QUOTES, 'UTF-8');
+                                                    ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Tabs Navigation -->
@@ -670,6 +811,8 @@ try {
 
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- html2pdf (bundles html2canvas + jsPDF) for accurate PDF export of the on-screen report -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
 <script>
 // Server data
 const REPORT_STAGES = <?php echo json_encode($stages, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
@@ -692,6 +835,15 @@ const REPORT_DAILY_BY_SOURCE = <?php echo json_encode($dailyBySource, JSON_HEX_T
 const REPORT_DAILY_BY_STATUS = <?php echo json_encode($dailyByStatus, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_DAILY_BY_STAGE = <?php echo json_encode($dailyByStage, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_DAILY_BY_HOUR = <?php echo json_encode($dailyByHour, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+
+// Filtered status counts (server-side) and last-24h data
+const REPORT_FILTERED_STATUS = <?php echo json_encode($filteredStatusCounts ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_FILTER_START = <?php echo json_encode(isset($fStart) ? $fStart->format('Y-m-d H:i:s') : null, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_FILTER_END = <?php echo json_encode(isset($fEnd) ? $fEnd->format('Y-m-d H:i:s') : null, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_LAST24_LEADS = <?php echo json_encode($last24Leads ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_LAST24_TOTAL = <?php echo json_encode($last24Total ?? 0, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_LAST24_PROPOSTA = <?php echo json_encode($last24Proposta ?? 0, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_LAST24_ATENDIMENTO = <?php echo json_encode($last24Atendimento ?? 0, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 
 let chartInstances = {};
 
@@ -845,6 +997,20 @@ function renderDailyCharts(){
             }
         });
     }
+}
+
+function renderFilteredStatusChart() {
+    const el = document.getElementById('chartFilteredByStatus');
+    if (!el) return;
+    destroyChart('chartFilteredByStatus');
+    const rows = Array.isArray(REPORT_FILTERED_STATUS) ? REPORT_FILTERED_STATUS : [];
+    const labels = rows.map(r => r.label || 'Sem status');
+    const data = rows.map(r => Number(r.cnt) || 0);
+    chartInstances['chartFilteredByStatus'] = new Chart(el, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: labels.map((_,i)=>defaultPalette(i)), borderWidth: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
 }
 
 function renderKPIs() {
@@ -1542,6 +1708,7 @@ function renderReports(){
         renderTopSellersTable();
         renderUsersTasksTable();
         renderDailyCharts();
+        renderFilteredStatusChart();
     } catch(e) { 
         console.error('Render reports failed', e); 
     }
@@ -1575,9 +1742,8 @@ function exportReport(format) {
         const tabBtn = document.querySelector(`#reportTabs [data-bs-target="#${activePane.id}"]`);
         const tabTitle = tabBtn ? tabBtn.textContent.replace(/\s+/g,' ').trim() : 'Relatório';
 
+        // Clone and inline images for canvases
         const clone = activePane.cloneNode(true);
-
-        // Replace chart canvases with static images so the print window keeps them
         const canvases = Array.from(activePane.querySelectorAll('canvas'));
         canvases.forEach((canvas) => {
             try {
@@ -1591,57 +1757,48 @@ function exportReport(format) {
                 img.alt = id;
                 img.style.maxWidth = '100%';
                 img.style.height = 'auto';
-                // Keep roughly the same height as the chart container
                 img.style.display = 'block';
                 cloneCanvas.replaceWith(img);
-            } catch (e) {
-                // ignore and keep canvas
-            }
+            } catch (e) { /* ignore */ }
         });
 
+        // Prepend title and meta
+        const wrapper = document.createElement('div');
+        const titleEl = document.createElement('h1');
+        titleEl.textContent = `Relatórios - ${tabTitle}`;
         const now = new Date();
-        const dateStr = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        const title = `Relatórios - ${tabTitle}`;
+        const metaEl = document.createElement('div');
+        metaEl.className = 'meta';
+        metaEl.textContent = `Gerado em: ${now.toLocaleDateString('pt-BR')} ${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+        wrapper.appendChild(titleEl);
+        wrapper.appendChild(metaEl);
+        wrapper.appendChild(clone);
 
-        const w = window.open('', '_blank');
-        if (!w) {
-            alert('Não foi possível abrir a janela de exportação (popup bloqueado).');
-            return;
-        }
+        // Use html2pdf to render the cloned DOM to PDF
+        const opt = {
+            margin:       [10,10,10,10],
+            filename:     `${tabTitle.replace(/\s+/g,'_')}.pdf`,
+            image:        { type: 'jpeg', quality: 0.95 },
+            html2canvas:  { scale: 2, useCORS: true, allowTaint: true, logging: false },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak:    { mode: ['css', 'legacy'] }
+        };
 
-        const styles = `
-            body{font-family:Arial, sans-serif; padding:16px; color:#111827;}
-            h1{font-size:18px; margin:0 0 4px 0;}
-            .meta{color:#6b7280; font-size:12px; margin-bottom:12px;}
-            .report-card{background:#fff; border-radius:12px; border:1px solid #e2e8f0; padding:16px; margin-bottom:12px;}
-            .report-card-title{font-size:14px; font-weight:600; color:#1f2937; margin-bottom:10px; display:flex; align-items:center; gap:8px;}
-            .chart-container{height:auto !important;}
-            table{width:100%; border-collapse:collapse;}
-            th,td{border-bottom:1px solid #f1f5f9; padding:8px 10px; text-align:left; font-size:12px;}
-            thead th{background:#f8fafc; border-bottom:2px solid #e2e8f0; color:#475569;}
-            @page { margin: 12mm; }
+        // Style adjustments for pdf render
+        const style = document.createElement('style');
+        style.textContent = `
+            .meta { color: #6b7280; font-size: 12px; margin-bottom: 8px; }
+            h1 { font-family: Arial, Helvetica, sans-serif; font-size: 18px; margin: 0 0 6px 0; }
+            .report-card { background: #fff; border-radius: 8px; padding: 12px; margin-bottom: 8px; border: 1px solid #e6eef7; }
+            .report-card-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
         `;
+        wrapper.prepend(style);
 
-        w.document.open();
-        w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>${styles}</style></head><body></body></html>`);
-        w.document.close();
+        // Trigger save
+        html2pdf().set(opt).from(wrapper).save();
 
-        const body = w.document.body;
-        const h1 = w.document.createElement('h1');
-        h1.textContent = title;
-        const meta = w.document.createElement('div');
-        meta.className = 'meta';
-        meta.textContent = `Gerado em: ${dateStr}`;
-        body.appendChild(h1);
-        body.appendChild(meta);
-        body.appendChild(w.document.importNode(clone, true));
-
-        // Give the browser a moment to paint images before printing
-        setTimeout(() => {
-            try { w.focus(); } catch(e) {}
-            try { w.print(); } catch(e) {}
-            try { w.close(); } catch(e) {}
-        }, 400);
     } catch (e) {
         console.error('Export PDF failed', e);
         alert('Falha ao exportar PDF.');
