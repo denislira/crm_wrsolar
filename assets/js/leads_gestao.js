@@ -1785,7 +1785,7 @@
             const modal = document.createElement('div');
             modal.className = 'modal fade';
             modal.id = 'addTaskModal';
-            const options = users.map(u => `<option value="${u.username}">${u.username}</option>`).join('');
+            const options = users.map(u => `<option value="${u.id}">${u.username}</option>`).join('');
             modal.innerHTML = `
                 <div class="modal-dialog">
                     <div class="modal-content">
@@ -1828,20 +1828,23 @@
             bsModal.show();
 
             // Pre-selecionar responsável se o lead tiver
-            if (lead.responsavel) {
+            if (lead.responsavel_id) {
                 const select = document.getElementById('taskResponsavel');
-                const option = Array.from(select.options).find(opt => opt.value === lead.responsavel);
-                if (option) option.selected = true;
+                select.value = String(lead.responsavel_id);
             }
 
             // Event listener para salvar
             document.getElementById('saveTaskBtn').addEventListener('click', async () => {
                 const title = document.getElementById('taskTitle').value.trim();
                 const description = document.getElementById('taskDescription').value.trim();
-                const responsavel = document.getElementById('taskResponsavel').value;
+                const responsavelId = document.getElementById('taskResponsavel').value;
                 const dueDate = document.getElementById('taskDueDate').value;
                 if (!title || !dueDate) {
                     alert('Preencha título e data de vencimento.');
+                    return;
+                }
+                if (!responsavelId) {
+                    alert('Selecione um responsável.');
                     return;
                 }
                 try {
@@ -1853,12 +1856,16 @@
                     }
                     const mod = await import('./team_tasks.js');
                     const addTask = mod.addTask;
+                    // Obter username do responsável selecionado
+                    const selectedUser = users.find(u => String(u.id) === String(responsavelId));
+                    const responsavelUsername = selectedUser ? selectedUser.username : '';
                     const taskData = {
                         user_id: userId,
                         titulo: title,
                         descricao: description,
                         status: 'Pendente',
-                        responsavel: responsavel,
+                        responsavel: responsavelUsername,
+                        responsavel_id: parseInt(responsavelId),
                         data_vencimento: dueDate,
                         lead_id: lead.id
                     };
