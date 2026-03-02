@@ -750,6 +750,73 @@ body.kanban-compact #kanbanWrap .lead-created { line-height: 1 !important; }
 body.kanban-compact #kanbanWrap .lead-days-box { font-size: 0.60rem !important; padding: 2px 5px !important; }
 body.kanban-compact #kanbanWrap .badge-score { font-size: 0.62rem !important; padding: 1px 5px !important; }
 
+/* Header filter popup styles */
+.header-filter-popup {
+    background: var(--card);
+    border: 1px solid rgba(11,26,49,0.12);
+    border-radius: 8px;
+    min-width: 220px;
+    max-width: 320px;
+}
+
+.header-filter-popup .form-check {
+    padding-left: 1.75rem;
+}
+
+.header-filter-popup .form-check-input {
+    cursor: pointer;
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-top: 0.15rem;
+}
+
+.header-filter-popup .form-check-label {
+    font-size: 0.9rem;
+    user-select: none;
+}
+
+.header-filter-popup .checkbox-filter-list {
+    border: 1px solid rgba(11,26,49,0.06);
+    border-radius: 6px;
+    padding: 8px;
+    background: #f8fafc;
+}
+
+.header-filter-popup .checkbox-filter-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.header-filter-popup .checkbox-filter-list::-webkit-scrollbar-track {
+    background: #e9eef5;
+    border-radius: 4px;
+}
+
+.header-filter-popup .checkbox-filter-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.header-filter-popup .checkbox-filter-list::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Dark mode adjustments for filter popup */
+body.theme-dark .header-filter-popup,
+body.dark-mode .header-filter-popup {
+    background: #1e293b;
+    border-color: rgba(255,255,255,0.12);
+}
+
+body.theme-dark .header-filter-popup .checkbox-filter-list,
+body.dark-mode .header-filter-popup .checkbox-filter-list {
+    background: #0f172a;
+    border-color: rgba(255,255,255,0.06);
+}
+
+body.theme-dark .header-filter-popup .form-check-label,
+body.dark-mode .header-filter-popup .form-check-label {
+    color: #e2e8f0;
+}
 
 
 

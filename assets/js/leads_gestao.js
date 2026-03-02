@@ -1151,7 +1151,18 @@
                 caret.style.cursor = 'pointer';
                 caret.title = 'Filtro';
                 caret.innerHTML = '<i class="fa-solid fa-filter" aria-hidden="true"></i>';
-                if (GRID_FILTERS && GRID_FILTERS[key]) caret.classList.add('active');
+                if (GRID_FILTERS && GRID_FILTERS[key]) {
+                    caret.classList.add('active');
+                    // Show count badge for multi-select filters (status)
+                    if (key === 'status' && Array.isArray(GRID_FILTERS[key]) && GRID_FILTERS[key].length > 0) {
+                        const badge = document.createElement('span');
+                        badge.className = 'badge bg-primary ms-1';
+                        badge.style.fontSize = '0.65rem';
+                        badge.style.verticalAlign = 'super';
+                        badge.textContent = GRID_FILTERS[key].length;
+                        caret.appendChild(badge);
+                    }
+                }
                 caret.addEventListener('click', (e)=>{ e.stopPropagation(); openHeaderFilter(th, key); });
                 th.appendChild(caret);
                 return th;
@@ -1165,15 +1176,71 @@
                 popup.style.position = 'absolute'; popup.style.zIndex = 2000; popup.style.minWidth = '200px';
                 // build input depending on key
                 if (key === 'status') {
-                    const sel = document.createElement('select'); sel.className = 'form-select form-select-sm';
-                    const optAll = document.createElement('option'); optAll.value = ''; optAll.textContent = 'Todos'; sel.appendChild(optAll);
-                    const uniqueStatuses = [...new Set(allLeads.map(l=>getStageName(l.stage_id)).filter(s=>s))];
-                    uniqueStatuses.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; if ((GRID_FILTERS[key]||'') === s) o.selected = true; sel.appendChild(o); });
-                    popup.appendChild(sel);
+                    // Multi-select checkboxes para status
+                    const uniqueStatuses = [...new Set(allLeads.map(l=>getStageName(l.stage_id)).filter(s=>s))].sort();
+                    const currentFilters = Array.isArray(GRID_FILTERS[key]) ? GRID_FILTERS[key] : (GRID_FILTERS[key] ? [GRID_FILTERS[key]] : []);
+                    
+                    // Quick action buttons (Select All / Clear All)
+                    const quickActions = document.createElement('div');
+                    quickActions.className = 'd-flex gap-2 mb-2';
+                    const selectAllBtn = document.createElement('button');
+                    selectAllBtn.type = 'button';
+                    selectAllBtn.className = 'btn btn-sm btn-outline-primary flex-grow-1';
+                    selectAllBtn.textContent = 'Selecionar Todos';
+                    selectAllBtn.style.fontSize = '0.75rem';
+                    selectAllBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        popup.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+                    });
+                    const deselectAllBtn = document.createElement('button');
+                    deselectAllBtn.type = 'button';
+                    deselectAllBtn.className = 'btn btn-sm btn-outline-secondary flex-grow-1';
+                    deselectAllBtn.textContent = 'Desmarcar Todos';
+                    deselectAllBtn.style.fontSize = '0.75rem';
+                    deselectAllBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        popup.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+                    });
+                    quickActions.appendChild(selectAllBtn);
+                    quickActions.appendChild(deselectAllBtn);
+                    popup.appendChild(quickActions);
+                    
+                    const checkboxWrap = document.createElement('div'); 
+                    checkboxWrap.className = 'checkbox-filter-list';
+                    checkboxWrap.style.maxHeight = '250px';
+                    checkboxWrap.style.overflowY = 'auto';
+                    checkboxWrap.style.marginBottom = '8px';
+                    uniqueStatuses.forEach(s => {
+                        const wrapper = document.createElement('div'); 
+                        wrapper.className = 'form-check mb-1';
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.className = 'form-check-input';
+                        checkbox.value = s;
+                        checkbox.id = 'status-filter-' + s.replace(/\s+/g, '-');
+                        checkbox.checked = currentFilters.includes(s);
+                        const label = document.createElement('label');
+                        label.className = 'form-check-label';
+                        label.htmlFor = checkbox.id;
+                        label.textContent = s;
+                        label.style.cursor = 'pointer';
+                        wrapper.appendChild(checkbox);
+                        wrapper.appendChild(label);
+                        checkboxWrap.appendChild(wrapper);
+                    });
+                    popup.appendChild(checkboxWrap);
                     const btns = document.createElement('div'); btns.className = 'd-flex gap-2 mt-2';
                     const apply = document.createElement('button'); apply.className = 'btn btn-sm btn-primary flex-grow-1'; apply.textContent = 'Aplicar';
                     const clear = document.createElement('button'); clear.className = 'btn btn-sm btn-outline-secondary flex-grow-1'; clear.textContent = 'Limpar';
-                    apply.addEventListener('click', ()=>{ GRID_FILTERS[key] = sel.value; GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    apply.addEventListener('click', ()=>{ 
+                        const selectedStatuses = Array.from(popup.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+                        if (selectedStatuses.length > 0) {
+                            GRID_FILTERS[key] = selectedStatuses;
+                        } else {
+                            delete GRID_FILTERS[key];
+                        }
+                        GRID_PAGE = 1; popup.remove(); renderGrid(); 
+                    });
                     clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid(); });
                     btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
                 } else if (key === 'criado' || key === 'ultimo_contato') {
@@ -1237,7 +1304,8 @@
                     if (!Object.prototype.hasOwnProperty.call(GRID_FILTERS,k)) continue;
                     const f = GRID_FILTERS[k]; if (f === null || f === undefined || f === '') continue;
                     if (k === 'status') {
-                        if (getStageName(lead.stage_id) !== f) return false;
+                        const statusArray = Array.isArray(f) ? f : (f ? [f] : []);
+                        if (statusArray.length > 0 && !statusArray.includes(getStageName(lead.stage_id))) return false;
                     } else if (k === 'criado' || k === 'ultimo_contato') {
                         const dt = (k === 'criado') ? (lead.data_inicio || lead.created_at || lead.createdAt || lead.created) : (lead.ultimo_contato);
                         if (!dt) return false;
