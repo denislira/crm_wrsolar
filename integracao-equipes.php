@@ -204,6 +204,12 @@ try {
                         <label class="form-label">Mensagem</label>
                         <textarea id="editRem-message" class="form-control form-control-sm" rows="4"></textarea>
                     </div>
+                    <div class="mb-2 position-relative">
+                        <label class="form-label">Responsável</label>
+                        <input type="text" id="editRem-responsavel" class="form-control form-control-sm" placeholder="Digite nome do responsável" autocomplete="off">
+                        <input type="hidden" id="editRem-responsavel-id" value="">
+                        <div id="editRemResponsavelSuggestions" class="list-group position-absolute bg-white border" style="display:none; z-index:1000; max-height:200px; overflow-y:auto; width:100%;"></div>
+                    </div>
                 </form>
                 <div id="editarLembreteMsg" class="mt-2"></div>
             </div>
@@ -1525,12 +1531,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (remType === 'lead' && !leadId) { document.getElementById('remMsg').innerHTML = '<div class="text-warning">Recomenda-se selecionar um lead válido ou mudar para "Contato livre".</div>'; }
             if (remType === 'contact' && (!contactName || !contactPhone)) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Nome e telefone do contato são obrigatórios para contato livre.</div>'; return; }
             const datetime = document.getElementById('rem-date').value + ' ' + document.getElementById('rem-time').value;
+            const responsavelId = document.getElementById('rem-responsavel-id') ? document.getElementById('rem-responsavel-id').value.trim() : '';
             const payload = new URLSearchParams();
             payload.append('action','add');
             payload.append('datetime', datetime);
             payload.append('message', document.getElementById('rem-message').value.trim());
             payload.append('template_id', document.getElementById('rem-template').value || '');
             payload.append('lead_ident', document.getElementById('rem-lead-ident').value.trim());
+            if (responsavelId) payload.append('responsavel_id', responsavelId);
             if (remType === 'lead') {
                 if (leadId) payload.append('lead_id', String(leadId)); else payload.append('lead_id','0');
             } else {
@@ -1751,6 +1759,8 @@ async function openEditReminderModal(id) {
         document.getElementById('editRem-date').value = dt[0] || '';
         document.getElementById('editRem-time').value = dt[1] ? dt[1].substring(0,5) : '';
         document.getElementById('editRem-message').value = r.message || '';
+        document.getElementById('editRem-responsavel').value = r.responsavel_name || '';
+        document.getElementById('editRem-responsavel-id').value = r.responsavel_id || '';
         // load templates and set value
         const templates = await fetchReminderTemplates();
         const sel = document.getElementById('editRem-template');
@@ -1815,12 +1825,68 @@ async function deleteReminderConfirm(id) {
 document.addEventListener('DOMContentLoaded', ()=>{
     const btnSaveEditRem = document.getElementById('btnSalvarEdicaoLembrete');
     if (!btnSaveEditRem) return;
+
+    const editRemResponsavelInput = document.getElementById('editRem-responsavel');
+    const editRemResponsavelId = document.getElementById('editRem-responsavel-id');
+    const editRemRespSuggestions = document.getElementById('editRemResponsavelSuggestions');
+    let editRemRespTimer = null;
+
+    async function fetchResponsaveisEditReminder(query) {
+        try {
+            const res = await fetch(`api/search_users.php?q=${encodeURIComponent(query)}`);
+            if (!res.ok) return [];
+            const list = await res.json();
+            return Array.isArray(list) ? list : [];
+        } catch (e) { console.error('erro fetchResponsaveisEditReminder', e); return []; }
+    }
+
+    if (editRemResponsavelInput && editRemResponsavelId && editRemRespSuggestions) {
+        editRemResponsavelInput.addEventListener('input', function() {
+            if (editRemRespTimer) clearTimeout(editRemRespTimer);
+            const q = this.value.trim();
+            editRemResponsavelId.value = '';
+            if (q.length < 2) {
+                editRemRespSuggestions.style.display = 'none';
+                return;
+            }
+            editRemRespTimer = setTimeout(async () => {
+                const users = await fetchResponsaveisEditReminder(q);
+                editRemRespSuggestions.innerHTML = '';
+                if (!users.length) {
+                    editRemRespSuggestions.style.display = 'none';
+                    return;
+                }
+                users.forEach(u => {
+                    const item = document.createElement('a');
+                    item.className = 'list-group-item list-group-item-action py-2 d-flex align-items-center gap-2';
+                    item.style.cursor = 'pointer';
+                    const avatarHtml = u.avatar ? `<img src="${escapeHtmlGlobal(u.avatar)}" style="width:32px;height:32px;object-fit:cover;border-radius:50%;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#cbd5e1;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">${escapeHtmlGlobal((u.username||'U').charAt(0).toUpperCase())}</div>`;
+                    item.innerHTML = `<div style="flex:0 0 36px">${avatarHtml}</div><div style="flex:1"><div style="font-weight:600;">${escapeHtmlGlobal(u.username)}</div><div class="small text-muted">${escapeHtmlGlobal(u.email||'')}</div></div>`;
+                    item.addEventListener('click', () => {
+                        editRemResponsavelInput.value = u.username || '';
+                        editRemResponsavelId.value = u.id || '';
+                        editRemRespSuggestions.style.display = 'none';
+                    });
+                    editRemRespSuggestions.appendChild(item);
+                });
+                editRemRespSuggestions.style.display = 'block';
+            }, 500);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!editRemResponsavelInput.contains(e.target) && !editRemRespSuggestions.contains(e.target)) {
+                editRemRespSuggestions.style.display = 'none';
+            }
+        });
+    }
+
     btnSaveEditRem.addEventListener('click', async ()=>{
         const id = document.getElementById('editRem-id').value;
         const date = document.getElementById('editRem-date').value;
         const time = document.getElementById('editRem-time').value;
         const message = document.getElementById('editRem-message').value.trim();
         const templateId = document.getElementById('editRem-template').value || '';
+        const responsavelId = document.getElementById('editRem-responsavel-id') ? document.getElementById('editRem-responsavel-id').value.trim() : '';
         if (!id || !date || !time || !message) { alert('Preencha data, hora e mensagem'); return; }
         try {
             const payload = new URLSearchParams();
@@ -1829,6 +1895,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
             payload.append('datetime', date + ' ' + time);
             payload.append('message', message);
             payload.append('template_id', templateId);
+            payload.append('responsavel_id', responsavelId);
             // include contact fields if present
             const contactName = document.getElementById('editRem-contact-name') ? document.getElementById('editRem-contact-name').value.trim() : '';
             const contactPhone = document.getElementById('editRem-contact-phone') ? document.getElementById('editRem-contact-phone').value.trim() : '';

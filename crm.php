@@ -276,7 +276,8 @@
         function renderPosVenda(projects, posVendaData) {
             const tableBody = document.getElementById('pos-venda-table-body');
             const emptyState = document.getElementById('pos-venda-empty-state');
-            const finalizados = projects.filter(p => p.status === 'Finalizado');
+            // show only Assinantes in monitoring/maintenance
+            const finalizados = projects.filter(p => p.status === 'Finalizado' && (p.client_status === 'Assinante' || !p.client_status));
             if(finalizados.length === 0) {
                 tableBody.innerHTML = '';
                 emptyState.classList.remove('hidden');
@@ -650,6 +651,7 @@
         });
     }
 
-    </script>
+</script>
+    <script src="/WRCRM/assets/js/sla_check.js"></script>
 </body>
 </html>

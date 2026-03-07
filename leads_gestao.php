@@ -352,6 +352,12 @@ include 'includes/header.php';
                                 <input id="saveTemplateName" class="form-control form-control-sm" placeholder="Ex: Ligar em 3 dias">
                             </div>
                         </div>
+                        <div class="mb-2 position-relative">
+                            <label class="form-label">Responsável</label>
+                            <input type="text" name="responsavel" id="reminderResponsavel" class="form-control" placeholder="Digite nome do responsável" autocomplete="off">
+                            <input type="hidden" name="responsavel_id" id="reminderResponsavelId" value="">
+                            <div id="reminderResponsavelSuggestions" class="list-group position-absolute bg-white border" style="display:none; z-index:1000; max-height:200px; overflow-y:auto; width:100%;"></div>
+                        </div>
                         <div class="row g-2">
                             <div class="col-7">
                                 <label class="form-label">Data</label>

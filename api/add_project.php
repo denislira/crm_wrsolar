@@ -27,6 +27,7 @@ $proposal_value = isset($_POST['proposal_value']) ? str_replace([',',' '], ['.',
 $status = $_POST['status'] ?? 'Prospecção';
 $lead_id = isset($_POST['lead_id']) && $_POST['lead_id'] !== '' ? intval($_POST['lead_id']) : null;
 $closed_date = $_POST['closed_date'] ?? null;
+$client_status = $_POST['client_status'] ?? null; // 'Assinante' or 'Ex-Cliente'
 
 // Debug log
 error_log("add_project.php - Recebido lead_id: " . print_r($_POST['lead_id'] ?? 'NOT SET', true));
@@ -38,8 +39,23 @@ if (empty($client_name)) {
 }
 
 try {
-    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
-    $stmt->execute([$_SESSION['user_id'], $client_name, $address, $proposal_value, $status, $lead_id, $closed_date ?: null]);
+    // ensure column exists for client_status (safe migration)
+    try {
+        $col = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = 'client_status'");
+        $col->execute();
+        if (!$col->fetchColumn()) {
+            $pdo->exec("ALTER TABLE projetos ADD COLUMN client_status VARCHAR(50) DEFAULT 'Assinante'");
+        }
+    } catch (Exception $e) { /* ignore migration errors */ }
+
+    // include client_status if provided
+    if ($client_status !== null) {
+        $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, client_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+        $stmt->execute([$_SESSION['user_id'], $client_name, $address, $proposal_value, $status, $lead_id, $closed_date ?: null, $client_status]);
+    } else {
+        $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+        $stmt->execute([$_SESSION['user_id'], $client_name, $address, $proposal_value, $status, $lead_id, $closed_date ?: null]);
+    }
     echo json_encode(['success' => true, 'message' => 'Projeto criado com sucesso']);
 } catch (Exception $e) {
     http_response_code(500);

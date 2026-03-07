@@ -2733,6 +2733,7 @@
                 const message = (document.getElementById('reminderMessage') || {}).value;
                 const date = (document.getElementById('reminderDate') || {}).value;
                 const time = (document.getElementById('reminderTime') || {}).value || '00:00';
+                const responsavelId = (document.getElementById('reminderResponsavelId') || {}).value || '';
                 if (!leadId || !message || !date) return alert('Preencha data e mensagem');
                 const dt = date + ' ' + time;
                 try {
@@ -2775,9 +2776,11 @@
                         body.append('action','update'); body.append('id', reminderId);
                         body.append('message', message); body.append('datetime', dt);
                         if (templateId) body.append('template_id', templateId);
+                        if (responsavelId) body.append('responsavel_id', responsavelId);
                     } else {
                         body.append('action','add'); body.append('lead_id', leadId); body.append('message', message); body.append('datetime', dt);
                         if (templateId) body.append('template_id', templateId);
+                        if (responsavelId) body.append('responsavel_id', responsavelId);
                     }
                     const res = await fetch('includes/reminders_api.php', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString() });
                     const json = await res.json();
@@ -3010,6 +3013,67 @@
             // ensure view mode applied after initial data load
             renderAll();
             await nextPaint();
+            
+            // Autocomplete de responsável para lembrete
+            const reminderResponsavelInput = document.getElementById('reminderResponsavel');
+            const reminderRespHidden = document.getElementById('reminderResponsavelId');
+            const reminderRespSuggestions = document.getElementById('reminderResponsavelSuggestions');
+            let reminderRespTimer = null;
+            
+            async function fetchResponsaveisForReminder(query) {
+                try {
+                    const res = await fetch(`api/search_users.php?q=${encodeURIComponent(query)}`);
+                    if (!res.ok) return [];
+                    const list = await res.json();
+                    return Array.isArray(list) ? list : [];
+                } catch (e) { console.error('erro fetchResponsaveisForReminder', e); return []; }
+            }
+            
+            if (reminderResponsavelInput && reminderRespHidden && reminderRespSuggestions) {
+                reminderResponsavelInput.addEventListener('input', function() {
+                    if (reminderRespTimer) clearTimeout(reminderRespTimer);
+                    const q = this.value.trim();
+                    reminderRespHidden.value = '';
+                    if (q.length < 2) { 
+                        reminderRespSuggestions.style.display = 'none'; 
+                        return; 
+                    }
+                    reminderRespTimer = setTimeout(async () => {
+                        const users = await fetchResponsaveisForReminder(q);
+                        reminderRespSuggestions.innerHTML = '';
+                        if (!users.length) { 
+                            reminderRespSuggestions.style.display = 'none'; 
+                            return; 
+                        }
+                        users.forEach(u => {
+                            const item = document.createElement('a');
+                            item.className = 'list-group-item list-group-item-action py-2 d-flex align-items-center gap-2';
+                            item.style.cursor = 'pointer';
+                            const avatarHtml = u.avatar 
+                                ? `<img src="${escapeText(u.avatar)}" style="width:32px;height:32px;object-fit:cover;border-radius:50%;">`
+                                : `<div style="width:32px;height:32px;border-radius:50%;background:#cbd5e1;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">${escapeText((u.username||'U').charAt(0).toUpperCase())}</div>`;
+                            item.innerHTML = `<div style="flex:0 0 36px">${avatarHtml}</div><div style="flex:1"><div style="font-weight:600;">${escapeText(u.username)}</div><div class="small text-muted">${escapeText(u.email||'')}</div></div>`;
+                            item.addEventListener('click', () => {
+                                reminderResponsavelInput.value = u.username || '';
+                                reminderRespHidden.value = u.id || '';
+                                reminderRespSuggestions.style.display = 'none';
+                            });
+                            reminderRespSuggestions.appendChild(item);
+                        });
+                        reminderRespSuggestions.style.display = 'block';
+                    }, 500);
+                });
+                
+                // hide suggestions when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (reminderResponsavelInput && reminderRespSuggestions && 
+                        !reminderResponsavelInput.contains(e.target) && 
+                        !reminderRespSuggestions.contains(e.target)) {
+                        reminderRespSuggestions.style.display = 'none';
+                    }
+                });
+            }
+            
             const bulkDeleteBtn = $('#bulkDeleteBtn');
             if (bulkDeleteBtn) {
                 bulkDeleteBtn.addEventListener('click', async () => {
