@@ -799,7 +799,7 @@ try {
                     </button>
                     <div class="source-dropdown-menu" id="sourceDropdownMenu">
                         <label class="source-dropdown-item source-dropdown-all">
-                            <input type="checkbox" id="sourceAll" onchange="toggleAllSources(this)" checked />
+                            <input type="checkbox" id="sourceAll" onchange="toggleAllSources(this)" <?php echo empty($filterSources) ? 'checked' : ''; ?> />
                             <span>Todos</span>
                         </label>
                         <div class="source-dropdown-divider"></div>

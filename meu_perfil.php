@@ -351,6 +351,9 @@ include __DIR__ . '/includes/sidebar.php';
         background: #f1f5f9;
         color: #334155;
     }
+    /* Modal edit task styles */
+    .task-avatar { width:56px; height:56px; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:1.25rem; color:#fff; background:#6c757d; }
+    .modal-header.colorful { background:#0b5ed7; color:#fff; }
 </style>
 
 <main class="flex-grow-1 p-4 main-content-scroll">
@@ -462,19 +465,6 @@ include __DIR__ . '/includes/sidebar.php';
             <div class="col-lg-8">
                 <div class="profile-card">
                     <h5 class="profile-section-title">Minhas Tarefas</h5>
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-4">
-                            <select id="profileFiltroStatus" class="form-select">
-                                <option value="">📋 Todos os status</option>
-                                <option value="Pendente">⏳ Pendente</option>
-                                <option value="Em andamento">⚙️ Em andamento</option>
-                                <option value="Concluída">✅ Concluída</option>
-                            </select>
-                        </div>
-                        <div class="col-md-8">
-                            <input id="profileFiltroBusca" class="form-control" placeholder="🔍 Buscar tarefas..." />
-                        </div>
-                    </div>
                     <div id="profileTasksList" class="scrollable-list" style="min-height:350px;">
                         <?php if (!empty($profile_tasks)): ?>
                             <?php foreach ($profile_tasks as $t): ?>
@@ -495,7 +485,7 @@ include __DIR__ . '/includes/sidebar.php';
                                             <p class="mb-0 text-secondary"><?php echo htmlspecialchars($t['descricao'] ?? ''); ?></p>
                                         </div>
                                         <div class="d-flex flex-column gap-2">
-                                            <button class="btn btn-sm btn-outline-primary btn-modern" data-task-id="<?php echo $t['id']; ?>" onclick="openEditTaskModal(this)">
+                                            <button class="btn btn-sm btn-outline-primary btn-modern" data-task-id="<?php echo $t['id']; ?>" onclick="openEditTaskModal(<?php echo $t['id']; ?>)">
                                                 <i class="fas fa-edit"></i>
                                             </button>
                                             <button class="btn btn-sm btn-outline-danger btn-modern" data-task-id="<?php echo $t['id']; ?>" onclick="deleteTaskConfirm(this)">
@@ -512,6 +502,80 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         <?php endif; ?>
                     </div>
+                </div>
+
+                <!-- Modal Editar Tarefa -->
+                <div class="modal fade" id="modalEditarTarefa" tabindex="-1" aria-labelledby="modalEditarTarefaLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header colorful d-flex align-items-center">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div id="modal-header-avatar" class="task-avatar bg-dark"><i class="fa fa-edit"></i></div>
+                                    <div>
+                                        <h5 class="modal-title mb-0" id="modalEditarTarefaLabel">Editar Tarefa</h5>
+                                        <div class="text-muted small">Altere dados e atribua a outro responsável</div>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="formEditarTarefa">
+                                    <input type="hidden" name="id" id="edit-id">
+                                    <div class="row">
+                                        <div class="col-md-8 modal-edit-left pe-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">Título</label>
+                                                <input type="text" name="titulo" id="edit-titulo" class="form-control form-control-lg" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Descrição</label>
+                                                <textarea name="descricao" id="edit-descricao" class="form-control" rows="4" placeholder="Notas, passos a seguir..."></textarea>
+                                            </div>
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Data de vencimento</label>
+                                                    <input type="date" name="data_vencimento" id="edit-data-vencimento" class="form-control">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Status</label>
+                                                    <select name="status" id="edit-status" class="form-select">
+                                                        <option value="Pendente">Pendente</option>
+                                                        <option value="Em andamento">Em andamento</option>
+                                                        <option value="Concluída">Concluída</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <input type="hidden" name="equipe" id="edit-equipe" value="">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3 text-center">
+                                                <div id="edit-avatar" class="task-avatar mb-2">?</div>
+                                                <div class="fw-semibold" id="edit-responsavel_name">&nbsp;</div>
+                                                <div class="small text-muted">ID: <span id="edit-responsavel-id" class="text-muted">-</span></div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Atribuir responsável</label>
+                                                <select name="responsavel" id="edit-responsavel" class="form-select" onchange="document.getElementById('edit-responsavel-id-hidden').value = this.options[this.selectedIndex].dataset.userId || '';">
+                                                    <?php foreach ($usersMap as $uid => $info): ?>
+                                                        <option value="<?php echo htmlspecialchars($info['username']); ?>" data-user-id="<?php echo htmlspecialchars($uid); ?>"><?php echo htmlspecialchars($info['username']); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <input type="hidden" name="responsavel_id" id="edit-responsavel-id-hidden" value="">
+                                                <div class="small text-muted mt-1">Escolha outro usuário para transferir a tarefa.</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                                <div id="editarTarefaMsg" class="mt-2"></div>
+                            </div>
+                            <div class="modal-footer d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button id="btnSalvarEdicao" type="button" class="btn btn-primary"><i class="fa fa-save me-1"></i> Salvar alterações</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 </div>
             </div>
         </div>
@@ -817,274 +881,35 @@ include __DIR__ . '/includes/sidebar.php';
 </main>
 
 <script type="module">
-    let fetchTasks = null, addTask = null, updateTask = null, deleteTask = null;
     const PROFILE_USER_ID = <?php echo json_encode($user_id); ?>;
     const usersMap = <?php echo json_encode($usersMap ?? []); ?>;
-    // show numeric id for debug
-    (function(){ const el = document.querySelector('.card p-3 dl'); if(el){ const info = document.createElement('div'); info.className='small text-muted mt-2'; info.textContent = 'PROFILE_USER_ID: ' + PROFILE_USER_ID; el.appendChild(info); } })();
+    const profileTasks = <?php echo json_encode($profile_tasks); ?>;
+
+    // helper methods to call team_tasks API
+    async function fetchTasks(filters = {}) {
+        const params = new URLSearchParams({action:'list', ...filters});
+        const res = await fetch('includes/team_tasks_api.php?' + params);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return await res.json();
+    }
+    async function updateTask(id, data) {
+        const res = await fetch('includes/team_tasks_api.php?action=update&id=' + encodeURIComponent(id), {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return await res.json();
+    }
+    async function deleteTask(id) {
+        const res = await fetch('includes/team_tasks_api.php?action=delete&id=' + encodeURIComponent(id), {method:'POST'});
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return await res.json();
+    }
 
     function escapeHtml(str){ if(!str) return ''; return String(str).replace(/[&<>'"]/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":"&#39;",'"':'&quot;'})[s]); }
 
-    function initials(nome) {
-        return nome.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2);
-    }
-
-    function equipeColor(eq) {
-        const map = {Marketing:'#3bb273',Vendas:'#0b6ac1',Atendimento:'#ffd24a',Técnica:'#7c3aed',Financeiro:'#ef4444'};
-        return map[eq]||'#888';
-    }
-
-    function buildAvatar(userInfo, fallbackName, bgColor) {
-        if (userInfo && userInfo.avatar) {
-            const img = document.createElement('img');
-            img.src = userInfo.avatar + '?v=' + Date.now();
-            img.className = 'rounded-circle';
-            img.style.width = '38px';
-            img.style.height = '38px';
-            img.style.objectFit = 'cover';
-            img.alt = userInfo.username || fallbackName || 'Avatar';
-            return img;
-        }
-        const d = document.createElement('div');
-        d.className = 'rounded-circle d-flex align-items-center justify-content-center';
-        d.style.width = '38px';
-        d.style.height = '38px';
-        d.style.background = bgColor;
-        d.style.color = '#fff';
-        d.style.fontWeight = 'bold';
-        d.style.fontSize = '1.1rem';
-        d.textContent = fallbackName ? initials(fallbackName) : '?';
-        return d;
-    }
-
-    function withTimeout(fn, ms){
-        return async (...args) => {
-            return await Promise.race([
-                fn(...args),
-                new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
-            ]);
-        };
-    }
-
-    async function loadProfileTasks(){
-        const list = document.getElementById('profileTasksList');
-        list.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin fa-2x mb-3"></i><p>Carregando tarefas...</p></div>';
-        console.debug('loadProfileTasks: start');
-        try{
-            const status = document.getElementById('profileFiltroStatus').value;
-            const q = document.getElementById('profileFiltroBusca').value.trim().toLowerCase();
-            const filtros = {};
-            if(status) filtros.status = status;
-            
-            // Aguardar fetchTasks estar disponível
-            if (typeof fetchTasks !== 'function') {
-                console.warn('fetchTasks not ready, waiting...');
-                await new Promise(resolve => setTimeout(resolve, 100));
-                if (typeof fetchTasks !== 'function') {
-                    throw new Error('fetchTasks não está disponível. Recarregue a página.');
-                }
-            }
-            
-            console.debug('Calling fetchTasks with filters', filtros);
-            const tarefas = await fetchTasks(filtros);
-            console.debug('fetchTasks result', tarefas && tarefas.length ? tarefas.length : tarefas);
-            if(!tarefas || !Array.isArray(tarefas) || !tarefas.length){ 
-                list.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-tasks fa-3x mb-3 opacity-25"></i><p>Nenhuma tarefa encontrada.</p></div>'; 
-                return; 
-            }
-            
-            // Filtrar por user_id ou responsavel_id, e depois por busca
-            let tarefasFiltradas = tarefas.filter(t => {
-                return (t.user_id == PROFILE_USER_ID || t.responsavel_id == PROFILE_USER_ID || t.responsavel === '<?php echo ($_SESSION['username'] ?? ''); ?>');
-            });
-            
-            if(q) {
-                tarefasFiltradas = tarefasFiltradas.filter(t => {
-                    const titulo = (t.titulo || '').toLowerCase();
-                    const descricao = (t.descricao || '').toLowerCase();
-                    const responsavel = (t.responsavel || '').toLowerCase();
-                    return titulo.includes(q) || descricao.includes(q) || responsavel.includes(q);
-                });
-            }
-            
-            if(!tarefasFiltradas.length){ 
-                list.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-search fa-3x mb-3 opacity-25"></i><p>Nenhuma tarefa encontrada com esse critério.</p></div>'; 
-                return; 
-            }
-            
-            tarefasFiltradas.forEach(t=>{
-                const card = document.createElement('div');
-                card.className = 'task-item';
-                card.style.display = 'flex';
-                card.style.alignItems = 'center';
-                card.style.gap = '12px';
-                
-                const badgeClass = t.status === 'Pendente' ? 'badge-pendente' : 
-                                  t.status === 'Em andamento' ? 'badge-andamento' : 
-                                  t.status === 'Concluída' ? 'badge-concluida' : 'badge-pendente';
-                
-                // Avatares sobrepostos
-                const avatarWrap = document.createElement('div');
-                avatarWrap.className = 'position-relative';
-                avatarWrap.style.width = '52px';
-                avatarWrap.style.height = '38px';
-                avatarWrap.style.flex = '0 0 52px';
-
-                const criadorId = t.user_id || null;
-                const responsavelId = t.responsavel_id || null;
-                const criadorInfo = (criadorId && usersMap && usersMap[criadorId]) ? usersMap[criadorId] : null;
-                const responsavelInfo = (responsavelId && usersMap && usersMap[responsavelId]) ? usersMap[responsavelId] : null;
-                const criadorNome = criadorInfo && criadorInfo.username ? criadorInfo.username : 'Criador';
-                const responsavelNome = responsavelInfo && responsavelInfo.username ? responsavelInfo.username : t.responsavel;
-
-                const creatorEl = buildAvatar(criadorInfo, criadorNome, '#6c757d');
-                creatorEl.style.position = 'absolute';
-                creatorEl.style.left = '0';
-                creatorEl.style.top = '0';
-                creatorEl.style.zIndex = '2';
-
-                const respEl = buildAvatar(responsavelInfo, responsavelNome, equipeColor(t.equipe));
-                respEl.style.position = 'absolute';
-                respEl.style.left = '22px';
-                respEl.style.top = '0';
-                respEl.style.zIndex = '1';
-
-                avatarWrap.appendChild(respEl);
-                avatarWrap.appendChild(creatorEl);
-                
-                const content = document.createElement('div');
-                content.className = 'flex-grow-1';
-                content.innerHTML = `
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <h6 class="mb-0 fw-bold">${escapeHtml(t.titulo)}</h6>
-                        <span class="badge-custom ${badgeClass}">${escapeHtml(t.status||'')}</span>
-                    </div>
-                    <p class="text-muted small mb-2">
-                        <i class="far fa-calendar me-1"></i>
-                        ${t.data_vencimento ? escapeHtml(t.data_vencimento) : 'Sem data'} | Responsável: ${escapeHtml(responsavelNome || '')}
-                    </p>
-                    <p class="mb-0 text-secondary">${escapeHtml(t.descricao||'')}</p>
-                `;
-
-                const actions = document.createElement('div');
-                actions.className = 'd-flex gap-2';
-                actions.style.flex = '0 0 auto';
-                const editBtn = document.createElement('button');
-                editBtn.className = 'btn btn-sm btn-outline-primary btn-modern';
-                editBtn.setAttribute('data-task-id', t.id);
-                editBtn.onclick = openEditTaskModal;
-                editBtn.innerHTML = '<i class="fas fa-edit"></i>';
-
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'btn btn-sm btn-outline-danger btn-modern';
-                deleteBtn.setAttribute('data-task-id', t.id);
-                deleteBtn.onclick = deleteTaskConfirm;
-                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-
-                actions.appendChild(editBtn);
-                actions.appendChild(deleteBtn);
-
-                card.appendChild(avatarWrap);
-                card.appendChild(content);
-                card.appendChild(actions);
-                list.appendChild(card);
-            });
-        }catch(e){ 
-            console.error('loadProfileTasks error:', e); 
-            list.innerHTML = '<div class="text-center text-danger py-5"><i class="fas fa-exclamation-triangle fa-2x mb-3"></i><p>Erro ao carregar tarefas: ' + (e.message || 'desconhecido') + '</p></div>'; 
-        }
-    }
-
-    window.openEditTaskModal = async function(e) {
-        const taskId = e.currentTarget.getAttribute('data-task-id');
-        console.log('Edit task:', taskId);
-        alert('Editar tarefa ' + taskId + ' (em desenvolvimento)');
-    };
-
-    window.deleteTaskConfirm = async function(e) {
-        const taskId = e.currentTarget.getAttribute('data-task-id');
-        if (!confirm('Tem certeza que deseja deletar essa tarefa?')) return;
-        try {
-            const resp = await deleteTask(taskId);
-            if (resp.success) {
-                alert('Tarefa deletada com sucesso!');
-                loadProfileTasks();
-            } else {
-                alert('Erro ao deletar: ' + (resp.error || 'erro desconhecido'));
-            }
-        } catch (err) {
-            console.error(err);
-            alert('Erro ao deletar tarefa');
-        }
-    };
-
     document.addEventListener('DOMContentLoaded', ()=>{
-        // Try to dynamically import team_tasks helper; don't block the rest on failure
-        (async function(){
-            let imported = false;
-            try{
-                const mod = await import('/assets/js/team_tasks.js');
-                fetchTasks = withTimeout(mod.fetchTasks.bind(mod), 8000);
-                addTask = withTimeout(mod.addTask.bind(mod), 8000);
-                updateTask = withTimeout(mod.updateTask.bind(mod), 8000);
-                deleteTask = withTimeout(mod.deleteTask.bind(mod), 8000);
-                imported = true;
-            }catch(e1){
-                try{
-                    const mod = await import('./assets/js/team_tasks.js');
-                    fetchTasks = withTimeout(mod.fetchTasks.bind(mod), 8000);
-                    addTask = withTimeout(mod.addTask.bind(mod), 8000);
-                    updateTask = withTimeout(mod.updateTask.bind(mod), 8000);
-                    deleteTask = withTimeout(mod.deleteTask.bind(mod), 8000);
-                    imported = true;
-                }catch(e2){
-                    console.warn('dynamic import team_tasks failed', e1, e2);
-                }
-            }
-
-            // Fallback implementations using direct fetch if dynamic import isn't available
-            if(!imported){
-                const _fetchTasks = async (filters = {}) => {
-                    console.debug('fallback fetchTasks called with', filters);
-                    const params = new URLSearchParams(Object.assign({action:'list'}, filters));
-                    const res = await fetch('includes/team_tasks_api.php?' + params, {credentials: 'same-origin'});
-                    return await res.json();
-                };
-                const _addTask = async (data) => {
-                    const res = await fetch('includes/team_tasks_api.php?action=add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data), credentials: 'same-origin'});
-                    return await res.json();
-                };
-                const _updateTask = async (id, data) => {
-                    const res = await fetch('includes/team_tasks_api.php?action=update&id=' + encodeURIComponent(id), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data), credentials: 'same-origin'});
-                    return await res.json();
-                };
-                const _deleteTask = async (id) => {
-                    const res = await fetch('includes/team_tasks_api.php?action=delete&id=' + encodeURIComponent(id), {method:'POST', credentials: 'same-origin'});
-                    return await res.json();
-                };
-
-                fetchTasks = withTimeout(_fetchTasks, 8000);
-                addTask = withTimeout(_addTask, 8000);
-                updateTask = withTimeout(_updateTask, 8000);
-                deleteTask = withTimeout(_deleteTask, 8000);
-            }
-
-            console.debug('Functions initialized:', {fetchTasks: typeof fetchTasks, addTask: typeof addTask, updateTask: typeof updateTask, deleteTask: typeof deleteTask});
-
-            // wire filters after attempting import
-            document.getElementById('profileFiltroStatus').addEventListener('change', loadProfileTasks);
-            document.getElementById('profileFiltroBusca').addEventListener('input', loadProfileTasks);
-            
-            // Carregar tarefas somente após as funções estarem inicializadas
-            console.debug('Calling loadProfileTasks after init');
-            await loadProfileTasks();
-            loadProfileData();
-        })().catch(e => {
-            console.error('Initialization error:', e);
-            const list = document.getElementById('profileTasksList');
-            if(list) list.innerHTML = '<div class="text-center text-danger py-5"><i class="fas fa-exclamation-triangle fa-2x mb-3"></i><p>Erro ao inicializar: ' + (e.message || 'desconhecido') + '</p></div>';
-        });
-
         // Avatar upload handlers
         const avatarInput = document.getElementById('avatarInput');
         const btnUpload = document.getElementById('btnUploadAvatar');
@@ -1092,12 +917,127 @@ include __DIR__ . '/includes/sidebar.php';
         const avatarMsg = document.getElementById('avatarMsg');
         const profileAvatar = document.getElementById('profileAvatar');
 
+        // editing helpers
+        window.openEditTaskModal = function(id) {
+            // find task in profileTasks
+            const task = profileTasks.find(t => String(t.id) === String(id));
+            if (!task) {
+                console.warn('task not found for edit:', id);
+                alert('Tarefa não encontrada para edição.');
+                return;
+            }
+            // populate form fields similar to integracao
+            document.getElementById('edit-id').value = task.id;
+            document.getElementById('edit-equipe').value = task.equipe || '';
+            const sel = document.getElementById('edit-responsavel');
+            if (sel) {
+                let selectedName = task.responsavel || '';
+                if (task.responsavel_id && usersMap && usersMap[task.responsavel_id]) {
+                    selectedName = usersMap[task.responsavel_id].username || selectedName;
+                }
+                sel.value = selectedName;
+            }
+            const editRespIdHidden = document.getElementById('edit-responsavel-id-hidden');
+            if (editRespIdHidden) {
+                if (task.responsavel_id) {
+                    editRespIdHidden.value = task.responsavel_id;
+                } else if (sel && sel.options[sel.selectedIndex]) {
+                    editRespIdHidden.value = sel.options[sel.selectedIndex].dataset.userId || '';
+                } else {
+                    editRespIdHidden.value = '';
+                }
+            }
+            document.getElementById('edit-titulo').value = task.titulo || '';
+            document.getElementById('edit-status').value = task.status || '';
+            document.getElementById('edit-data-vencimento').value = task.data_vencimento || '';
+            document.getElementById('edit-descricao').value = task.descricao || '';
+            // avatar/header
+            try {
+                const nameEl = document.getElementById('edit-responsavel_name');
+                const avatarEl = document.getElementById('edit-avatar');
+                const headerAvatar = document.getElementById('modal-header-avatar');
+                const idEl = document.getElementById('edit-responsavel-id');
+                const respIdForHeader = task.responsavel_id || null;
+                const respInfo = respIdForHeader && usersMap && usersMap[respIdForHeader] ? usersMap[respIdForHeader] : null;
+                if (respInfo && respInfo.avatar) {
+                    if (headerAvatar) headerAvatar.innerHTML = `<img src="${respInfo.avatar}?v=${Date.now()}" class="rounded-circle" style="width:56px;height:56px;object-fit:cover;">`;
+                } else if (headerAvatar) {
+                    const initialsH = (respInfo && respInfo.username ? respInfo.username : (task.responsavel||'')).split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase()||'?';
+                    headerAvatar.textContent = initialsH; headerAvatar.style.background = '#0d6efd'; headerAvatar.style.color = '#fff';
+                }
+                const creatorId = task.user_id || null;
+                const creatorInfo = creatorId && usersMap && usersMap[creatorId] ? usersMap[creatorId] : null;
+                const creatorName = creatorInfo && creatorInfo.username ? creatorInfo.username : (task.username||'');
+                if (nameEl) nameEl.textContent = 'Criador por ' + (creatorName||'');
+                if (idEl) idEl.textContent = creatorId || '-';
+                if (creatorInfo && creatorInfo.avatar) {
+                    if (avatarEl) avatarEl.innerHTML = `<img src="${creatorInfo.avatar}?v=${Date.now()}" class="rounded-circle" style="width:56px;height:56px;object-fit:cover;">`;
+                } else {
+                    const initialsC = (creatorName||'').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase()||'?';
+                    if (avatarEl) { avatarEl.textContent = initialsC; avatarEl.style.background = '#6c757d'; avatarEl.style.color = '#fff'; }
+                }
+                const modalHeader = document.querySelector('#modalEditarTarefa .modal-header');
+                if (modalHeader) {
+                    modalHeader.style.background = '#0b5ed7';
+                    modalHeader.style.borderBottom = '1px solid rgba(0,0,0,0.06)';
+                }
+            } catch(e){ console.warn('avatar fill error',e); }
+            const modal = new bootstrap.Modal(document.getElementById('modalEditarTarefa'));
+            modal.show();
+        };
+
+        window.deleteTaskConfirm = async function(el) {
+            const taskId = el.getAttribute('data-task-id');
+            if (!confirm('Tem certeza que deseja deletar essa tarefa?')) return;
+            try {
+                const resp = await deleteTask(taskId);
+                if (resp.success) {
+                    alert('Tarefa deletada com sucesso!');
+                    location.reload();
+                } else {
+                    alert('Erro ao deletar: ' + (resp.error || ''));
+                }
+            } catch(err) {
+                console.error(err);
+                alert('Erro ao deletar tarefa');
+            }
+        };
+
+        // salvar edição de tarefa
+        const btnSalvarEdicao = document.getElementById('btnSalvarEdicao');
+        if (btnSalvarEdicao) {
+            btnSalvarEdicao.addEventListener('click', async function() {
+                const form = document.getElementById('formEditarTarefa');
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData);
+                if (!data.responsavel_id) {
+                    const sel = document.getElementById('edit-responsavel');
+                    if (sel && sel.options[sel.selectedIndex]) {
+                        data.responsavel_id = sel.options[sel.selectedIndex].dataset.userId || '';
+                    }
+                }
+                const id = data.id;
+                delete data.id;
+                const resposta = await updateTask(id, data);
+                if (resposta.success) {
+                    document.getElementById('editarTarefaMsg').innerHTML = '<div class="alert alert-success">Tarefa atualizada com sucesso!</div>';
+                    setTimeout(() => {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('modalEditarTarefa'));
+                        modal.hide();
+                        document.getElementById('editarTarefaMsg').innerHTML = '';
+                        // reload page to show changes
+                        location.reload();
+                    }, 1000);
+                } else {
+                    const msg = resposta && resposta.error ? resposta.error : 'Erro ao atualizar tarefa';
+                    document.getElementById('editarTarefaMsg').innerHTML = `<div class="alert alert-danger">${msg}</div>`;
+                }
+            });
+        }
+
         if (btnUpload) btnUpload.addEventListener('click', async ()=>{
             if (!avatarInput.files || !avatarInput.files[0]) { avatarMsg.innerHTML = '<div class="text-danger small">Selecione um arquivo.</div>'; return; }
             const fd = new FormData(); fd.append('avatar', avatarInput.files[0]);
-            try{
-                btnUpload.disabled = true;
-                const res = await fetch('api/upload_avatar.php', { method: 'POST', body: fd, credentials: 'same-origin' });
                 const text = await res.text();
                 let data = null;
                 try { data = JSON.parse(text); } catch (e){ avatarMsg.innerHTML = '<div class="text-danger small">Resposta inválida do servidor</div>'; console.error('upload raw:', text); btnUpload.disabled = false; return; }
