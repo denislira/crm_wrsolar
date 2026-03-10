@@ -270,6 +270,87 @@ include __DIR__ . '/includes/sidebar.php';
     .scrollable-list::-webkit-scrollbar-thumb:hover {
         background: #a0aec0;
     }
+    /* Fluxo de Atendimento cards */
+    .fluxo-card {
+        background: #fff;
+        border-radius: 14px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+        border-left: 5px solid #e2e8f0;
+        height: 100%;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .fluxo-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    }
+    .fluxo-card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    .fluxo-number {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        color: #475569;
+        font-weight: 700;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .fluxo-number-red {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+    .fluxo-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        padding: 0.2rem 0.6rem;
+        border-radius: 6px;
+    }
+    .fluxo-badge-blue { background: #dbeafe; color: #1e40af; }
+    .fluxo-badge-purple { background: #ede9fe; color: #6d28d9; }
+    .fluxo-badge-success { background: rgba(255,255,255,0.3); color: #fff; }
+    .fluxo-badge-red { background: #fee2e2; color: #dc2626; }
+    .fluxo-border-green { border-left-color: #22c55e; }
+    .fluxo-border-purple { border-left-color: #8b5cf6; }
+    .fluxo-border-yellow { border-left-color: #f59e0b; }
+    .fluxo-border-blue { border-left-color: #3b82f6; }
+    .fluxo-border-red { border-left-color: #ef4444; }
+    .fluxo-border-orange { border-left-color: #f97316; }
+    .fluxo-card-success {
+        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+        color: #fff;
+        border-left-color: #15803d;
+    }
+    .fluxo-card-success h6,
+    .fluxo-card-success p { color: #fff !important; }
+    .fluxo-check {
+        font-size: 1.5rem;
+        color: #fff;
+    }
+    #perfilTabs .nav-link {
+        border-radius: 10px;
+        font-weight: 600;
+        padding: 0.6rem 1.25rem;
+        color: #64748b;
+        transition: all 0.2s ease;
+    }
+    #perfilTabs .nav-link.active {
+        background: <?php echo htmlspecialchars($primary_color); ?>;
+        color: #fff;
+    }
+    #perfilTabs .nav-link:not(.active):hover {
+        background: #f1f5f9;
+        color: #334155;
+    }
 </style>
 
 <main class="flex-grow-1 p-4 main-content-scroll">
@@ -290,6 +371,24 @@ include __DIR__ . '/includes/sidebar.php';
         </div>
 
         <div id="profileDebug" class="mb-3"></div>
+
+        <!-- Abas: Meu Perfil / Fluxo de Atendimento -->
+        <ul class="nav nav-pills mb-4" id="perfilTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-perfil" data-bs-toggle="pill" data-bs-target="#pane-perfil" type="button" role="tab">
+                    <i class="fas fa-user me-2"></i>Meu Perfil
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-fluxo" data-bs-toggle="pill" data-bs-target="#pane-fluxo" type="button" role="tab">
+                    <i class="fas fa-route me-2"></i>Fluxo de Atendimento
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="perfilTabContent">
+        <!-- TAB: Meu Perfil -->
+        <div class="tab-pane fade show active" id="pane-perfil" role="tabpanel">
 
         <div class="row g-4">
             <!-- Coluna Esquerda - Foto e Informações -->
@@ -554,6 +653,166 @@ include __DIR__ . '/includes/sidebar.php';
                 </div>
             </div>
         </div>
+        </div><!-- /pane-perfil -->
+
+        <!-- TAB: Fluxo de Atendimento -->
+        <div class="tab-pane fade" id="pane-fluxo" role="tabpanel">
+
+            <!-- Fluxo de Venda Progressivo -->
+            <h5 class="fw-bold mb-4" style="font-size:1.25rem;">
+                <i class="fas fa-chart-line me-2 text-primary"></i>Fluxo de Venda Progressivo
+            </h5>
+
+            <div class="row g-4 mb-5">
+                <!-- 1 - Em Atendimento -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-border-green">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-number">1</span>
+                            <span class="fluxo-badge fluxo-badge-blue">INICIAL</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Em Atendimento</h6>
+                        <p class="text-muted small mb-0">Ao adicionar um novo cliente no CRM, ele entra automaticamente neste estágio inicial.</p>
+                    </div>
+                </div>
+
+                <!-- 2 - Qualificado -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-border-green">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-number">2</span>
+                            <span class="fluxo-badge fluxo-badge-purple">QUALIFICAÇÃO</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Qualificado</h6>
+                        <p class="text-muted small mb-0">Cliente passou as informações e está aguardando o orçamento ser finalizado.</p>
+                    </div>
+                </div>
+
+                <!-- 3 - Proposta Enviada -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-border-green">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-number">3</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Proposta Enviada</h6>
+                        <p class="text-muted small mb-0">Informações e orçamento já foram entregues ao cliente.</p>
+                    </div>
+                </div>
+
+                <!-- 4 - Em Negociação -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-border-purple">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-number">4</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Em Negociação</h6>
+                        <p class="text-muted small mb-0">Cliente com alto índice de fechamento e em fase de negociação ativa, independente da forma de pagamento.</p>
+                    </div>
+                </div>
+
+                <!-- 5 - Financiamento -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-border-yellow">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-number">5</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Financiamento</h6>
+                        <p class="text-muted small mb-2">Obrigatório detalhar financeira e dados do cliente.</p>
+                        <p class="small mb-0" style="color:#b45309;">Simulação feita mas sem prioridade alta de fechamento imediato.</p>
+                    </div>
+                </div>
+
+                <!-- 6 - Consórcio -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-border-blue">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-number">6</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Consórcio</h6>
+                        <p class="text-muted small mb-0">Perfil identificado, dados coletados e simulação de consórcio realizada.</p>
+                    </div>
+                </div>
+
+                <!-- 7 - Assinatura -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-border-blue">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-number">7</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Assinatura</h6>
+                        <p class="text-muted small mb-0">Cliente passou os dados e concordou em analisar o contrato final.</p>
+                    </div>
+                </div>
+
+                <!-- 11 - Aguardará -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-border-yellow">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-number">11</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Aguardará</h6>
+                        <p class="text-muted small mb-0">Cliente decidiu aguardar e informou o prazo de retorno.</p>
+                    </div>
+                </div>
+
+                <!-- Venda Concluída -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-card-success">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-check"><i class="fas fa-check-circle"></i></span>
+                            <span class="fluxo-badge fluxo-badge-success">SUCESSO</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Venda Concluída</h6>
+                        <p class="small mb-0" style="opacity:0.9;">Contrato assinado com a empresa. Parabéns!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status de Perda ou Desistência -->
+            <h5 class="fw-bold mb-4" style="font-size:1.25rem;">
+                <i class="fas fa-times-circle me-2 text-danger"></i>Status de Perda ou Desistência
+            </h5>
+
+            <div class="row g-4">
+                <!-- 8 - Sem Interesse -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-border-red">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-number fluxo-number-red">8</span>
+                            <span class="fluxo-badge fluxo-badge-red">REGRA: 8 TENTATIVAS</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Sem Interesse</h6>
+                        <p class="text-muted small mb-0">Utilizar após mais de 8 tentativas de contato sem sucesso.</p>
+                    </div>
+                </div>
+
+                <!-- 9 - Desistiu -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-border-orange">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-number fluxo-number-red">9</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Desistiu</h6>
+                        <p class="text-muted small mb-2">Obrigatório informar o motivo em notas.</p>
+                        <p class="small mb-0" style="color:#b45309;">Para clientes que desistiram mas não fecharam com outra empresa.</p>
+                    </div>
+                </div>
+
+                <!-- 10 - Fez com outra Empresa -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="fluxo-card fluxo-border-orange">
+                        <div class="fluxo-card-header">
+                            <span class="fluxo-number fluxo-number-red">10</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Fez com outra Empresa</h6>
+                        <p class="text-muted small mb-0">Indispensável perguntar o motivo da escolha da concorrência.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /pane-fluxo -->
+        </div><!-- /tab-content -->
+
     </div>
 </main>
 

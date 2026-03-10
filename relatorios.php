@@ -15,7 +15,7 @@ $userId = $_SESSION['user_id'];
 
 // Active tab (keep user on the chosen report after submit)
 $activeTab = isset($_GET['tab']) ? (string)$_GET['tab'] : 'overview';
-$allowedTabs = ['overview','funnel','temporal','consultores','sources','daily'];
+$allowedTabs = ['overview','funnel','temporal','consultores','sources','daily','qualificacao','sla','financeiro'];
 if (!in_array($activeTab, $allowedTabs, true)) $activeTab = 'overview';
 
 // Daily report (leads created on a specific day)
@@ -142,6 +142,21 @@ try {
     }
 } catch (Exception $e) { $dailyCount = 0; $dailyLeads = []; }
 
+// ── Reusable filter conditions (date range + sources + deleted) ───────────────
+$baseDelCond = $hasDeleted ? " AND deleted = 0" : "";
+$fStartStr = $fStart->format('Y-m-d H:i:s');
+$fEndStr   = $fEnd->format('Y-m-d H:i:s');
+$srcCond   = '';
+$srcParams = [];
+if (!empty($filterSources)) {
+    $placeholders = implode(',', array_fill(0, count($filterSources), '?'));
+    $srcCond = " AND COALESCE(NULLIF(source,''),'') IN ($placeholders)";
+    foreach ($filterSources as $s) $srcParams[] = (string)$s;
+}
+// Full WHERE: date range + deleted + source
+$filterWhere  = "{$dateCol} >= ? AND {$dateCol} <= ?{$baseDelCond}{$srcCond}";
+$filterParams = array_merge([$fStartStr, $fEndStr], $srcParams);
+
 $leadsTotal = 0;
 $stages = [];
 $stageCounts = [];
@@ -155,7 +170,8 @@ $avgTicket = null;
 $sources = [];
 
 try {
-        $stmt = $pdo->query('SELECT COUNT(*) FROM leads');
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE {$filterWhere}");
+        $stmt->execute($filterParams);
         $leadsTotal = (int)$stmt->fetchColumn();
 } catch (Exception $e) { $leadsTotal = 0; }
 
@@ -171,15 +187,16 @@ try {
         $q = $pdo->query("SELECT {$selectCols} FROM funil_stages ORDER BY COALESCE({$positionCol}, id) ASC");
         $stages = $q->fetchAll(PDO::FETCH_ASSOC);
         foreach ($stages as $s) {
-                $c = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE (stage_id = ? OR status = ?)');
-                $c->execute([$s['id'], $s['name']]);
+                $c = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE (stage_id = ? OR status = ?) AND {$filterWhere}");
+                $c->execute(array_merge([$s['id'], $s['name']], $filterParams));
                 $stageCounts[] = (int)$c->fetchColumn();
         }
 } catch (Exception $e) { $stages = []; $stageCounts = []; }
 
-// Last 12 months created
+// Monthly created (within filter range)
 try {
-        $m = $pdo->query("SELECT DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym ASC");
+        $m = $pdo->prepare("SELECT DATE_FORMAT({$dateCol}, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE {$filterWhere} GROUP BY ym ORDER BY ym ASC");
+        $m->execute($filterParams);
         $monthsRows = $m->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { $monthsRows = []; }
 
@@ -194,19 +211,22 @@ try {
         foreach (['source','origem','lead_source'] as $sc) if (in_array($sc, $leadCols)) { $sourceCol = $sc; break; }
 
         if ($hasClosedAt) {
-                $mc = $pdo->query("SELECT DATE_FORMAT(closed_at, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE closed_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym ASC");
+                $mc = $pdo->prepare("SELECT DATE_FORMAT(closed_at, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE closed_at >= ? AND closed_at <= ?{$baseDelCond}{$srcCond} GROUP BY ym ORDER BY ym ASC");
+                $mc->execute(array_merge([$fStartStr, $fEndStr], $srcParams));
                 $monthsClosedRows = $mc->fetchAll(PDO::FETCH_ASSOC);
         }
 
         // avg days to close
         if ($hasClosedAt) {
-                $ad = $pdo->query("SELECT AVG(DATEDIFF(closed_at, created_at)) as avgd FROM leads WHERE closed_at IS NOT NULL");
+                $ad = $pdo->prepare("SELECT AVG(DATEDIFF(closed_at, created_at)) as avgd FROM leads WHERE closed_at IS NOT NULL AND {$filterWhere}");
+                $ad->execute($filterParams);
                 $avgDaysToClose = round((float)$ad->fetchColumn(),2);
         }
 
         // avg ticket
         if ($valueCol) {
-                $at = $pdo->query("SELECT AVG(CASE WHEN {$valueCol} IS NULL OR {$valueCol} = '' THEN NULL ELSE {$valueCol} END) FROM leads");
+                $at = $pdo->prepare("SELECT AVG(CASE WHEN {$valueCol} IS NULL OR {$valueCol} = '' THEN NULL ELSE {$valueCol} END) FROM leads WHERE {$filterWhere}");
+                $at->execute($filterParams);
                 $avgTicket = $at->fetchColumn();
                 if ($avgTicket !== null) $avgTicket = round((float)$avgTicket,2);
         }
@@ -228,21 +248,18 @@ $conversionBySource = [];
 $avgActivitiesPerLead = null;
 $stageDropoffs = [];
 try {
-    $tStart = (new DateTime())->modify('-90 days');
-    $tEnd = new DateTime();
-
-    // activity counts
+    // activity counts (use filter date range)
     $actStmt = $pdo->prepare("SELECT COUNT(*) FROM activity_log WHERE created_at >= ? AND created_at <= ?");
-    $actStmt->execute([$tStart->format('Y-m-d H:i:s'), $tEnd->format('Y-m-d H:i:s')]);
+    $actStmt->execute([$fStartStr, $fEndStr]);
     $activityCount = (int)$actStmt->fetchColumn();
 
     $propStmt = $pdo->prepare("SELECT COUNT(*) FROM activity_log WHERE created_at >= ? AND created_at <= ? AND message LIKE ?");
-    $propStmt->execute([$tStart->format('Y-m-d H:i:s'), $tEnd->format('Y-m-d H:i:s'), '%proposta%']);
+    $propStmt->execute([$fStartStr, $fEndStr, '%proposta%']);
     $activityProposalCount = (int)$propStmt->fetchColumn();
 
     // activity by user
     $abu = $pdo->prepare("SELECT COALESCE(u.username,'(desconhecido)') AS username, COUNT(*) as cnt FROM activity_log a LEFT JOIN users u ON u.id = a.user_id WHERE a.created_at >= ? AND a.created_at <= ? GROUP BY a.user_id ORDER BY cnt DESC LIMIT 12");
-    $abu->execute([$tStart->format('Y-m-d H:i:s'), $tEnd->format('Y-m-d H:i:s')]);
+    $abu->execute([$fStartStr, $fEndStr]);
     $activityByUser = $abu->fetchAll(PDO::FETCH_ASSOC);
 
     // conversion by source in period (defensive: only use closed_at if column exists)
@@ -250,17 +267,17 @@ try {
     $leadColsList = $leadColsCheck->fetchAll(PDO::FETCH_COLUMN);
     $hasClosedAtCol = in_array('closed_at', $leadColsList, true);
     if ($hasClosedAtCol) {
-        $convSql = "SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, SUM(CASE WHEN closed_at IS NOT NULL THEN 1 ELSE 0 END) AS closed FROM leads WHERE created_at >= ? AND created_at <= ? GROUP BY source ORDER BY total DESC LIMIT 20";
+        $convSql = "SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, SUM(CASE WHEN closed_at IS NOT NULL THEN 1 ELSE 0 END) AS closed FROM leads WHERE {$filterWhere} GROUP BY source ORDER BY total DESC LIMIT 20";
     } else {
-        $convSql = "SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, 0 AS closed FROM leads WHERE created_at >= ? AND created_at <= ? GROUP BY source ORDER BY total DESC LIMIT 20";
+        $convSql = "SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, 0 AS closed FROM leads WHERE {$filterWhere} GROUP BY source ORDER BY total DESC LIMIT 20";
     }
     $convStmt = $pdo->prepare($convSql);
-    $convStmt->execute([$tStart->format('Y-m-d H:i:s'), $tEnd->format('Y-m-d H:i:s')]);
+    $convStmt->execute($filterParams);
     $conversionBySource = $convStmt->fetchAll(PDO::FETCH_ASSOC);
 
     // avg activities per lead (approx)
-    $leadsCntStmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE created_at >= ? AND created_at <= ?");
-    $leadsCntStmt->execute([$tStart->format('Y-m-d H:i:s'), $tEnd->format('Y-m-d H:i:s')]);
+    $leadsCntStmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE {$filterWhere}");
+    $leadsCntStmt->execute($filterParams);
     $leadsCreated = max(1, (int)$leadsCntStmt->fetchColumn());
     $avgActivitiesPerLead = round($activityCount / $leadsCreated, 2);
 
@@ -350,6 +367,10 @@ if (count($stages) > 0) {
 $usersRanking = [];
 try {
         // Get all users with their lead counts, conversions, and total value
+        $usersSrcCond = !empty($filterSources)
+            ? " AND COALESCE(NULLIF(l.source,''),'') IN (" . implode(',', array_fill(0, count($filterSources), '?')) . ")"
+            : '';
+        $usersDelCond = $hasDeleted ? " AND l.deleted = 0" : '';
         $usersQuery = "
                 SELECT 
                         u.id,
@@ -360,6 +381,7 @@ try {
                         SUM(CASE WHEN l.orcamento_value IS NOT NULL THEN l.orcamento_value ELSE 0 END) as valor_total
                 FROM users u
                 LEFT JOIN leads l ON l.user_id = u.id
+                    AND l.{$dateCol} >= ? AND l.{$dateCol} <= ?{$usersDelCond}{$usersSrcCond}
                 GROUP BY u.id, u.username, u.email
                 HAVING total_leads > 0
                 ORDER BY conversoes DESC, total_leads DESC
@@ -367,7 +389,7 @@ try {
         ";
         $finalStageId = count($stages) > 0 ? end($stages)['id'] : 0;
         $usersStmt = $pdo->prepare($usersQuery);
-        $usersStmt->execute([$finalStageId]);
+        $usersStmt->execute(array_merge([$finalStageId, $fStartStr, $fEndStr], $srcParams));
         $usersRanking = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { 
         $usersRanking = []; 
@@ -384,13 +406,14 @@ try {
                         SUM(CASE WHEN t.status = 'concluida' OR t.status = 'completed' THEN 1 ELSE 0 END) as tarefas_concluidas
                 FROM users u
                 LEFT JOIN team_tasks t ON t.responsavel_id = u.id
+                    AND t.created_at >= ? AND t.created_at <= ?
                 GROUP BY u.id, u.username
                 HAVING total_tarefas > 0
                 ORDER BY tarefas_concluidas DESC, total_tarefas DESC
                 LIMIT 10
         ";
         $tasksStmt = $pdo->prepare($tasksQuery);
-        $tasksStmt->execute();
+        $tasksStmt->execute([$fStartStr, $fEndStr]);
         $usersTasks = $tasksStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { 
         $usersTasks = []; 
@@ -435,7 +458,214 @@ try {
     // ignore and continue
 }
 
+// ============================================================
+// NEW: Qualification Module (MQL → SQL)
+// ============================================================
+$sqlRate              = null;   // % leads classified as SQL
+$disqualReasons       = [];     // Pareto: motivos de descarte
+$disqualBySource      = [];     // desqualificações por canal
+$totalMql             = 0;
+$totalSql             = 0;
+$lostReasons          = [];     // motivos de perda no fechamento
+$paymentDistribution  = [];     // à vista vs financiado
+$avgKwp               = null;   // kWp médio
+$avgTicketKwp         = null;   // R$/kWp médio
+
+try {
+    $qLeadCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'")->fetchAll(PDO::FETCH_COLUMN);
+    $hasIsSQL    = in_array('is_sql', $qLeadCols, true);
+    $hasDisqual  = in_array('disqualification_reason', $qLeadCols, true);
+    $hasLost     = in_array('lost_reason', $qLeadCols, true);
+    $hasKwp      = in_array('kwp', $qLeadCols, true);
+    $hasPayType  = in_array('payment_type', $qLeadCols, true);
+    $hasOrcamento = in_array('orcamento_value', $qLeadCols, true);
+
+    $qualDelBase = $hasDeleted2 ? " AND deleted = 0" : "";
+    $qualDateBase = $hasCreatedAt ? "created_at" : (in_array('data_inicio', $qLeadCols, true) ? 'data_inicio' : 'created_at');
+    $qualSrcCond = $srcCond; // reuse source condition built earlier
+    $qualBaseWhere = "{$qualDateBase} >= ? AND {$qualDateBase} <= ?{$qualDelBase}{$qualSrcCond}";
+    $qualBaseParams = array_merge([$fStartStr, $fEndStr], $srcParams);
+
+    // Total MQL and SQL within filter period
+    $totalMqlStmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE {$qualBaseWhere}");
+    $totalMqlStmt->execute($qualBaseParams);
+    $totalMql = (int)$totalMqlStmt->fetchColumn();
+
+    if ($hasIsSQL) {
+        $totalSqlStmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE is_sql = 1 AND {$qualBaseWhere}");
+        $totalSqlStmt->execute($qualBaseParams);
+        $totalSql = (int)$totalSqlStmt->fetchColumn();
+    } else {
+        // Fallback: SQL = leads that have a proposta stage or orcamento_value > 0
+        $sqlFallbackCond = $hasOrcamento ? "orcamento_value > 0" : "status LIKE '%proposta%' OR status LIKE '%qualif%'";
+        $sqlFallbackStmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE ({$sqlFallbackCond}) AND {$qualBaseWhere}");
+        $sqlFallbackStmt->execute($qualBaseParams);
+        $totalSql = (int)$sqlFallbackStmt->fetchColumn();
+    }
+    $sqlRate = $totalMql > 0 ? round(($totalSql / $totalMql) * 100, 1) : 0;
+
+    // Disqualification reasons (Pareto)
+    if ($hasDisqual) {
+        $dqStmt = $pdo->prepare("SELECT COALESCE(NULLIF(disqualification_reason,''),'Não informado') AS reason, COUNT(*) AS cnt FROM leads WHERE disqualification_reason IS NOT NULL AND {$qualBaseWhere} GROUP BY reason ORDER BY cnt DESC LIMIT 10");
+        $dqStmt->execute($qualBaseParams);
+        $disqualReasons = $dqStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Disqualifications by source
+    if ($hasDisqual) {
+        $dqSrcStmt = $pdo->prepare("SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, SUM(CASE WHEN disqualification_reason IS NOT NULL AND disqualification_reason != '' THEN 1 ELSE 0 END) AS disqualified FROM leads WHERE {$qualBaseWhere} GROUP BY source ORDER BY disqualified DESC LIMIT 10");
+        $dqSrcStmt->execute($qualBaseParams);
+        $disqualBySource = $dqSrcStmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        // Fallback using status
+        $dqSrcStmt = $pdo->prepare("SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, SUM(CASE WHEN status LIKE '%descartado%' OR status LIKE '%desqualif%' OR status LIKE '%perdido%' THEN 1 ELSE 0 END) AS disqualified FROM leads WHERE {$qualBaseWhere} GROUP BY source ORDER BY disqualified DESC LIMIT 10");
+        $dqSrcStmt->execute($qualBaseParams);
+        $disqualBySource = $dqSrcStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Lost reasons
+    if ($hasLost) {
+        $lostStmt = $pdo->prepare("SELECT COALESCE(NULLIF(lost_reason,''),'Não informado') AS reason, COUNT(*) AS cnt FROM leads WHERE lost_reason IS NOT NULL AND {$qualBaseWhere} GROUP BY reason ORDER BY cnt DESC LIMIT 10");
+        $lostStmt->execute($qualBaseParams);
+        $lostReasons = $lostStmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        // Fallback from status
+        $lostStmt = $pdo->prepare("SELECT COALESCE(NULLIF(status,''),'Sem status') AS reason, COUNT(*) AS cnt FROM leads WHERE (status LIKE '%perdido%' OR status LIKE '%descartado%' OR status LIKE '%cancelado%') AND {$qualBaseWhere} GROUP BY reason ORDER BY cnt DESC LIMIT 10");
+        $lostStmt->execute($qualBaseParams);
+        $lostReasons = $lostStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Payment distribution
+    $payColSrc = $hasPayType ? 'payment_type' : (in_array('forma_pagamento', $qLeadCols, true) ? 'forma_pagamento' : null);
+    if ($payColSrc) {
+        $payStmt = $pdo->prepare("SELECT COALESCE(NULLIF({$payColSrc},''),'Não informado') AS label, COUNT(*) AS cnt FROM leads WHERE {$qualBaseWhere} GROUP BY label ORDER BY cnt DESC");
+        $payStmt->execute($qualBaseParams);
+        $paymentDistribution = $payStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // kWp metrics
+    $kwpCol = $hasKwp ? 'kwp' : (in_array('estimativa_projeto_kwh', $qLeadCols, true) ? 'estimativa_projeto_kwh' : null);
+    if ($kwpCol) {
+        $kwpStmt = $pdo->prepare("SELECT AVG(CASE WHEN {$kwpCol} > 0 THEN {$kwpCol} ELSE NULL END) AS avg_kwp FROM leads WHERE {$qualBaseWhere}");
+        $kwpStmt->execute($qualBaseParams);
+        $avgKwp = round((float)$kwpStmt->fetchColumn(), 2);
+
+        if ($hasOrcamento) {
+            $tktKwpStmt = $pdo->prepare("SELECT AVG(CASE WHEN {$kwpCol} > 0 AND orcamento_value > 0 THEN orcamento_value / {$kwpCol} ELSE NULL END) AS ratio FROM leads WHERE {$qualBaseWhere}");
+            $tktKwpStmt->execute($qualBaseParams);
+            $avgTicketKwp = round((float)$tktKwpStmt->fetchColumn(), 2);
+        }
+    }
+} catch (Exception $e) { /* ignore */ }
+
+// ============================================================
+// NEW: SLA / Speed-to-Lead diagnostics
+// ============================================================
+$speedToLeadAvg    = null;   // avg hours from created_at to first_contact_at
+$slaAlertLeads     = [];     // leads sem contato >24h
+$staleLeads        = [];     // leads parados na mesma etapa >7 dias
+$staleThreshDays   = 7;
+
+try {
+    $slaLeadCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'")->fetchAll(PDO::FETCH_COLUMN);
+    $hasFirstContact = in_array('first_contact_at', $slaLeadCols, true);
+    $hasUltimoCtato  = in_array('ultimo_contato', $slaLeadCols, true);
+    $slaDateCol      = in_array('created_at', $slaLeadCols, true) ? 'created_at' : (in_array('data_inicio', $slaLeadCols, true) ? 'data_inicio' : 'created_at');
+    $slaDelBase      = in_array('deleted', $slaLeadCols, true) ? " AND deleted = 0" : "";
+
+    // Speed-to-Lead average (hours)
+    if ($hasFirstContact) {
+        $stlStmt = $pdo->prepare("SELECT AVG(TIMESTAMPDIFF(HOUR, {$slaDateCol}, first_contact_at)) FROM leads WHERE first_contact_at IS NOT NULL AND {$slaDateCol} >= ? AND {$slaDateCol} <= ?{$slaDelBase}{$srcCond}");
+        $stlStmt->execute(array_merge([$fStartStr, $fEndStr], $srcParams));
+        $speedToLeadAvg = round((float)$stlStmt->fetchColumn(), 1);
+    }
+
+    // Leads without contact in > 24h (alert list)
+    $threshold24 = (new DateTime())->modify('-24 hours')->format('Y-m-d H:i:s');
+    $alertCond = $hasFirstContact
+        ? "first_contact_at IS NULL AND {$slaDateCol} < ?"
+        : ($hasUltimoCtato ? "(ultimo_contato IS NULL OR ultimo_contato < ?) AND {$slaDateCol} < ?" : "{$slaDateCol} < ?");
+
+    $alertCols = "id, name, COALESCE(NULLIF(source,''),'Sem origem') AS source, COALESCE(NULLIF(status,''),'Sem status') AS status, {$slaDateCol} AS created_at";
+    if ($hasFirstContact) {
+        $alertStmt = $pdo->prepare("SELECT {$alertCols} FROM leads WHERE first_contact_at IS NULL AND {$slaDateCol} < ?{$slaDelBase} ORDER BY {$slaDateCol} ASC LIMIT 50");
+        $alertStmt->execute([$threshold24]);
+    } elseif ($hasUltimoCtato) {
+        $alertStmt = $pdo->prepare("SELECT {$alertCols} FROM leads WHERE (ultimo_contato IS NULL OR ultimo_contato < ?) AND {$slaDateCol} < ?{$slaDelBase} ORDER BY {$slaDateCol} ASC LIMIT 50");
+        $alertStmt->execute([$threshold24, $threshold24]);
+    } else {
+        $alertStmt = $pdo->prepare("SELECT {$alertCols} FROM leads WHERE {$slaDateCol} < ?{$slaDelBase} ORDER BY {$slaDateCol} ASC LIMIT 50");
+        $alertStmt->execute([$threshold24]);
+    }
+    $slaAlertLeads = $alertStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Stale leads (parados >7 dias na mesma etapa) via lead_movements
+    try {
+        $staleThreshold = (new DateTime())->modify("-{$staleThreshDays} days")->format('Y-m-d H:i:s');
+        $staleStmt = $pdo->prepare("
+            SELECT l.id, l.name,
+                   COALESCE(NULLIF(l.source,''),'Sem origem') AS source,
+                   COALESCE(NULLIF(l.status,''),'Sem status') AS status,
+                   COALESCE(fs.stage_name, l.status) AS stage_label,
+                   l.{$slaDateCol} AS created_at,
+                   MAX(lm.created_at) AS last_movement
+            FROM leads l
+            LEFT JOIN funil_stages fs ON fs.id = l.stage_id
+            LEFT JOIN lead_movements lm ON lm.lead_id = l.id
+            WHERE l.{$slaDateCol} >= ? AND l.{$slaDateCol} <= ?
+              AND (l.status NOT LIKE '%fechado%' AND l.status NOT LIKE '%ganho%' AND l.status NOT LIKE '%perdido%')
+              {$slaDelBase}{$srcCond}
+            GROUP BY l.id, l.name, l.source, l.status, stage_label, l.{$slaDateCol}
+            HAVING (last_movement IS NULL OR last_movement < ?)
+            ORDER BY last_movement ASC LIMIT 50
+        ");
+        $staleStmt->execute(array_merge([$fStartStr, $fEndStr], $srcParams, [$staleThreshold]));
+        $staleLeads = $staleStmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) { $staleLeads = []; }
+} catch (Exception $e) { /* ignore */ }
+
+// ============================================================
+// NEW: Consultant comparison (conversion + lost reasons per user)
+// ============================================================
+$consultorComparison = [];
+
+try {
+    $ccLeadCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'")->fetchAll(PDO::FETCH_COLUMN);
+    $ccDateCol  = in_array('created_at', $ccLeadCols, true) ? 'created_at' : 'created_at';
+    $ccDelBase  = in_array('deleted', $ccLeadCols, true) ? " AND l.deleted = 0" : "";
+    $ccHasLost  = in_array('lost_reason', $ccLeadCols, true);
+    $ccHasOrc   = in_array('orcamento_value', $ccLeadCols, true);
+
+    $creditLostCond = $ccHasLost
+        ? "SUM(CASE WHEN LOWER(l.lost_reason) LIKE '%cr%dito%' OR LOWER(l.lost_reason) LIKE '%financiamento%' THEN 1 ELSE 0 END)"
+        : "0";
+    $avgOrcSel = $ccHasOrc ? ", AVG(CASE WHEN l.orcamento_value > 0 THEN l.orcamento_value ELSE NULL END) AS avg_ticket" : ", NULL AS avg_ticket";
+
+    $ccSql = "
+        SELECT
+            u.id, u.username,
+            COUNT(DISTINCT l.id) AS total_leads,
+            SUM(CASE WHEN l.stage_id = ? OR l.status LIKE '%fechado%' OR l.status LIKE '%ganho%' THEN 1 ELSE 0 END) AS conversoes,
+            SUM(CASE WHEN l.status LIKE '%perdido%' OR l.status LIKE '%descartado%' THEN 1 ELSE 0 END) AS perdidos,
+            {$creditLostCond} AS credito_negado
+            {$avgOrcSel}
+        FROM users u
+        LEFT JOIN leads l ON l.user_id = u.id
+            AND l.{$ccDateCol} >= ? AND l.{$ccDateCol} <= ?
+            {$ccDelBase}{$srcCond}
+        GROUP BY u.id, u.username
+        HAVING total_leads > 0
+        ORDER BY conversoes DESC, total_leads DESC
+        LIMIT 20
+    ";
+    $ccStmt = $pdo->prepare($ccSql);
+    $ccFinalStageId = count($stages) > 0 ? end($stages)['id'] : 0;
+    $ccStmt->execute(array_merge([$ccFinalStageId, $fStartStr, $fEndStr], $srcParams));
+    $consultorComparison = $ccStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) { $consultorComparison = []; }
+
 ?>
+
 
 <style>
 .report-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 1.5rem; margin-bottom: 1.5rem; transition: all 0.3s ease; }
@@ -460,6 +690,33 @@ try {
 .pyramid-svg { max-width: 100%; height: auto; display: block; margin: 2rem auto; }
 .filter-bar { background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
 .filter-bar select, .filter-bar input { border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.875rem; }
+/* Source dropdown */
+.source-dropdown-btn {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.5rem 1rem;
+    font-size: 0.875rem; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;
+    white-space: nowrap; min-width: 180px; color: #334155; font-weight: 500;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.source-dropdown-btn:hover { border-color: #94a3b8; }
+.source-dropdown-btn:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.15); }
+.source-dropdown-menu {
+    display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 1050;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 220px; max-height: 280px;
+    overflow-y: auto; padding: 0.5rem 0;
+}
+.source-dropdown-menu.show { display: block; }
+.source-dropdown-item {
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 1rem;
+    cursor: pointer; font-size: 0.85rem; color: #334155; transition: background 0.15s;
+    margin: 0; font-weight: 400;
+}
+.source-dropdown-item:hover { background: #f1f5f9; }
+.source-dropdown-item input[type="checkbox"] {
+    width: 16px; height: 16px; accent-color: #667eea; cursor: pointer; flex-shrink: 0;
+}
+.source-dropdown-all { font-weight: 600; color: #1e293b; }
+.source-dropdown-divider { height: 1px; background: #e2e8f0; margin: 0.25rem 0; }
 .export-btn { background: #3b82f6; color: #fff; border: none; padding: 0.5rem 1.5rem; border-radius: 6px; font-weight: 500; cursor: pointer; transition: all 0.3s; }
 .export-btn:hover { background: #2563eb; transform: translateY(-1px); }
 .stat-change { font-size: 0.75rem; margin-top: 0.25rem; }
@@ -494,6 +751,15 @@ try {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+.sla-alert-row-danger { background: #fef2f2 !important; }
+.sla-alert-row-warning { background: #fffbeb !important; }
+.pareto-bar-container { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.pareto-label { min-width:180px; font-size:0.85rem; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pareto-bar-wrap { flex:1; background:#f1f5f9; border-radius:6px; height:22px; position:relative; }
+.pareto-bar-fill { height:100%; border-radius:6px; display:flex; align-items:center; padding-left:8px; font-size:0.75rem; font-weight:700; color:#fff; transition:width 0.6s ease; }
+.pareto-value { min-width:32px; text-align:right; font-weight:700; font-size:0.85rem; color:#374151; }
+.kpi-card.red { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); }
+
 </style>
 
 <div class="d-flex">
@@ -525,11 +791,30 @@ try {
                 <input type="date" id="filterStartDate" name="start_date" value="<?php echo htmlspecialchars($filterStartDate, ENT_QUOTES, 'UTF-8'); ?>" />
                 <input type="date" id="filterEndDate" name="end_date" value="<?php echo htmlspecialchars($filterEndDate, ENT_QUOTES, 'UTF-8'); ?>" />
                 <label class="mb-0 fw-semibold">Fontes:</label>
-                <select name="sources[]" multiple size="1" style="min-width:160px;">
-                    <?php foreach ($sources as $s): ?>
-                        <option value="<?php echo htmlspecialchars((string)($s['source'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" <?php echo in_array(($s['source'] ?? ''), $filterSources, true)?'selected':''; ?>><?php echo htmlspecialchars((string)($s['source'] ?? 'Sem origem'), ENT_QUOTES, 'UTF-8'); ?></option>
-                    <?php endforeach; ?>
-                </select>
+                <div class="source-dropdown-wrap" style="position:relative;">
+                    <button type="button" class="source-dropdown-btn" id="sourceDropdownBtn" onclick="toggleSourceDropdown()">
+                        <i class="fas fa-filter me-1"></i>
+                        <span id="sourceDropdownLabel">Todas as fontes</span>
+                        <i class="fas fa-chevron-down ms-2" style="font-size:0.7rem;"></i>
+                    </button>
+                    <div class="source-dropdown-menu" id="sourceDropdownMenu">
+                        <label class="source-dropdown-item source-dropdown-all">
+                            <input type="checkbox" id="sourceAll" onchange="toggleAllSources(this)" checked />
+                            <span>Todos</span>
+                        </label>
+                        <div class="source-dropdown-divider"></div>
+                        <?php foreach ($sources as $s): 
+                            $val = (string)($s['source'] ?? '');
+                            $label = (string)($s['source'] ?? 'Sem origem');
+                            $checked = in_array($val, $filterSources, true) ? 'checked' : '';
+                        ?>
+                        <label class="source-dropdown-item">
+                            <input type="checkbox" name="sources[]" value="<?php echo htmlspecialchars($val, ENT_QUOTES, 'UTF-8'); ?>" <?php echo $checked; ?> onchange="updateSourceLabel()" />
+                            <span><?php echo htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?></span>
+                        </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
                 <div style="margin-left:auto; display:flex; gap:0.5rem;">
                     <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
                     <a class="btn btn-sm btn-outline-secondary" href="relatorios.php">Limpar</a>
@@ -537,13 +822,26 @@ try {
             </form>
 
             <!-- Last 24h summary -->
+            <?php
+                // compute 24h per-source for the summary bar
+                $last24BySrc = [];
+                foreach ($last24Leads as $lr) {
+                    $src = (string)($lr['source'] ?? 'Sem origem');
+                    if (!isset($last24BySrc[$src])) $last24BySrc[$src] = 0;
+                    $last24BySrc[$src]++;
+                }
+                arsort($last24BySrc);
+                $last24BySrcTop = array_slice($last24BySrc, 0, 5, true);
+                // SLA alert count visible from 24h data
+                $slaAlertCountDisplay = count($slaAlertLeads ?? []);
+            ?>
             <div class="row g-3 mb-4">
                 <div class="col-lg-4">
                     <div class="report-card">
                         <div class="report-card-title"><i class="fa fa-clock"></i> Últimas 24 horas</div>
-                        <div class="d-flex align-items-center gap-3">
+                        <div class="d-flex align-items-center gap-3 mb-2">
                             <div>
-                                <div class="small text-muted">Total</div>
+                                <div class="small text-muted">Chegaram</div>
                                 <div class="h4 mb-0"><?php echo (int)$last24Total; ?></div>
                             </div>
                             <div>
@@ -554,8 +852,25 @@ try {
                                 <div class="small text-muted">Em atendimento</div>
                                 <div class="h5 mb-0 text-primary"><?php echo (int)$last24Atendimento; ?></div>
                             </div>
+                            <?php if ($slaAlertCountDisplay > 0): ?>
+                            <div>
+                                <div class="small text-muted">Sem contato &gt;24h</div>
+                                <div class="h5 mb-0 text-danger"><?php echo $slaAlertCountDisplay; ?></div>
+                            </div>
+                            <?php endif; ?>
                         </div>
-                        <div style="margin-top:12px; height:180px;" class="chart-container">
+                        <?php if (!empty($last24BySrcTop)): ?>
+                        <div class="mb-2">
+                            <div class="small text-muted mb-1">Por fonte (top 5):</div>
+                            <?php foreach ($last24BySrcTop as $srcLbl => $srcCnt): ?>
+                            <div class="d-flex justify-content-between align-items-center small mb-1">
+                                <span class="text-truncate" style="max-width:130px;"><?php echo htmlspecialchars($srcLbl, ENT_QUOTES, 'UTF-8'); ?></span>
+                                <span class="badge bg-secondary"><?php echo (int)$srcCnt; ?></span>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                        <div style="margin-top:8px; height:150px;" class="chart-container">
                             <canvas id="chartFilteredByStatus"></canvas>
                         </div>
                     </div>
@@ -632,6 +947,21 @@ try {
                 <li class="nav-item" role="presentation">
                     <button class="nav-link <?php echo $activeTab==='daily'?'active':''; ?>" id="daily-tab" data-bs-toggle="pill" data-bs-target="#daily" type="button" role="tab">
                         <i class="fa fa-calendar-day"></i> Por Dia
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link <?php echo $activeTab==='qualificacao'?'active':''; ?>" id="qualificacao-tab" data-bs-toggle="pill" data-bs-target="#qualificacao" type="button" role="tab">
+                        <i class="fa fa-filter"></i> Qualificação
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link <?php echo $activeTab==='sla'?'active':''; ?>" id="sla-tab" data-bs-toggle="pill" data-bs-target="#sla" type="button" role="tab">
+                        <i class="fa fa-stopwatch"></i> SLA / Speed-to-Lead
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link <?php echo $activeTab==='financeiro'?'active':''; ?>" id="financeiro-tab" data-bs-toggle="pill" data-bs-target="#financeiro" type="button" role="tab">
+                        <i class="fa fa-dollar-sign"></i> Financeiro
                     </button>
                 </li>
             </ul>
@@ -945,9 +1275,312 @@ try {
                     </div>
                 </div>
 
-            </div>
+            </div><!-- /daily tab-pane -->
 
-        </div>
+            <!-- ===================================================
+                 TAB: Qualificação (MQL → SQL)
+                 =================================================== -->
+            <div class="tab-pane fade <?php echo $activeTab==='qualificacao'?'show active':''; ?>" id="qualificacao" role="tabpanel">
+                <!-- KPIs de qualificação -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="kpi-card">
+                            <div class="kpi-value"><?php echo (int)$totalMql; ?></div>
+                            <div class="kpi-label">Total MQL (leads recebidos)</div>
+                            <i class="fa fa-inbox kpi-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="kpi-card green">
+                            <div class="kpi-value"><?php echo (int)$totalSql; ?></div>
+                            <div class="kpi-label">SQL (leads qualificados)</div>
+                            <i class="fa fa-check-double kpi-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="kpi-card <?php echo ($sqlRate !== null && $sqlRate < 30) ? 'orange' : 'blue'; ?>">
+                            <div class="kpi-value"><?php echo $sqlRate !== null ? $sqlRate . '%' : '—'; ?></div>
+                            <div class="kpi-label">Taxa de SQL (MQL→SQL) <?php echo ($sqlRate !== null && $sqlRate < 30) ? ' ⚠ Baixa' : ''; ?></div>
+                            <i class="fa fa-percentage kpi-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="kpi-card" style="background:linear-gradient(135deg,#f59e0b,#d97706);">
+                            <div class="kpi-value"><?php echo $totalMql > $totalSql ? (int)($totalMql - $totalSql) : 0; ?></div>
+                            <div class="kpi-label">Leads descartados/não qualificados</div>
+                            <i class="fa fa-ban kpi-icon"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if ($sqlRate !== null && $sqlRate < 30): ?>
+                <div class="alert alert-warning d-flex align-items-center gap-2 mb-4" role="alert">
+                    <i class="fa fa-exclamation-triangle fa-lg"></i>
+                    <div><strong>Alerta de Qualidade:</strong> Taxa de SQL abaixo de 30% — o marketing pode estar atraindo perfis errados (conta de luz baixa, inquilinos, sem telhado adequado). Revise os públicos dos anúncios e canais de aquisição.</div>
+                </div>
+                <?php endif; ?>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-lg-6">
+                        <div class="report-card">
+                            <div class="report-card-title"><i class="fa fa-chart-bar"></i> Pareto — Motivos de Descarte</div>
+                            <div id="chartDisqualReasons" style="height:320px; position:relative;"></div>
+                            <canvas id="canvasDisqualReasons" style="display:none; height:320px; position:relative;"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="report-card">
+                            <div class="report-card-title"><i class="fa fa-bullseye"></i> Lead "Sujo" por Canal — Desqualificações</div>
+                            <div class="chart-container" style="height:320px;">
+                                <canvas id="chartDisqualBySource"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-lg-6">
+                        <div class="report-card">
+                            <div class="report-card-title"><i class="fa fa-times-circle"></i> Motivos de Perda no Fechamento</div>
+                            <div class="chart-container" style="height:320px;">
+                                <canvas id="chartLostReasons"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="report-card">
+                            <div class="report-card-title"><i class="fa fa-table"></i> Detalhamento de Desqualificações por Canal</div>
+                            <div id="tableDisqualBySource"></div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /qualificacao -->
+
+            <!-- ===================================================
+                 TAB: SLA / Speed-to-Lead
+                 =================================================== -->
+            <div class="tab-pane fade <?php echo $activeTab==='sla'?'show active':''; ?>" id="sla" role="tabpanel">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="kpi-card <?php echo ($speedToLeadAvg !== null && $speedToLeadAvg > 24) ? 'orange' : 'blue'; ?>">
+                            <div class="kpi-value"><?php echo $speedToLeadAvg !== null ? $speedToLeadAvg . 'h' : '—'; ?></div>
+                            <div class="kpi-label">Speed-to-Lead (média)<?php echo ($speedToLeadAvg !== null && $speedToLeadAvg > 24) ? ' ⚠ Acima de 24h' : ''; ?></div>
+                            <i class="fa fa-bolt kpi-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="kpi-card orange">
+                            <div class="kpi-value"><?php echo count($slaAlertLeads); ?></div>
+                            <div class="kpi-label">Leads sem contato >24h</div>
+                            <i class="fa fa-exclamation-circle kpi-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="kpi-card" style="background:linear-gradient(135deg,#7c3aed,#a78bfa);">
+                            <div class="kpi-value"><?php echo count($staleLeads); ?></div>
+                            <div class="kpi-label">Leads parados >7 dias</div>
+                            <i class="fa fa-clock kpi-icon"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if ($speedToLeadAvg !== null && $speedToLeadAvg > 24): ?>
+                <div class="alert alert-danger d-flex align-items-center gap-2 mb-4" role="alert">
+                    <i class="fa fa-bolt fa-lg"></i>
+                    <div><strong>Speed-to-Lead crítico:</strong> Média de <?php echo $speedToLeadAvg; ?>h para primeiro contato. Leads contactados em menos de 5 minutos convertem até 21× mais. Implemente alertas automáticos para a equipe ao receber novos leads.</div>
+                </div>
+                <?php endif; ?>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <div class="report-card">
+                            <div class="report-card-title"><i class="fa fa-exclamation-triangle" style="color:#ef4444;"></i> Leads sem contato há mais de 24h <span class="badge bg-danger ms-2"><?php echo count($slaAlertLeads); ?></span></div>
+                            <div class="table-responsive" style="max-height:340px; overflow:auto;">
+                                <table class="table table-sm table-hover align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Nome</th>
+                                            <th>Fonte</th>
+                                            <th>Status</th>
+                                            <th>Criado em</th>
+                                            <th>Espera</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php if (empty($slaAlertLeads)): ?>
+                                            <tr><td colspan="6" class="text-center text-muted py-4"><i class="fa fa-check-circle text-success"></i> Nenhum lead sem contato nas últimas 24h.</td></tr>
+                                        <?php else: ?>
+                                            <?php foreach ($slaAlertLeads as $sl): ?>
+                                            <?php
+                                                $createdRaw = $sl['created_at'] ?? null;
+                                                $createdDt = null;
+                                                try { if ($createdRaw) $createdDt = new DateTime((string)$createdRaw); } catch (Exception $e) {}
+                                                $hoursWaiting = $createdDt ? round((new DateTime())->getTimestamp() - $createdDt->getTimestamp()) / 3600 : null;
+                                                $waitLabel = $hoursWaiting !== null ? round($hoursWaiting) . 'h' : '—';
+                                                $rowClass = ($hoursWaiting !== null && $hoursWaiting > 48) ? 'table-danger' : 'table-warning';
+                                            ?>
+                                            <tr class="<?php echo $rowClass; ?>">
+                                                <td><?php echo (int)($sl['id'] ?? 0); ?></td>
+                                                <td><?php echo htmlspecialchars((string)($sl['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                <td><?php echo htmlspecialchars((string)($sl['source'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                <td><?php echo htmlspecialchars((string)($sl['status'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                <td><?php echo $createdDt ? $createdDt->format('d/m/Y H:i') : htmlspecialchars((string)($createdRaw ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                <td><strong style="color:<?php echo ($hoursWaiting !== null && $hoursWaiting > 48) ? '#ef4444' : '#f59e0b'; ?>"><?php echo $waitLabel; ?></strong></td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <div class="report-card">
+                            <div class="report-card-title"><i class="fa fa-pause-circle" style="color:#7c3aed;"></i> Leads parados >7 dias na mesma etapa <span class="badge ms-2" style="background:#7c3aed;"><?php echo count($staleLeads); ?></span></div>
+                            <p class="small text-muted mb-3">Leads nesta lista perderam o timing. Agir agora pode recuperar até 20% dessas oportunidades.</p>
+                            <div class="table-responsive" style="max-height:340px; overflow:auto;">
+                                <table class="table table-sm table-hover align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Nome</th>
+                                            <th>Fonte</th>
+                                            <th>Etapa</th>
+                                            <th>Criado em</th>
+                                            <th>Último Movimento</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php if (empty($staleLeads)): ?>
+                                            <tr><td colspan="6" class="text-center text-muted py-4"><i class="fa fa-check-circle text-success"></i> Nenhum lead parado encontrado.</td></tr>
+                                        <?php else: ?>
+                                            <?php foreach ($staleLeads as $st): ?>
+                                            <?php
+                                                $lastMov = $st['last_movement'] ?? null;
+                                                $lastMovDt = null;
+                                                try { if ($lastMov) $lastMovDt = new DateTime((string)$lastMov); } catch (Exception $e) {}
+                                                $creRaw = $st['created_at'] ?? null;
+                                                $creDt = null;
+                                                try { if ($creRaw) $creDt = new DateTime((string)$creRaw); } catch (Exception $e) {}
+                                                $daysSince = $lastMovDt ? round((new DateTime())->getTimestamp() - $lastMovDt->getTimestamp()) / 86400 : null;
+                                            ?>
+                                            <tr class="<?php echo ($daysSince !== null && $daysSince > 14) ? 'table-danger' : 'table-warning'; ?>">
+                                                <td><?php echo (int)($st['id'] ?? 0); ?></td>
+                                                <td><?php echo htmlspecialchars((string)($st['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                <td><?php echo htmlspecialchars((string)($st['source'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                <td><?php echo htmlspecialchars((string)($st['stage_label'] ?? $st['status'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                                <td><?php echo $creDt ? $creDt->format('d/m/Y H:i') : '—'; ?></td>
+                                                <td>
+                                                    <?php if ($lastMovDt): ?>
+                                                        <strong><?php echo $lastMovDt->format('d/m/Y H:i'); ?></strong><br>
+                                                        <small class="text-muted">(<?php echo round($daysSince); ?> dias atrás)</small>
+                                                    <?php else: ?>
+                                                        <span class="text-muted">Sem movimentos</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Consultant: lost reason by user (Credit Denied) -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <div class="report-card">
+                            <div class="report-card-title"><i class="fa fa-users"></i> Comparativo de Consultores — Conversão vs Perda</div>
+                            <div class="chart-container" style="height:350px;">
+                                <canvas id="chartConsultorComparison"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <div class="report-card">
+                            <div class="report-card-title"><i class="fa fa-table"></i> Tabela de Consultores — Diagnóstico</div>
+                            <div id="tableConsultorComparison"></div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /sla -->
+
+            <!-- ===================================================
+                 TAB: Financeiro
+                 =================================================== -->
+            <div class="tab-pane fade <?php echo $activeTab==='financeiro'?'show active':''; ?>" id="financeiro" role="tabpanel">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="kpi-card blue">
+                            <div class="kpi-value"><?php echo $avgKwp !== null ? number_format($avgKwp, 1, ',', '.') . ' kWp' : '—'; ?></div>
+                            <div class="kpi-label">Tamanho Médio do Sistema</div>
+                            <i class="fa fa-solar-panel kpi-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="kpi-card green">
+                            <div class="kpi-value"><?php echo $avgTicketKwp !== null ? 'R$' . number_format($avgTicketKwp, 0, ',', '.') . '/kWp' : '—'; ?></div>
+                            <div class="kpi-label">Ticket Médio por kWp</div>
+                            <i class="fa fa-tags kpi-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="kpi-card">
+                            <div class="kpi-value"><?php echo $avgTicket !== null ? 'R$' . number_format($avgTicket, 0, ',', '.') : '—'; ?></div>
+                            <div class="kpi-label">Ticket Médio Geral</div>
+                            <i class="fa fa-dollar-sign kpi-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="kpi-card orange">
+                            <div class="kpi-value"><?php echo $avgDaysToClose !== null ? $avgDaysToClose . 'd' : '—'; ?></div>
+                            <div class="kpi-label">Ciclo Médio de Venda</div>
+                            <i class="fa fa-hourglass kpi-icon"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-3 mb-4">
+                    <div class="col-lg-5">
+                        <div class="report-card">
+                            <div class="report-card-title"><i class="fa fa-chart-pie"></i> Distribuição: À Vista vs Financiado</div>
+                            <div class="chart-container" style="height:300px;">
+                                <canvas id="chartPaymentDist"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-7">
+                        <div class="report-card">
+                            <div class="report-card-title"><i class="fa fa-table"></i> Motivos de Perda no Fechamento</div>
+                            <div id="tableLostReasons"></div>
+                            <div class="chart-container mt-3" style="height:220px;">
+                                <canvas id="chartLostReasonsFinanceiro"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <div class="report-card">
+                            <div class="report-card-title"><i class="fa fa-chart-bar"></i> Evolução Financeira — Receita por Mês</div>
+                            <div class="chart-container" style="height:320px;">
+                                <canvas id="chartRevenueMonthly"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /financeiro -->
+
+            </div><!-- /.tab-content#reportTabsContent -->
+
+        </div><!-- /.container-fluid -->
     </main>
 </div>
 
@@ -956,6 +1589,44 @@ try {
 <!-- html2pdf (bundles html2canvas + jsPDF) for accurate PDF export of the on-screen report -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
 <script>
+// ── Source dropdown logic ──
+function toggleSourceDropdown() {
+    document.getElementById('sourceDropdownMenu').classList.toggle('show');
+}
+function toggleAllSources(el) {
+    var cbs = document.querySelectorAll('#sourceDropdownMenu input[name="sources[]"]');
+    if (el.checked) {
+        cbs.forEach(function(cb){ cb.checked = false; });
+    }
+    updateSourceLabel();
+}
+function updateSourceLabel() {
+    var cbs = document.querySelectorAll('#sourceDropdownMenu input[name="sources[]"]');
+    var checked = Array.from(cbs).filter(function(cb){ return cb.checked; });
+    var allCb = document.getElementById('sourceAll');
+    var label = document.getElementById('sourceDropdownLabel');
+    if (checked.length === 0) {
+        allCb.checked = true;
+        label.textContent = 'Todas as fontes';
+    } else {
+        allCb.checked = false;
+        if (checked.length === 1) {
+            label.textContent = checked[0].parentElement.querySelector('span').textContent;
+        } else {
+            label.textContent = checked.length + ' fontes selecionadas';
+        }
+    }
+}
+// Close dropdown on outside click
+document.addEventListener('click', function(e) {
+    var wrap = document.querySelector('.source-dropdown-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('sourceDropdownMenu').classList.remove('show');
+    }
+});
+// Init label on page load
+document.addEventListener('DOMContentLoaded', function(){ updateSourceLabel(); });
+
 // Server data
 const REPORT_STAGES = <?php echo json_encode($stages, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_STAGE_COUNTS = <?php echo json_encode($stageCounts, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
@@ -992,6 +1663,24 @@ const REPORT_ACTIVITY_BY_USER = <?php echo json_encode($activityByUser ?? [], JS
 const REPORT_CONVERSION_BY_SOURCE = <?php echo json_encode($conversionBySource ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_AVG_ACTIVITIES_PER_LEAD = <?php echo json_encode($avgActivitiesPerLead ?? null, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_STAGE_DROPOFFS = <?php echo json_encode($stageDropoffs ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+
+// Qualification module
+const REPORT_SQL_RATE = <?php echo json_encode($sqlRate, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_TOTAL_MQL = <?php echo json_encode($totalMql ?? 0, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_TOTAL_SQL = <?php echo json_encode($totalSql ?? 0, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_DISQUAL_REASONS = <?php echo json_encode($disqualReasons ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_DISQUAL_BY_SOURCE = <?php echo json_encode($disqualBySource ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_LOST_REASONS = <?php echo json_encode($lostReasons ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_PAYMENT_DIST = <?php echo json_encode($paymentDistribution ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_AVG_KWP = <?php echo json_encode($avgKwp, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_AVG_TICKET_KWP = <?php echo json_encode($avgTicketKwp, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+// SLA / Speed-to-Lead
+const REPORT_SPEED_TO_LEAD_AVG = <?php echo json_encode($speedToLeadAvg, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_SLA_ALERT_LEADS = <?php echo json_encode($slaAlertLeads ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_STALE_LEADS = <?php echo json_encode($staleLeads ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+// Consultant comparison
+const REPORT_CONSULTOR_COMPARISON = <?php echo json_encode($consultorComparison ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+
 
 let chartInstances = {};
 
@@ -1890,6 +2579,311 @@ function renderUsersTasksTable() {
     container.innerHTML = html;
 }
 
+// ============================================================
+// Qualification module charts & tables
+// ============================================================
+function renderQualificationCharts() {
+    // Pareto: disqualification reasons
+    const dqEl = document.getElementById('chartDisqualReasons');
+    if (dqEl && Array.isArray(REPORT_DISQUAL_REASONS) && REPORT_DISQUAL_REASONS.length > 0) {
+        const total = REPORT_DISQUAL_REASONS.reduce((s, r) => s + Number(r.cnt || 0), 0);
+        let cumPct = 0;
+        let html = '';
+        REPORT_DISQUAL_REASONS.forEach((r, i) => {
+            const cnt = Number(r.cnt || 0);
+            const pct = total > 0 ? Math.round((cnt / total) * 100) : 0;
+            cumPct += pct;
+            const hue = 220 - Math.round(i * 18);
+            html += `<div class="pareto-bar-container">
+                <div class="pareto-label" title="${escapeHtml(r.reason)}">${escapeHtml(r.reason)}</div>
+                <div class="pareto-bar-wrap">
+                    <div class="pareto-bar-fill" style="width:${pct}%; background:hsl(${hue},72%,52%);">${pct}%</div>
+                </div>
+                <div class="pareto-value">${formatNumber(cnt)}</div>
+            </div>`;
+        });
+        dqEl.innerHTML = `<div style="padding:8px 0;">${html}</div>`;
+    } else if (dqEl) {
+        dqEl.innerHTML = '<p class="text-muted text-center py-5">Nenhum motivo de descarte registrado no período.<br><small>Ative o campo "Motivo de Desqualificação" ao mover leads para descarte.</small></p>';
+    }
+
+    // Disqual by source: stacked/grouped bar
+    const dsEl = document.getElementById('chartDisqualBySource');
+    if (dsEl) {
+        destroyChart('chartDisqualBySource');
+        const rows = Array.isArray(REPORT_DISQUAL_BY_SOURCE) ? REPORT_DISQUAL_BY_SOURCE : [];
+        if (rows.length > 0) {
+            const labels = rows.map(r => r.source || 'Sem origem');
+            const totals = rows.map(r => Number(r.total || 0));
+            const disqualified = rows.map(r => Number(r.disqualified || 0));
+            const qualified = totals.map((t, i) => Math.max(0, t - disqualified[i]));
+            chartInstances['chartDisqualBySource'] = new Chart(dsEl, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Qualificados', data: qualified, backgroundColor: 'rgba(16,185,129,0.75)', borderRadius: 4 },
+                        { label: 'Desqualificados', data: disqualified, backgroundColor: 'rgba(239,68,68,0.75)', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' }, tooltip: { mode: 'index' } },
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        } else {
+            dsEl.parentElement.innerHTML = '<p class="text-muted text-center py-5">Sem dados de desqualificação por canal no período.</p>';
+        }
+    }
+
+    // Lost reasons horizontal bar
+    const lrEl = document.getElementById('chartLostReasons');
+    if (lrEl) {
+        destroyChart('chartLostReasons');
+        const rows = Array.isArray(REPORT_LOST_REASONS) ? REPORT_LOST_REASONS : [];
+        if (rows.length > 0) {
+            const labels = rows.map(r => r.reason || 'Não informado');
+            const data = rows.map(r => Number(r.cnt || 0));
+            chartInstances['chartLostReasons'] = new Chart(lrEl, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{ label: 'Perdas', data, backgroundColor: labels.map((_, i) => defaultPalette(i)), borderRadius: 6, borderWidth: 0 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        } else {
+            lrEl.parentElement.innerHTML = '<p class="text-muted text-center py-5">Nenhum motivo de perda registrado no período.<br><small>Cadastre "Motivo de Perda" ao descartar/perder leads.</small></p>';
+        }
+    }
+
+    // Disqual-by-source table
+    const tbl = document.getElementById('tableDisqualBySource');
+    if (tbl) {
+        const rows = Array.isArray(REPORT_DISQUAL_BY_SOURCE) ? REPORT_DISQUAL_BY_SOURCE : [];
+        let html = '<div class="table-responsive"><table class="data-table"><thead><tr><th>Canal / Fonte</th><th>Total</th><th>Desqualificados</th><th>% Sujo</th><th>Alerta</th></tr></thead><tbody>';
+        rows.forEach(r => {
+            const total = Number(r.total || 0);
+            const dq = Number(r.disqualified || 0);
+            const pct = total > 0 ? ((dq / total) * 100).toFixed(1) : 0;
+            const isAlert = Number(pct) >= 40;
+            html += `<tr>
+                <td><strong>${escapeHtml(r.source || 'Sem origem')}</strong></td>
+                <td>${formatNumber(total)}</td>
+                <td style="color:#ef4444;font-weight:600;">${formatNumber(dq)}</td>
+                <td><span style="color:${Number(pct)>=40?'#ef4444':Number(pct)>=20?'#f59e0b':'#10b981'};font-weight:700;">${pct}%</span></td>
+                <td>${isAlert ? '<span class="badge bg-danger">Cortar verba</span>' : '<span class="badge bg-success">OK</span>'}</td>
+            </tr>`;
+        });
+        if (rows.length === 0) html += '<tr><td colspan="5" class="text-center text-muted py-4">Sem dados disponíveis.</td></tr>';
+        html += '</tbody></table></div>';
+        tbl.innerHTML = html;
+    }
+}
+
+// ============================================================
+// SLA / Speed-to-Lead charts
+// ============================================================
+function renderSLACharts() {
+    // Consultant comparison chart
+    const ccEl = document.getElementById('chartConsultorComparison');
+    if (ccEl) {
+        destroyChart('chartConsultorComparison');
+        const rows = Array.isArray(REPORT_CONSULTOR_COMPARISON) ? REPORT_CONSULTOR_COMPARISON : [];
+        if (rows.length > 0) {
+            const labels = rows.map(r => r.username || 'Usuário');
+            const conversoes = rows.map(r => Number(r.conversoes || 0));
+            const perdidos = rows.map(r => Number(r.perdidos || 0));
+            const creditoNegado = rows.map(r => Number(r.credito_negado || 0));
+            const totalLeads = rows.map(r => Number(r.total_leads || 0));
+            chartInstances['chartConsultorComparison'] = new Chart(ccEl, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Total Leads', data: totalLeads, backgroundColor: 'rgba(148,163,184,0.5)', borderRadius: 4 },
+                        { label: 'Conversões', data: conversoes, backgroundColor: 'rgba(16,185,129,0.85)', borderRadius: 4 },
+                        { label: 'Perdidos', data: perdidos, backgroundColor: 'rgba(239,68,68,0.75)', borderRadius: 4 },
+                        { label: 'Crédito Negado', data: creditoNegado, backgroundColor: 'rgba(245,158,11,0.85)', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        } else {
+            ccEl.parentElement.innerHTML = '<p class="text-muted text-center py-5">Sem dados de consultores no período.</p>';
+        }
+    }
+
+    // Consultant table
+    const tbl = document.getElementById('tableConsultorComparison');
+    if (tbl) {
+        const rows = Array.isArray(REPORT_CONSULTOR_COMPARISON) ? REPORT_CONSULTOR_COMPARISON : [];
+        const teamAvgConv = rows.length > 0 ? rows.reduce((s, r) => s + Number(r.conversoes || 0), 0) / rows.reduce((s, r) => s + Number(r.total_leads || 0), 1) * 100 : 0;
+        let html = '<div class="table-responsive"><table class="data-table"><thead><tr><th>Consultor</th><th>Leads</th><th>Conversões</th><th>Taxa Conv.</th><th>Perdidos</th><th>Cred. Negado</th><th>Ticket Médio</th><th>vs Equipe</th></tr></thead><tbody>';
+        rows.forEach((r, idx) => {
+            const total = Number(r.total_leads || 0);
+            const conv = Number(r.conversoes || 0);
+            const taxa = total > 0 ? ((conv / total) * 100).toFixed(1) : 0;
+            const diff = (Number(taxa) - teamAvgConv).toFixed(1);
+            const diffColor = Number(diff) >= 0 ? '#10b981' : '#ef4444';
+            const cn = Number(r.credito_negado || 0);
+            const ticket = r.avg_ticket !== null && r.avg_ticket !== undefined ? formatCurrency(r.avg_ticket) : '—';
+            html += `<tr>
+                <td><strong>${escapeHtml(r.username || 'Usuário')}</strong></td>
+                <td>${formatNumber(total)}</td>
+                <td style="color:#10b981;font-weight:700;">${formatNumber(conv)}</td>
+                <td>${taxa}%</td>
+                <td style="color:#ef4444;">${formatNumber(Number(r.perdidos || 0))}</td>
+                <td style="color:${cn > 2 ? '#ef4444' : '#374151'};font-weight:${cn > 2 ? '700' : '400'};">${formatNumber(cn)}${cn > 2 ? ' ⚠' : ''}</td>
+                <td>${ticket}</td>
+                <td style="color:${diffColor};font-weight:700;">${Number(diff) >= 0 ? '+' : ''}${diff}%</td>
+            </tr>`;
+        });
+        if (rows.length === 0) html += '<tr><td colspan="8" class="text-center text-muted py-4">Sem dados disponíveis.</td></tr>';
+        html += `</tbody><tfoot><tr><td colspan="3"><small class="text-muted">Média da equipe: ${teamAvgConv.toFixed(1)}%</small></td><td colspan="5"></td></tr></tfoot></table></div>`;
+        tbl.innerHTML = html;
+    }
+}
+
+// ============================================================
+// Financeiro charts
+// ============================================================
+function renderFinanceiroCharts() {
+    // Payment distribution donut
+    const pdEl = document.getElementById('chartPaymentDist');
+    if (pdEl) {
+        destroyChart('chartPaymentDist');
+        const rows = Array.isArray(REPORT_PAYMENT_DIST) ? REPORT_PAYMENT_DIST : [];
+        if (rows.length > 0) {
+            const labels = rows.map(r => {
+                const lbl = (r.label || '').toLowerCase();
+                if (lbl === 'avista' || lbl === 'à vista' || lbl === 'a_vista') return 'À Vista';
+                if (lbl === 'financiado' || lbl === 'financiamento') return 'Financiado';
+                return r.label || 'Não informado';
+            });
+            const data = rows.map(r => Number(r.cnt || 0));
+            chartInstances['chartPaymentDist'] = new Chart(pdEl, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{ data, backgroundColor: ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#94a3b8'], borderWidth: 0 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    const tot = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                    const pct = tot > 0 ? ((ctx.parsed / tot) * 100).toFixed(1) : 0;
+                                    return `${ctx.label}: ${formatNumber(ctx.parsed)} (${pct}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } else {
+            pdEl.parentElement.innerHTML = '<p class="text-muted text-center py-5">Sem dados de forma de pagamento no período.<br><small>Preencha o campo "Forma de Pagamento" nos leads.</small></p>';
+        }
+    }
+
+    // Lost reasons (financeiro tab)
+    const lrfEl = document.getElementById('chartLostReasonsFinanceiro');
+    if (lrfEl) {
+        destroyChart('chartLostReasonsFinanceiro');
+        const rows = Array.isArray(REPORT_LOST_REASONS) ? REPORT_LOST_REASONS : [];
+        if (rows.length > 0) {
+            const labels = rows.map(r => r.reason || 'Não informado');
+            const data = rows.map(r => Number(r.cnt || 0));
+            chartInstances['chartLostReasonsFinanceiro'] = new Chart(lrfEl, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{ label: 'Perdas', data, backgroundColor: labels.map((_, i) => defaultPalette(i + 3)), borderRadius: 6, borderWidth: 0 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        }
+    }
+
+    // Lost reasons table
+    const lrtEl = document.getElementById('tableLostReasons');
+    if (lrtEl) {
+        const rows = Array.isArray(REPORT_LOST_REASONS) ? REPORT_LOST_REASONS : [];
+        const total = rows.reduce((s, r) => s + Number(r.cnt || 0), 0);
+        let html = '<div class="table-responsive"><table class="data-table"><thead><tr><th>Motivo</th><th>Quantidade</th><th>%</th></tr></thead><tbody>';
+        rows.forEach(r => {
+            const cnt = Number(r.cnt || 0);
+            const pct = total > 0 ? ((cnt / total) * 100).toFixed(1) : 0;
+            const isCredit = /cr.dito|financiamento|negado/i.test(r.reason || '');
+            html += `<tr${isCredit ? ' style="background:#fffbeb;"' : ''}>
+                <td><strong>${escapeHtml(r.reason || 'Não informado')}</strong>${isCredit ? ' <span class="badge bg-warning text-dark">Monitorar</span>' : ''}</td>
+                <td>${formatNumber(cnt)}</td>
+                <td>${pct}%</td>
+            </tr>`;
+        });
+        if (rows.length === 0) html += '<tr><td colspan="3" class="text-center text-muted py-4">Sem dados disponíveis.</td></tr>';
+        html += '</tbody></table></div>';
+        lrtEl.innerHTML = html;
+    }
+
+    // Revenue monthly chart (orcamento by month)
+    const revEl = document.getElementById('chartRevenueMonthly');
+    if (revEl) {
+        destroyChart('chartRevenueMonthly');
+        // Build from existing months data as approximation
+        const monthsMap = {};
+        (REPORT_MONTHS || []).forEach(r => monthsMap[r.ym] = Number(r.cnt));
+        const last12 = buildLast12Months();
+        const labels = last12.map(getMonthName);
+        // Use avg ticket × leads created as revenue estimate if no revenue data
+        const avgT = REPORT_AVG_TICKET || 0;
+        const revenueData = last12.map(m => (monthsMap[m] || 0) * avgT);
+        chartInstances['chartRevenueMonthly'] = new Chart(revEl, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Receita Estimada (R$)',
+                    data: revenueData,
+                    backgroundColor: 'rgba(16,185,129,0.7)',
+                    borderRadius: 6,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => 'Estimado: ' + formatCurrency(ctx.parsed.y)
+                        }
+                    }
+                },
+                scales: { y: { beginAtZero: true, ticks: { callback: v => 'R$' + formatNumber(v) } } }
+            }
+        });
+    }
+}
+
 function renderReports(){
     try {
         renderKPIs();
@@ -1910,6 +2904,10 @@ function renderReports(){
         renderDailyCharts();
         renderFilteredStatusChart();
         renderTemporalInsights();
+        // New modules
+        renderQualificationCharts();
+        renderSLACharts();
+        renderFinanceiroCharts();
     } catch(e) { 
         console.error('Render reports failed', e); 
     }
