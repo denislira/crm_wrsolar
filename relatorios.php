@@ -670,10 +670,12 @@ try {
     $avgOrcSel = $ccHasOrc ? ", AVG(CASE WHEN l.orcamento_value > 0 THEN l.orcamento_value ELSE NULL END) AS avg_ticket" : ", NULL AS avg_ticket";
 
     $stageConversionCondition = $ccHasStage ? "l.stage_id = ? OR " : "";
+    $createdLeadsExpr = in_array('user_id', $ccLeadCols, true) ? "SUM(CASE WHEN l.user_id = u.id THEN 1 ELSE 0 END) AS leads_criados" : "0 AS leads_criados";
     $ccSql = "
         SELECT
             u.id, u.username,
             COUNT(DISTINCT l.id) AS total_leads,
+            {$createdLeadsExpr},
             SUM(CASE WHEN ({$stageConversionCondition} l.status LIKE '%fechado%' OR l.status LIKE '%ganho%') THEN 1 ELSE 0 END) AS conversoes,
             SUM(CASE WHEN l.status LIKE '%perdido%' OR l.status LIKE '%descartado%' THEN 1 ELSE 0 END) AS perdidos,
             {$creditLostCond} AS credito_negado
@@ -760,12 +762,17 @@ try {
 .stat-change { font-size: 0.75rem; margin-top: 0.25rem; }
 .stat-change.positive { color: #10b981; }
 .stat-change.negative { color: #ef4444; }
-.funnel-stage { background: #fff; border-left: 4px solid; padding: 1rem 1.5rem; margin-bottom: 0.5rem; border-radius: 0 8px 8px 0; display: flex; justify-content: space-between; align-items: center; transition: all 0.3s; }
-.funnel-stage:hover { transform: translateX(4px); box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+.funnel-stage { background: #0f172a; color: #f8fafc; border-left: 4px solid; padding: 1rem 1.5rem; margin-bottom: 0.5rem; border-radius: 0 8px 8px 0; display: flex; justify-content: space-between; align-items: center; transition: all 0.3s; box-shadow: 0 4px 16px rgba(0,0,0,0.45); }
+.funnel-stage:hover { transform: translateX(4px); box-shadow: 0 8px 24px rgba(0,0,0,0.40); }
 .funnel-value { font-size: 1.5rem; font-weight: 700; }
 .funnel-percent { font-size: 0.875rem; color: #64748b; }
 .funnel-container { padding: 1rem 0; }
 .funnel-stage-wrapper { animation: slideInLeft 0.5s ease-out forwards; opacity: 0; }
+.funnel-compact .funnel-stage { padding: 0.2rem 0.4rem; margin-bottom: 0.25rem; border-radius: 0 4px 4px 0; }
+.funnel-compact .funnel-stage-number { min-width: 24px; font-size: 0.75rem; }
+.funnel-compact .funnel-stage .funnel-value { font-size: 0.95rem; }
+.funnel-compact .funnel-stage .funnel-percent { font-size: 0.6rem; gap: 0.35rem; }
+.funnel-compact .funnel-stage div[style*="font-weight: 600"] { font-size: 0.7rem !important; }
 .funnel-stage-wrapper:nth-child(1) { animation-delay: 0.1s; }
 .funnel-stage-wrapper:nth-child(2) { animation-delay: 0.2s; }
 .funnel-stage-wrapper:nth-child(3) { animation-delay: 0.3s; }
@@ -1056,8 +1063,11 @@ try {
                     <div class="row g-3 mb-4">
                         <div class="col-12">
                             <div class="report-card">
-                                <div class="report-card-title"><i class="fa fa-filter"></i> Funil de Vendas Completo</div>
-                                <div id="chartFunnel"></div>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <div class="report-card-title"><i class="fa fa-filter"></i> Funil de Vendas Completo</div>
+                                    <button id="btnCompactFunnel" class="btn btn-sm btn-outline-secondary" type="button" onclick="toggleCompactFunnel()">Compactar Funil</button>
+                                </div>
+                                <div id="chartFunnel" class="funnel-container"></div>
                             </div>
                         </div>
                     </div>
@@ -2277,12 +2287,12 @@ function renderFunnel() {
     
     pairs.forEach((p, idx) => {
         const percentage = totalLeads > 0 ? ((p.value / totalLeads) * 100).toFixed(1) : 0;
-        // Width com escala de 50% (mínimo) a 100% (máximo) para melhor visualização
-        let width = 100;
+        // Width com escala de 30% (mínimo) a 100% (máximo) para manter o texto dentro da barra
+        // e ainda diferenciar claramente os valores.
+        let width = 30;
         if (p.value > 0 && maxValue > 0) {
-            // Escala de 50% a 100% baseada na proporção do valor
             const proportion = p.value / maxValue;
-            width = 50 + (proportion * 50); // De 50% a 100%
+            width = Math.max(30, 20 + (proportion * 80)); // De 30% a 100%
         }
         const conversionRate = idx > 0 && pairs[idx-1].value > 0 ? ((p.value / pairs[idx-1].value) * 100).toFixed(1) : 100;
         
@@ -2295,12 +2305,13 @@ function renderFunnel() {
                     <div class="funnel-stage" style="
                         border-left: 6px solid ${p.color}; 
                         width: ${width}%; 
-                        background: linear-gradient(90deg, ${p.color}15 0%, ${p.color}05 100%);
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                        background: linear-gradient(90deg, ${p.color}35 0%, ${p.color}22 100%);
+                        box-shadow: 0 3px 12px rgba(0,0,0,0.35);
                         margin: 0;
+                        color: #f8fafc;
                     ">
                         <div style="flex: 1;">
-                            <div style="font-weight: 600; font-size: 1rem; color: #1f2937; margin-bottom: 0.25rem;">
+                            <div style="font-weight: 600; font-size: 1rem; color: ${p.color || '#f8fafc'}; margin-bottom: 0.25rem;">
                                 ${escapeHtml(p.label)}
                             </div>
                             <div class="funnel-percent" style="display: flex; gap: 1rem; font-size: 0.8rem;">
@@ -2355,6 +2366,23 @@ function renderFunnel() {
     `;
     
     container.innerHTML = html;
+
+    // Toggle compact mode class state (keeps layout after render)
+    const funnelWrap = document.getElementById('chartFunnel');
+    if (funnelWrap && funnelWrap.classList.contains('funnel-compact')) {
+        funnelWrap.classList.add('funnel-compact');
+    }
+}
+
+let isFunnelCompact = false;
+function toggleCompactFunnel() {
+    const container = document.getElementById('chartFunnel');
+    const btn = document.getElementById('btnCompactFunnel');
+    if (!container || !btn) return;
+
+    isFunnelCompact = !isFunnelCompact;
+    container.classList.toggle('funnel-compact', isFunnelCompact);
+    btn.textContent = isFunnelCompact ? 'Expandir Funil' : 'Compactar Funil';
 }
 
 function renderTopSourcesTable() {
@@ -2751,9 +2779,10 @@ function renderSLACharts() {
     if (tbl) {
         const rows = Array.isArray(REPORT_CONSULTOR_COMPARISON) ? REPORT_CONSULTOR_COMPARISON : [];
         const teamAvgConv = rows.length > 0 ? rows.reduce((s, r) => s + Number(r.conversoes || 0), 0) / rows.reduce((s, r) => s + Number(r.total_leads || 0), 1) * 100 : 0;
-        let html = '<div class="table-responsive"><table class="data-table"><thead><tr><th>Consultor</th><th>Leads</th><th>Conversões</th><th>Taxa Conv.</th><th>Perdidos</th><th>Cred. Negado</th><th>Ticket Médio</th><th>vs Equipe</th></tr></thead><tbody>';
+        let html = '<div class="table-responsive"><table class="data-table"><thead><tr><th>Consultor</th><th>Leads</th><th>Criados</th><th>Conversões</th><th>Taxa Conv.</th><th>Perdidos</th><th>Cred. Negado</th><th>Ticket Médio</th><th>vs Equipe</th></tr></thead><tbody>';
         rows.forEach((r, idx) => {
             const total = Number(r.total_leads || 0);
+            const created = Number(r.leads_criados || 0);
             const conv = Number(r.conversoes || 0);
             const taxa = total > 0 ? ((conv / total) * 100).toFixed(1) : 0;
             const diff = (Number(taxa) - teamAvgConv).toFixed(1);
@@ -2763,6 +2792,7 @@ function renderSLACharts() {
             html += `<tr>
                 <td><strong>${escapeHtml(r.username || 'Usuário')}</strong></td>
                 <td>${formatNumber(total)}</td>
+                <td>${formatNumber(created)}</td>
                 <td style="color:#10b981;font-weight:700;">${formatNumber(conv)}</td>
                 <td>${taxa}%</td>
                 <td style="color:#ef4444;">${formatNumber(Number(r.perdidos || 0))}</td>
