@@ -28,6 +28,9 @@ $hasPayType       = in_array('payment_type', $leadCols, true) ? 'payment_type' :
 $delWhere  = $hasDeleted ? "deleted = 0" : "1=1";
 $dateCol   = $hasCreatedAt ? 'created_at' : (in_array('data_inicio', $leadCols, true) ? 'data_inicio' : 'created_at');
 
+// By default the lead owner is the user who last edited it (user_id_update). If missing, fall back to the creator (user_id).
+$leadOwnerJoinExpr = in_array('user_id_update', $leadCols, true) ? 'COALESCE(l.user_id_update, l.user_id)' : 'l.user_id';
+
 // ── Helper: safe fetchColumn ──────────────────────────────────────────────────
 function safeQuery($pdo, $sql, $params = []) {
     try {
@@ -141,7 +144,7 @@ try {
         SELECT u.username, COUNT(DISTINCT l.id) AS total,
                SUM(CASE WHEN l.stage_id = ? OR l.status LIKE '%fechado%' OR l.status LIKE '%ganho%' THEN 1 ELSE 0 END) AS conversoes
         FROM users u
-        LEFT JOIN leads l ON l.user_id = u.id AND l.{$dateCol} >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) AND l.{$delWhere}
+        LEFT JOIN leads l ON {$leadOwnerJoinExpr} = u.id AND l.{$dateCol} >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) AND l.{$delWhere}
         GROUP BY u.id, u.username HAVING total > 0 ORDER BY conversoes DESC, total DESC LIMIT 5
     ", [$finalStageId]);
 } catch (Exception $e) { $topConsultores = []; }

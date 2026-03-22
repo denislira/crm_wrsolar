@@ -7,6 +7,16 @@ require_once 'includes/permissions.php';
 
 checkAccessOrRedirect('relatorios');
 
+// Determine which lead column should be used to attribute activity to a consultant.
+// Newer schemas track the last editor in `user_id_update`, but older schemas only have `user_id`.
+// When available, prefer `user_id_update` but fall back to `user_id` so leads without updates still count.
+$leadCols = [];
+try {
+    $leadColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
+    $leadCols = $leadColsStmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) { /* ignore */ }
+$leadOwnerJoinExpr = in_array('user_id_update', $leadCols, true) ? 'COALESCE(l.user_id_update, l.user_id)' : 'l.user_id';
+
 $pageTitle = 'Relatórios';
 include 'includes/header.php';
 
@@ -366,6 +376,20 @@ if (count($stages) > 0) {
 // Consultores/Usuários ranking
 $usersRanking = [];
 try {
+        // Determine stage column that controls pipeline summation (for compatibility across installs)
+        $stageIncludeCol = null;
+        try {
+            $stageColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
+            $stageCols = $stageColsStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (in_array('include_in_forecast', $stageCols, true)) {
+                $stageIncludeCol = 'include_in_forecast';
+            } elseif (in_array('include_in_pipeline', $stageCols, true)) {
+                $stageIncludeCol = 'include_in_pipeline';
+            }
+        } catch (Exception $e) { /* ignore */ }
+
+        $stageIncludeExpr = $stageIncludeCol ? "COALESCE(f.{$stageIncludeCol}, 1)" : '1';
+
         // Get all users with their lead counts, conversions, and total value
         $usersSrcCond = !empty($filterSources)
             ? " AND COALESCE(NULLIF(l.source,''),'') IN (" . implode(',', array_fill(0, count($filterSources), '?')) . ")"
@@ -378,10 +402,11 @@ try {
                         u.email,
                         COUNT(DISTINCT l.id) as total_leads,
                         SUM(CASE WHEN l.stage_id = ? OR l.status LIKE '%fechado%' OR l.status LIKE '%ganho%' THEN 1 ELSE 0 END) as conversoes,
-                        SUM(CASE WHEN l.orcamento_value IS NOT NULL THEN l.orcamento_value ELSE 0 END) as valor_total
+                        SUM(CASE WHEN {$stageIncludeExpr} = 1 THEN COALESCE(l.orcamento_value, 0) ELSE 0 END) as valor_total
                 FROM users u
-                LEFT JOIN leads l ON l.user_id = u.id
+                LEFT JOIN leads l ON {$leadOwnerJoinExpr} = u.id
                     AND l.{$dateCol} >= ? AND l.{$dateCol} <= ?{$usersDelCond}{$usersSrcCond}
+                LEFT JOIN funil_stages f ON f.id = l.stage_id
                 GROUP BY u.id, u.username, u.email
                 HAVING total_leads > 0
                 ORDER BY conversoes DESC, total_leads DESC
@@ -635,22 +660,26 @@ try {
     $ccDelBase  = in_array('deleted', $ccLeadCols, true) ? " AND l.deleted = 0" : "";
     $ccHasLost  = in_array('lost_reason', $ccLeadCols, true);
     $ccHasOrc   = in_array('orcamento_value', $ccLeadCols, true);
+    $ccHasStage = in_array('stage_id', $ccLeadCols, true);
+
+    $leadOwnerExpr = in_array('user_id_update', $ccLeadCols, true) ? 'COALESCE(l.user_id_update, l.user_id)' : 'l.user_id';
 
     $creditLostCond = $ccHasLost
         ? "SUM(CASE WHEN LOWER(l.lost_reason) LIKE '%cr%dito%' OR LOWER(l.lost_reason) LIKE '%financiamento%' THEN 1 ELSE 0 END)"
         : "0";
     $avgOrcSel = $ccHasOrc ? ", AVG(CASE WHEN l.orcamento_value > 0 THEN l.orcamento_value ELSE NULL END) AS avg_ticket" : ", NULL AS avg_ticket";
 
+    $stageConversionCondition = $ccHasStage ? "l.stage_id = ? OR " : "";
     $ccSql = "
         SELECT
             u.id, u.username,
             COUNT(DISTINCT l.id) AS total_leads,
-            SUM(CASE WHEN l.stage_id = ? OR l.status LIKE '%fechado%' OR l.status LIKE '%ganho%' THEN 1 ELSE 0 END) AS conversoes,
+            SUM(CASE WHEN ({$stageConversionCondition} l.status LIKE '%fechado%' OR l.status LIKE '%ganho%') THEN 1 ELSE 0 END) AS conversoes,
             SUM(CASE WHEN l.status LIKE '%perdido%' OR l.status LIKE '%descartado%' THEN 1 ELSE 0 END) AS perdidos,
             {$creditLostCond} AS credito_negado
             {$avgOrcSel}
         FROM users u
-        LEFT JOIN leads l ON l.user_id = u.id
+        LEFT JOIN leads l ON {$leadOwnerExpr} = u.id
             AND l.{$ccDateCol} >= ? AND l.{$ccDateCol} <= ?
             {$ccDelBase}{$srcCond}
         GROUP BY u.id, u.username
@@ -659,8 +688,17 @@ try {
         LIMIT 20
     ";
     $ccStmt = $pdo->prepare($ccSql);
-    $ccFinalStageId = count($stages) > 0 ? end($stages)['id'] : 0;
-    $ccStmt->execute(array_merge([$ccFinalStageId, $fStartStr, $fEndStr], $srcParams));
+    $ccFinalStageId = ($ccHasStage && count($stages) > 0) ? end($stages)['id'] : null;
+
+    $ccParams = [];
+    if ($ccHasStage) {
+        $ccParams[] = $ccFinalStageId;
+    }
+    $ccParams[] = $fStartStr;
+    $ccParams[] = $fEndStr;
+    $ccParams = array_merge($ccParams, $srcParams);
+
+    $ccStmt->execute($ccParams);
     $consultorComparison = $ccStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { $consultorComparison = []; }
 
@@ -1142,7 +1180,10 @@ try {
                         <div class="col-12">
                             <div class="report-card">
                                 <div class="report-card-title"><i class="fa fa-chart-line"></i> Performance por Consultor</div>
-                                <div id="tableUsersTasks"></div>
+                                <div class="chart-container" style="height: 300px;">
+                                    <canvas id="chartConsultorComparison"></canvas>
+                                </div>
+                                <div id="tableConsultorComparison" style="margin-top: 1rem;"></div>
                             </div>
                         </div>
                     </div>
@@ -1492,25 +1533,6 @@ try {
                     </div>
                 </div>
 
-                <!-- Consultant: lost reason by user (Credit Denied) -->
-                <div class="row g-3 mb-4">
-                    <div class="col-12">
-                        <div class="report-card">
-                            <div class="report-card-title"><i class="fa fa-users"></i> Comparativo de Consultores — Conversão vs Perda</div>
-                            <div class="chart-container" style="height:350px;">
-                                <canvas id="chartConsultorComparison"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row g-3 mb-4">
-                    <div class="col-12">
-                        <div class="report-card">
-                            <div class="report-card-title"><i class="fa fa-table"></i> Tabela de Consultores — Diagnóstico</div>
-                            <div id="tableConsultorComparison"></div>
-                        </div>
-                    </div>
-                </div>
             </div><!-- /sla -->
 
             <!-- ===================================================
