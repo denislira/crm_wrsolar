@@ -21,6 +21,18 @@ include 'includes/header.php';
 <div class="d-flex">
     <?php include 'includes/sidebar.php'; ?>
     <main class="flex-grow-1 p-4">
+        <style>
+            .stage-card { border: 1px solid #e3e9ef; }
+            .board-column { min-height: 400px; max-height: calc(100vh - 360px); overflow-y: auto; background: #f8fafc; border-radius: 0 0 .25rem .25rem; }
+            .card-project { cursor: grab; border-left: 4px solid #0b6ac1; }
+            .card-project .project-contract { font-size: 0.75rem; }
+            .card-project .progress { height: 5px; }
+            .btn-xs { font-size: 0.68rem; }
+            .board-column.drop-target { border: 2px dashed #0d6efd; background: #e7f1ff; }
+            @media (max-width: 992px) {
+                .col-lg-3 { flex: 0 0 100%; max-width: 100%; }
+            }
+        </style>
         <div id="projetos">
             <div class="d-flex align-items-center justify-content-between mb-2">
                 <h1 class="h4 mb-0">Projetos</h1>
@@ -28,80 +40,129 @@ include 'includes/header.php';
                     <button id="btnNovoProjeto" class="btn btn-primary btn-sm">Novo Projeto</button>
                 </div>
             </div>
-            <!-- Informational blurb removed as requested -->
-            <!-- KPIs -->
+            <!-- KPI inicial + limpeza de status para quadros Kanban -->
+            <?php
+            $kanbanStages = ['Documentação','Logística','Instalação','Homologação'];
+            $stageProjects = [];
+            foreach ($kanbanStages as $stageName) {
+                $stageProjects[$stageName] = [];
+            }
+            foreach ($projetos as $p) {
+                $stage = in_array($p['status'], $kanbanStages, true) ? $p['status'] : (
+                    $p['status'] === 'Concluído' ? 'Homologação' :
+                    ($p['status'] === 'Atrasado' ? 'Logística' : 'Documentação')
+                );
+                $stageProjects[$stage][] = $p;
+            }
+            $total = count($projetos);
+            $concluidos = count(array_filter($projetos, fn($p) => $p['status'] === 'Concluído'));
+            $pendentes = $total - $concluidos;
+            $avg = $total ? array_sum(array_column($projetos, 'proposal_value')) / $total : 0;
+            ?>
             <div class="row g-3 mb-4 justify-content-center">
                 <div class="col-md-3">
-                    <div class="card p-3 text-center">
+                    <div class="card p-3 text-center shadow-sm">
                         <div class="small text-muted">Total de Projetos</div>
-                        <div class="h4 mb-0"><?= count($projetos) ?></div>
+                        <div class="h4 mb-0"><?= $total ?></div>
                         <i class="fa fa-folder-open fa-2x text-primary"></i>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card p-3 text-center">
-                        <div class="small text-muted">Concluídos</div>
-                        <div class="h4 mb-0"><?= count(array_filter($projetos, fn($p)=>$p['status']==='Concluído')) ?></div>
-                        <i class="fa fa-check fa-2x text-success"></i>
+                    <div class="card p-3 text-center shadow-sm">
+                        <div class="small text-muted">Aguardando Pagamento</div>
+                        <div class="h4 mb-0"><?= $pendentes ?></div>
+                        <i class="fa fa-clock fa-2x text-danger"></i>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card p-3 text-center">
-                        <div class="small text-muted">Atrasados</div>
-                        <div class="h4 mb-0"><?= count(array_filter($projetos, fn($p)=>$p['status']==='Atrasado')) ?></div>
-                        <i class="fa fa-exclamation-triangle fa-2x text-danger"></i>
+                    <div class="card p-3 text-center shadow-sm">
+                        <div class="small text-muted">Financeiro Aprovado</div>
+                        <div class="h4 mb-0"><?= $concluidos ?></div>
+                        <i class="fa fa-check-circle fa-2x text-success"></i>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card p-3 text-center">
+                    <div class="card p-3 text-center shadow-sm">
                         <div class="small text-muted">Ticket Médio</div>
-                        <div class="h4 mb-0">
-                            <?php $avg = count($projetos) ? array_sum(array_column($projetos,'proposal_value'))/count($projetos) : 0; echo 'R$ '.number_format($avg,2,',','.'); ?>
-                        </div>
+                        <div class="h4 mb-0">R$ <?= number_format($avg, 2, ',', '.') ?></div>
                         <i class="fa fa-dollar-sign fa-2x text-warning"></i>
                     </div>
                 </div>
             </div>
             <!-- Filtros -->
             <div class="d-flex gap-2 mb-4 flex-wrap justify-content-center">
-                <select id="filtroStatus" class="form-select form-select-sm w-auto">
-                    <option value="">Todos status</option>
-                    <option value="Prospecção">Prospecção</option>
-                    <option value="Em andamento">Em andamento</option>
-                    <option value="Concluído">Concluído</option>
-                    <option value="Atrasado">Atrasado</option>
-                </select>
-                <input type="search" id="filtroBusca" class="form-control form-control-sm w-50" placeholder="Buscar projeto ou cliente...">
+                <input type="search" id="filtroPagamento" class="form-control form-control-sm w-auto" placeholder="Filtrar por forma de pagamento...">
+                <input type="search" id="filtroBusca" class="form-control form-control-sm w-50" placeholder="Buscar cliente ou projeto...">
             </div>
-            <!-- Cards de projetos -->
-            <div class="row g-4" id="cardsProjetos">
-                <?php foreach($projetos as $p): ?>
-                <div class="col-12 col-md-6 col-lg-4 d-flex align-items-stretch">
-                    <div class="card h-100 shadow-sm w-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="badge" style="background:#0b6ac1;color:#fff;">Projeto #<?= $p['id'] ?></span>
-                                <span class="badge <?= $p['status']==='Concluído'?'bg-success':($p['status']==='Atrasado'?'bg-danger':'bg-warning') ?>"><?= htmlspecialchars($p['status']) ?></span>
+            <!-- Kanban por estágio -->
+            <div class="row g-3" id="kanbanBoard">
+                <?php foreach ($kanbanStages as $stage): ?>
+                    <div class="col-12 col-lg-3">
+                        <div class="card h-100 stage-card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <strong class="mb-0"><?= $stage ?></strong>
+                                <span class="badge bg-secondary"><?= count($stageProjects[$stage]) ?></span>
                             </div>
-                            <h5 class="mb-1"><i class="fa fa-user text-muted"></i> <?= htmlspecialchars($p['client_name']) ?></h5>
-                            <div class="mb-1"><i class="fa fa-map-marker-alt text-muted"></i> <?= htmlspecialchars($p['address']) ?></div>
-                            <div class="mb-1"><i class="fa fa-dollar-sign text-warning"></i> <strong>R$ <?= number_format($p['proposal_value'],2,',','.') ?></strong></div>
-                            <?php if(!empty($p['closed_date'])): ?>
-                            <div class="mb-1"><i class="fa fa-calendar-check text-success"></i> Fechado em <?= date('d/m/Y', strtotime($p['closed_date'])) ?></div>
-                            <?php endif; ?>
-                            <div class="mb-2"><i class="fa fa-file-alt text-info"></i> <span class="small">Contrato: <?= !empty($p['contract']) ? htmlspecialchars($p['contract']) : '—' ?></span></div>
-                            <div class="mb-2"><i class="fa fa-history text-muted"></i> <span class="small">Última atualização: <?= date('d/m/Y H:i', strtotime($p['updated_at'])) ?></span></div>
-                            <div class="d-flex flex-wrap gap-1 mt-2 justify-content-start">
-                                <button class="btn btn-xs btn-outline-primary px-2 py-1 btn-edit" data-id="<?= $p['id'] ?>" title="Editar"><i class="fa fa-edit"></i></button>
-                                <button class="btn btn-xs btn-outline-info px-2 py-1 btn-view" data-id="<?= $p['id'] ?>" title="Histórico"><i class="fa fa-eye"></i></button>
-                                <button class="btn btn-xs btn-outline-secondary px-2 py-1 btn-attach" data-id="<?= $p['id'] ?>" title="Anexar"><i class="fa fa-paperclip"></i></button>
-                                <?php if($p['status']!=='Concluído'): ?><button class="btn btn-xs btn-outline-success px-2 py-1 btn-mark-complete" data-id="<?= $p['id'] ?>" title="Marcar como concluído"><i class="fa fa-check"></i></button><?php endif; ?>
-                                <?php if($p['status']!=='Atrasado'): ?><button class="btn btn-xs btn-outline-danger px-2 py-1 btn-mark-delayed" data-id="<?= $p['id'] ?>" title="Marcar como atrasado"><i class="fa fa-exclamation-triangle"></i></button><?php endif; ?>
-                                <button class="btn btn-xs btn-outline-danger px-2 py-1 btn-delete" data-id="<?= $p['id'] ?>" title="Excluir"><i class="fa fa-trash"></i></button>
+                            <div class="card-body p-2 board-column" data-stage="<?= $stage ?>">
+                                <?php if (empty($stageProjects[$stage])): ?>
+                                    <div class="text-muted small">Nenhum projeto nesta etapa</div>
+                                <?php endif; ?>
+                                <?php foreach ($stageProjects[$stage] as $p): ?>
+                                    <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" draggable="true">
+                                        <div class="card-body p-2">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="badge" style="background:#0b6ac1;color:#fff;font-size:80%;">#<?= $p['id'] ?></span>
+                                                <span class="badge status-badge <?= $p['status'] === 'Concluído' ? 'bg-success' : ($p['status'] === 'Atrasado' ? 'bg-danger' : 'bg-warning') ?>" style="font-size:80%;"><?= htmlspecialchars($p['status']) ?></span>
+                                            </div>
+                                            <h6 class="project-title mb-1" style="font-size:0.95rem;"><?= htmlspecialchars($p['client_name']) ?></h6>
+                                            <div class="text-muted small mb-1">Valor do projeto: R$ <?= number_format($p['proposal_value'], 2, ',', '.') ?></div>
+                                            <div class="text-muted small mb-1">Forma de Pagto: <strong><?= !empty($p['payment_type']) ? htmlspecialchars($p['payment_type']) : (!empty($p['contract']) ? htmlspecialchars($p['contract']) : 'Não informado') ?></strong></div>
+
+                                            <?php
+                                                $paymentStatus = $p['status'] === 'Concluído' ? 'Pago' : 'Pendente';
+                                                $paymentBadge = $p['status'] === 'Concluído' ? 'bg-success' : 'bg-danger';
+                                            ?>
+                                            <div class="d-flex align-items-center gap-2 mb-1">
+                                                <span class="badge <?= $paymentBadge ?>" style="font-size:70%;"><?= $paymentStatus ?></span>
+                                                <?php
+                                                    $daysTotal = 90;
+                                                    $createdDate = isset($p['created_at']) ? strtotime($p['created_at']) : time();
+                                                    $today = time();
+                                                    $dias = min($daysTotal, max(0, floor(($today - $createdDate) / 86400)));
+                                                    $perc = intval(($dias / $daysTotal) * 100);
+                                                    if ($perc > 100) $perc = 100;
+                                                ?>
+                                                <small class="text-muted"><?= $dias ?>/<?= $daysTotal ?> dias</small>
+                                                <strong class="text-muted"><?= $perc ?>%</strong>
+                                            </div>
+                                            <div class="progress mt-0" style="height:8px;">
+                                                <div class="progress-bar" role="progressbar" style="width: <?= $perc ?>%;" aria-valuenow="<?= $perc ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+
+                                            <div class="d-flex gap-1 mt-2">
+                                                <span class="badge bg-primary" style="font-size:70%;">DOC</span>
+                                                <span class="badge bg-warning text-dark" style="font-size:70%;">LOG</span>
+                                                <span class="badge bg-purple text-white" style="font-size:70%; background:#7f56ff;">INST</span>
+                                            </div>
+                                            <div class="d-flex flex-wrap gap-1 mt-2">                                                <?php
+                                                if ($stage === 'Documentação') $percent = 20;
+                                                elseif ($stage === 'Logística') $percent = 45;
+                                                elseif ($stage === 'Instalação') $percent = 75;
+                                                elseif ($stage === 'Homologação') $percent = 100;
+                                                else $percent = 0;
+                                                ?>
+                                                <div class="progress-bar" role="progressbar" style="width: <?= $percent ?>%;" aria-valuenow="<?= $percent ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                            <div class="d-flex flex-wrap gap-1 mt-2">
+                                                <button class="btn btn-sm btn-outline-primary btn-edit" data-id="<?= $p['id'] ?>" title="Editar"><i class="fa fa-edit"></i></button>
+                                                <button class="btn btn-sm btn-outline-danger btn-delete" data-id="<?= $p['id'] ?>" title="Excluir"><i class="fa fa-trash"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
                             </div>
                         </div>
                     </div>
-                </div>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -120,7 +181,7 @@ include 'includes/header.php';
             <form id="formProjeto">
                 <div class="modal-body">
                     <input type="hidden" name="id" id="proj_id">
-                    <div class="row g-3">
+                    <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Cliente</label>
                             <input class="form-control" name="client_name" id="proj_client_name" required>
@@ -133,16 +194,26 @@ include 'includes/header.php';
                             <label class="form-label">Endereço</label>
                             <input class="form-control" name="address" id="proj_address">
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label">Status</label>
                             <select class="form-select" name="status" id="proj_status">
-                                <option>Prospecção</option>
-                                <option>Em andamento</option>
-                                <option>Concluído</option>
-                                <option>Atrasado</option>
+                                <option>Documentação</option>
+                                <option>Logística</option>
+                                <option>Instalação</option>
+                                <option>Homologação</option>
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <label class="form-label">Forma de Pagamento</label>
+                            <select class="form-select" name="payment_type" id="proj_payment_type">
+                                <option value="">Selecione...</option>
+                                <option value="À vista">À vista</option>
+                                <option value="Boleto">Boleto</option>
+                                <option value="Financiamento">Financiamento</option>
+                                <option value="Cartão">Cartão</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label">Data de fechamento</label>
                             <input type="date" class="form-control" name="closed_date" id="proj_closed_date">
                         </div>
@@ -151,8 +222,93 @@ include 'includes/header.php';
                             <textarea class="form-control" name="contract" id="proj_contract" rows="3"></textarea>
                         </div>
                     </div>
+
+                    <ul class="nav nav-tabs" id="projetoTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="tab-logistica" data-bs-toggle="tab" data-bs-target="#content-logistica" type="button" role="tab">Logística</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-tecnica" data-bs-toggle="tab" data-bs-target="#content-tecnica" type="button" role="tab">Técnica</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-gestao" data-bs-toggle="tab" data-bs-target="#content-gestao" type="button" role="tab">Gestão Documental</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content p-3 border border-top-0 rounded-bottom bg-white">
+                        <div class="tab-pane fade show active" id="content-logistica" role="tabpanel">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Código de Rastreio</label>
+                                    <input class="form-control" name="logistics_tracking_code" id="proj_logistics_tracking_code">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Data Prevista de Entrega</label>
+                                    <input type="date" class="form-control" name="logistics_delivery_date" id="proj_logistics_delivery_date">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="content-tecnica" role="tabpanel">
+                            <div class="mb-3">
+                                <label class="form-label">Fotos da vistoria (URLs ou referência)</label>
+                                <textarea class="form-control" name="inspection_photos" id="proj_inspection_photos" rows="3" placeholder="https://.../foto1.jpg\nhttps://.../foto2.jpg"></textarea>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="proj_technical_telhado">
+                                <label class="form-check-label" for="proj_technical_telhado">Vistoria do telhado</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="proj_technical_padrao">
+                                <label class="form-check-label" for="proj_technical_padrao">Vistoria do padrão</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="proj_technical_concessionaria">
+                                <label class="form-check-label" for="proj_technical_concessionaria">Checklist envio para concessionária</label>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="content-gestao" role="tabpanel">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="proj_doc_cpf">
+                                <label class="form-check-label" for="proj_doc_cpf">CPF</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="proj_doc_rg">
+                                <label class="form-check-label" for="proj_doc_rg">RG</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="proj_doc_contrato">
+                                <label class="form-check-label" for="proj_doc_contrato">Contrato assinado</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="proj_doc_nfe">
+                                <label class="form-check-label" for="proj_doc_nfe">Nota fiscal / NFe</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="proj_doc_planta">
+                                <label class="form-check-label" for="proj_doc_planta">Planta aprovada</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="proj_doc_alvara">
+                                <label class="form-check-label" for="proj_doc_alvara">Alvará</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="proj_doc_relatorio">
+                                <label class="form-check-label" for="proj_doc_relatorio">Relatório de vistoria</label>
+                            </div>
+                            <div class="mt-3">
+                                <label class="form-label">Anexar arquivo</label>
+                                <input class="form-control form-control-sm" type="file" id="proj_doc_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                <div class="small text-muted mt-2">Arquivos podem ser incluídos e salvos automaticamente.</div>
+                                <div id="proj_doc_attachments_list" class="mt-2"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <input type="hidden" name="technical_checklist" id="proj_technical_checklist">
+                    <input type="hidden" name="docs_checklist" id="proj_docs_checklist">
+                    <input type="hidden" name="doc_attachments" id="proj_doc_attachments">
                 </div>
                 <div class="modal-footer">
+                    <button type="button" id="btnExcluirProjeto" class="btn btn-outline-danger me-auto">Excluir</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                     <button type="submit" class="btn btn-primary">Salvar</button>
                 </div>
@@ -166,14 +322,130 @@ include 'includes/header.php';
         const modalEl = document.getElementById('modalProjeto');
         const bsModal = new bootstrap.Modal(modalEl);
 
+        const btnExcluirProjeto = document.getElementById('btnExcluirProjeto');
+
         document.getElementById('btnNovoProjeto').addEventListener('click', ()=>{
             document.getElementById('formProjeto').reset();
             document.getElementById('proj_id').value = '';
+            btnExcluirProjeto.style.display = 'none';
             bsModal.show();
         });
 
+        btnExcluirProjeto.addEventListener('click', async ()=>{
+            const projectId = document.getElementById('proj_id').value;
+            if (!projectId) return;
+            if (!confirm('Deseja excluir este projeto?')) return;
+            const f = new FormData();
+            f.append('id', projectId);
+            const res = await fetch('api/delete_project.php', { method: 'POST', body: f });
+            const j = await res.json();
+            if (j.success) {
+                bsModal.hide();
+                location.reload();
+            } else {
+                alert(j.message || 'Erro ao excluir projeto');
+            }
+        });
+
+        // Enable drag-and-drop on project cards
+        document.querySelectorAll('.card-project').forEach(card => {
+            card.addEventListener('dragstart', (e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', card.dataset.id);
+                card.classList.add('dragging');
+            });
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+            });
+        });
+
+        function updateStageCounts(){
+            document.querySelectorAll('.board-column').forEach(c => {
+                const stage = c.dataset.stage;
+                const counter = document.getElementById('count-' + stage);
+                if (counter) counter.textContent = c.querySelectorAll('.card-project').length;
+            });
+        }
+
+        // Enable drop targets on board columns
+        document.querySelectorAll('.board-column').forEach(col => {
+            col.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                col.classList.add('drop-target');
+            });
+            col.addEventListener('dragleave', () => {
+                col.classList.remove('drop-target');
+            });
+            col.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                col.classList.remove('drop-target');
+                const projectId = e.dataTransfer.getData('text/plain');
+                if (!projectId) return;
+                const targetStatus = col.dataset.stage;
+                if (!targetStatus) return;
+
+                try {
+                    const f = new FormData();
+                    f.append('id', projectId);
+                    f.append('status', targetStatus);
+                    const res = await fetch('api/update_project.php', { method: 'POST', body: f });
+                    const j = await res.json();
+                    if (!j.success) throw new Error(j.message || 'Erro ao atualizar status');
+
+                    const card = document.querySelector(`.card-project[data-id="${projectId}"]`);
+                    if (card) {
+                        const statusBadge = card.querySelector('.status-badge');
+                        if (statusBadge) {
+                            statusBadge.textContent = targetStatus;
+                            statusBadge.className = 'badge status-badge ' + (targetStatus === 'Concluído' ? 'bg-success' : (targetStatus === 'Atrasado' ? 'bg-danger' : 'bg-warning'));
+                        }
+                        col.appendChild(card);
+                    }
+                    updateStageCounts();
+                } catch (err) {
+                    console.error(err);
+                    alert('Falha ao mover projeto: ' + (err.message || err));
+                }
+            });
+        });
+
+        // Upload de arquivo de documento
+        document.getElementById('proj_doc_file').addEventListener('change', async (e)=>{
+            const fileInput = e.target;
+            if (!fileInput.files || !fileInput.files.length) return;
+            const projectId = document.getElementById('proj_id').value;
+            if (!projectId) {
+                alert('Grave o projeto primeiro antes de anexar arquivos.');
+                fileInput.value = '';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('project_id', projectId);
+            formData.append('doc_file', fileInput.files[0]);
+
+            const res = await fetch('api/upload_project_attachment.php', { method: 'POST', body: formData });
+            const j = await res.json();
+            if (!j.success) {
+                alert(j.message || 'Erro ao fazer upload do arquivo');
+                fileInput.value = '';
+                return;
+            }
+
+            const attachmentsInput = document.getElementById('proj_doc_attachments');
+            const current = attachmentsInput.value ? JSON.parse(attachmentsInput.value) : [];
+            current.push(j.attachment);
+            attachmentsInput.value = JSON.stringify(current);
+
+            const list = document.getElementById('proj_doc_attachments_list');
+            list.innerHTML = current.map(a => `<div class="small"><a href="${a.path}" target="_blank">${a.name}</a> (${a.uploaded_at})</div>`).join('');
+
+            fileInput.value = '';
+        });
+
         // Delegate card buttons
-        document.getElementById('cardsProjetos').addEventListener('click', async (e)=>{
+        document.getElementById('kanbanBoard').addEventListener('click', async (e)=>{
             const edit = e.target.closest('.btn-edit');
             const del = e.target.closest('.btn-delete');
             const complete = e.target.closest('.btn-mark-complete');
@@ -191,6 +463,34 @@ include 'includes/header.php';
                     document.getElementById('proj_status').value = p.status;
                     document.getElementById('proj_closed_date').value = p.closed_date ? p.closed_date.split(' ')[0] : '';
                     document.getElementById('proj_contract').value = p.contract || '';
+                    document.getElementById('proj_payment_type').value = p.payment_type || '';
+                    document.getElementById('proj_logistics_tracking_code').value = p.logistics_tracking_code || '';
+                    document.getElementById('proj_logistics_delivery_date').value = p.logistics_delivery_date ? p.logistics_delivery_date.split(' ')[0] : '';
+                    document.getElementById('proj_inspection_photos').value = p.inspection_photos || '';
+
+                    const technicalChecklist = p.technical_checklist ? JSON.parse(p.technical_checklist) : {};
+                    document.getElementById('proj_technical_telhado').checked = !!technicalChecklist.telhado;
+                    document.getElementById('proj_technical_padrao').checked = !!technicalChecklist.padrao;
+                    document.getElementById('proj_technical_concessionaria').checked = !!technicalChecklist.concessionaria;
+
+                    const docsChecklist = p.docs_checklist ? JSON.parse(p.docs_checklist) : {};
+                    document.getElementById('proj_doc_cpf').checked = !!docsChecklist.cpf;
+                    document.getElementById('proj_doc_rg').checked = !!docsChecklist.rg;
+                    document.getElementById('proj_doc_contrato').checked = !!docsChecklist.contrato;
+                    document.getElementById('proj_doc_nfe').checked = !!docsChecklist.nfe;
+                    document.getElementById('proj_doc_planta').checked = !!docsChecklist.planta;
+                    document.getElementById('proj_doc_alvara').checked = !!docsChecklist.alvara;
+                    document.getElementById('proj_doc_relatorio').checked = !!docsChecklist.relatorio;
+
+                    document.getElementById('proj_technical_checklist').value = p.technical_checklist || '';
+                    document.getElementById('proj_docs_checklist').value = p.docs_checklist || '';
+                    document.getElementById('proj_doc_attachments').value = p.doc_attachments || '';
+
+                    const attachments = p.doc_attachments ? JSON.parse(p.doc_attachments) : [];
+                    const list = document.getElementById('proj_doc_attachments_list');
+                    list.innerHTML = attachments.length ? attachments.map(a => `<div class="small"><a href="${a.path}" target="_blank">${a.name}</a> (${a.uploaded_at})</div>`).join('') : '<div class="small text-muted">Nenhum arquivo anexado.</div>';
+
+                    btnExcluirProjeto.style.display = 'inline-block';
                     bsModal.show();
                 } else alert(j.message || 'Erro ao carregar projeto');
             }
@@ -228,7 +528,68 @@ include 'includes/header.php';
             }
         });
 
+        // Drag-and-drop para movimentar cards entre colunas de status
+        document.querySelectorAll('.board-column').forEach(col => {
+            col.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; col.classList.add('drop-target'); });
+            col.addEventListener('dragleave', () => { col.classList.remove('drop-target'); });
+            col.addEventListener('drop', async e => {
+                e.preventDefault(); col.classList.remove('drop-target');
+                const projectId = e.dataTransfer.getData('text/plain');
+                if (!projectId) return;
+                const targetStatus = col.dataset.stage;
+                if (!targetStatus) return;
+                try {
+                    const f = new FormData();
+                    f.append('id', projectId);
+                    f.append('status', targetStatus);
+                    const res = await fetch('api/update_project.php', { method: 'POST', body: f });
+                    const j = await res.json();
+                    if (!j.success) throw new Error(j.message || 'Erro ao mover projeto');
+                    location.reload();
+                } catch(err) {
+                    console.error(err);
+                    alert('Falha ao mover projeto: ' + (err.message || err));
+                }
+            });
+        });
+
+        const filtroPagamento = document.getElementById('filtroPagamento');
+        const filtroBusca = document.getElementById('filtroBusca');
+        const filtrarProjetos = () => {
+            const txt = filtroBusca.value.trim().toLowerCase();
+            const pag = filtroPagamento.value.trim().toLowerCase();
+            document.querySelectorAll('.card-project').forEach(card => {
+                const title = card.querySelector('.project-title')?.textContent.toLowerCase() || '';
+                const client = title;
+                const contract = card.querySelector('.project-contract')?.textContent.toLowerCase() || '';
+                const matched = (txt === '' || client.includes(txt) || contract.includes(txt)) &&
+                                (pag === '' || contract.includes(pag));
+                card.style.display = matched ? 'block' : 'none';
+            });
+        };
+
+        filtroPagamento.addEventListener('input', filtrarProjetos);
+        filtroBusca.addEventListener('input', filtrarProjetos);
+
         document.getElementById('formProjeto').addEventListener('submit', async (ev)=>{
+            ev.preventDefault();
+            const technicalChecklistObj = {
+                telhado: document.getElementById('proj_technical_telhado').checked,
+                padrao: document.getElementById('proj_technical_padrao').checked,
+                concessionaria: document.getElementById('proj_technical_concessionaria').checked,
+            };
+            const docsChecklistObj = {
+                cpf: document.getElementById('proj_doc_cpf').checked,
+                rg: document.getElementById('proj_doc_rg').checked,
+                contrato: document.getElementById('proj_doc_contrato').checked,
+                nfe: document.getElementById('proj_doc_nfe').checked,
+                planta: document.getElementById('proj_doc_planta').checked,
+                alvara: document.getElementById('proj_doc_alvara').checked,
+                relatorio: document.getElementById('proj_doc_relatorio').checked,
+            };
+            document.getElementById('proj_technical_checklist').value = JSON.stringify(technicalChecklistObj);
+            document.getElementById('proj_docs_checklist').value = JSON.stringify(docsChecklistObj);
+
             ev.preventDefault();
             const form = ev.target;
             const data = new FormData(form);

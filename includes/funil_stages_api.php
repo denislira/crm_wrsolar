@@ -87,6 +87,14 @@ try {
         try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN include_in_forecast TINYINT DEFAULT 1"); $existingCols[] = 'include_in_forecast'; } catch(Exception $e) { /* column may already exist */ }
         $includeForecastCol = 'include_in_forecast';
     }
+    if (!$qualifyCol) {
+        try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN is_qualification TINYINT(1) DEFAULT 0"); $existingCols[] = 'is_qualification'; } catch(Exception $e) { /* column may already exist */ }
+        $qualifyCol = 'is_qualification';
+    }
+    if (!$conversionCol) {
+        try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN is_conversion TINYINT(1) DEFAULT 0"); $existingCols[] = 'is_conversion'; } catch(Exception $e) { /* column may already exist */ }
+        $conversionCol = 'is_conversion';
+    }
     if (!$allowProjectCreationCol) {
         try { $pdo->exec("ALTER TABLE funil_stages ADD COLUMN allow_project_creation TINYINT DEFAULT 0"); $existingCols[] = 'allow_project_creation'; } catch(Exception $e) { /* column may already exist */ }
         $allowProjectCreationCol = 'allow_project_creation';

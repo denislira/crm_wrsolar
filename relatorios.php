@@ -203,31 +203,88 @@ try {
         }
 } catch (Exception $e) { $stages = []; $stageCounts = []; }
 
-// Monthly created (within filter range)
+// Monthly created (last 12 months) - always use calendar-aligned 12 months range
+$reportMonthsStart = (new DateTime('first day of this month'))->modify('-11 months')->setTime(0,0,0);
+$reportMonthsEnd = (new DateTime('last day of this month'))->setTime(23,59,59);
+$reportMonthsWhere = "{$dateCol} >= ? AND {$dateCol} <= ?{$baseDelCond}{$srcCond}";
+$reportMonthsParams = array_merge([$reportMonthsStart->format('Y-m-d H:i:s'), $reportMonthsEnd->format('Y-m-d H:i:s')], $srcParams);
+
 try {
-        $m = $pdo->prepare("SELECT DATE_FORMAT({$dateCol}, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE {$filterWhere} GROUP BY ym ORDER BY ym ASC");
-        $m->execute($filterParams);
+        $m = $pdo->prepare("SELECT DATE_FORMAT({$dateCol}, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE {$reportMonthsWhere} GROUP BY ym ORDER BY ym ASC");
+        $m->execute($reportMonthsParams);
         $monthsRows = $m->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { $monthsRows = []; }
 
-// Last 12 months closed (if closed_at exists)
+// Last 12 months closed — based on funil_stages.is_conversion = 1 (primary),
+// with optional fallback to closed_at or is_conversation if that column doesn't exist.
 try {
         $leadColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
         $leadCols = $leadColsStmt->fetchAll(PDO::FETCH_COLUMN);
         $hasClosedAt = in_array('closed_at', $leadCols);
+        $hasIsConversation = in_array('is_conversation', $leadCols);
         $valueCol = null;
         foreach (['value','amount','budget','estimated_value'] as $vc) if (in_array($vc, $leadCols)) { $valueCol = $vc; break; }
         $sourceCol = null;
         foreach (['source','origem','lead_source'] as $sc) if (in_array($sc, $leadCols)) { $sourceCol = $sc; break; }
 
-        if ($hasClosedAt) {
-                $mc = $pdo->prepare("SELECT DATE_FORMAT(closed_at, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE closed_at >= ? AND closed_at <= ?{$baseDelCond}{$srcCond} GROUP BY ym ORDER BY ym ASC");
-                $mc->execute(array_merge([$fStartStr, $fEndStr], $srcParams));
+        // Check if funil_stages has is_conversion column
+        $fsColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
+        $fsCols = $fsColsStmt->fetchAll(PDO::FETCH_COLUMN);
+        $hasIsConversionStage = in_array('is_conversion', $fsCols, true);
+
+        if ($hasIsConversionStage) {
+                // PRIMARY: leads cujo stage está marcado como is_conversion = 1 no funil
+                $mc = $pdo->prepare(
+                        "SELECT DATE_FORMAT(l.{$dateCol}, '%Y-%m') as ym, COUNT(*) as cnt
+                         FROM leads l
+                         INNER JOIN funil_stages fs ON fs.id = l.stage_id AND fs.is_conversion = 1
+                         WHERE l.{$dateCol} >= ? AND l.{$dateCol} <= ?{$baseDelCond}{$srcCond}
+                         GROUP BY ym ORDER BY ym ASC"
+                );
+                $mc->execute($reportMonthsParams);
+                $monthsClosedRows = $mc->fetchAll(PDO::FETCH_ASSOC);
+        } elseif (in_array('final_type', $fsCols, true)) {
+                // fallback: considerar final_type=won como conversão para funil de conversão
+                $mc = $pdo->prepare(
+                        "SELECT DATE_FORMAT(l.{$dateCol}, '%Y-%m') as ym, COUNT(*) as cnt
+                         FROM leads l
+                         INNER JOIN funil_stages fs ON fs.id = l.stage_id AND fs.final_type = 'won'
+                         WHERE l.{$dateCol} >= ? AND l.{$dateCol} <= ?{$baseDelCond}{$srcCond}
+                         GROUP BY ym ORDER BY ym ASC"
+                );
+                $mc->execute($reportMonthsParams);
+                $monthsClosedRows = $mc->fetchAll(PDO::FETCH_ASSOC);
+        } elseif ($hasClosedAt || $hasIsConversation) {
+                // FALLBACK: closed_at ou is_conversation
+                $closedDateExpr = $hasClosedAt ? 'COALESCE(l.closed_at, l.created_at)' : "l.{$dateCol}";
+                if ($hasClosedAt && $hasIsConversation) {
+                        $closedCondition = '(l.closed_at IS NOT NULL OR l.is_conversation = 1)';
+                } elseif ($hasClosedAt) {
+                        $closedCondition = 'l.closed_at IS NOT NULL';
+                } else {
+                        $closedCondition = 'l.is_conversation = 1';
+                }
+                $mc = $pdo->prepare(
+                        "SELECT DATE_FORMAT({$closedDateExpr}, '%Y-%m') as ym, COUNT(*) as cnt
+                         FROM leads l
+                         WHERE {$closedCondition} AND l.{$dateCol} >= ? AND l.{$dateCol} <= ?{$baseDelCond}{$srcCond}
+                         GROUP BY ym ORDER BY ym ASC"
+                );
+                $mc->execute($reportMonthsParams);
                 $monthsClosedRows = $mc->fetchAll(PDO::FETCH_ASSOC);
         }
 
-        // avg days to close
-        if ($hasClosedAt) {
+        // avg days to close — usando estágio is_conversion ou closed_at
+        if ($hasIsConversionStage) {
+                $ad = $pdo->prepare(
+                        "SELECT AVG(DATEDIFF(l.{$dateCol}, l.created_at)) as avgd
+                         FROM leads l
+                         INNER JOIN funil_stages fs ON fs.id = l.stage_id AND fs.is_conversion = 1
+                         WHERE {$filterWhere}"
+                );
+                $ad->execute($filterParams);
+                $avgDaysToClose = round((float)$ad->fetchColumn(), 2);
+        } elseif ($hasClosedAt) {
                 $ad = $pdo->prepare("SELECT AVG(DATEDIFF(closed_at, created_at)) as avgd FROM leads WHERE closed_at IS NOT NULL AND {$filterWhere}");
                 $ad->execute($filterParams);
                 $avgDaysToClose = round((float)$ad->fetchColumn(),2);
@@ -272,17 +329,50 @@ try {
     $abu->execute([$fStartStr, $fEndStr]);
     $activityByUser = $abu->fetchAll(PDO::FETCH_ASSOC);
 
-    // conversion by source in period (defensive: only use closed_at if column exists)
+    // conversion by source in period — primary: funil_stages.is_conversion = 1
     $leadColsCheck = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
     $leadColsList = $leadColsCheck->fetchAll(PDO::FETCH_COLUMN);
     $hasClosedAtCol = in_array('closed_at', $leadColsList, true);
-    if ($hasClosedAtCol) {
+    $hasIsConversationCol = in_array('is_conversation', $leadColsList, true);
+    $fsColsCheck = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
+    $fsColsList = $fsColsCheck->fetchAll(PDO::FETCH_COLUMN);
+    $hasIsConversionStageCol = in_array('is_conversion', $fsColsList, true);
+
+    if ($hasIsConversionStageCol) {
+        $convSql = "SELECT COALESCE(NULLIF(l.source,''),'Sem origem') AS source, COUNT(*) AS total,
+                    SUM(CASE WHEN fs.is_conversion = 1 THEN 1 WHEN fs.final_type = 'won' THEN 1 ELSE 0 END) AS closed
+                    FROM leads l
+                    LEFT JOIN funil_stages fs ON fs.id = l.stage_id
+                    WHERE l.{$dateCol} >= ? AND l.{$dateCol} <= ?{$baseDelCond}{$srcCond}
+                    GROUP BY source ORDER BY total DESC LIMIT 20";
+        $convStmt = $pdo->prepare($convSql);
+        $convStmt->execute($filterParams);
+    } elseif (in_array('final_type', $fsColsList, true)) {
+        $convSql = "SELECT COALESCE(NULLIF(l.source,''),'Sem origem') AS source, COUNT(*) AS total,
+                    SUM(CASE WHEN fs.final_type = 'won' THEN 1 ELSE 0 END) AS closed
+                    FROM leads l
+                    LEFT JOIN funil_stages fs ON fs.id = l.stage_id
+                    WHERE l.{$dateCol} >= ? AND l.{$dateCol} <= ?{$baseDelCond}{$srcCond}
+                    GROUP BY source ORDER BY total DESC LIMIT 20";
+        $convStmt = $pdo->prepare($convSql);
+        $convStmt->execute($filterParams);
+    } elseif ($hasClosedAtCol && $hasIsConversationCol) {
+        $convSql = "SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, SUM(CASE WHEN closed_at IS NOT NULL OR is_conversation = 1 THEN 1 ELSE 0 END) AS closed FROM leads WHERE {$filterWhere} GROUP BY source ORDER BY total DESC LIMIT 20";
+        $convStmt = $pdo->prepare($convSql);
+        $convStmt->execute($filterParams);
+    } elseif ($hasClosedAtCol) {
         $convSql = "SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, SUM(CASE WHEN closed_at IS NOT NULL THEN 1 ELSE 0 END) AS closed FROM leads WHERE {$filterWhere} GROUP BY source ORDER BY total DESC LIMIT 20";
+        $convStmt = $pdo->prepare($convSql);
+        $convStmt->execute($filterParams);
+    } elseif ($hasIsConversationCol) {
+        $convSql = "SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, SUM(CASE WHEN is_conversation = 1 THEN 1 ELSE 0 END) AS closed FROM leads WHERE {$filterWhere} GROUP BY source ORDER BY total DESC LIMIT 20";
+        $convStmt = $pdo->prepare($convSql);
+        $convStmt->execute($filterParams);
     } else {
         $convSql = "SELECT COALESCE(NULLIF(source,''),'Sem origem') AS source, COUNT(*) AS total, 0 AS closed FROM leads WHERE {$filterWhere} GROUP BY source ORDER BY total DESC LIMIT 20";
+        $convStmt = $pdo->prepare($convSql);
+        $convStmt->execute($filterParams);
     }
-    $convStmt = $pdo->prepare($convSql);
-    $convStmt->execute($filterParams);
     $conversionBySource = $convStmt->fetchAll(PDO::FETCH_ASSOC);
 
     // avg activities per lead (approx)
@@ -361,17 +451,32 @@ try {
         $timelineTypes = array_keys($typesMap);
 } catch (Exception $e) { $timeline = []; $timelineUsers = []; $timelineTypes = []; }
 
-// Final stage and conversion
+// Final stage and conversion — uses funil_stages.is_conversion = 1 when available
 $finalStageCount = 0; $conversionRate = 0.0;
-if (count($stages) > 0) {
-        $final = end($stages);
-        try {
-                $fstmt = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE (stage_id = ? OR status = ?)');
-                $fstmt->execute([$final['id'], $final['name']]);
+try {
+        $fsConvColStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
+        $fsConvCols = $fsConvColStmt->fetchAll(PDO::FETCH_COLUMN);
+        if (in_array('is_conversion', $fsConvCols, true)) {
+                // count leads whose current stage is marked as conversion
+                $fstmt = $pdo->prepare(
+                        "SELECT COUNT(*) FROM leads l
+                         INNER JOIN funil_stages fs ON fs.id = l.stage_id AND fs.is_conversion = 1
+                         WHERE {$filterWhere}"
+                );
+                $fstmt->execute($filterParams);
+        } elseif (count($stages) > 0) {
+                // fallback: last stage
+                $final = end($stages);
+                $fstmt = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE (stage_id = ? OR status = ?) AND ' . $filterWhere);
+                $fstmt->execute(array_merge([$final['id'], $final['name']], $filterParams));
+        } else {
+                $fstmt = null;
+        }
+        if ($fstmt) {
                 $finalStageCount = (int)$fstmt->fetchColumn();
                 $conversionRate = $leadsTotal > 0 ? round(($finalStageCount / $leadsTotal) * 100, 2) : 0;
-        } catch (Exception $e) { }
-}
+        }
+} catch (Exception $e) { }
 
 // Consultores/Usuários ranking
 $usersRanking = [];

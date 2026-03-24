@@ -674,25 +674,28 @@
         } catch(e){ alert('Falha ao excluir status: ' + (e.message||e)); }
     }
 
-    async function createProjectFromLead(leadId, leadName){
+    async function createProjectFromLead(lead){
         try {
-            console.log('createProjectFromLead - leadId:', leadId, 'type:', typeof leadId);
-            
+            const leadId = lead.id || lead.lead_id || lead.ID;
             if (!leadId) {
-                alert('Lead ID não encontrado. Não é possível criar o projeto.');
+                alert('ID do lead não encontrado. Não é possível criar o projeto.');
                 return;
             }
-            
-            const projectName = prompt('Nome do projeto:', leadName || '');
+
+            const projectName = prompt('Nome do projeto:', lead.name || lead.client_name || '');
             if (!projectName || projectName.trim() === '') return;
-            
+
+            const proposalValue = lead.orcamento_value || lead.proposal_value || lead.estimativa_projeto_kwh || 0;
+            const proposalValueForm = String(proposalValue).replace(',', '.');
+
             const formData = new FormData();
             formData.append('client_name', projectName.trim());
-            formData.append('status', 'Prospecção');
+            formData.append('proposal_value', proposalValueForm);
+            formData.append('status', 'Documentação');
             formData.append('lead_id', String(leadId));
-            
-            console.log('Enviando FormData - lead_id:', formData.get('lead_id'));
-            
+
+            console.log('Enviando FormData - lead_id:', formData.get('lead_id'), 'proposal_value:', formData.get('proposal_value'));
+
             const res = await fetch('api/add_project.php', { method: 'POST', body: formData });
             const json = await res.json();
             
@@ -989,14 +992,12 @@
                 createProjBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     console.log('Botão clicado! Lead completo:', lead);
-                    console.log('Lead ID:', lead.id, 'Type:', typeof lead.id);
-                    console.log('Nome:', lead.name);
                     const leadIdToUse = lead.id || lead.lead_id || lead.ID;
                     if (!leadIdToUse) {
                         alert('ID do lead não encontrado. Não é possível criar projeto.');
                         return;
                     }
-                    createProjectFromLead(leadIdToUse, lead.name);
+                    createProjectFromLead(lead);
                 });
                 left.appendChild(createProjBtn);
                 console.log('Botão adicionado ao card!');

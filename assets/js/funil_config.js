@@ -4,6 +4,9 @@
 
   function $(s){return document.querySelector(s)}
   function $all(s){return Array.from(document.querySelectorAll(s))}
+  function asBool(v){
+    return v === 1 || v === '1' || v === true || v === 'true';
+  }
 
   async function load(){
     const res = await fetch(api + '?action=list'); if(!res.ok) return;
@@ -12,19 +15,36 @@
 
   function renderList(){
     const list = $('#stagesList'); list.innerHTML = '';
+    if (!stages.length) {
+      list.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8;font-size:.85rem;"><i class="fa fa-layer-group" style="font-size:2rem;display:block;margin-bottom:.75rem;color:#cbd5e1;"></i>Nenhuma etapa criada ainda.</div>';
+      return;
+    }
     stages.forEach(s=>{
-      const row = document.createElement('div'); row.className='d-flex align-items-center justify-content-between p-2 mb-2 border rounded stages-row';
+      const row = document.createElement('div'); row.className='stages-row';
       row.dataset.id = s.id;
+      const badges = [];
+      if (asBool(s.is_conversion) || (s.final_type && String(s.final_type).toLowerCase() === 'won')) {
+        badges.push('<span style="background:#d1fae5;color:#065f46;font-size:.67rem;font-weight:700;padding:1px 6px;border-radius:20px;"><i class="fa fa-trophy" style="font-size:.6rem;"></i> Venda Concluída</span>');
+      }
+      if (s.final_type && String(s.final_type).toLowerCase() === 'lost') {
+        badges.push('<span style="background:#fee2e2;color:#b91c1c;font-size:.67rem;font-weight:700;padding:1px 6px;border-radius:20px;"><i class="fa fa-times-circle" style="font-size:.6rem;"></i> Venda Perdida</span>');
+      }
+      if (asBool(s.is_qualification)) {
+        badges.push('<span style="background:#dbeafe;color:#1e40af;font-size:.67rem;font-weight:700;padding:1px 6px;border-radius:20px;"><i class="fa fa-filter" style="font-size:.6rem;"></i> SQL</span>');
+      }
       row.innerHTML = `
-        <div class="d-flex align-items-center gap-2">
-          <span class="drag-handle text-muted" title="Arrastar para reordenar" style="cursor:grab"><i class="fa fa-grip-lines"></i></span>
-          <i class="fa ${s.icon||'fa-circle'}" style="color:${s.color||'#6c757d'}"></i>
-          <div>
-            <div style="font-weight:600">${s.name}</div>
-            <div class="small text-muted">${s.position}</div>
+        <div class="d-flex align-items-center gap-2" style="min-width:0;">
+          <span class="drag-handle" title="Arrastar para reordenar"><i class="fa fa-grip-lines"></i></span>
+          <span class="stage-dot" style="background:${s.color||'#6c757d'};box-shadow:0 0 0 2px ${s.color||'#6c757d'}33;"></span>
+          <div style="min-width:0;">
+            <div class="stage-name">${s.name}</div>
+            <div class="stage-pos d-flex gap-1 flex-wrap mt-1">${badges.join('')}</div>
           </div>
         </div>
-        <div class="d-flex gap-2"><button class="btn btn-sm btn-outline-secondary edit-stage">Editar</button></div>
+        <div class="d-flex gap-2 align-items-center flex-shrink-0">
+          <span class="stage-pos me-1">#${s.position}</span>
+          <button class="btn-edit-stage edit-stage">Editar</button>
+        </div>
       `;
       list.appendChild(row);
       row.querySelector('.edit-stage').addEventListener('click', ()=> selectStage(s.id));
@@ -90,8 +110,18 @@
       $('#stageId').value = s.id; $('#stageName').value = s.name; $('#stageColor').value = s.color || '#6c757d'; $('#stageCardColor').value = s.card_color || '#ffffff';
     $('#stageSla').value = s.sla_days || '';
     $('#stageFinalType').value = s.final_type || 'none'; $('#stageForecast').value = (typeof s.include_in_forecast !== 'undefined') ? s.include_in_forecast : 1;
-    $('#generateTask').checked = !!s.generate_task_on_enter; $('#alertInactivity').checked = !!s.alert_on_inactivity; $('#blockAdvance').checked = !!s.block_advance; $('#allowProjectCreation').checked = !!s.allow_project_creation;
+    $('#generateTask').checked = asBool(s.generate_task_on_enter); $('#alertInactivity').checked = asBool(s.alert_on_inactivity); $('#blockAdvance').checked = asBool(s.block_advance); $('#allowProjectCreation').checked = asBool(s.allow_project_creation);
+    $('#isConversion').checked = asBool(s.is_conversion); $('#isQualification').checked = asBool(s.is_qualification);
     $('#requiredFields').value = s.required_fields || '';
+
+    // Apply stage color to edit panel border
+    const editorPanel = document.getElementById('stageEditor');
+    const stageColor = s.color || '#6c757d';
+    if (editorPanel) {
+      editorPanel.style.border = `2px solid ${stageColor}`;
+      editorPanel.style.boxShadow = `0 0 12px ${stageColor}33`;
+    }
+
     renderPreview(s);
   }
 
@@ -102,9 +132,11 @@
     col.style.borderRadius = '12px';
     const isDark = document.body.classList.contains('theme-dark') || document.documentElement.getAttribute('data-theme') === 'dark';
     col.style.background = isDark ? 'rgba(230,238,248,0.02)' : '#fff';
+    const borderColor = s.color || '#6c757d';
     col.style.border = isDark ? '1px solid rgba(230,238,248,0.04)' : '1px solid rgba(11,26,49,0.06)';
     // top line representing stage color
-    col.style.borderTop = '6px solid ' + (s.color || '#6c757d');
+    col.style.borderTop = '6px solid ' + borderColor;
+    col.style.boxShadow = `0 0 0 1px ${borderColor}33`;
     col.style.overflow = 'hidden';
     col.innerHTML = `<div style="font-weight:700;padding:8px 6px">${s.name} <span class="small text-muted" style="float:right">0</span></div>`;
     const card = document.createElement('div');
@@ -119,11 +151,11 @@
 
   async function saveStage(){
     const id = $('#stageId').value; if(!id) return alert('Selecione uma etapa');
-    const payload = { action:'update', id, name: $('#stageName').value, color: $('#stageColor').value, card_color: $('#stageCardColor').value, sla_days: $('#stageSla').value, final_type: $('#stageFinalType').value, include_in_forecast: $('#stageForecast').value, generate_task_on_enter: $('#generateTask').checked?1:0, alert_on_inactivity: $('#alertInactivity').checked?1:0, block_advance: $('#blockAdvance').checked?1:0, allow_project_creation: $('#allowProjectCreation').checked?1:0, required_fields: parseRequiredFields() };
+    const payload = { action:'update', id, name: $('#stageName').value, color: $('#stageColor').value, card_color: $('#stageCardColor').value, sla_days: $('#stageSla').value, final_type: $('#stageFinalType').value, include_in_forecast: $('#stageForecast').value, generate_task_on_enter: $('#generateTask').checked?1:0, alert_on_inactivity: $('#alertInactivity').checked?1:0, block_advance: $('#blockAdvance').checked?1:0, allow_project_creation: $('#allowProjectCreation').checked?1:0, is_conversion: $('#isConversion').checked?1:0, is_qualification: $('#isQualification').checked?1:0, required_fields: parseRequiredFields() };
     try{
       const res = await fetch(api + '?action=update', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const json = await res.json(); if (json.error) throw new Error(json.error || 'Erro');
-      $('#saveMsg').style.display = 'inline'; setTimeout(()=> $('#saveMsg').style.display='none', 2000);
+      const msg = $('#saveMsg'); msg.style.display = 'flex'; setTimeout(()=> msg.style.display='none', 2500);
       await load(); selectStage(id);
     }catch(e){ alert('Falha ao salvar: ' + e.message); }
   }

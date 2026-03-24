@@ -24,10 +24,24 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $client_name = trim($_POST['client_name'] ?? '');
 $address = trim($_POST['address'] ?? '');
 $proposal_value = isset($_POST['proposal_value']) ? str_replace([',',' '], ['.',''], $_POST['proposal_value']) : 0;
-$status = $_POST['status'] ?? 'Prospecção';
+$status = $_POST['status'] ?? 'Documentação';
 $lead_id = isset($_POST['lead_id']) && $_POST['lead_id'] !== '' ? intval($_POST['lead_id']) : null;
 $closed_date = $_POST['closed_date'] ?? null;
+$contract = isset($_POST['contract']) ? trim($_POST['contract']) : null;
+$contract = $contract === '' ? null : $contract;
 $client_status = $_POST['client_status'] ?? null; // 'Assinante' or 'Ex-Cliente'
+$payment_type = $_POST['payment_type'] ?? null;
+$payment_type = $payment_type === '' ? null : $payment_type;
+
+$logistics_tracking_code = isset($_POST['logistics_tracking_code']) ? trim($_POST['logistics_tracking_code']) : null;
+$logistics_tracking_code = $logistics_tracking_code === '' ? null : $logistics_tracking_code;
+$logistics_delivery_date = $_POST['logistics_delivery_date'] ?? null;
+$inspection_photos = isset($_POST['inspection_photos']) ? trim($_POST['inspection_photos']) : null;
+$inspection_photos = $inspection_photos === '' ? null : $inspection_photos;
+$technical_checklist = isset($_POST['technical_checklist']) ? trim($_POST['technical_checklist']) : null;
+$technical_checklist = $technical_checklist === '' ? null : $technical_checklist;
+$docs_checklist = isset($_POST['docs_checklist']) ? trim($_POST['docs_checklist']) : null;
+$docs_checklist = $docs_checklist === '' ? null : $docs_checklist;
 
 // Debug log
 error_log("add_project.php - Recebido lead_id: " . print_r($_POST['lead_id'] ?? 'NOT SET', true));
@@ -39,23 +53,48 @@ if (empty($client_name)) {
 }
 
 try {
-    // ensure column exists for client_status (safe migration)
+    // ensure columns exist (safe migration)
     try {
-        $col = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = 'client_status'");
-        $col->execute();
-        if (!$col->fetchColumn()) {
-            $pdo->exec("ALTER TABLE projetos ADD COLUMN client_status VARCHAR(50) DEFAULT 'Assinante'");
+        $columnsToCheck = [
+            'client_status' => "VARCHAR(50) DEFAULT 'Assinante'",
+            'payment_type' => "VARCHAR(50) DEFAULT NULL",
+            'contract' => 'TEXT DEFAULT NULL',
+            'logistics_tracking_code' => 'VARCHAR(255) DEFAULT NULL',
+            'logistics_delivery_date' => 'DATE DEFAULT NULL',
+            'inspection_photos' => 'TEXT DEFAULT NULL',
+            'technical_checklist' => 'TEXT DEFAULT NULL',
+            'docs_checklist' => 'TEXT DEFAULT NULL',
+            'doc_attachments' => 'TEXT DEFAULT NULL'
+        ];
+
+        foreach ($columnsToCheck as $colName => $definition) {
+            $col = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = ?");
+            $col->execute([$colName]);
+            if (!$col->fetchColumn()) {
+                $pdo->exec("ALTER TABLE projetos ADD COLUMN {$colName} {$definition}");
+            }
         }
     } catch (Exception $e) { /* ignore migration errors */ }
 
-    // include client_status if provided
-    if ($client_status !== null) {
-        $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, client_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
-        $stmt->execute([$_SESSION['user_id'], $client_name, $address, $proposal_value, $status, $lead_id, $closed_date ?: null, $client_status]);
-    } else {
-        $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
-        $stmt->execute([$_SESSION['user_id'], $client_name, $address, $proposal_value, $status, $lead_id, $closed_date ?: null]);
-    }
+    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, client_status, payment_type, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+    $stmt->execute([
+        $_SESSION['user_id'],
+        $client_name,
+        $address,
+        $proposal_value,
+        $status,
+        $lead_id,
+        $closed_date ?: null,
+        $contract,
+        $client_status,
+        $payment_type,
+        $logistics_tracking_code,
+        $logistics_delivery_date ?: null,
+        $inspection_photos,
+        $technical_checklist,
+        $docs_checklist,
+        null
+    ]);
     echo json_encode(['success' => true, 'message' => 'Projeto criado com sucesso']);
 } catch (Exception $e) {
     http_response_code(500);

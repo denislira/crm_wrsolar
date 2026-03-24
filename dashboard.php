@@ -135,18 +135,42 @@ if ($hasSource) {
 // Top consultores (last 30 days)
 $topConsultores = [];
 try {
-    $finalStageId = 0;
+    $conversionStageIds = [];
     if (!empty($funnelStages)) {
-        $lastStage = $pdo->query("SELECT id FROM funil_stages ORDER BY COALESCE({$fsOrdCol}, id) DESC LIMIT 1")->fetchColumn();
-        $finalStageId = (int)$lastStage;
+        // Use explicit conversion stages only (won / explicit conversion flag). Exclude generic is_final (which can represent both won/lost).
+        $conversionStageIds = $pdo->query("SELECT id FROM funil_stages WHERE is_conversion = 1 OR final_type = 'won'")->fetchAll(PDO::FETCH_COLUMN);
     }
+
+    $conversionStatusCondition = "LOWER(l.status) LIKE '%ganho%' OR LOWER(l.status) LIKE '%convertido%'";
+    $stageCondition = '';
+
+    if (!empty($conversionStageIds)) {
+        $stagePlaceholders = implode(',', array_fill(0, count($conversionStageIds), '?'));
+        $stageCondition = "l.stage_id IN ($stagePlaceholders) OR ";
+    }
+
+    $conversionParams = [];
+    foreach ($conversionStageIds as $sid) {
+        $conversionParams[] = (int)$sid;
+    }
+
+    $conversionCondition = "({$stageCondition}{$conversionStatusCondition})";
+
     $topConsultores = safeQueryAll($pdo, "
-        SELECT u.username, COUNT(DISTINCT l.id) AS total,
-               SUM(CASE WHEN l.stage_id = ? OR l.status LIKE '%fechado%' OR l.status LIKE '%ganho%' THEN 1 ELSE 0 END) AS conversoes
+        SELECT u.username,
+               COUNT(DISTINCT l.id) AS total,
+               SUM(CASE WHEN {$conversionCondition} THEN 1 ELSE 0 END) AS conversoes
         FROM users u
-        LEFT JOIN leads l ON {$leadOwnerJoinExpr} = u.id AND l.{$dateCol} >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) AND l.{$delWhere}
-        GROUP BY u.id, u.username HAVING total > 0 ORDER BY conversoes DESC, total DESC LIMIT 5
-    ", [$finalStageId]);
+        LEFT JOIN (
+            SELECT id, stage_id, status, user_id, user_id_update
+            FROM leads
+            WHERE {$delWhere} AND {$dateCol} >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        ) l ON {$leadOwnerJoinExpr} = u.id
+        GROUP BY u.id, u.username
+        HAVING total > 0
+        ORDER BY conversoes DESC, total DESC
+        LIMIT 5
+    ", $conversionParams);
 } catch (Exception $e) { $topConsultores = []; }
 
 // Leads sem contato (alert list, up to 5 for dashboard)
@@ -330,29 +354,50 @@ include 'includes/sidebar.php';
                     <span class="badge bg-success ms-auto">OK</span>
                     <?php endif; ?>
                 </div>
-                <?php if (!empty($slaAlertPreview)): ?>
-                    <?php foreach ($slaAlertPreview as $al):
-                        $createdDt = null;
-                        try { if ($al['created_at']) $createdDt = new DateTime((string)$al['created_at']); } catch (Exception $e) {}
-                        $hoursWaiting = $createdDt ? round((new DateTime())->getTimestamp() - $createdDt->getTimestamp()) / 3600 : null;
-                    ?>
-                    <div class="alert-sla-item">
-                        <div>
-                            <strong class="d-block" style="font-size:.85rem;"><?= htmlspecialchars($al['name']) ?></strong>
-                            <span class="badge-src"><?= htmlspecialchars($al['source']) ?></span>
-                        </div>
-                        <div class="text-end">
-                            <span style="color:<?= ($hoursWaiting !== null && $hoursWaiting > 48) ? '#ef4444' : '#f59e0b' ?>; font-weight:700; font-size:.85rem;"><?= $hoursWaiting !== null ? round($hoursWaiting) . 'h' : '—' ?></span>
-                            <div class="small text-muted"><?= $createdDt ? $createdDt->format('d/m H:i') : '' ?></div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                    <?php if ($slaNoContact > count($slaAlertPreview)): ?>
-                    <div class="mt-2 text-center"><a href="relatorios.php?tab=sla" class="btn btn-sm btn-danger">+<?= $slaNoContact - count($slaAlertPreview) ?> mais → Ver todos</a></div>
-                    <?php endif; ?>
-                <?php else: ?>
-                    <div class="py-4 text-center text-muted small"><i class="fa fa-check-circle text-success fa-2x d-block mb-2"></i>Nenhum lead sem contato.<br>Ótimo atendimento!</div>
-                <?php endif; ?>
+                <?php
+    function formatTimeAgoInBusiness($dt) {
+        if (!$dt) return '—';
+        $diff = (new DateTime())->getTimestamp() - $dt->getTimestamp();
+        if ($diff < 3600) return '<1h';
+        $hours = (int) round($diff / 3600);
+        if ($hours < 48) return $hours . 'h';
+        $days = (int) round($diff / 86400);
+        if ($days < 30) return $days . 'd';
+        $months = (int) floor($days / 30);
+        if ($months < 12) {
+            $remDays = $days - ($months * 30);
+            return $months . 'm' . ($remDays > 0 ? ' ' . $remDays . 'd' : '');
+        }
+        $years = (int) floor($months / 12);
+        $remMonths = $months % 12;
+        return $years . 'y' . ($remMonths > 0 ? ' ' . $remMonths . 'm' : '');
+    }
+    ?>
+    <?php if (!empty($slaAlertPreview)): ?>
+        <?php foreach ($slaAlertPreview as $al):
+            $createdDt = null;
+            try { if ($al['created_at']) $createdDt = new DateTime((string)$al['created_at']); } catch (Exception $e) {}
+            $hoursWaiting = $createdDt ? round((new DateTime())->getTimestamp() - $createdDt->getTimestamp()) / 3600 : null;
+        ?>
+        <div class="alert-sla-item">
+            <div>
+                <strong class="d-block" style="font-size:.85rem;"><?= htmlspecialchars($al['name']) ?></strong>
+                <span class="badge-src"><?= htmlspecialchars($al['source']) ?></span>
+            </div>
+            <div class="text-end">
+                <span style="color:<?= ($hoursWaiting !== null && $hoursWaiting > 48) ? '#ef4444' : '#f59e0b' ?>; font-weight:700; font-size:.85rem;">
+                    <?= $createdDt ? formatTimeAgoInBusiness($createdDt) : '—' ?>
+                </span>
+                <div class="small text-muted"><?= $createdDt ? $createdDt->format('d/m H:i') : '' ?></div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+        <?php if ($slaNoContact > count($slaAlertPreview)): ?>
+            <div class="mt-2 text-center"><a href="relatorios.php?tab=sla" class="btn btn-sm btn-danger">+<?= $slaNoContact - count($slaAlertPreview) ?> mais → Ver todos</a></div>
+        <?php endif; ?>
+    <?php else: ?>
+        <div class="py-4 text-center text-muted small"><i class="fa fa-check-circle text-success fa-2x d-block mb-2"></i>Nenhum lead sem contato.<br>Ótimo atendimento!</div>
+    <?php endif; ?>
             </div>
         </div>
     </div>

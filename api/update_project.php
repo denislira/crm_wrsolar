@@ -28,7 +28,7 @@ if ($id <= 0) {
     exit;
 }
 
-$allowed = ['client_name','address','proposal_value','status','contract','closed_date','client_status'];
+$allowed = ['client_name','address','proposal_value','status','contract','closed_date','client_status','payment_type','logistics_tracking_code','logistics_delivery_date','inspection_photos','technical_checklist','docs_checklist','doc_attachments'];
 $sets = [];
 $params = [];
 foreach ($allowed as $f) {
@@ -46,12 +46,25 @@ if (empty($sets)) {
     exit;
 }
 
-// ensure client_status column exists when needed
+// ensure columns exist when needed (safe migration)
 try {
-    $col = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = 'client_status'");
-    $col->execute();
-    if (!$col->fetchColumn()) {
-        $pdo->exec("ALTER TABLE projetos ADD COLUMN client_status VARCHAR(50) DEFAULT 'Assinante'");
+    $columnsToCheck = [
+        'client_status' => "VARCHAR(50) DEFAULT 'Assinante'",
+        'payment_type' => "VARCHAR(50) DEFAULT NULL",
+        'contract' => 'TEXT DEFAULT NULL',
+        'logistics_tracking_code' => 'VARCHAR(255) DEFAULT NULL',
+        'logistics_delivery_date' => 'DATE DEFAULT NULL',
+        'inspection_photos' => 'TEXT DEFAULT NULL',
+        'technical_checklist' => 'TEXT DEFAULT NULL',
+        'docs_checklist' => 'TEXT DEFAULT NULL',
+        'doc_attachments' => 'TEXT DEFAULT NULL'
+    ];
+    foreach ($columnsToCheck as $colName => $definition) {
+        $col = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = ?");
+        $col->execute([$colName]);
+        if (!$col->fetchColumn()) {
+            $pdo->exec("ALTER TABLE projetos ADD COLUMN {$colName} {$definition}");
+        }
     }
 } catch (Exception $e) { /* ignore */ }
 
