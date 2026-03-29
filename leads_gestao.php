@@ -415,7 +415,7 @@ include 'includes/header.php';
     <!-- Modal: Gerenciar Formas de Pagamento -->
     <div id="paymentMethodsModal" class="modal fade" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-md modal-dialog-centered">
-            <div class="modal-content">
+            <div class="modal-content payment-modal-content">
                 <div class="modal-header"><h5 class="modal-title">Formas de Pagamento</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
                     <div class="mb-3 d-flex gap-2">

@@ -231,9 +231,17 @@ body.kanban-only.theme-dark .column-content{
     box-shadow: 0 8px 22px rgba(0,0,0,0.45) !important;
     border-top: 1px solid rgba(255,255,255,0.08) !important;
     border-right: 1px solid rgba(255,255,255,0.08) !important;
-    border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+    border-bottom: 1px solid rgba(240, 240, 240, 0.08) !important;
     /* keep left border free so JS can set colored left border on cards */
 }
+
+/* payment method modal gray theme */
+.payment-modal-content{background:#f0f0f0 !important; color:#1f2937;}
+.payment-modal-content .modal-header,
+.payment-modal-content .modal-body,
+.payment-modal-content .modal-footer{background:#ebebeb !important; color:#1f2937;}
+.payment-modal-content .list-group-item{background:#dfdfdf; border-color:#bababa; color:#1f2937;}
+.payment-modal-content .form-control{background:#fafafa; border-color:#b0b0b0;}
 
 /* ensure modals appear above the lead details panel */
 .modal{z-index:1400 !important}

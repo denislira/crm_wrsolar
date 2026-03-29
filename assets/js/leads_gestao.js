@@ -3106,29 +3106,117 @@
                     }
                 });
             }
+
+            // Payment methods modal trigger and add action
+            const openPaymentMethodsBtn = $('#openPaymentMethodsBtn');
+            if (openPaymentMethodsBtn) {
+                openPaymentMethodsBtn.addEventListener('click', async () => {
+                    await loadPaymentMethods();
+                    const modalEl = document.getElementById('paymentMethodsModal');
+                    if (modalEl) new bootstrap.Modal(modalEl).show();
+                });
+            }
+
+            const addPaymentMethodBtn = $('#addPaymentMethodBtn');
+            if (addPaymentMethodBtn) {
+                addPaymentMethodBtn.addEventListener('click', async () => {
+                    const input = document.getElementById('newPaymentMethodName');
+                    if (!input) return;
+                    const name = input.value.trim();
+                    if (!name) {
+                        alert('Informe o nome da forma de pagamento');
+                        input.focus();
+                        return;
+                    }
+                    addPaymentMethodBtn.disabled = true;
+                    try {
+                        const res = await fetch('includes/payment_methods_api.php?action=add', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                            body: 'name=' + encodeURIComponent(name)
+                        });
+                        if (!res.ok) throw new Error('Erro ao adicionar forma de pagamento');
+                        const json = await res.json();
+                        if (json.error) throw new Error(json.error);
+                        input.value = '';
+                        await loadPaymentMethods();
+                    } catch (err) {
+                        console.error('Add payment method failed', err);
+                        alert('Falha ao adicionar forma de pagamento: ' + (err.message || 'erro'));
+                    } finally {
+                        addPaymentMethodBtn.disabled = false;
+                    }
+                });
+            }
         }catch(err){ console.error(err); alert('Erro inicial: '+err.message); }
         finally { hidePreloader(); }
     });
 
+    // Render payment methods in modal list (with delete)
+    async function renderPaymentMethodsList(methods) {
+        const list = document.getElementById('paymentMethodsList');
+        if (!list) return;
+        list.innerHTML = '';
+        if (!methods || !methods.length) {
+            list.innerHTML = '<div class="small text-muted">Nenhuma forma de pagamento cadastrada.</div>';
+            return;
+        }
+        methods.forEach(m => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+            const nameDiv = document.createElement('span');
+            nameDiv.textContent = m.name || '';
+            item.appendChild(nameDiv);
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-sm btn-outline-danger';
+            deleteBtn.type = 'button';
+            deleteBtn.textContent = 'Excluir';
+            deleteBtn.addEventListener('click', async () => {
+                if (!confirm('Excluir forma de pagamento "' + m.name + '"?')) return;
+                try {
+                    const res = await fetch('includes/payment_methods_api.php?action=delete', {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+                        body: 'id=' + encodeURIComponent(m.id)
+                    });
+                    if (!res.ok) throw new Error('Erro ao excluir');
+                    await loadPaymentMethods();
+                } catch (err) {
+                    console.error('Delete payment method failed', err);
+                    alert('Falha ao excluir forma de pagamento');
+                }
+            });
+            item.appendChild(deleteBtn);
+            list.appendChild(item);
+        });
+    }
+
     // Load payment methods and populate select
     async function loadPaymentMethods(){
         const sel = document.getElementById('lead-forma-pagamento');
-        if (!sel) return;
-        const current = sel.value || '';
+        const list = document.getElementById('paymentMethodsList');
+        if (!sel && !list) return;
+        const current = sel ? (sel.value || '') : '';
         try {
             const res = await fetch('includes/payment_methods_api.php?action=list');
             if (!res.ok) return;
             const data = await res.json();
-            sel.innerHTML = '<option value="">-- selecione --</option>';
-            data.forEach(d=>{
-                const o = document.createElement('option');
-                o.value = String(d.id);
-                o.textContent = d.name;
-                sel.appendChild(o);
-            });
-            if (current) sel.value = current;
+            if (sel) {
+                sel.innerHTML = '<option value="">-- selecione --</option>';
+                data.forEach(d=>{
+                    const o = document.createElement('option');
+                    o.value = String(d.id);
+                    o.textContent = d.name;
+                    sel.appendChild(o);
+                });
+                if (current) sel.value = current;
+            }
+            if (list) {
+                await renderPaymentMethodsList(data);
+            }
         } catch (e) {
             console.warn('Failed loading payment methods', e);
+            if (list) list.innerHTML = '<div class="text-danger small">Erro ao carregar formas de pagamento</div>';
         }
     }
 
