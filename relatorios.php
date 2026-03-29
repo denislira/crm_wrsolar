@@ -25,6 +25,10 @@ $userId = $_SESSION['user_id'];
 
 // Active tab (keep user on the chosen report after submit)
 $activeTab = isset($_GET['tab']) ? (string)$_GET['tab'] : 'overview';
+$tabAliases = ['sql' => 'qualificacao', 'speed-to-lead' => 'sla'];
+if (isset($tabAliases[$activeTab])) {
+    $activeTab = $tabAliases[$activeTab];
+}
 $allowedTabs = ['overview','funnel','temporal','consultores','sources','daily','qualificacao','sla','financeiro'];
 if (!in_array($activeTab, $allowedTabs, true)) $activeTab = 'overview';
 
@@ -688,6 +692,16 @@ try {
     }
 } catch (Exception $e) { /* ignore */ }
 
+$financeDataAvailable = (
+    $avgKwp !== null ||
+    $avgTicketKwp !== null ||
+    $avgTicket !== null ||
+    $avgDaysToClose !== null ||
+    !empty($paymentDistribution) ||
+    !empty($lostReasons) ||
+    !empty($monthsRows)
+);
+
 // ============================================================
 // NEW: SLA / Speed-to-Lead diagnostics
 // ============================================================
@@ -758,6 +772,8 @@ try {
 // NEW: Consultant comparison (conversion + lost reasons per user)
 // ============================================================
 $consultorComparison = [];
+
+$financeDataAvailable = false; // set later after calculation
 
 try {
     $ccLeadCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'")->fetchAll(PDO::FETCH_COLUMN);
@@ -1070,12 +1086,12 @@ try {
             <!-- Tabs Navigation -->
             <ul class="nav nav-pills mb-4" id="reportTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?php echo $activeTab==='overview'?'active':''; ?>" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='overview'?'active':''; ?>" id="overview-tab" data-tab="overview" data-bs-toggle="pill" data-bs-target="#overview" type="button" role="tab">
                         <i class="fa fa-home"></i> Visão Geral
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?php echo $activeTab==='funnel'?'active':''; ?>" id="funnel-tab" data-bs-toggle="pill" data-bs-target="#funnel" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='funnel'?'active':''; ?>" id="funnel-tab" data-tab="funnel" data-bs-toggle="pill" data-bs-target="#funnel" type="button" role="tab">
                         <i class="fa fa-filter"></i> Funil de Vendas
                     </button>
                 </li>
@@ -1100,13 +1116,13 @@ try {
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?php echo $activeTab==='qualificacao'?'active':''; ?>" id="qualificacao-tab" data-bs-toggle="pill" data-bs-target="#qualificacao" type="button" role="tab">
-                        <i class="fa fa-filter"></i> Qualificação
+                    <button class="nav-link <?php echo $activeTab==='qualificacao'?'active':''; ?>" id="qualificacao-tab" data-tab="qualificacao" data-bs-toggle="pill" data-bs-target="#qualificacao" type="button" role="tab">
+                        <i class="fa fa-filter"></i> SQL
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?php echo $activeTab==='sla'?'active':''; ?>" id="sla-tab" data-bs-toggle="pill" data-bs-target="#sla" type="button" role="tab">
-                        <i class="fa fa-stopwatch"></i> SLA / Speed-to-Lead
+                    <button class="nav-link <?php echo $activeTab==='sla'?'active':''; ?>" id="sla-tab" data-tab="sla" data-bs-toggle="pill" data-bs-target="#sla" type="button" role="tab">
+                        <i class="fa fa-stopwatch"></i> Speed-to-Lead
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
@@ -1654,6 +1670,9 @@ try {
                  TAB: Financeiro
                  =================================================== -->
             <div class="tab-pane fade <?php echo $activeTab==='financeiro'?'show active':''; ?>" id="financeiro" role="tabpanel">
+                <?php if (!$financeDataAvailable): ?>
+                <div class="alert alert-info">Nenhum dado financeiro disponível para o período selecionado. Verifique se leads possuem valores (orcamento, kWp), forma de pagamento e motivo de perda preenchidos.</div>
+                <?php endif; ?>
                 <div class="row g-3 mb-4">
                     <div class="col-md-3">
                         <div class="kpi-card blue">
@@ -1737,6 +1756,23 @@ function toggleAllSources(el) {
     }
     updateSourceLabel();
 }
+
+function persistTabOnClick() {
+    document.querySelectorAll('#reportTabs .nav-link[data-tab]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+            var selectedTab = this.getAttribute('data-tab');
+            if (!selectedTab) return;
+            var url = new URL(window.location);
+            url.searchParams.set('tab', selectedTab);
+            window.history.replaceState({}, '', url.toString());
+        });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+    updateSourceLabel();
+    persistTabOnClick();
+});
 function updateSourceLabel() {
     var cbs = document.querySelectorAll('#sourceDropdownMenu input[name="sources[]"]');
     var checked = Array.from(cbs).filter(function(cb){ return cb.checked; });
@@ -3005,39 +3041,43 @@ function renderFinanceiroCharts() {
     const revEl = document.getElementById('chartRevenueMonthly');
     if (revEl) {
         destroyChart('chartRevenueMonthly');
-        // Build from existing months data as approximation
         const monthsMap = {};
         (REPORT_MONTHS || []).forEach(r => monthsMap[r.ym] = Number(r.cnt));
         const last12 = buildLast12Months();
         const labels = last12.map(getMonthName);
-        // Use avg ticket × leads created as revenue estimate if no revenue data
         const avgT = REPORT_AVG_TICKET || 0;
         const revenueData = last12.map(m => (monthsMap[m] || 0) * avgT);
-        chartInstances['chartRevenueMonthly'] = new Chart(revEl, {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [{
-                    label: 'Receita Estimada (R$)',
-                    data: revenueData,
-                    backgroundColor: 'rgba(16,185,129,0.7)',
-                    borderRadius: 6,
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => 'Estimado: ' + formatCurrency(ctx.parsed.y)
-                        }
-                    }
+        const hasRevenue = revenueData.some(v => v > 0);
+
+        if (!hasRevenue) {
+            revEl.parentElement.innerHTML = '<p class="text-muted text-center py-5">Não há dados de receita suficientes para gerar gráfico. Insira orçamentos/valor de vendas nos leads.</p>';
+        } else {
+            chartInstances['chartRevenueMonthly'] = new Chart(revEl, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Receita Estimada (R$)',
+                        data: revenueData,
+                        backgroundColor: 'rgba(16,185,129,0.7)',
+                        borderRadius: 6,
+                        borderWidth: 0
+                    }]
                 },
-                scales: { y: { beginAtZero: true, ticks: { callback: v => 'R$' + formatNumber(v) } } }
-            }
-        });
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => 'Estimado: ' + formatCurrency(ctx.parsed.y)
+                            }
+                        }
+                    },
+                    scales: { y: { beginAtZero: true, ticks: { callback: v => 'R$' + formatNumber(v) } } }
+                }
+            });
+        }
     }
 }
 

@@ -27,7 +27,7 @@ include 'includes/header.php';
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h1 class="h4 mb-0">Gestão de Leads</h1>
                 <div class="d-flex gap-2 align-items-center">
-                    <input id="searchInput" class="form-control form-control-sm" placeholder="Buscar por nome ou empresa..." style="min-width:280px">
+                    <input id="searchInput" class="form-control form-control-sm" placeholder="Buscar por nome, empresa ou telefone..." style="min-width:280px">
                     <select id="filterCidade" class="form-select form-select-sm">
                         <option value="">Todas cidades</option>
                     </select>

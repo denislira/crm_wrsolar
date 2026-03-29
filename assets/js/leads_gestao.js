@@ -19,7 +19,18 @@
         // apply search
         if (CURRENT_SEARCH) {
             const v = CURRENT_SEARCH.toLowerCase();
-            filtered = filtered.filter(l => (l.name||'').toLowerCase().includes(v) || (l.client_name||'').toLowerCase().includes(v));
+            const searchDigits = CURRENT_SEARCH.replace(/\D/g, '');
+            const norm = (value) => String(value || '').toLowerCase();
+            const digitOnly = (value) => String(value || '').replace(/\D/g, '');
+            filtered = filtered.filter(l => {
+                if (norm(l.name).includes(v) || norm(l.client_name).includes(v) || norm(l.company).includes(v) || norm(l.source).includes(v) || norm(l.phone).includes(v)) {
+                    return true;
+                }
+                if (searchDigits && digitOnly(l.phone).includes(searchDigits)) {
+                    return true;
+                }
+                return false;
+            });
         }
         // apply score filter
         if (CURRENT_SCORE_FILTER) {
