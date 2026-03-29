@@ -12,8 +12,9 @@ require_once __DIR__ . '/includes/permissions.php';
 
 checkAccessOrRedirect('projetos');
 
-$stmt = $pdo->prepare('SELECT * FROM projetos WHERE user_id = ? ORDER BY id DESC');
-$stmt->execute([$_SESSION['user_id']]);
+// Exibir todos os projetos para o usuário com permissão de acessar o módulo
+$stmt = $pdo->prepare('SELECT * FROM projetos ORDER BY id DESC');
+$stmt->execute();
 $projetos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 include 'includes/header.php';
@@ -90,6 +91,12 @@ include 'includes/header.php';
                 </div>
             </div>
             <!-- Filtros -->
+            <div class="d-flex gap-2 mb-3 flex-wrap justify-content-center">
+                <div class="btn-group" role="group" aria-label="Filtro de proprietário">
+                    <button type="button" id="btnTodosProjetos" class="btn btn-outline-primary btn-sm active">Todos os Projetos</button>
+                    <button type="button" id="btnMeusProjetos" class="btn btn-outline-secondary btn-sm">Meus Projetos</button>
+                </div>
+            </div>
             <div class="d-flex gap-2 mb-4 flex-wrap justify-content-center">
                 <input type="search" id="filtroPagamento" class="form-control form-control-sm w-auto" placeholder="Filtrar por forma de pagamento...">
                 <input type="search" id="filtroBusca" class="form-control form-control-sm w-50" placeholder="Buscar cliente ou projeto...">
@@ -108,7 +115,7 @@ include 'includes/header.php';
                                     <div class="text-muted small">Nenhum projeto nesta etapa</div>
                                 <?php endif; ?>
                                 <?php foreach ($stageProjects[$stage] as $p): ?>
-                                    <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" draggable="true">
+                                    <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" data-user-id="<?= $p['user_id'] ?>" draggable="true">
                                         <div class="card-body p-2">
                                             <div class="d-flex justify-content-between align-items-center mb-1">
                                                 <span class="badge" style="background:#0b6ac1;color:#fff;font-size:80%;">#<?= $p['id'] ?></span>
@@ -545,7 +552,19 @@ include 'includes/header.php';
                     const res = await fetch('api/update_project.php', { method: 'POST', body: f });
                     const j = await res.json();
                     if (!j.success) throw new Error(j.message || 'Erro ao mover projeto');
-                    location.reload();
+
+                    const card = document.querySelector(`.card-project[data-id="${projectId}"]`);
+                    if (card) {
+                        const statusBadge = card.querySelector('.status-badge');
+                        if (statusBadge) {
+                            statusBadge.textContent = targetStatus;
+                            statusBadge.className = 'badge status-badge ' + (targetStatus === 'Concluído' ? 'bg-success' : (targetStatus === 'Atrasado' ? 'bg-danger' : 'bg-warning'));
+                        }
+                        col.appendChild(card);
+                    }
+
+                    updateStageCounts();
+                    applyFilters();
                 } catch(err) {
                     console.error(err);
                     alert('Falha ao mover projeto: ' + (err.message || err));
@@ -553,23 +572,49 @@ include 'includes/header.php';
             });
         });
 
+        const currentUserId = "<?= $_SESSION['user_id'] ?>";
         const filtroPagamento = document.getElementById('filtroPagamento');
         const filtroBusca = document.getElementById('filtroBusca');
-        const filtrarProjetos = () => {
+        const btnTodosProjetos = document.getElementById('btnTodosProjetos');
+        const btnMeusProjetos = document.getElementById('btnMeusProjetos');
+        let userFilter = 'all';
+
+        const applyFilters = () => {
             const txt = filtroBusca.value.trim().toLowerCase();
             const pag = filtroPagamento.value.trim().toLowerCase();
+
             document.querySelectorAll('.card-project').forEach(card => {
+                const ownerId = card.dataset.userId;
                 const title = card.querySelector('.project-title')?.textContent.toLowerCase() || '';
-                const client = title;
                 const contract = card.querySelector('.project-contract')?.textContent.toLowerCase() || '';
-                const matched = (txt === '' || client.includes(txt) || contract.includes(txt)) &&
-                                (pag === '' || contract.includes(pag));
-                card.style.display = matched ? 'block' : 'none';
+                const status = card.querySelector('.status-badge')?.textContent.toLowerCase() || '';
+
+                const byUser = userFilter === 'all' || ownerId === currentUserId;
+                const byText = txt === '' || title.includes(txt) || contract.includes(txt) || status.includes(txt);
+                const byPayment = pag === '' || contract.includes(pag);
+
+                card.style.display = (byUser && byText && byPayment) ? 'block' : 'none';
             });
         };
 
-        filtroPagamento.addEventListener('input', filtrarProjetos);
-        filtroBusca.addEventListener('input', filtrarProjetos);
+        btnTodosProjetos.addEventListener('click', () => {
+            userFilter = 'all';
+            btnTodosProjetos.classList.add('active');
+            btnMeusProjetos.classList.remove('active');
+            applyFilters();
+        });
+
+        btnMeusProjetos.addEventListener('click', () => {
+            userFilter = 'mine';
+            btnTodosProjetos.classList.remove('active');
+            btnMeusProjetos.classList.add('active');
+            applyFilters();
+        });
+
+        filtroPagamento.addEventListener('input', applyFilters);
+        filtroBusca.addEventListener('input', applyFilters);
+
+        applyFilters();
 
         document.getElementById('formProjeto').addEventListener('submit', async (ev)=>{
             ev.preventDefault();
