@@ -12,7 +12,7 @@ $current = basename($_SERVER['PHP_SELF']);
 
 <style>
 /* Sidebar visual inspired by provided image */
-.app-sidebar { width:230px; min-height:100vh; background:#0b6ac1; color:#fff; padding:8px 8px; box-sizing:border-box; border-top-left-radius:10px; }
+.app-sidebar { width:230px; min-height:100vh; background:#0b6ac1; color:#fff; padding:8px 8px; box-sizing:border-box; border-radius:0; overflow:hidden; }
 .app-sidebar .sidebar-content { padding-top:4px; }
 .app-sidebar .brand { display:flex; align-items:center; justify-content:center; padding:6px 0; margin:0 0 6px 0; position:sticky; top:8px; background:transparent; }
 .app-sidebar .brand img.brand-logo { height:44px; width:120px; object-fit:contain; display:block; }
