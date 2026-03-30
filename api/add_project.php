@@ -38,6 +38,8 @@ $logistics_tracking_code = $logistics_tracking_code === '' ? null : $logistics_t
 $logistics_delivery_date = $_POST['logistics_delivery_date'] ?? null;
 $inspection_photos = isset($_POST['inspection_photos']) ? trim($_POST['inspection_photos']) : null;
 $inspection_photos = $inspection_photos === '' ? null : $inspection_photos;
+$projeto = isset($_POST['projeto']) ? trim($_POST['projeto']) : null;
+$projeto = $projeto === '' ? null : $projeto;
 $technical_checklist = isset($_POST['technical_checklist']) ? trim($_POST['technical_checklist']) : null;
 $technical_checklist = $technical_checklist === '' ? null : $technical_checklist;
 $docs_checklist = isset($_POST['docs_checklist']) ? trim($_POST['docs_checklist']) : null;
@@ -64,7 +66,8 @@ try {
             'inspection_photos' => 'TEXT DEFAULT NULL',
             'technical_checklist' => 'TEXT DEFAULT NULL',
             'docs_checklist' => 'TEXT DEFAULT NULL',
-            'doc_attachments' => 'TEXT DEFAULT NULL'
+            'doc_attachments' => 'TEXT DEFAULT NULL',
+        'projeto' => 'VARCHAR(255) DEFAULT NULL'
         ];
 
         foreach ($columnsToCheck as $colName => $definition) {
@@ -76,7 +79,7 @@ try {
         }
     } catch (Exception $e) { /* ignore migration errors */ }
 
-    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, client_status, payment_type, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, projeto, client_status, payment_type, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
     $stmt->execute([
         $_SESSION['user_id'],
         $client_name,
@@ -86,6 +89,7 @@ try {
         $lead_id,
         $closed_date ?: null,
         $contract,
+        $projeto,
         $client_status,
         $payment_type,
         $logistics_tracking_code,

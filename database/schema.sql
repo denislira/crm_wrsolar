@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS projetos (
   lead_id INT DEFAULT NULL,
   closed_date DATETIME DEFAULT NULL,
   contract TEXT DEFAULT NULL,
+  projeto VARCHAR(255) DEFAULT NULL,
   client_status VARCHAR(50) DEFAULT 'Assinante',
   payment_type VARCHAR(50) DEFAULT NULL,
   logistics_tracking_code VARCHAR(255) DEFAULT NULL,

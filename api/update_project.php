@@ -28,7 +28,7 @@ if ($id <= 0) {
     exit;
 }
 
-$allowed = ['client_name','address','proposal_value','status','contract','closed_date','client_status','payment_type','logistics_tracking_code','logistics_delivery_date','inspection_photos','technical_checklist','docs_checklist','doc_attachments'];
+$allowed = ['client_name','address','proposal_value','projeto','status','contract','closed_date','client_status','payment_type','logistics_tracking_code','logistics_delivery_date','inspection_photos','technical_checklist','docs_checklist','doc_attachments'];
 $sets = [];
 $params = [];
 foreach ($allowed as $f) {
@@ -52,6 +52,7 @@ try {
         'client_status' => "VARCHAR(50) DEFAULT 'Assinante'",
         'payment_type' => "VARCHAR(50) DEFAULT NULL",
         'contract' => 'TEXT DEFAULT NULL',
+        'projeto' => 'VARCHAR(255) DEFAULT NULL',
         'logistics_tracking_code' => 'VARCHAR(255) DEFAULT NULL',
         'logistics_delivery_date' => 'DATE DEFAULT NULL',
         'inspection_photos' => 'TEXT DEFAULT NULL',

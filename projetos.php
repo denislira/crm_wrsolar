@@ -122,6 +122,11 @@ include 'includes/header.php';
                                                 <span class="badge status-badge <?= $p['status'] === 'Concluído' ? 'bg-success' : ($p['status'] === 'Atrasado' ? 'bg-danger' : 'bg-warning') ?>" style="font-size:80%;"><?= htmlspecialchars($p['status']) ?></span>
                                             </div>
                                             <h6 class="project-title mb-1" style="font-size:0.95rem;"><?= htmlspecialchars($p['client_name']) ?></h6>
+                                            <?php if (!empty($p['lead_id'])): ?>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary btn-lead-details" data-lead-id="<?= $p['lead_id'] ?>" style="font-size:0.7rem; padding:0.2rem 0.45rem; border-width:1px; min-width:auto;">
+                                                    <i class="fa fa-link" aria-hidden="true"></i> <?= $p['lead_id'] ?>
+                                                </button>
+                                            <?php endif; ?>
                                             <div class="text-muted small mb-1">Valor do projeto: R$ <?= number_format($p['proposal_value'], 2, ',', '.') ?></div>
                                             <div class="text-muted small mb-1">Forma de Pagto: <strong><?= !empty($p['payment_type']) ? htmlspecialchars($p['payment_type']) : (!empty($p['contract']) ? htmlspecialchars($p['contract']) : 'Não informado') ?></strong></div>
 
@@ -172,6 +177,15 @@ include 'includes/header.php';
                     </div>
                 <?php endforeach; ?>
             </div>
+
+            <!-- Painel de detalhes do lead (relacionado ao projeto) -->
+            <aside id="leadDetailsPanel" class="lead-panel hidden">
+                <div class="lead-panel-inner">
+                    <button id="closeLeadPanel" class="btn btn-sm btn-light close-panel" title="Fechar">✕</button>
+                    <div id="leadDetailContent" class="p-3"></div>
+                </div>
+            </aside>
+
         </div>
     </main>
 </div>
@@ -193,12 +207,17 @@ include 'includes/header.php';
                             <label class="form-label">Cliente</label>
                             <input class="form-control" name="client_name" id="proj_client_name" required>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label">Valor Proposta</label>
-                            <input class="form-control" name="proposal_value" id="proj_proposal_value">
+                            <input class="form-control" name="proposal_value" id="proj_proposal_value" placeholder="0,00">
                         </div>
-                        <div class="col-12">
+                        <div class="col-md-4">
+                            <label class="form-label">Kwh (projeto)</label>
+                            <input class="form-control" name="projeto" id="proj_projeto" placeholder="Ex: 4500">
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label">Endereço</label>
+                            <input class="form-control" name="address" id="proj_address">
                             <input class="form-control" name="address" id="proj_address">
                         </div>
                         <div class="col-md-4">
@@ -470,6 +489,7 @@ include 'includes/header.php';
                     document.getElementById('proj_status').value = p.status;
                     document.getElementById('proj_closed_date').value = p.closed_date ? p.closed_date.split(' ')[0] : '';
                     document.getElementById('proj_contract').value = p.contract || '';
+                    document.getElementById('proj_projeto').value = p.projeto || '';
                     document.getElementById('proj_payment_type').value = p.payment_type || '';
                     document.getElementById('proj_logistics_tracking_code').value = p.logistics_tracking_code || '';
                     document.getElementById('proj_logistics_delivery_date').value = p.logistics_delivery_date ? p.logistics_delivery_date.split(' ')[0] : '';
@@ -613,6 +633,92 @@ include 'includes/header.php';
 
         filtroPagamento.addEventListener('input', applyFilters);
         filtroBusca.addEventListener('input', applyFilters);
+
+        document.getElementById('leadDetailsPanel').addEventListener('click', (e)=>{
+            if (e.target && e.target.id === 'closeLeadPanel') {
+                document.getElementById('leadDetailsPanel').classList.add('hidden');
+            }
+        });
+
+        document.getElementById('kanbanBoard').addEventListener('click', async (e)=>{
+            const btn = e.target.closest('.btn-lead-details');
+            if (!btn) return;
+            const leadId = btn.dataset.leadId;
+            if (!leadId) return;
+            await showLeadDetails(leadId);
+        });
+
+        async function fetchLeadMovements(leadId) {
+            try {
+                const movementRes = await fetch('includes/leads_api.php?action=movements&lead_id=' + encodeURIComponent(leadId));
+                if (!movementRes.ok) return '<div class="small text-danger">Falha ao carregar movimentações.</div>';
+                const moves = await movementRes.json();
+                if (!Array.isArray(moves) || moves.length === 0) {
+                    return '<div class="small text-muted">Nenhuma movimentação registrada.</div>';
+                }
+                const rows = moves.slice().reverse().map(m => {
+                    const createdAt = m.created_at ? new Date(m.created_at) : null;
+                    const when = createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toLocaleString('pt-BR') : (m.created_at || '—');
+                    const fromTo = (m.from_status || m.from_stage_id || '').trim();
+                    const to = (m.to_status || m.to_stage_id || '').trim();
+                    const note = m.note ? `<div class="mt-1">${m.note}</div>` : '';
+                    const changedBy = m.changed_by ? `<div class="small text-muted">Usuário: ${m.changed_by}</div>` : '';
+                    let movementText = '';
+                    if (fromTo && to) movementText = `<strong>${fromTo} → ${to}</strong>`;
+                    else if (to) movementText = `<strong>${to}</strong>`;
+                    else if (fromTo) movementText = `<strong>${fromTo}</strong>`;
+
+                    return `<div class="border rounded p-2 mb-2">
+                        <div class="small text-muted">${when}</div>
+                        <div>${movementText}</div>
+                        ${note}
+                        ${changedBy}
+                    </div>`;
+                });
+                return rows.join('');
+            } catch (err) {
+                console.error(err);
+                return '<div class="small text-danger">Erro ao carregar movimentações.</div>';
+            }
+        }
+
+        async function showLeadDetails(leadId) {
+            try {
+                const res = await fetch('includes/leads_api.php?action=get&id=' + encodeURIComponent(leadId));
+                if (!res.ok) throw new Error('Lead não encontrado');
+                const lead = await res.json();
+                const content = document.getElementById('leadDetailContent');
+                if (!content) return;
+
+                const leadEmail = lead.email ? `<a href=\"mailto:${encodeURIComponent(lead.email)}\">${lead.email}</a>` : '—';
+                const leadPhone = lead.phone ? `<a href=\"tel:${encodeURIComponent(lead.phone)}\">${lead.phone}</a>` : '—';
+                const leadCity = lead.cidade || lead.city || '—';
+                const leadStatus = lead.status || '—';
+                const leadSource = lead.source || '—';
+                const leadValue = lead.orcamento_value ? 'R$ ' + Number(lead.orcamento_value).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+
+                content.innerHTML = `
+                    <h4>${lead.name || '(Sem nome)'}</h4>
+                    <div class=\"mb-2 small text-muted\">Lead #${lead.id} • Status: ${leadStatus}</div>
+                    <dl class=\"row\">
+                      <dt class=\"col-5\">Email</dt><dd class=\"col-7\">${leadEmail}</dd>
+                      <dt class=\"col-5\">Telefone</dt><dd class=\"col-7\">${leadPhone}</dd>
+                      <dt class=\"col-5\">Cidade</dt><dd class=\"col-7\">${leadCity}</dd>
+                      <dt class=\"col-5\">Origem</dt><dd class=\"col-7\">${leadSource}</dd>
+                      <dt class=\"col-5\">Valor estimado</dt><dd class=\"col-7\">${leadValue}</dd>
+                    </dl>
+                    <div class=\"mt-2\"><strong>Observações</strong><div class=\"text-muted small\">${lead.notes || '—'}</div></div>
+                    <div class=\"mt-3\"><a href=\"leads_gestao.php?lead_id=${lead.id}\" class=\"btn btn-sm btn-outline-primary\">Abrir lead no Gestão de Leads</a></div>                    <div class="mt-4">
+                        <h6>Histórico de movimentações</h6>
+                        <div id="leadMovementTimeline" class="small text-muted">Carregando histórico...</div>
+                    </div>                `;
+
+                document.getElementById('leadDetailsPanel').classList.remove('hidden');
+                document.getElementById('leadMovementTimeline').innerHTML = await fetchLeadMovements(leadId);
+            } catch (err) {
+                alert('Erro ao carregar detalhes do lead: ' + err.message);
+            }
+        }
 
         applyFilters();
 
