@@ -71,10 +71,42 @@ try {
 } catch (Exception $e) { /* ignore */ }
 
 try {
+    $leadId = null;
+    $leadStmt = $pdo->prepare('SELECT lead_id FROM projetos WHERE id = ? AND user_id = ? LIMIT 1');
+    $leadStmt->execute([$id, $_SESSION['user_id']]);
+    $leadId = $leadStmt->fetchColumn();
+
     $sql = 'UPDATE projetos SET ' . implode(', ', $sets) . ', updated_at = NOW() WHERE id = ? AND user_id = ?';
     $params[] = $id; $params[] = $_SESSION['user_id'];
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
+
+    // If project is linked to a lead, keep lead budget/kWh in sync when edited here.
+    if (!empty($leadId)) {
+        $leadSets = [];
+        $leadParams = [];
+
+        if (isset($_POST['proposal_value'])) {
+            $leadSets[] = 'orcamento_value = ?';
+            $leadVal = str_replace([',',' '], ['.',''], (string)$_POST['proposal_value']);
+            $leadParams[] = ($leadVal === '' ? null : $leadVal);
+        }
+
+        if (isset($_POST['projeto'])) {
+            $leadSets[] = 'estimativa_projeto_kwh = ?';
+            $leadKwh = str_replace([',',' '], ['.',''], (string)$_POST['projeto']);
+            $leadParams[] = ($leadKwh === '' ? null : $leadKwh);
+        }
+
+        if (!empty($leadSets)) {
+            $leadSql = 'UPDATE leads SET ' . implode(', ', $leadSets) . ', updated_at = NOW() WHERE id = ? AND user_id = ?';
+            $leadParams[] = (int)$leadId;
+            $leadParams[] = $_SESSION['user_id'];
+            $leadUpd = $pdo->prepare($leadSql);
+            $leadUpd->execute($leadParams);
+        }
+    }
+
     echo json_encode(['success' => true, 'message' => 'Projeto atualizado com sucesso']);
 } catch (Exception $e) {
     http_response_code(500);

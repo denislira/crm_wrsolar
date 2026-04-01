@@ -12,8 +12,8 @@ require_once __DIR__ . '/includes/permissions.php';
 
 checkAccessOrRedirect('projetos');
 
-// Exibir todos os projetos para o usuário com permissão de acessar o módulo
-$stmt = $pdo->prepare('SELECT * FROM projetos ORDER BY id DESC');
+// Exibir projetos com dados do lead vinculado (fonte de verdade para telefone, kWh e orçamento)
+$stmt = $pdo->prepare('SELECT p.*, l.phone AS lead_phone, l.orcamento_value AS lead_orcamento_value, l.estimativa_projeto_kwh AS lead_kwh, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value_effective, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto_effective FROM projetos p LEFT JOIN leads l ON l.id = p.lead_id AND l.user_id = p.user_id ORDER BY p.id DESC');
 $stmt->execute();
 $projetos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -76,7 +76,7 @@ include 'includes/header.php';
             $total = count($projetos);
             $concluidos = count(array_filter($projetos, fn($p) => $p['status'] === 'Concluído'));
             $pendentes = $total - $concluidos;
-            $avg = $total ? array_sum(array_column($projetos, 'proposal_value')) / $total : 0;
+            $avg = $total ? array_sum(array_map(static fn($proj) => (float)($proj['proposal_value_effective'] ?? $proj['proposal_value'] ?? 0), $projetos)) / $total : 0;
             ?>
             <div class="row g-3 mb-4 justify-content-center">
                 <div class="col-md-3">
@@ -146,7 +146,6 @@ include 'includes/header.php';
                                         <div class="card-body p-2">
                                             <div class="d-flex justify-content-between align-items-center mb-1">
                                                 <span class="badge" style="background:#0b6ac1;color:#fff;font-size:80%;">#<?= $p['id'] ?></span>
-                                                <span class="badge status-badge <?= $p['status'] === 'Concluído' ? 'bg-success' : ($p['status'] === 'Atrasado' ? 'bg-danger' : 'bg-warning') ?>" style="font-size:80%;"><?= htmlspecialchars($p['status']) ?></span>
                                             </div>
                                             <h6 class="project-title mb-1" style="font-size:0.95rem;"><?= htmlspecialchars($p['client_name']) ?></h6>
                                             <?php if (!empty($p['lead_id'])): ?>
@@ -154,7 +153,9 @@ include 'includes/header.php';
                                                     <i class="fa fa-link" aria-hidden="true"></i> <?= $p['lead_id'] ?>
                                                 </button>
                                             <?php endif; ?>
-                                            <div class="text-muted small mb-1">Valor do projeto: R$ <?= number_format($p['proposal_value'], 2, ',', '.') ?></div>
+                                            <div class="text-muted small mb-1">Valor do projeto: R$ <?= number_format((float)($p['proposal_value_effective'] ?? $p['proposal_value'] ?? 0), 2, ',', '.') ?></div>
+                                            <div class="text-muted small mb-1">kWh: <?= !empty($p['projeto_effective']) ? number_format((float)$p['projeto_effective'], 2, ',', '.') : 'Não informado' ?></div>
+                                            <div class="text-muted small mb-1">Telefone: <strong><?= !empty($p['lead_phone']) ? htmlspecialchars($p['lead_phone']) : 'Não informado' ?></strong></div>
                                             <div class="text-muted small mb-1">Forma de Pagto: <strong><?= !empty($p['payment_type']) ? htmlspecialchars($p['payment_type']) : (!empty($p['contract']) ? htmlspecialchars($p['contract']) : 'Não informado') ?></strong></div>
 
                                             <?php

@@ -21,7 +21,7 @@ if ($id <= 0) {
     exit;
 }
 
-$stmt = $pdo->prepare('SELECT * FROM projetos WHERE id = ? AND user_id = ?');
+$stmt = $pdo->prepare('SELECT p.*, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto, l.phone AS lead_phone FROM projetos p LEFT JOIN leads l ON l.id = p.lead_id AND l.user_id = p.user_id WHERE p.id = ? AND p.user_id = ?');
 $stmt->execute([$id, $_SESSION['user_id']]);
 $proj = $stmt->fetch(PDO::FETCH_ASSOC);
 

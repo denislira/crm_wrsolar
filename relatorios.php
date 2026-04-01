@@ -773,8 +773,6 @@ try {
 // ============================================================
 $consultorComparison = [];
 
-$financeDataAvailable = false; // set later after calculation
-
 try {
     $ccLeadCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'")->fetchAll(PDO::FETCH_COLUMN);
     $ccDateCol  = in_array('created_at', $ccLeadCols, true) ? 'created_at' : 'created_at';
@@ -1447,7 +1445,7 @@ try {
                     </div>
                 </div>
 
-            </div><!-- /daily tab-pane -->
+            <!-- /daily tab-pane -->
 
             <!-- ===================================================
                  TAB: Qualificação (MQL → SQL)
@@ -1589,7 +1587,19 @@ try {
                                                 $createdDt = null;
                                                 try { if ($createdRaw) $createdDt = new DateTime((string)$createdRaw); } catch (Exception $e) {}
                                                 $hoursWaiting = $createdDt ? round((new DateTime())->getTimestamp() - $createdDt->getTimestamp()) / 3600 : null;
-                                                $waitLabel = $hoursWaiting !== null ? round($hoursWaiting) . 'h' : '—';
+                                                if ($hoursWaiting === null) {
+                                                    $waitLabel = '—';
+                                                } else {
+                                                    $daysWaiting = $hoursWaiting / 24;
+                                                    if ($hoursWaiting < 24) {
+                                                        $waitLabel = round($hoursWaiting) . 'h';
+                                                    } elseif ($daysWaiting < 365) {
+                                                        $waitLabel = round($daysWaiting) . ' dia' . (round($daysWaiting) === 1 ? '' : 's');
+                                                    } else {
+                                                        $yearsWaiting = $daysWaiting / 365;
+                                                        $waitLabel = round($yearsWaiting, 1) . ' ano' . (round($yearsWaiting, 1) === 1.0 ? '' : 's');
+                                                    }
+                                                }
                                                 $rowClass = ($hoursWaiting !== null && $hoursWaiting > 48) ? 'table-danger' : 'table-warning';
                                             ?>
                                             <tr class="<?php echo $rowClass; ?>">

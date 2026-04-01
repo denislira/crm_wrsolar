@@ -696,15 +696,20 @@
             const projectName = prompt('Nome do projeto:', lead.name || lead.client_name || '');
             if (!projectName || projectName.trim() === '') return;
 
-            const proposalValue = lead.orcamento_value || lead.proposal_value || lead.estimativa_projeto_kwh || 0;
+            const proposalValue = lead.orcamento_value ?? lead.proposal_value ?? 0;
+            const kwhValue = lead.estimativa_projeto_kwh ?? lead.kwh ?? lead.projeto ?? '';
             const proposalValueForm = String(proposalValue).replace(',', '.');
+            const kwhValueForm = String(kwhValue).replace(',', '.');
+            const leadAddress = String(lead.address || lead.endereco || lead.cidade || '').trim();
 
             const formData = new FormData();
             formData.append('client_name', projectName.trim());
             formData.append('proposal_value', proposalValueForm);
+            formData.append('projeto', kwhValueForm);
+            formData.append('address', leadAddress);
             formData.append('lead_id', String(leadId));
 
-            console.log('Enviando FormData - lead_id:', formData.get('lead_id'), 'proposal_value:', formData.get('proposal_value'));
+            console.log('Enviando FormData - lead_id:', formData.get('lead_id'), 'proposal_value:', formData.get('proposal_value'), 'projeto(kwh):', formData.get('projeto'));
 
             const res = await fetch('api/add_project.php', { method: 'POST', body: formData });
             const json = await res.json();
@@ -2328,6 +2333,58 @@
         });
         }
 
+        // Drag-and-drop zone for attachments
+        (function setupAnexosDropzone() {
+            const dropzone = document.getElementById('anexos-dropzone');
+            const fileInput = document.getElementById('lead-anexos');
+            const fileNames = document.getElementById('anexos-file-names');
+            if (!dropzone || !fileInput) return;
+
+            function updateFileNames() {
+                if (!fileNames) return;
+                fileNames.innerHTML = '';
+                const files = fileInput.files;
+                if (!files || files.length === 0) return;
+                Array.from(files).forEach(f => {
+                    const span = document.createElement('div');
+                    span.className = 'badge bg-secondary me-1 mb-1';
+                    span.textContent = f.name;
+                    fileNames.appendChild(span);
+                });
+            }
+
+            fileInput.addEventListener('change', updateFileNames);
+
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = '#0d6efd';
+                dropzone.style.background = 'rgba(13,110,253,.05)';
+            });
+            dropzone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = '#adb5bd';
+                dropzone.style.background = '';
+            });
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = '#adb5bd';
+                dropzone.style.background = '';
+                const dt = e.dataTransfer;
+                if (!dt || !dt.files || dt.files.length === 0) return;
+                // Merge dropped files with any already selected via click
+                const existing = fileInput.files ? Array.from(fileInput.files) : [];
+                const incoming = Array.from(dt.files);
+                const accept = ['.pdf','.doc','.docx','.jpg','.jpeg','.png'];
+                const filtered = incoming.filter(f => accept.some(ext => f.name.toLowerCase().endsWith(ext)));
+                if (filtered.length === 0) return;
+                const merged = [...existing, ...filtered];
+                const transfer = new DataTransfer();
+                merged.forEach(f => transfer.items.add(f));
+                fileInput.files = transfer.files;
+                updateFileNames();
+            });
+        })();
+
         // Immediate attachments upload button (inside lead modal)
         const uploadAnexosBtn = document.getElementById('upload-anexos-now');
         if (uploadAnexosBtn) {
@@ -2353,11 +2410,12 @@
                         try { renderExistingAttachments(newLead); } catch(_) {}
                         // update in-memory list
                         try { const idx = allLeads.findIndex(l => String(l.id) === String(leadId)); if (idx >= 0) allLeads[idx] = { ...allLeads[idx], ...newLead }; } catch(_) {}
-                        // clear file input
+                        // clear file input and names
                         fileInput.value = '';
+                        const fn = document.getElementById('anexos-file-names'); if (fn) fn.innerHTML = '';
                     }
                 } catch (err) { console.error(err); alert('Erro ao enviar anexos'); }
-                finally { uploadAnexosBtn.disabled = false; uploadAnexosBtn.innerHTML = origHtml; try { fileInput.value = ''; } catch(e) {} }
+                finally { uploadAnexosBtn.disabled = false; uploadAnexosBtn.innerHTML = origHtml; try { fileInput.value = ''; const fn = document.getElementById('anexos-file-names'); if (fn) fn.innerHTML = ''; } catch(e) {} }
             });
         }
 
