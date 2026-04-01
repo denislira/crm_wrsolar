@@ -702,7 +702,6 @@
             const formData = new FormData();
             formData.append('client_name', projectName.trim());
             formData.append('proposal_value', proposalValueForm);
-            formData.append('status', 'Documentação');
             formData.append('lead_id', String(leadId));
 
             console.log('Enviando FormData - lead_id:', formData.get('lead_id'), 'proposal_value:', formData.get('proposal_value'));

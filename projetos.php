@@ -37,23 +37,41 @@ include 'includes/header.php';
         <div id="projetos">
             <div class="d-flex align-items-center justify-content-between mb-2">
                 <h1 class="h4 mb-0">Projetos</h1>
-                <div>
+                <div class="d-flex gap-2">
+                    <a href="projeto_config.php" class="btn btn-outline-secondary btn-sm">Configurar Colunas do Projeto</a>
                     <button id="btnNovoProjeto" class="btn btn-primary btn-sm">Novo Projeto</button>
                 </div>
             </div>
             <!-- KPI inicial + limpeza de status para quadros Kanban -->
             <?php
-            $kanbanStages = ['Documentação','Logística','Instalação','Homologação'];
+            $kanbanStages = [];
+            try {
+                $colStmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projeto_stages'");
+                $colStmt->execute();
+                $projCols = $colStmt->fetchAll(PDO::FETCH_COLUMN);
+                $nameCol = in_array('name', $projCols, true) ? 'name' : (in_array('stage_name', $projCols, true) ? 'stage_name' : 'name');
+                $orderCol = in_array('position', $projCols, true) ? 'position' : 'id';
+
+                $stagesStmt = $pdo->prepare("SELECT {$nameCol} AS name FROM projeto_stages WHERE user_id = ? OR user_id IS NULL ORDER BY COALESCE({$orderCol}, id) ASC");
+                $stagesStmt->execute([$_SESSION['user_id']]);
+                $kanbanStages = array_filter(array_map(fn($r) => trim($r['name']), $stagesStmt->fetchAll(PDO::FETCH_ASSOC)));
+            } catch (Exception $e) {
+                $kanbanStages = [];
+            }
             $stageProjects = [];
             foreach ($kanbanStages as $stageName) {
                 $stageProjects[$stageName] = [];
             }
             foreach ($projetos as $p) {
-                $stage = in_array($p['status'], $kanbanStages, true) ? $p['status'] : (
-                    $p['status'] === 'Concluído' ? 'Homologação' :
-                    ($p['status'] === 'Atrasado' ? 'Logística' : 'Documentação')
-                );
-                $stageProjects[$stage][] = $p;
+                if (in_array($p['status'], $kanbanStages, true)) {
+                    $stage = $p['status'];
+                } else {
+                    // se o status estiver fora das etapas existentes, coloca em primeiro estágio caso exista
+                    $stage = !empty($kanbanStages) ? $kanbanStages[0] : null;
+                }
+                if ($stage !== null) {
+                    $stageProjects[$stage][] = $p;
+                }
             }
             $total = count($projetos);
             $concluidos = count(array_filter($projetos, fn($p) => $p['status'] === 'Concluído'));
@@ -102,9 +120,18 @@ include 'includes/header.php';
                 <input type="search" id="filtroBusca" class="form-control form-control-sm w-50" placeholder="Buscar cliente ou projeto...">
             </div>
             <!-- Kanban por estágio -->
+            <?php
+                $stageCount = max(1, count($kanbanStages));
+                $colWidth = intval(100 / $stageCount);
+            ?>
             <div class="row g-3" id="kanbanBoard">
+                <?php if (empty($kanbanStages)): ?>
+                    <div class="col-12">
+                        <div class="alert alert-warning">Nenhuma etapa de projeto configurada. Crie em <a href="projeto_config.php">Configurar Colunas do Projeto</a>.</div>
+                    </div>
+                <?php endif; ?>
                 <?php foreach ($kanbanStages as $stage): ?>
-                    <div class="col-12 col-lg-3">
+                    <div class="col-12" style="flex: 0 0 <?= $colWidth ?>%; max-width: <?= $colWidth ?>%;">
                         <div class="card h-100 stage-card">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <strong class="mb-0"><?= $stage ?></strong>
@@ -137,18 +164,19 @@ include 'includes/header.php';
                                             <div class="d-flex align-items-center gap-2 mb-1">
                                                 <span class="badge <?= $paymentBadge ?>" style="font-size:70%;"><?= $paymentStatus ?></span>
                                                 <?php
-                                                    $daysTotal = 90;
-                                                    $createdDate = isset($p['created_at']) ? strtotime($p['created_at']) : time();
                                                     $today = time();
-                                                    $dias = min($daysTotal, max(0, floor(($today - $createdDate) / 86400)));
-                                                    $perc = intval(($dias / $daysTotal) * 100);
-                                                    if ($perc > 100) $perc = 100;
+                                                    $dueDays = isset($p['due_days']) && intval($p['due_days']) > 0 ? intval($p['due_days']) : 30;
+                                                    $startedAt = !empty($p['closed_date']) ? strtotime($p['closed_date']) : (isset($p['created_at']) ? strtotime($p['created_at']) : $today);
+                                                    $elapsed = max(0, floor(($today - $startedAt) / 86400));
+                                                    $remaining = max(0, $dueDays - $elapsed);
+                                                    $progressValue = $dueDays > 0 ? intval(min(100, max(0, ($elapsed / $dueDays) * 100))) : 0;
+                                                    $deadlineStatus = $remaining > 0 ? "{$remaining} dia" . ($remaining !== 1 ? 's' : '') . ' restantes' : 'Prazo vencido';
                                                 ?>
-                                                <small class="text-muted"><?= $dias ?>/<?= $daysTotal ?> dias</small>
-                                                <strong class="text-muted"><?= $perc ?>%</strong>
+                                                <small class="text-muted"><?= $deadlineStatus ?></small>
+                                                <strong class="text-muted"><?= $progressValue ?>%</strong>
                                             </div>
                                             <div class="progress mt-0" style="height:8px;">
-                                                <div class="progress-bar" role="progressbar" style="width: <?= $perc ?>%;" aria-valuenow="<?= $perc ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                                                <div class="progress-bar" role="progressbar" style="width: <?= $progressValue ?>%;" aria-valuenow="<?= $progressValue ?>" aria-valuemin="0" aria-valuemax="100"></div>
                                             </div>
 
                                             <div class="d-flex gap-1 mt-2">
@@ -156,13 +184,8 @@ include 'includes/header.php';
                                                 <span class="badge bg-warning text-dark" style="font-size:70%;">LOG</span>
                                                 <span class="badge bg-purple text-white" style="font-size:70%; background:#7f56ff;">INST</span>
                                             </div>
-                                            <div class="d-flex flex-wrap gap-1 mt-2">                                                <?php
-                                                if ($stage === 'Documentação') $percent = 20;
-                                                elseif ($stage === 'Logística') $percent = 45;
-                                                elseif ($stage === 'Instalação') $percent = 75;
-                                                elseif ($stage === 'Homologação') $percent = 100;
-                                                else $percent = 0;
-                                                ?>
+                                            <div class="d-flex flex-wrap gap-1 mt-2">
+                                                <?php $percent = $progressValue; // utiliza progresso real baseado em due_days e closed_date ?>
                                                 <div class="progress-bar" role="progressbar" style="width: <?= $percent ?>%;" aria-valuenow="<?= $percent ?>" aria-valuemin="0" aria-valuemax="100"></div>
                                             </div>
                                             <div class="d-flex flex-wrap gap-1 mt-2">
@@ -223,10 +246,9 @@ include 'includes/header.php';
                         <div class="col-md-4">
                             <label class="form-label">Status</label>
                             <select class="form-select" name="status" id="proj_status">
-                                <option>Documentação</option>
-                                <option>Logística</option>
-                                <option>Instalação</option>
-                                <option>Homologação</option>
+                                <?php foreach ($kanbanStages as $stageOption): ?>
+                                    <option value="<?= htmlspecialchars($stageOption) ?>"><?= htmlspecialchars($stageOption) ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-md-4">
@@ -242,6 +264,14 @@ include 'includes/header.php';
                         <div class="col-md-4">
                             <label class="form-label">Data de fechamento</label>
                             <input type="date" class="form-control" name="closed_date" id="proj_closed_date">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Prazo (dias)</label>
+                            <select class="form-select" name="due_days" id="proj_due_days">
+                                <option value="30">30 dias</option>
+                                <option value="60">60 dias</option>
+                                <option value="90">90 dias</option>
+                            </select>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Contrato / Observações</label>
@@ -353,6 +383,7 @@ include 'includes/header.php';
         document.getElementById('btnNovoProjeto').addEventListener('click', ()=>{
             document.getElementById('formProjeto').reset();
             document.getElementById('proj_id').value = '';
+            document.getElementById('proj_due_days').value = '30';
             btnExcluirProjeto.style.display = 'none';
             bsModal.show();
         });
@@ -488,6 +519,7 @@ include 'includes/header.php';
                     document.getElementById('proj_address').value = p.address;
                     document.getElementById('proj_status').value = p.status;
                     document.getElementById('proj_closed_date').value = p.closed_date ? p.closed_date.split(' ')[0] : '';
+                    document.getElementById('proj_due_days').value = (p.due_days ? p.due_days : 30);
                     document.getElementById('proj_contract').value = p.contract || '';
                     document.getElementById('proj_projeto').value = p.projeto || '';
                     document.getElementById('proj_payment_type').value = p.payment_type || '';

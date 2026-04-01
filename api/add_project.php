@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $client_name = trim($_POST['client_name'] ?? '');
 $address = trim($_POST['address'] ?? '');
 $proposal_value = isset($_POST['proposal_value']) ? str_replace([',',' '], ['.',''], $_POST['proposal_value']) : 0;
-$status = $_POST['status'] ?? 'Documentação';
+$status = isset($_POST['status']) ? trim((string)$_POST['status']) : '';
 $lead_id = isset($_POST['lead_id']) && $_POST['lead_id'] !== '' ? intval($_POST['lead_id']) : null;
 $closed_date = $_POST['closed_date'] ?? null;
 $contract = isset($_POST['contract']) ? trim($_POST['contract']) : null;
@@ -40,6 +40,10 @@ $inspection_photos = isset($_POST['inspection_photos']) ? trim($_POST['inspectio
 $inspection_photos = $inspection_photos === '' ? null : $inspection_photos;
 $projeto = isset($_POST['projeto']) ? trim($_POST['projeto']) : null;
 $projeto = $projeto === '' ? null : $projeto;
+$due_days = isset($_POST['due_days']) ? intval($_POST['due_days']) : 30;
+if (!in_array($due_days, [30, 60, 90], true)) {
+    $due_days = 30;
+}
 $technical_checklist = isset($_POST['technical_checklist']) ? trim($_POST['technical_checklist']) : null;
 $technical_checklist = $technical_checklist === '' ? null : $technical_checklist;
 $docs_checklist = isset($_POST['docs_checklist']) ? trim($_POST['docs_checklist']) : null;
@@ -67,7 +71,8 @@ try {
             'technical_checklist' => 'TEXT DEFAULT NULL',
             'docs_checklist' => 'TEXT DEFAULT NULL',
             'doc_attachments' => 'TEXT DEFAULT NULL',
-        'projeto' => 'VARCHAR(255) DEFAULT NULL'
+        'projeto' => 'VARCHAR(255) DEFAULT NULL',
+        'due_days' => 'INT DEFAULT 30'
         ];
 
         foreach ($columnsToCheck as $colName => $definition) {
@@ -79,7 +84,42 @@ try {
         }
     } catch (Exception $e) { /* ignore migration errors */ }
 
-    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, projeto, client_status, payment_type, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+    // Resolve default project stage when status is not provided.
+    if ($status === '') {
+        try {
+            $tbl = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projeto_stages'");
+            $tbl->execute();
+            if ((int)$tbl->fetchColumn() > 0) {
+                $colsStmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projeto_stages'");
+                $colsStmt->execute();
+                $stageCols = $colsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                $nameCol = in_array('name', $stageCols, true) ? 'name' : (in_array('stage_name', $stageCols, true) ? 'stage_name' : 'name');
+                $orderCol = in_array('position', $stageCols, true) ? 'position' : 'id';
+                $hasInitial = in_array('is_initial', $stageCols, true);
+
+                if ($hasInitial) {
+                    $initialStmt = $pdo->prepare("SELECT {$nameCol} FROM projeto_stages WHERE (user_id = ? OR user_id IS NULL) AND is_initial = 1 ORDER BY {$orderCol} ASC, id ASC LIMIT 1");
+                    $initialStmt->execute([$_SESSION['user_id']]);
+                    $status = (string)($initialStmt->fetchColumn() ?: '');
+                }
+
+                if ($status === '') {
+                    $firstStmt = $pdo->prepare("SELECT {$nameCol} FROM projeto_stages WHERE (user_id = ? OR user_id IS NULL) ORDER BY {$orderCol} ASC, id ASC LIMIT 1");
+                    $firstStmt->execute([$_SESSION['user_id']]);
+                    $status = (string)($firstStmt->fetchColumn() ?: '');
+                }
+            }
+        } catch (Exception $e) {
+            // Keep fallback below.
+        }
+    }
+
+    if ($status === '') {
+        $status = 'Documentação';
+    }
+
+    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, projeto, due_days, client_status, payment_type, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
     $stmt->execute([
         $_SESSION['user_id'],
         $client_name,
@@ -90,6 +130,7 @@ try {
         $closed_date ?: null,
         $contract,
         $projeto,
+        $due_days,
         $client_status,
         $payment_type,
         $logistics_tracking_code,
