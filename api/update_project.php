@@ -72,12 +72,12 @@ try {
 
 try {
     $leadId = null;
-    $leadStmt = $pdo->prepare('SELECT lead_id FROM projetos WHERE id = ? AND user_id = ? LIMIT 1');
-    $leadStmt->execute([$id, $_SESSION['user_id']]);
+    $leadStmt = $pdo->prepare('SELECT lead_id FROM projetos WHERE id = ? LIMIT 1');
+    $leadStmt->execute([$id]);
     $leadId = $leadStmt->fetchColumn();
 
-    $sql = 'UPDATE projetos SET ' . implode(', ', $sets) . ', updated_at = NOW() WHERE id = ? AND user_id = ?';
-    $params[] = $id; $params[] = $_SESSION['user_id'];
+    $sql = 'UPDATE projetos SET ' . implode(', ', $sets) . ', updated_at = NOW() WHERE id = ?';
+    $params[] = $id;
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
@@ -99,9 +99,8 @@ try {
         }
 
         if (!empty($leadSets)) {
-            $leadSql = 'UPDATE leads SET ' . implode(', ', $leadSets) . ', updated_at = NOW() WHERE id = ? AND user_id = ?';
+            $leadSql = 'UPDATE leads SET ' . implode(', ', $leadSets) . ', updated_at = NOW() WHERE id = ?';
             $leadParams[] = (int)$leadId;
-            $leadParams[] = $_SESSION['user_id'];
             $leadUpd = $pdo->prepare($leadSql);
             $leadUpd->execute($leadParams);
         }

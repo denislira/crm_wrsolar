@@ -23,16 +23,95 @@ include 'includes/header.php';
     <?php include 'includes/sidebar.php'; ?>
     <main class="flex-grow-1 p-4">
         <style>
+            .kanban-scroll-wrap {
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding-bottom: 0.75rem;
+                margin-left: -0.75rem;
+                margin-right: -0.75rem;
+                background: transparent;
+                cursor: grab;
+                user-select: none;
+            }
+            .kanban-scroll-wrap.scrolling { cursor: grabbing; }
+            #kanbanBoard {
+                flex-wrap: nowrap;
+                width: max-content;
+                background: transparent;
+            }
+            #kanbanBoard > .kanban-column {
+                flex: 0 0 320px;
+                max-width: 320px;
+            }
             .stage-card { border: 1px solid #e3e9ef; }
             .board-column { min-height: 400px; max-height: calc(100vh - 360px); overflow-y: auto; background: #f8fafc; border-radius: 0 0 .25rem .25rem; }
             .card-project { cursor: grab; border-left: 4px solid #0b6ac1; }
             .card-project .project-contract { font-size: 0.75rem; }
+            .card-project.compact { margin-bottom: 0.35rem; }
+            .compact-cards .card-project { margin-bottom: 0.35rem; }
+            .compact-cards .card-project .card-body { padding: 0.55rem; }
+            .compact-cards .card-project .project-title { font-size: 0.82rem; margin-bottom: 0.25rem; }
+            .compact-cards .card-project .compact-hide { display: none !important; }
+            .compact-cards .card-project .text-muted.small { font-size: 0.68rem; }
+            .compact-cards .card-project .d-flex.align-items-center.gap-2.mb-1 { gap: 0.35rem; }
+            .compact-cards .card-project .progress { height: 4px; }
+            .compact-cards .card-project .btn-sm { padding: 0.25rem 0.45rem; font-size: 0.68rem; }
+            .compact-cards .card-project .badge { font-size: 0.65rem; padding: 0.2rem 0.35rem; }
             .card-project .progress { height: 5px; }
             .btn-xs { font-size: 0.68rem; }
             .board-column.drop-target { border: 2px dashed #0d6efd; background: #e7f1ff; }
-            @media (max-width: 992px) {
-                .col-lg-3 { flex: 0 0 100%; max-width: 100%; }
+            .modal-content { border-radius: 1.2rem; overflow: hidden; box-shadow: 0 32px 100px rgba(15,23,42,.15); }
+            .modal-header { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border-bottom: none; }
+            .modal-header .modal-title { color: #fff; font-weight: 700; letter-spacing: -.02em; }
+            .modal-body { background: #f8fbff; padding: 1.75rem; }
+            .modal-footer { background: #f8fbff; border-top: none; }
+            .modal-content .form-control,
+            .modal-content .form-select,
+            .modal-content textarea.form-control { border-radius: .9rem; border: 1px solid #dbe4f0; background: #ffffff; box-shadow: inset 0 1px 2px rgba(15,23,42,0.04); }
+            .modal-content .form-label { font-weight: 600; color: #334155; }
+            .modal-content .btn-primary { background: #1d4ed8; border-color: #1d4ed8; }
+            .modal-content .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+            .modal-content .btn-secondary { background: #e2e8f0; color: #102a43; border-color: #cbd5e1; }
+            .file-dropzone {
+                position: relative;
+                border: 2px dashed #cbd5e1;
+                border-radius: 1rem;
+                background: #f8faff;
+                padding: 1rem;
+                transition: border-color .2s ease, background-color .2s ease;
+                cursor: pointer;
+                min-height: 96px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
+            .file-dropzone.dragover {
+                border-color: #2563eb;
+                background: rgba(59,130,246,.08);
+            }
+            .file-dropzone-content { text-align: center; pointer-events: none; }
+            .file-dropzone-input {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                opacity: 0;
+                cursor: pointer;
+            }
+            .file-attachment-item {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 0.75rem;
+                padding: 0.35rem 0.5rem;
+                border-radius: 0.75rem;
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                margin-bottom: 0.35rem;
+            }
+            .file-attachment-item a { color: #1d4ed8; text-decoration: none; }
+            .file-attachment-item button { border: none; background: #f8fafc; color: #475569; padding: 0.25rem 0.45rem; border-radius: 0.65rem; cursor: pointer; }
+            .file-attachment-item button:hover { background: #e2e8f0; }
         </style>
         <div id="projetos">
             <div class="d-flex align-items-center justify-content-between mb-2">
@@ -52,11 +131,23 @@ include 'includes/header.php';
                 $nameCol = in_array('name', $projCols, true) ? 'name' : (in_array('stage_name', $projCols, true) ? 'stage_name' : 'name');
                 $orderCol = in_array('position', $projCols, true) ? 'position' : 'id';
 
-                $stagesStmt = $pdo->prepare("SELECT {$nameCol} AS name FROM projeto_stages WHERE user_id = ? OR user_id IS NULL ORDER BY COALESCE({$orderCol}, id) ASC");
-                $stagesStmt->execute([$_SESSION['user_id']]);
-                $kanbanStages = array_filter(array_map(fn($r) => trim($r['name']), $stagesStmt->fetchAll(PDO::FETCH_ASSOC)));
+                $stagesStmt = $pdo->prepare("SELECT {$nameCol} AS name, color, card_color FROM projeto_stages ORDER BY COALESCE({$orderCol}, id) ASC");
+                $stagesStmt->execute();
+                $stageRows = $stagesStmt->fetchAll(PDO::FETCH_ASSOC);
+                $kanbanStages = [];
+                $stageStyles = [];
+                foreach ($stageRows as $row) {
+                    $name = trim($row['name']);
+                    if ($name === '') continue;
+                    $kanbanStages[] = $name;
+                    $stageStyles[$name] = [
+                        'color' => !empty($row['color']) ? $row['color'] : '#6c757d',
+                        'card_color' => !empty($row['card_color']) ? $row['card_color'] : '#ffffff',
+                    ];
+                }
             } catch (Exception $e) {
                 $kanbanStages = [];
+                $stageStyles = [];
             }
             $stageProjects = [];
             foreach ($kanbanStages as $stageName) {
@@ -115,48 +206,53 @@ include 'includes/header.php';
                     <button type="button" id="btnMeusProjetos" class="btn btn-outline-secondary btn-sm">Meus Projetos</button>
                 </div>
             </div>
-            <div class="d-flex gap-2 mb-4 flex-wrap justify-content-center">
+            <div class="d-flex gap-2 mb-4 flex-wrap justify-content-center align-items-center">
                 <input type="search" id="filtroPagamento" class="form-control form-control-sm w-auto" placeholder="Filtrar por forma de pagamento...">
                 <input type="search" id="filtroBusca" class="form-control form-control-sm w-50" placeholder="Buscar cliente ou projeto...">
+                <button id="btnCompactCards" class="btn btn-outline-secondary btn-sm">Compactar cards</button>
             </div>
             <!-- Kanban por estágio -->
             <?php
                 $stageCount = max(1, count($kanbanStages));
                 $colWidth = intval(100 / $stageCount);
             ?>
-            <div class="row g-3" id="kanbanBoard">
+            <div class="kanban-scroll-wrap">
+                <div class="row g-3" id="kanbanBoard">
                 <?php if (empty($kanbanStages)): ?>
                     <div class="col-12">
                         <div class="alert alert-warning">Nenhuma etapa de projeto configurada. Crie em <a href="projeto_config.php">Configurar Colunas do Projeto</a>.</div>
                     </div>
                 <?php endif; ?>
                 <?php foreach ($kanbanStages as $stage): ?>
-                    <div class="col-12" style="flex: 0 0 <?= $colWidth ?>%; max-width: <?= $colWidth ?>%;">
-                        <div class="card h-100 stage-card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <strong class="mb-0"><?= $stage ?></strong>
-                                <span class="badge bg-secondary"><?= count($stageProjects[$stage]) ?></span>
+                    <?php $stageColor = $stageStyles[$stage]['color'] ?? '#6c757d'; ?>
+                    <?php $stageCardColor = $stageStyles[$stage]['card_color'] ?? '#ffffff'; ?>
+                    <div class="col-12 kanban-column">
+                        <div class="card h-100 stage-card" style="background: <?= htmlspecialchars($stageCardColor) ?>; border-color: <?= htmlspecialchars($stageColor) ?>;">
+                            <div class="card-header d-flex justify-content-between align-items-center" style="background: <?= htmlspecialchars($stageColor) ?>; color: #fff; border-bottom: 1px solid rgba(0,0,0,0.08);">
+                                <strong class="mb-0"><?= htmlspecialchars($stage) ?></strong>
+                                <span class="badge" style="background: rgba(255,255,255,0.2); color: #fff; font-size:80%;"><?= count($stageProjects[$stage]) ?></span>
                             </div>
-                            <div class="card-body p-2 board-column" data-stage="<?= $stage ?>">
-                                <?php if (empty($stageProjects[$stage])): ?>
-                                    <div class="text-muted small">Nenhum projeto nesta etapa</div>
-                                <?php endif; ?>
+                            <div class="card-body p-2 board-column" data-stage="<?= $stage ?>" data-stage-color="<?= htmlspecialchars($stageColor) ?>">
                                 <?php foreach ($stageProjects[$stage] as $p): ?>
-                                    <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" data-user-id="<?= $p['user_id'] ?>" draggable="true">
+                                    <?php $projectStageColor = $stageColor; ?>
+                                    <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" data-user-id="<?= $p['user_id'] ?>" draggable="true" style="border-left:4px solid <?= htmlspecialchars($projectStageColor) ?>; border-color: <?= htmlspecialchars($projectStageColor) ?>;">
                                         <div class="card-body p-2">
                                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                                <span class="badge" style="background:#0b6ac1;color:#fff;font-size:80%;">#<?= $p['id'] ?></span>
+                                                <span class="badge project-id-badge" style="background: <?= htmlspecialchars($projectStageColor) ?>; color:#fff; font-size:80%;">#<?= $p['id'] ?></span>
                                             </div>
-                                            <h6 class="project-title mb-1" style="font-size:0.95rem;"><?= htmlspecialchars($p['client_name']) ?></h6>
-                                            <?php if (!empty($p['lead_id'])): ?>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary btn-lead-details" data-lead-id="<?= $p['lead_id'] ?>" style="font-size:0.7rem; padding:0.2rem 0.45rem; border-width:1px; min-width:auto;">
-                                                    <i class="fa fa-link" aria-hidden="true"></i> <?= $p['lead_id'] ?>
-                                                </button>
-                                            <?php endif; ?>
-                                            <div class="text-muted small mb-1">Valor do projeto: R$ <?= number_format((float)($p['proposal_value_effective'] ?? $p['proposal_value'] ?? 0), 2, ',', '.') ?></div>
-                                            <div class="text-muted small mb-1">kWh: <?= !empty($p['projeto_effective']) ? number_format((float)$p['projeto_effective'], 2, ',', '.') : 'Não informado' ?></div>
-                                            <div class="text-muted small mb-1">Telefone: <strong><?= !empty($p['lead_phone']) ? htmlspecialchars($p['lead_phone']) : 'Não informado' ?></strong></div>
-                                            <div class="text-muted small mb-1">Forma de Pagto: <strong><?= !empty($p['payment_type']) ? htmlspecialchars($p['payment_type']) : (!empty($p['contract']) ? htmlspecialchars($p['contract']) : 'Não informado') ?></strong></div>
+                                            <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                                                <h6 class="project-title mb-0" style="font-size:0.95rem;"><?= htmlspecialchars($p['client_name']) ?></h6>
+                                                <?php if (!empty($p['lead_id'])): ?>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary btn-lead-details flex-shrink-0" data-lead-id="<?= $p['lead_id'] ?>" style="font-size:0.7rem; padding:0.2rem 0.45rem; border-width:1px; min-width:auto;">
+                                                        <i class="fa fa-link" aria-hidden="true"></i> <?= $p['lead_id'] ?>
+                                                    </button>
+                                                <?php endif; ?>
+                                            </div>
+                                            <?php $kwhValue = !empty($p['projeto_effective']) ? (float)$p['projeto_effective'] : null; ?>
+                                            <div class="text-muted small mb-1 compact-hide">Valor do projeto: R$ <?= number_format((float)($p['proposal_value_effective'] ?? $p['proposal_value'] ?? 0), 2, ',', '.') ?></div>
+                                            <div class="text-muted small mb-1 compact-hide">kWh: <?= $kwhValue !== null ? (abs($kwhValue - round($kwhValue)) < 0.000001 ? number_format($kwhValue, 0, ',', '.') : number_format($kwhValue, 2, ',', '.')) : 'Não informado' ?></div>
+                                            <div class="text-muted small mb-1 compact-hide">Telefone: <strong><?= !empty($p['lead_phone']) ? htmlspecialchars($p['lead_phone']) : 'Não informado' ?></strong></div>
+                                            <div class="text-muted small mb-1 compact-hide">Forma de Pagto: <strong><?= !empty($p['payment_type']) ? htmlspecialchars($p['payment_type']) : (!empty($p['contract']) ? htmlspecialchars($p['contract']) : 'Não informado') ?></strong></div>
 
                                             <?php
                                                 $paymentStatus = $p['status'] === 'Concluído' ? 'Pago' : 'Pendente';
@@ -177,17 +273,35 @@ include 'includes/header.php';
                                                 <strong class="text-muted"><?= $progressValue ?>%</strong>
                                             </div>
                                             <div class="progress mt-0" style="height:8px;">
-                                                <div class="progress-bar" role="progressbar" style="width: <?= $progressValue ?>%;" aria-valuenow="<?= $progressValue ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                                                <div class="progress-bar" role="progressbar" style="width: <?= $progressValue ?>%; background-color: <?= htmlspecialchars($projectStageColor) ?>;" aria-valuenow="<?= $progressValue ?>" aria-valuemin="0" aria-valuemax="100"></div>
                                             </div>
 
-                                            <div class="d-flex gap-1 mt-2">
-                                                <span class="badge bg-primary" style="font-size:70%;">DOC</span>
-                                                <span class="badge bg-warning text-dark" style="font-size:70%;">LOG</span>
-                                                <span class="badge bg-purple text-white" style="font-size:70%; background:#7f56ff;">INST</span>
-                                            </div>
-                                            <div class="d-flex flex-wrap gap-1 mt-2">
-                                                <?php $percent = $progressValue; // utiliza progresso real baseado em due_days e closed_date ?>
-                                                <div class="progress-bar" role="progressbar" style="width: <?= $percent ?>%;" aria-valuenow="<?= $percent ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                                            <div class="d-flex gap-1 mt-2 flex-wrap">
+                                                <?php foreach ($kanbanStages as $stageLabel):
+                                                    $normalized = preg_replace('/\s+/u', ' ', trim($stageLabel));
+                                                    $words = explode(' ', $normalized);
+                                                    if (count($words) === 1) {
+                                                        $abbr = mb_strtoupper(mb_substr($normalized, 0, 3, 'UTF-8'), 'UTF-8');
+                                                    } else {
+                                                        $abbr = '';
+                                                        foreach ($words as $word) {
+                                                            if ($word === '') continue;
+                                                            $abbr .= mb_strtoupper(mb_substr($word, 0, 1, 'UTF-8'), 'UTF-8');
+                                                            if (mb_strlen($abbr, 'UTF-8') >= 3) break;
+                                                        }
+                                                        if (mb_strlen($abbr, 'UTF-8') === 1) {
+                                                            $abbr = mb_strtoupper(mb_substr($normalized, 0, 3, 'UTF-8'), 'UTF-8');
+                                                        }
+                                                    }
+                                                    if (mb_strlen($abbr, 'UTF-8') > 3) {
+                                                        $abbr = mb_substr($abbr, 0, 3, 'UTF-8');
+                                                    }
+                                                    $isActiveStage = $p['status'] === $stageLabel;
+                                                    $badgeStageColor = $stageStyles[$stageLabel]['color'] ?? '#0d6efd';
+                                                    $badgeStyle = $isActiveStage ? 'background:' . htmlspecialchars($badgeStageColor) . ';color:#fff;' : 'background:#d8d8d8;color:#6c757d;';
+                                                ?>
+                                                    <span class="badge abbr-stage-badge" data-stage="<?= htmlspecialchars($stageLabel) ?>" style="font-size:70%; <?= $badgeStyle ?>"><?= htmlspecialchars($abbr) ?></span>
+                                                <?php endforeach; ?>
                                             </div>
                                             <div class="d-flex flex-wrap gap-1 mt-2">
                                                 <button class="btn btn-sm btn-outline-primary btn-edit" data-id="<?= $p['id'] ?>" title="Editar"><i class="fa fa-edit"></i></button>
@@ -200,6 +314,7 @@ include 'includes/header.php';
                         </div>
                     </div>
                 <?php endforeach; ?>
+                </div>
             </div>
 
             <!-- Painel de detalhes do lead (relacionado ao projeto) -->
@@ -241,7 +356,6 @@ include 'includes/header.php';
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Endereço</label>
-                            <input class="form-control" name="address" id="proj_address">
                             <input class="form-control" name="address" id="proj_address">
                         </div>
                         <div class="col-md-4">
@@ -353,8 +467,14 @@ include 'includes/header.php';
                             </div>
                             <div class="mt-3">
                                 <label class="form-label">Anexar arquivo</label>
-                                <input class="form-control form-control-sm" type="file" id="proj_doc_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
-                                <div class="small text-muted mt-2">Arquivos podem ser incluídos e salvos automaticamente.</div>
+                                <div id="proj_doc_dropzone" class="file-dropzone">
+                                    <div class="file-dropzone-content">
+                                        <p class="mb-1">Arraste e solte um arquivo aqui ou clique para selecionar</p>
+                                        <small class="text-muted">Suporta .pdf, .jpg, .jpeg, .png, .doc, .docx</small>
+                                    </div>
+                                    <input class="form-control form-control-sm file-dropzone-input" type="file" id="proj_doc_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                </div>
+                                <div class="small text-muted mt-2">Arquivos são incluídos automaticamente após seleção ou soltar.</div>
                                 <div id="proj_doc_attachments_list" class="mt-2"></div>
                             </div>
                         </div>
@@ -469,38 +589,77 @@ include 'includes/header.php';
         });
 
         // Upload de arquivo de documento
-        document.getElementById('proj_doc_file').addEventListener('change', async (e)=>{
-            const fileInput = e.target;
-            if (!fileInput.files || !fileInput.files.length) return;
+        const uploadProjectFile = async (file) => {
             const projectId = document.getElementById('proj_id').value;
             if (!projectId) {
                 alert('Grave o projeto primeiro antes de anexar arquivos.');
-                fileInput.value = '';
                 return;
             }
 
             const formData = new FormData();
             formData.append('project_id', projectId);
-            formData.append('doc_file', fileInput.files[0]);
+            formData.append('doc_file', file);
 
             const res = await fetch('api/upload_project_attachment.php', { method: 'POST', body: formData });
             const j = await res.json();
             if (!j.success) {
                 alert(j.message || 'Erro ao fazer upload do arquivo');
-                fileInput.value = '';
                 return;
             }
 
             const attachmentsInput = document.getElementById('proj_doc_attachments');
             const current = attachmentsInput.value ? JSON.parse(attachmentsInput.value) : [];
             current.push(j.attachment);
-            attachmentsInput.value = JSON.stringify(current);
+            renderAttachmentsList(current);
+        };
 
-            const list = document.getElementById('proj_doc_attachments_list');
-            list.innerHTML = current.map(a => `<div class="small"><a href="${a.path}" target="_blank">${a.name}</a> (${a.uploaded_at})</div>`).join('');
+        const attachmentsInput = document.getElementById('proj_doc_attachments');
+        const attachmentsList = document.getElementById('proj_doc_attachments_list');
 
+        const renderAttachmentsList = (attachments) => {
+            attachmentsInput.value = JSON.stringify(attachments);
+            attachmentsList.innerHTML = attachments.length ? attachments.map((a, index) => `
+                <div class="file-attachment-item" data-attachment-index="${index}">
+                    <div class="text-truncate"><a href="${a.path}" target="_blank">${a.name}</a> <small class="text-muted">(${a.uploaded_at})</small></div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-delete-attachment" data-attachment-index="${index}">Excluir</button>
+                </div>
+            `).join('') : '<div class="small text-muted">Nenhum arquivo anexado.</div>';
+        };
+
+        document.getElementById('proj_doc_file').addEventListener('change', async (e)=>{
+            const fileInput = e.target;
+            if (!fileInput.files || !fileInput.files.length) return;
+            await uploadProjectFile(fileInput.files[0]);
             fileInput.value = '';
         });
+
+        attachmentsList.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.btn-delete-attachment');
+            if (!btn) return;
+            const index = parseInt(btn.dataset.attachmentIndex, 10);
+            const attachments = attachmentsInput.value ? JSON.parse(attachmentsInput.value) : [];
+            if (Number.isNaN(index) || index < 0 || index >= attachments.length) return;
+            attachments.splice(index, 1);
+            renderAttachmentsList(attachments);
+        });
+
+        const projDropzone = document.getElementById('proj_doc_dropzone');
+        if (projDropzone) {
+            projDropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                projDropzone.classList.add('dragover');
+            });
+            projDropzone.addEventListener('dragleave', () => {
+                projDropzone.classList.remove('dragover');
+            });
+            projDropzone.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                projDropzone.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (!files || !files.length) return;
+                await uploadProjectFile(files[0]);
+            });
+        }
 
         // Delegate card buttons
         document.getElementById('kanbanBoard').addEventListener('click', async (e)=>{
@@ -544,11 +703,8 @@ include 'includes/header.php';
 
                     document.getElementById('proj_technical_checklist').value = p.technical_checklist || '';
                     document.getElementById('proj_docs_checklist').value = p.docs_checklist || '';
-                    document.getElementById('proj_doc_attachments').value = p.doc_attachments || '';
-
                     const attachments = p.doc_attachments ? JSON.parse(p.doc_attachments) : [];
-                    const list = document.getElementById('proj_doc_attachments_list');
-                    list.innerHTML = attachments.length ? attachments.map(a => `<div class="small"><a href="${a.path}" target="_blank">${a.name}</a> (${a.uploaded_at})</div>`).join('') : '<div class="small text-muted">Nenhum arquivo anexado.</div>';
+                    renderAttachmentsList(attachments);
 
                     btnExcluirProjeto.style.display = 'inline-block';
                     bsModal.show();
@@ -613,6 +769,31 @@ include 'includes/header.php';
                             statusBadge.textContent = targetStatus;
                             statusBadge.className = 'badge status-badge ' + (targetStatus === 'Concluído' ? 'bg-success' : (targetStatus === 'Atrasado' ? 'bg-danger' : 'bg-warning'));
                         }
+                        const targetColor = col.dataset.stageColor || null;
+                        if (targetColor) {
+                            card.style.borderLeft = '4px solid ' + targetColor;
+                            card.style.borderColor = targetColor;
+                            const progressBar = card.querySelector('.progress-bar');
+                            if (progressBar) {
+                                progressBar.style.backgroundColor = targetColor;
+                            }
+                            const projectIdBadge = card.querySelector('.project-id-badge');
+                            if (projectIdBadge) {
+                                projectIdBadge.style.backgroundColor = targetColor;
+                                projectIdBadge.style.color = '#fff';
+                            }
+                        }
+                        card.querySelectorAll('.abbr-stage-badge').forEach(badge => {
+                            const stageName = badge.dataset.stage;
+                            if (stageName === targetStatus) {
+                                const activeColor = col.dataset.stageColor || '#0d6efd';
+                                badge.style.background = activeColor;
+                                badge.style.color = '#fff';
+                            } else {
+                                badge.style.background = '#d8d8d8';
+                                badge.style.color = '#6c757d';
+                            }
+                        });
                         col.appendChild(card);
                     }
 
@@ -624,6 +805,50 @@ include 'includes/header.php';
                 }
             });
         });
+
+        const kanbanScrollWrap = document.querySelector('.kanban-scroll-wrap');
+        if (kanbanScrollWrap) {
+            let isDraggingScroll = false;
+            let startX = 0;
+            let startScroll = 0;
+
+            kanbanScrollWrap.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                if (e.target.closest('.card-project, .file-dropzone, button, input, textarea, select, a')) return;
+                isDraggingScroll = true;
+                kanbanScrollWrap.classList.add('scrolling');
+                startX = e.pageX - kanbanScrollWrap.offsetLeft;
+                startScroll = kanbanScrollWrap.scrollLeft;
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDraggingScroll) return;
+                e.preventDefault();
+                const x = e.pageX - kanbanScrollWrap.offsetLeft;
+                const walk = (x - startX) * 1.5;
+                kanbanScrollWrap.scrollLeft = startScroll - walk;
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (!isDraggingScroll) return;
+                isDraggingScroll = false;
+                kanbanScrollWrap.classList.remove('scrolling');
+            });
+        }
+
+        const btnCompactCards = document.getElementById('btnCompactCards');
+        const compactStorageKey = 'projetosCompactCards';
+        const setCompactView = (enabled) => {
+            document.body.classList.toggle('compact-cards', enabled);
+            if (btnCompactCards) {
+                btnCompactCards.textContent = enabled ? 'Expandir cards' : 'Compactar cards';
+            }
+            try { localStorage.setItem(compactStorageKey, enabled ? '1' : '0'); } catch (e) { /* ignore */ }
+        };
+        if (btnCompactCards) {
+            btnCompactCards.addEventListener('click', () => setCompactView(!document.body.classList.contains('compact-cards')));
+            setCompactView(localStorage.getItem(compactStorageKey) === '1');
+        }
 
         const currentUserId = "<?= $_SESSION['user_id'] ?>";
         const filtroPagamento = document.getElementById('filtroPagamento');

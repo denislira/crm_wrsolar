@@ -99,14 +99,14 @@ try {
                 $hasInitial = in_array('is_initial', $stageCols, true);
 
                 if ($hasInitial) {
-                    $initialStmt = $pdo->prepare("SELECT {$nameCol} FROM projeto_stages WHERE (user_id = ? OR user_id IS NULL) AND is_initial = 1 ORDER BY {$orderCol} ASC, id ASC LIMIT 1");
-                    $initialStmt->execute([$_SESSION['user_id']]);
+                    $initialStmt = $pdo->prepare("SELECT {$nameCol} FROM projeto_stages WHERE is_initial = 1 ORDER BY {$orderCol} ASC, id ASC LIMIT 1");
+                    $initialStmt->execute();
                     $status = (string)($initialStmt->fetchColumn() ?: '');
                 }
 
                 if ($status === '') {
-                    $firstStmt = $pdo->prepare("SELECT {$nameCol} FROM projeto_stages WHERE (user_id = ? OR user_id IS NULL) ORDER BY {$orderCol} ASC, id ASC LIMIT 1");
-                    $firstStmt->execute([$_SESSION['user_id']]);
+                    $firstStmt = $pdo->prepare("SELECT {$nameCol} FROM projeto_stages ORDER BY {$orderCol} ASC, id ASC LIMIT 1");
+                    $firstStmt->execute();
                     $status = (string)($firstStmt->fetchColumn() ?: '');
                 }
             }

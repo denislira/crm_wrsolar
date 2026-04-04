@@ -52,9 +52,9 @@ try {
 
     if ($action === 'list') {
         $cols = ['id', "{$nameCol} AS name", 'is_initial', 'color', 'card_color', 'position'];
-        $sql = "SELECT " . implode(', ', $cols) . " FROM projeto_stages WHERE user_id = ? OR user_id IS NULL ORDER BY COALESCE({$positionCol}, id) ASC";
+        $sql = "SELECT " . implode(', ', $cols) . " FROM projeto_stages ORDER BY COALESCE({$positionCol}, id) ASC";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$userId]);
+        $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode($rows);
         exit;
@@ -76,12 +76,12 @@ try {
         $cardColor = !empty($data['card_color']) ? trim($data['card_color']) : '#ffffff';
 
         if ($isInitial === 1) {
-            $resetInitial = $pdo->prepare('UPDATE projeto_stages SET is_initial = 0 WHERE user_id = ?');
-            $resetInitial->execute([$userId]);
+            $resetInitial = $pdo->prepare('UPDATE projeto_stages SET is_initial = 0');
+            $resetInitial->execute();
         }
 
-        $stmt = $pdo->prepare("SELECT COALESCE(MAX({$positionCol}),0) as mx FROM projeto_stages WHERE user_id = ?");
-        $stmt->execute([$userId]);
+        $stmt = $pdo->prepare("SELECT COALESCE(MAX({$positionCol}),0) as mx FROM projeto_stages");
+        $stmt->execute();
         $mx = (int)$stmt->fetchColumn();
 
         $stmt = $pdo->prepare("INSERT INTO projeto_stages (user_id, {$nameCol}, position, is_initial, color, card_color) VALUES (?, ?, ?, ?, ?, ?)");
@@ -98,8 +98,8 @@ try {
     if ($action === 'update') {
         if (empty($data['id']) || !isset($data['name'])) throw new Exception('Missing id or name');
 
-        $pre = $pdo->prepare('SELECT * FROM projeto_stages WHERE id = ? AND (user_id = ? OR user_id IS NULL) LIMIT 1');
-        $pre->execute([$data['id'], $userId]);
+        $pre = $pdo->prepare('SELECT * FROM projeto_stages WHERE id = ? LIMIT 1');
+        $pre->execute([$data['id']]);
         $prev = $pre->fetch(PDO::FETCH_ASSOC) ?: [];
 
         if (empty($prev)) throw new Exception('Etapa não encontrada ou sem permissão');
@@ -109,14 +109,14 @@ try {
         $cardColor = !empty($data['card_color']) ? trim($data['card_color']) : ($prev['card_color'] ?? '#ffffff');
 
         if ($isInitial === 1) {
-            $resetInitial = $pdo->prepare('UPDATE projeto_stages SET is_initial = 0 WHERE user_id = ?');
-            $resetInitial->execute([$userId]);
+            $resetInitial = $pdo->prepare('UPDATE projeto_stages SET is_initial = 0');
+            $resetInitial->execute();
         }
 
         $sets = ["{$nameCol} = ?", 'is_initial = ?', 'color = ?', 'card_color = ?'];
-        $params = [$data['name'], $isInitial, $color, $cardColor, $data['id'], $userId];
+        $params = [$data['name'], $isInitial, $color, $cardColor, $data['id']];
 
-        $sql = "UPDATE projeto_stages SET " . implode(', ', $sets) . " WHERE id = ? AND (user_id = ? OR user_id IS NULL)";
+        $sql = "UPDATE projeto_stages SET " . implode(', ', $sets) . " WHERE id = ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
 

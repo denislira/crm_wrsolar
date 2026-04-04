@@ -28,8 +28,8 @@ if ($id <= 0) {
 }
 
 try {
-    $stmt = $pdo->prepare('DELETE FROM projetos WHERE id = ? AND user_id = ?');
-    $stmt->execute([$id, $_SESSION['user_id']]);
+    $stmt = $pdo->prepare('DELETE FROM projetos WHERE id = ?');
+    $stmt->execute([$id]);
     echo json_encode(['success' => true, 'message' => 'Projeto excluído com sucesso']);
 } catch (Exception $e) {
     http_response_code(500);
