@@ -2176,6 +2176,7 @@
         const notesEl = F('leadNotes') || $('#leadNotes'); if (notesEl) notesEl.value = lead.notes || '';
         // reset file input
         const f = F('leadAnexos') || $('#leadAnexos'); if (f) f.value = '';
+        const fileNames = document.getElementById('anexos-file-names'); if (fileNames) fileNames.innerHTML = '';
         // render existing attachments UI
         try { renderExistingAttachments(lead); } catch(e){ console.warn('Failed rendering attachments', e); }
         const m = new bootstrap.Modal($('#leadModal'));
@@ -2301,6 +2302,8 @@
             $('#leadForm').reset(); 
             const idEl = F('leadId') || $('#lead-id'); 
             if (idEl) idEl.value = '';
+            const fileInput = document.getElementById('lead-anexos'); if (fileInput) fileInput.value = '';
+            const fileNames = document.getElementById('anexos-file-names'); if (fileNames) fileNames.innerHTML = '';
             // Clear existing attachments display for new lead
             const prevWrap = document.getElementById('existingAnexosWrap'); if (prevWrap) prevWrap.remove();
             // Ensure Data de Entrada is editable for new leads and default to today
@@ -2355,6 +2358,11 @@
 
             fileInput.addEventListener('change', updateFileNames);
 
+            dropzone.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = '#0d6efd';
+                dropzone.style.background = 'rgba(13,110,253,.05)';
+            });
             dropzone.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 dropzone.style.borderColor = '#0d6efd';
@@ -2367,14 +2375,16 @@
             });
             dropzone.addEventListener('drop', (e) => {
                 e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
                 dropzone.style.borderColor = '#adb5bd';
                 dropzone.style.background = '';
-                const dt = e.dataTransfer;
+                const dt = e.dataTransfer || e.originalEvent?.dataTransfer;
                 if (!dt || !dt.files || dt.files.length === 0) return;
                 // Merge dropped files with any already selected via click
                 const existing = fileInput.files ? Array.from(fileInput.files) : [];
                 const incoming = Array.from(dt.files);
-                const accept = ['.pdf','.doc','.docx','.jpg','.jpeg','.png'];
+                const accept = ['.pdf','.doc','.docx','.csv','.xls','.xlsx','.xml','.txt','.rtf','.odt','.pptx','.jpg','.jpeg','.png','.gif','.bmp','.webp','.jfif'];
                 const filtered = incoming.filter(f => accept.some(ext => f.name.toLowerCase().endsWith(ext)));
                 if (filtered.length === 0) return;
                 const merged = [...existing, ...filtered];
@@ -2382,6 +2392,7 @@
                 merged.forEach(f => transfer.items.add(f));
                 fileInput.files = transfer.files;
                 updateFileNames();
+                fileInput.dispatchEvent(new Event('change', { bubbles: true }));
             });
         })();
 
@@ -2636,9 +2647,24 @@
         } catch(e){ console.warn('kanbanOnly init failed', e); }
         
         // Add event listener to clean up backdrop when modal is hidden
+        $('#leadModal').addEventListener('hide.bs.modal', function (e) {
+            // don't warn when the modal is being closed by a save operation
+            if (leadFormSubmitting) return;
+            const fileInput = document.getElementById('lead-anexos');
+            if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                const confirmDiscard = window.confirm('Existem arquivos selecionados para o anexo que ainda não foram salvos. Deseja fechar e descartar esses arquivos?');
+                if (!confirmDiscard) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+        });
+
         $('#leadModal').addEventListener('hidden.bs.modal', function () {
             const backdrops = document.querySelectorAll('.modal-backdrop');
             backdrops.forEach(bd => bd.remove());
+            const fileInput = document.getElementById('lead-anexos'); if (fileInput) fileInput.value = '';
+            const fileNames = document.getElementById('anexos-file-names'); if (fileNames) fileNames.innerHTML = '';
             document.body.classList.remove('modal-open');
             document.body.style.overflow = '';
             document.body.style.paddingRight = '';

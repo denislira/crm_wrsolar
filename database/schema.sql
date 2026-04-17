@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS projetos (
   projeto VARCHAR(255) DEFAULT NULL,
   client_status VARCHAR(50) DEFAULT 'Assinante',
   payment_type VARCHAR(50) DEFAULT NULL,
+  payment_status VARCHAR(50) DEFAULT NULL,
   logistics_tracking_code VARCHAR(255) DEFAULT NULL,
   logistics_delivery_date DATE DEFAULT NULL,
   inspection_photos TEXT DEFAULT NULL,

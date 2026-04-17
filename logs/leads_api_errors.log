@@ -38,3 +38,13 @@
 [2026-04-01 02:50:04] UPDATE data_inicio (parsed): '2026-02-16'
 [2026-04-04 21:10:32] UPDATE data_inicio (raw): '2026-02-06'
 [2026-04-04 21:10:32] UPDATE data_inicio (parsed): '2026-02-06'
+[2026-04-17 14:01:49] UPDATE data_inicio (raw): '2026-02-16'
+[2026-04-17 14:01:49] UPDATE data_inicio (parsed): '2026-02-16'
+[2026-04-17 14:02:02] UPDATE data_inicio (raw): '2026-02-10'
+[2026-04-17 14:02:02] UPDATE data_inicio (parsed): '2026-02-10'
+[2026-04-17 14:07:08] UPDATE data_inicio (raw): '2026-02-06'
+[2026-04-17 14:07:08] UPDATE data_inicio (parsed): '2026-02-06'
+[2026-04-17 14:07:21] DELETE_ATTACHMENT requested: user=1 lead=5 file=46 filename=DENIS TABELA.xlsx
+[2026-04-17 14:07:21] DELETE_ATTACHMENT success: user=1 lead=5 file=46 filename=DENIS TABELA.xlsx
+[2026-04-17 14:08:17] UPDATE data_inicio (raw): '2026-02-06'
+[2026-04-17 14:08:17] UPDATE data_inicio (parsed): '2026-02-06'

@@ -304,11 +304,26 @@ try {
 
         // sources
         if ($sourceCol) {
-                $sstmt = $pdo->query("SELECT {$sourceCol} AS source, COUNT(*) AS cnt FROM leads GROUP BY {$sourceCol} ORDER BY cnt DESC LIMIT 10");
+                $sstmt = $pdo->query("SELECT COALESCE(NULLIF({$sourceCol},''),'Sem origem') AS source, COUNT(*) AS cnt FROM leads GROUP BY COALESCE(NULLIF({$sourceCol},''),'Sem origem') ORDER BY cnt DESC");
                 $sources = $sstmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
 } catch (Exception $e) { /* ignore and continue */ }
+
+try {
+        if (empty($sources)) {
+                $leadColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
+                $leadCols = $leadColsStmt->fetchAll(PDO::FETCH_COLUMN);
+                $sourceCol = null;
+                foreach (['source','origem','lead_source'] as $sc) {
+                        if (in_array($sc, $leadCols, true)) { $sourceCol = $sc; break; }
+                }
+                if ($sourceCol) {
+                        $sstmt = $pdo->query("SELECT COALESCE(NULLIF({$sourceCol},''),'Sem origem') AS source, COUNT(*) AS cnt FROM leads GROUP BY COALESCE(NULLIF({$sourceCol},''),'Sem origem') ORDER BY cnt DESC");
+                        $sources = $sstmt->fetchAll(PDO::FETCH_ASSOC);
+                }
+        }
+} catch (Exception $e) { /* ignore */ }
 
 // --- Temporal analysis heuristics (automated insights) ---
 $temporalInsights = [];

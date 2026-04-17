@@ -28,9 +28,40 @@ if ($id <= 0) {
     exit;
 }
 
-$allowed = ['client_name','address','proposal_value','projeto','status','contract','closed_date','due_days','client_status','payment_type','logistics_tracking_code','logistics_delivery_date','inspection_photos','technical_checklist','docs_checklist','doc_attachments'];
+$allowed = ['client_name','address','proposal_value','projeto','status','contract','closed_date','due_days','client_status','payment_type','payment_status','logistics_tracking_code','logistics_delivery_date','inspection_photos','technical_checklist','docs_checklist','doc_attachments'];
 $sets = [];
 $params = [];
+$removedAttachmentPaths = [];
+if (isset($_POST['doc_attachments'])) {
+    $existingStmt = $pdo->prepare('SELECT doc_attachments FROM projetos WHERE id = ? LIMIT 1');
+    $existingStmt->execute([$id]);
+    $existingJson = $existingStmt->fetchColumn();
+    $oldAttachments = [];
+    if ($existingJson) {
+        $decoded = json_decode($existingJson, true);
+        if (is_array($decoded)) {
+            $oldAttachments = $decoded;
+        }
+    }
+
+    $newAttachments = [];
+    if ($_POST['doc_attachments'] !== '') {
+        $decoded = json_decode($_POST['doc_attachments'], true);
+        if (is_array($decoded)) {
+            $newAttachments = $decoded;
+        }
+    }
+
+    $oldPaths = array_column(array_filter($oldAttachments, function ($item) {
+        return is_array($item) && isset($item['path']);
+    }), 'path');
+    $newPaths = array_column(array_filter($newAttachments, function ($item) {
+        return is_array($item) && isset($item['path']);
+    }), 'path');
+
+    $removedAttachmentPaths = array_values(array_diff($oldPaths, $newPaths));
+}
+
 foreach ($allowed as $f) {
     if (isset($_POST[$f])) {
         $sets[] = "$f = ?";
@@ -51,6 +82,7 @@ try {
     $columnsToCheck = [
         'client_status' => "VARCHAR(50) DEFAULT 'Assinante'",
         'payment_type' => "VARCHAR(50) DEFAULT NULL",
+        'payment_status' => "VARCHAR(50) DEFAULT NULL",
         'contract' => 'TEXT DEFAULT NULL',
         'projeto' => 'VARCHAR(255) DEFAULT NULL',
         'due_days' => 'INT DEFAULT 30',
@@ -80,6 +112,22 @@ try {
     $params[] = $id;
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
+
+    if (!empty($removedAttachmentPaths)) {
+        $projectFolder = realpath(__DIR__ . '/../uploads/project_docs/' . $id);
+        if ($projectFolder !== false) {
+            foreach ($removedAttachmentPaths as $path) {
+                $candidate = __DIR__ . '/../' . ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path), DIRECTORY_SEPARATOR);
+                $candidate = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $candidate);
+                if (strpos($candidate, $projectFolder) !== 0) {
+                    continue;
+                }
+                if (is_file($candidate)) {
+                    @unlink($candidate);
+                }
+            }
+        }
+    }
 
     // If project is linked to a lead, keep lead budget/kWh in sync when edited here.
     if (!empty($leadId)) {

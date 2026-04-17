@@ -256,10 +256,10 @@ include 'includes/header.php';
                                                 <div id="anexos-dropzone" style="border:2px dashed #adb5bd;border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;" onclick="document.getElementById('lead-anexos').click()">
                                                     <i class="fa fa-cloud-upload fa-2x text-muted mb-2"></i>
                                                     <div class="text-muted small">Arraste e solte arquivos aqui ou <span style="color:#0d6efd;text-decoration:underline;">clique para selecionar</span></div>
-                                                    <div class="form-text mt-1">PDF, DOC, JPG, PNG (max 10MB cada)</div>
+                                                    <div class="form-text mt-1">PDF, DOC, DOCX, CSV, XLS, XLSX, XML, TXT, RTF, ODT, PPTX, JPG, JPEG, PNG, GIF, BMP, WEBP, JFIF (max 10MB cada)</div>
                                                     <div id="anexos-file-names" class="mt-2 small text-start"></div>
                                                 </div>
-                                                <input id="lead-anexos" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="display:none">
+                                                <input id="lead-anexos" type="file" multiple accept=".pdf,.doc,.docx,.csv,.xls,.xlsx,.xml,.txt,.rtf,.odt,.pptx,.jpg,.jpeg,.png,.gif,.bmp,.webp,.jfif" style="display:none">
                                                 <div class="d-flex justify-content-end mt-2">
                                                     <button id="upload-anexos-now" type="button" class="btn btn-sm btn-outline-primary"><i class="fa fa-upload"></i> Enviar</button>
                                                 </div>

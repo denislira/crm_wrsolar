@@ -32,6 +32,8 @@ $contract = $contract === '' ? null : $contract;
 $client_status = $_POST['client_status'] ?? null; // 'Assinante' or 'Ex-Cliente'
 $payment_type = $_POST['payment_type'] ?? null;
 $payment_type = $payment_type === '' ? null : $payment_type;
+$payment_status = $_POST['payment_status'] ?? null;
+$payment_status = $payment_status === '' ? null : $payment_status;
 
 $logistics_tracking_code = isset($_POST['logistics_tracking_code']) ? trim($_POST['logistics_tracking_code']) : null;
 $logistics_tracking_code = $logistics_tracking_code === '' ? null : $logistics_tracking_code;
@@ -64,6 +66,7 @@ try {
         $columnsToCheck = [
             'client_status' => "VARCHAR(50) DEFAULT 'Assinante'",
             'payment_type' => "VARCHAR(50) DEFAULT NULL",
+            'payment_status' => "VARCHAR(50) DEFAULT NULL",
             'contract' => 'TEXT DEFAULT NULL',
             'logistics_tracking_code' => 'VARCHAR(255) DEFAULT NULL',
             'logistics_delivery_date' => 'DATE DEFAULT NULL',
@@ -71,8 +74,8 @@ try {
             'technical_checklist' => 'TEXT DEFAULT NULL',
             'docs_checklist' => 'TEXT DEFAULT NULL',
             'doc_attachments' => 'TEXT DEFAULT NULL',
-        'projeto' => 'VARCHAR(255) DEFAULT NULL',
-        'due_days' => 'INT DEFAULT 30'
+            'projeto' => 'VARCHAR(255) DEFAULT NULL',
+            'due_days' => 'INT DEFAULT 30'
         ];
 
         foreach ($columnsToCheck as $colName => $definition) {
@@ -119,7 +122,7 @@ try {
         $status = 'Documentação';
     }
 
-    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, projeto, due_days, client_status, payment_type, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, projeto, due_days, client_status, payment_type, payment_status, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
     $stmt->execute([
         $_SESSION['user_id'],
         $client_name,
@@ -133,6 +136,7 @@ try {
         $due_days,
         $client_status,
         $payment_type,
+        $payment_status,
         $logistics_tracking_code,
         $logistics_delivery_date ?: null,
         $inspection_photos,

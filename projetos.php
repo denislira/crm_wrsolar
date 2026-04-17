@@ -237,8 +237,15 @@ include 'includes/header.php';
                                     <?php $projectStageColor = $stageColor; ?>
                                     <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" data-user-id="<?= $p['user_id'] ?>" draggable="true" style="border-left:4px solid <?= htmlspecialchars($projectStageColor) ?>; border-color: <?= htmlspecialchars($projectStageColor) ?>;">
                                         <div class="card-body p-2">
+                                            <?php
+                                                $paymentStatus = isset($p['payment_status']) && $p['payment_status'] !== ''
+                                                    ? $p['payment_status']
+                                                    : ($p['status'] === 'Concluído' ? 'Pago' : 'Pendente');
+                                                $paymentBadge = $paymentStatus === 'Pago' ? 'bg-success' : 'bg-danger';
+                                            ?>
                                             <div class="d-flex justify-content-between align-items-center mb-1">
                                                 <span class="badge project-id-badge" style="background: <?= htmlspecialchars($projectStageColor) ?>; color:#fff; font-size:80%;">#<?= $p['id'] ?></span>
+                                                <span class="badge <?= $paymentBadge ?>" style="font-size:70%;"><?= htmlspecialchars($paymentStatus) ?></span>
                                             </div>
                                             <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
                                                 <h6 class="project-title mb-0" style="font-size:0.95rem;"><?= htmlspecialchars($p['client_name']) ?></h6>
@@ -248,18 +255,13 @@ include 'includes/header.php';
                                                     </button>
                                                 <?php endif; ?>
                                             </div>
-                                            <?php $kwhValue = !empty($p['projeto_effective']) ? (float)$p['projeto_effective'] : null; ?>
+                                            <?php $kwhValue = !empty($p['projeto_effective']) ? (string)$p['projeto_effective'] : null; ?>
                                             <div class="text-muted small mb-1 compact-hide">Valor do projeto: R$ <?= number_format((float)($p['proposal_value_effective'] ?? $p['proposal_value'] ?? 0), 2, ',', '.') ?></div>
-                                            <div class="text-muted small mb-1 compact-hide">kWh: <?= $kwhValue !== null ? (abs($kwhValue - round($kwhValue)) < 0.000001 ? number_format($kwhValue, 0, ',', '.') : number_format($kwhValue, 2, ',', '.')) : 'Não informado' ?></div>
+                                            <div class="text-muted small mb-1 compact-hide">kWh: <?= $kwhValue !== null ? htmlspecialchars(str_replace('.', ',', rtrim(rtrim($kwhValue, '0'), '.'))) : 'Não informado' ?></div>
                                             <div class="text-muted small mb-1 compact-hide">Telefone: <strong><?= !empty($p['lead_phone']) ? htmlspecialchars($p['lead_phone']) : 'Não informado' ?></strong></div>
                                             <div class="text-muted small mb-1 compact-hide">Forma de Pagto: <strong><?= !empty($p['payment_type']) ? htmlspecialchars($p['payment_type']) : (!empty($p['contract']) ? htmlspecialchars($p['contract']) : 'Não informado') ?></strong></div>
 
-                                            <?php
-                                                $paymentStatus = $p['status'] === 'Concluído' ? 'Pago' : 'Pendente';
-                                                $paymentBadge = $p['status'] === 'Concluído' ? 'bg-success' : 'bg-danger';
-                                            ?>
                                             <div class="d-flex align-items-center gap-2 mb-1">
-                                                <span class="badge <?= $paymentBadge ?>" style="font-size:70%;"><?= $paymentStatus ?></span>
                                                 <?php
                                                     $today = time();
                                                     $dueDays = isset($p['due_days']) && intval($p['due_days']) > 0 ? intval($p['due_days']) : 30;
@@ -374,6 +376,14 @@ include 'includes/header.php';
                                 <option value="Boleto">Boleto</option>
                                 <option value="Financiamento">Financiamento</option>
                                 <option value="Cartão">Cartão</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Status do Pagamento</label>
+                            <select class="form-select" name="payment_status" id="proj_payment_status">
+                                <option value="">Automático</option>
+                                <option value="Pendente">Pendente</option>
+                                <option value="Pago">Pago</option>
                             </select>
                         </div>
                         <div class="col-md-4">
@@ -683,6 +693,7 @@ include 'includes/header.php';
                     document.getElementById('proj_contract').value = p.contract || '';
                     document.getElementById('proj_projeto').value = p.projeto || '';
                     document.getElementById('proj_payment_type').value = p.payment_type || '';
+                    document.getElementById('proj_payment_status').value = p.payment_status || '';
                     document.getElementById('proj_logistics_tracking_code').value = p.logistics_tracking_code || '';
                     document.getElementById('proj_logistics_delivery_date').value = p.logistics_delivery_date ? p.logistics_delivery_date.split(' ')[0] : '';
                     document.getElementById('proj_inspection_photos').value = p.inspection_photos || '';
