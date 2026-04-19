@@ -230,6 +230,30 @@ body.theme-dark .fc-page { background: #071427; }
               </div>
             </div>
           </div>
+          <div class="row g-4 mt-3">
+            <div class="col-lg-6">
+              <div class="fc-panel">
+                <div class="fc-panel-header">
+                  <div class="fc-panel-title"><i class="fa fa-wrench"></i> Checklist Técnico</div>
+                  <button id="addTechnicalItemBtn" class="btn-add-stage"><i class="fa fa-plus"></i> Novo item</button>
+                </div>
+                <div class="fc-panel-body">
+                  <div id="technicalList" style="min-height:220px"></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="fc-panel">
+                <div class="fc-panel-header">
+                  <div class="fc-panel-title"><i class="fa fa-file-alt"></i> Gestão Documental</div>
+                  <button id="addDocItemBtn" class="btn-add-stage"><i class="fa fa-plus"></i> Novo item</button>
+                </div>
+                <div class="fc-panel-body">
+                  <div id="docList" style="min-height:220px"></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

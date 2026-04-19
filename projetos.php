@@ -257,7 +257,7 @@ include 'includes/header.php';
                                             </div>
                                             <?php $kwhValue = !empty($p['projeto_effective']) ? (string)$p['projeto_effective'] : null; ?>
                                             <div class="text-muted small mb-1 compact-hide">Valor do projeto: R$ <?= number_format((float)($p['proposal_value_effective'] ?? $p['proposal_value'] ?? 0), 2, ',', '.') ?></div>
-                                            <div class="text-muted small mb-1 compact-hide">kWh: <?= $kwhValue !== null ? htmlspecialchars(str_replace('.', ',', rtrim(rtrim($kwhValue, '0'), '.'))) : 'Não informado' ?></div>
+                                            <div class="text-muted small mb-1 compact-hide"><?= $kwhValue !== null ? htmlspecialchars(str_replace('.', ',', rtrim(rtrim($kwhValue, '0'), '.'))) . ' kwh' : 'Não informado' ?></div>
                                             <div class="text-muted small mb-1 compact-hide">Telefone: <strong><?= !empty($p['lead_phone']) ? htmlspecialchars($p['lead_phone']) : 'Não informado' ?></strong></div>
                                             <div class="text-muted small mb-1 compact-hide">Forma de Pagto: <strong><?= !empty($p['payment_type']) ? htmlspecialchars($p['payment_type']) : (!empty($p['contract']) ? htmlspecialchars($p['contract']) : 'Não informado') ?></strong></div>
 
@@ -433,56 +433,18 @@ include 'includes/header.php';
                                 <label class="form-label">Fotos da vistoria (URLs ou referência)</label>
                                 <textarea class="form-control" name="inspection_photos" id="proj_inspection_photos" rows="3" placeholder="https://.../foto1.jpg\nhttps://.../foto2.jpg"></textarea>
                             </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="proj_technical_telhado">
-                                <label class="form-check-label" for="proj_technical_telhado">Vistoria do telhado</label>
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="proj_technical_padrao">
-                                <label class="form-check-label" for="proj_technical_padrao">Vistoria do padrão</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="proj_technical_concessionaria">
-                                <label class="form-check-label" for="proj_technical_concessionaria">Checklist envio para concessionária</label>
-                            </div>
+                            <div id="proj_technical_items" class="mb-3"></div>
                         </div>
                         <div class="tab-pane fade" id="content-gestao" role="tabpanel">
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="proj_doc_cpf">
-                                <label class="form-check-label" for="proj_doc_cpf">CPF</label>
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="proj_doc_rg">
-                                <label class="form-check-label" for="proj_doc_rg">RG</label>
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="proj_doc_contrato">
-                                <label class="form-check-label" for="proj_doc_contrato">Contrato assinado</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="proj_doc_nfe">
-                                <label class="form-check-label" for="proj_doc_nfe">Nota fiscal / NFe</label>
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="proj_doc_planta">
-                                <label class="form-check-label" for="proj_doc_planta">Planta aprovada</label>
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="proj_doc_alvara">
-                                <label class="form-check-label" for="proj_doc_alvara">Alvará</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="proj_doc_relatorio">
-                                <label class="form-check-label" for="proj_doc_relatorio">Relatório de vistoria</label>
-                            </div>
+                            <div id="proj_docs_items"></div>
                             <div class="mt-3">
                                 <label class="form-label">Anexar arquivo</label>
                                 <div id="proj_doc_dropzone" class="file-dropzone">
                                     <div class="file-dropzone-content">
                                         <p class="mb-1">Arraste e solte um arquivo aqui ou clique para selecionar</p>
-                                        <small class="text-muted">Suporta .pdf, .jpg, .jpeg, .png, .doc, .docx</small>
+                                        <small class="text-muted">Suporta .pdf, .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg, .doc, .docx, .xls, .xlsx, .ppt, .pptx, .txt</small>
                                     </div>
-                                    <input class="form-control form-control-sm file-dropzone-input" type="file" id="proj_doc_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                    <input class="form-control form-control-sm file-dropzone-input" type="file" id="proj_doc_file" accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt">
                                 </div>
                                 <div class="small text-muted mt-2">Arquivos são incluídos automaticamente após seleção ou soltar.</div>
                                 <div id="proj_doc_attachments_list" class="mt-2"></div>
@@ -511,11 +473,18 @@ include 'includes/header.php';
 
         const btnExcluirProjeto = document.getElementById('btnExcluirProjeto');
 
-        document.getElementById('btnNovoProjeto').addEventListener('click', ()=>{
+        const checklistApi = 'includes/project_checklists_api.php';
+        const projectChecklistOptions = { technical: [], document: [] };
+        const checklistLoaded = loadProjectChecklistOptions();
+
+        document.getElementById('btnNovoProjeto').addEventListener('click', async ()=>{
             document.getElementById('formProjeto').reset();
             document.getElementById('proj_id').value = '';
             document.getElementById('proj_due_days').value = '30';
             btnExcluirProjeto.style.display = 'none';
+            await checklistLoaded;
+            renderProjectChecklistChoices('technical', []);
+            renderProjectChecklistChoices('document', []);
             bsModal.show();
         });
 
@@ -534,6 +503,94 @@ include 'includes/header.php';
                 alert(j.message || 'Erro ao excluir projeto');
             }
         });
+
+        async function loadProjectChecklistOptions() {
+            try {
+                const [techRes, docRes] = await Promise.all([
+                    fetch(`${checklistApi}?action=list&type=technical`),
+                    fetch(`${checklistApi}?action=list&type=document`)
+                ]);
+                if (techRes.ok) projectChecklistOptions.technical = await techRes.json();
+                if (docRes.ok) projectChecklistOptions.document = await docRes.json();
+            } catch (err) {
+                console.error('Falha ao carregar opções de checklist:', err);
+            }
+        }
+
+        function normalizeTextKey(value) {
+            return String(value || '').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        }
+
+        function normalizeChecklistValue(raw, items) {
+            if (!raw) return [];
+            let decoded = raw;
+            if (typeof raw === 'string') {
+                try { decoded = JSON.parse(raw); } catch (_) { decoded = raw; }
+            }
+            if (Array.isArray(decoded)) {
+                return decoded.map(v => parseInt(v, 10)).filter(Number.isInteger);
+            }
+            if (typeof decoded === 'object') {
+                const selected = [];
+                const lookup = items.reduce((acc, item) => {
+                    acc[normalizeTextKey(item.name)] = item.id;
+                    return acc;
+                }, {});
+                Object.keys(decoded).forEach(key => {
+                    if (!isNaN(key)) {
+                        const id = parseInt(key, 10);
+                        if (Number.isInteger(id)) selected.push(id);
+                        return;
+                    }
+                    const slug = normalizeTextKey(key);
+                    if (lookup[slug]) selected.push(lookup[slug]);
+                });
+                return Array.from(new Set(selected));
+            }
+            return [];
+        }
+
+        function renderProjectChecklistChoices(type, selectedIds) {
+            const items = projectChecklistOptions[type] || [];
+            const container = document.getElementById(type === 'technical' ? 'proj_technical_items' : 'proj_docs_items');
+            if (!container) return;
+            container.innerHTML = '';
+            if (!items.length) {
+                container.innerHTML = `<div class="small text-muted">Nenhum item configurado para ${type === 'technical' ? 'checklist técnico' : 'gestão documental'}.</div>`;
+                return;
+            }
+            items.forEach(item => {
+                const checked = selectedIds.includes(item.id) ? 'checked' : '';
+                const row = document.createElement('div');
+                row.className = 'form-check mb-2';
+                row.innerHTML = `
+                    <input class="form-check-input" type="checkbox" id="proj_${type}_item_${item.id}" value="${item.id}" ${checked}>
+                    <label class="form-check-label" for="proj_${type}_item_${item.id}">${item.name}</label>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function getSelectedChecklistIds(type) {
+            const container = document.getElementById(type === 'technical' ? 'proj_technical_items' : 'proj_docs_items');
+            if (!container) return [];
+            return Array.from(container.querySelectorAll('input[type="checkbox"]'))
+                .filter(input => input.checked)
+                .map(input => parseInt(input.value, 10))
+                .filter(Number.isInteger);
+        }
+
+        function renderProjectChecklistSelections(project) {
+            const techSelected = normalizeChecklistValue(project.technical_checklist, projectChecklistOptions.technical);
+            const docSelected = normalizeChecklistValue(project.docs_checklist, projectChecklistOptions.document);
+            renderProjectChecklistChoices('technical', techSelected);
+            renderProjectChecklistChoices('document', docSelected);
+        }
+
+        function renderProjectChecklistDefaults() {
+            renderProjectChecklistChoices('technical', []);
+            renderProjectChecklistChoices('document', []);
+        }
 
         // Enable drag-and-drop on project cards
         document.querySelectorAll('.card-project').forEach(card => {
@@ -698,20 +755,8 @@ include 'includes/header.php';
                     document.getElementById('proj_logistics_delivery_date').value = p.logistics_delivery_date ? p.logistics_delivery_date.split(' ')[0] : '';
                     document.getElementById('proj_inspection_photos').value = p.inspection_photos || '';
 
-                    const technicalChecklist = p.technical_checklist ? JSON.parse(p.technical_checklist) : {};
-                    document.getElementById('proj_technical_telhado').checked = !!technicalChecklist.telhado;
-                    document.getElementById('proj_technical_padrao').checked = !!technicalChecklist.padrao;
-                    document.getElementById('proj_technical_concessionaria').checked = !!technicalChecklist.concessionaria;
-
-                    const docsChecklist = p.docs_checklist ? JSON.parse(p.docs_checklist) : {};
-                    document.getElementById('proj_doc_cpf').checked = !!docsChecklist.cpf;
-                    document.getElementById('proj_doc_rg').checked = !!docsChecklist.rg;
-                    document.getElementById('proj_doc_contrato').checked = !!docsChecklist.contrato;
-                    document.getElementById('proj_doc_nfe').checked = !!docsChecklist.nfe;
-                    document.getElementById('proj_doc_planta').checked = !!docsChecklist.planta;
-                    document.getElementById('proj_doc_alvara').checked = !!docsChecklist.alvara;
-                    document.getElementById('proj_doc_relatorio').checked = !!docsChecklist.relatorio;
-
+                    await checklistLoaded;
+                    renderProjectChecklistSelections(p);
                     document.getElementById('proj_technical_checklist').value = p.technical_checklist || '';
                     document.getElementById('proj_docs_checklist').value = p.docs_checklist || '';
                     const attachments = p.doc_attachments ? JSON.parse(p.doc_attachments) : [];
@@ -993,24 +1038,9 @@ include 'includes/header.php';
 
         document.getElementById('formProjeto').addEventListener('submit', async (ev)=>{
             ev.preventDefault();
-            const technicalChecklistObj = {
-                telhado: document.getElementById('proj_technical_telhado').checked,
-                padrao: document.getElementById('proj_technical_padrao').checked,
-                concessionaria: document.getElementById('proj_technical_concessionaria').checked,
-            };
-            const docsChecklistObj = {
-                cpf: document.getElementById('proj_doc_cpf').checked,
-                rg: document.getElementById('proj_doc_rg').checked,
-                contrato: document.getElementById('proj_doc_contrato').checked,
-                nfe: document.getElementById('proj_doc_nfe').checked,
-                planta: document.getElementById('proj_doc_planta').checked,
-                alvara: document.getElementById('proj_doc_alvara').checked,
-                relatorio: document.getElementById('proj_doc_relatorio').checked,
-            };
-            document.getElementById('proj_technical_checklist').value = JSON.stringify(technicalChecklistObj);
-            document.getElementById('proj_docs_checklist').value = JSON.stringify(docsChecklistObj);
+            document.getElementById('proj_technical_checklist').value = JSON.stringify(getSelectedChecklistIds('technical'));
+            document.getElementById('proj_docs_checklist').value = JSON.stringify(getSelectedChecklistIds('document'));
 
-            ev.preventDefault();
             const form = ev.target;
             const data = new FormData(form);
             const id = document.getElementById('proj_id').value;
