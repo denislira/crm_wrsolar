@@ -122,7 +122,16 @@ try {
         $status = 'Documentação';
     }
 
-    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, projeto, due_days, client_status, payment_type, payment_status, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+    if ($lead_id !== null) {
+        $checkStmt = $pdo->prepare('SELECT COUNT(*) FROM projetos WHERE lead_id = ?');
+        $checkStmt->execute([$lead_id]);
+        if ((int)$checkStmt->fetchColumn() > 0) {
+            echo json_encode(['success' => false, 'message' => 'Já existe um projeto vinculado a este lead.']);
+            exit;
+        }
+    }
+
+    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, projeto, due_days, client_status, payment_type, payment_status, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
     $stmt->execute([
         $_SESSION['user_id'],
         $client_name,

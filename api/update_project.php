@@ -31,6 +31,9 @@ if ($id <= 0) {
 $allowed = ['client_name','address','proposal_value','projeto','status','contract','closed_date','due_days','client_status','payment_type','payment_status','logistics_tracking_code','logistics_delivery_date','inspection_photos','technical_checklist','docs_checklist','doc_attachments'];
 $sets = [];
 $params = [];
+$incomingStatus = isset($_POST['status']) ? trim((string)$_POST['status']) : null;
+$incomingStatusLower = $incomingStatus !== null ? mb_strtolower($incomingStatus, 'UTF-8') : null;
+$isPostVendaTriggerStatus = in_array($incomingStatusLower, ['homologado', 'concluido', 'concluído', 'fechado', 'finalizado'], true);
 $removedAttachmentPaths = [];
 if (isset($_POST['doc_attachments'])) {
     $existingStmt = $pdo->prepare('SELECT doc_attachments FROM projetos WHERE id = ? LIMIT 1');
@@ -70,6 +73,12 @@ foreach ($allowed as $f) {
         if ($f === 'proposal_value') $val = str_replace([',',' '], ['.',''], $val);
         $params[] = ($val === '' ? null : $val);
     }
+}
+
+// When a project reaches homologation/closure stages, ensure we stamp closed_date.
+if ($isPostVendaTriggerStatus && !isset($_POST['closed_date'])) {
+    $sets[] = 'closed_date = ?';
+    $params[] = date('Y-m-d');
 }
 
 if (empty($sets)) {
@@ -151,6 +160,50 @@ try {
             $leadParams[] = (int)$leadId;
             $leadUpd = $pdo->prepare($leadSql);
             $leadUpd->execute($leadParams);
+        }
+    }
+
+    // Auto-enroll project into post-sales when status reaches homologation/closure.
+    if ($isPostVendaTriggerStatus) {
+        $projectStmt = $pdo->prepare('SELECT id, user_id, client_name, closed_date FROM projetos WHERE id = ? LIMIT 1');
+        $projectStmt->execute([$id]);
+        $project = $projectStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($project && (int)$project['user_id'] === (int)$_SESSION['user_id']) {
+            $installationDate = null;
+            if (!empty($_POST['closed_date'])) {
+                $installationDate = substr((string)$_POST['closed_date'], 0, 10);
+            } elseif (!empty($project['closed_date'])) {
+                $installationDate = substr((string)$project['closed_date'], 0, 10);
+            }
+            if (!$installationDate) {
+                $installationDate = date('Y-m-d');
+            }
+
+            $nextMaintenance = date('Y-m-d', strtotime($installationDate . ' +6 months'));
+
+            $pvStmt = $pdo->prepare('SELECT id, installation_date, next_maintenance FROM pos_venda WHERE project_id = ? AND user_id = ? LIMIT 1');
+            $pvStmt->execute([(int)$project['id'], (int)$_SESSION['user_id']]);
+            $pv = $pvStmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($pv) {
+                $updPv = $pdo->prepare('UPDATE pos_venda SET client_name = ?, installation_date = COALESCE(installation_date, ?), next_maintenance = COALESCE(next_maintenance, ?), updated_at = NOW() WHERE id = ?');
+                $updPv->execute([
+                    (string)$project['client_name'],
+                    $installationDate,
+                    $nextMaintenance,
+                    (int)$pv['id'],
+                ]);
+            } else {
+                $insPv = $pdo->prepare('INSERT INTO pos_venda (user_id, project_id, client_name, installation_date, next_maintenance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())');
+                $insPv->execute([
+                    (int)$_SESSION['user_id'],
+                    (int)$project['id'],
+                    (string)$project['client_name'],
+                    $installationDate,
+                    $nextMaintenance,
+                ]);
+            }
         }
     }
 

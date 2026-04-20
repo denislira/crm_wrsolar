@@ -255,9 +255,9 @@ include 'includes/header.php';
                                                     </button>
                                                 <?php endif; ?>
                                             </div>
-                                            <?php $kwhValue = !empty($p['projeto_effective']) ? (string)$p['projeto_effective'] : null; ?>
+                                            <?php $kwhValue = !empty($p['projeto_effective']) ? $p['projeto_effective'] : null; ?>
                                             <div class="text-muted small mb-1 compact-hide">Valor do projeto: R$ <?= number_format((float)($p['proposal_value_effective'] ?? $p['proposal_value'] ?? 0), 2, ',', '.') ?></div>
-                                            <div class="text-muted small mb-1 compact-hide"><?= $kwhValue !== null ? htmlspecialchars(str_replace('.', ',', rtrim(rtrim($kwhValue, '0'), '.'))) . ' kwh' : 'Não informado' ?></div>
+                                            <div class="text-muted small mb-1 compact-hide"><?= $kwhValue !== null ? htmlspecialchars($kwhValue) . ' kwh' : 'Não informado' ?></div>
                                             <div class="text-muted small mb-1 compact-hide">Telefone: <strong><?= !empty($p['lead_phone']) ? htmlspecialchars($p['lead_phone']) : 'Não informado' ?></strong></div>
                                             <div class="text-muted small mb-1 compact-hide">Forma de Pagto: <strong><?= !empty($p['payment_type']) ? htmlspecialchars($p['payment_type']) : (!empty($p['contract']) ? htmlspecialchars($p['contract']) : 'Não informado') ?></strong></div>
 
@@ -361,6 +361,10 @@ include 'includes/header.php';
                             <input class="form-control" name="address" id="proj_address">
                         </div>
                         <div class="col-md-4">
+                            <label class="form-label">Telefone do Lead</label>
+                            <input type="text" class="form-control" id="proj_lead_phone" readonly>
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label">Status</label>
                             <select class="form-select" name="status" id="proj_status">
                                 <?php foreach ($kanbanStages as $stageOption): ?>
@@ -442,11 +446,11 @@ include 'includes/header.php';
                                 <div id="proj_doc_dropzone" class="file-dropzone">
                                     <div class="file-dropzone-content">
                                         <p class="mb-1">Arraste e solte um arquivo aqui ou clique para selecionar</p>
-                                        <small class="text-muted">Suporta .pdf, .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg, .doc, .docx, .xls, .xlsx, .ppt, .pptx, .txt</small>
+                                        <small class="text-muted">Aceita qualquer tipo de arquivo. Tamanho máximo 10 MB.</small>
                                     </div>
-                                    <input class="form-control form-control-sm file-dropzone-input" type="file" id="proj_doc_file" accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt">
+                                    <input class="form-control form-control-sm file-dropzone-input" type="file" id="proj_doc_file">
                                 </div>
-                                <div class="small text-muted mt-2">Arquivos são incluídos automaticamente após seleção ou soltar.</div>
+                                <div class="small text-muted mt-2">Arquivos são incluídos automaticamente após seleção ou soltar. Tamanho máximo: 10 MB.</div>
                                 <div id="proj_doc_attachments_list" class="mt-2"></div>
                             </div>
                         </div>
@@ -663,6 +667,12 @@ include 'includes/header.php';
                 return;
             }
 
+            const maxSize = 10 * 1024 * 1024;
+            if (file.size > maxSize) {
+                alert('Arquivo muito grande. O tamanho máximo permitido é 10 MB.');
+                return;
+            }
+
             const formData = new FormData();
             formData.append('project_id', projectId);
             formData.append('doc_file', file);
@@ -744,6 +754,7 @@ include 'includes/header.php';
                     document.getElementById('proj_client_name').value = p.client_name;
                     document.getElementById('proj_proposal_value').value = p.proposal_value;
                     document.getElementById('proj_address').value = p.address;
+                    document.getElementById('proj_lead_phone').value = p.lead_phone || '';
                     document.getElementById('proj_status').value = p.status;
                     document.getElementById('proj_closed_date').value = p.closed_date ? p.closed_date.split(' ')[0] : '';
                     document.getElementById('proj_due_days').value = (p.due_days ? p.due_days : 30);

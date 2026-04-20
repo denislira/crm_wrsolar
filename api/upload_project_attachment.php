@@ -40,34 +40,9 @@ if (empty($_FILES['doc_file']) || $_FILES['doc_file']['error'] !== UPLOAD_ERR_OK
 }
 
 $file = $_FILES['doc_file'];
-$allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'];
-$allowedMimeTypes = [
-    'application/pdf',
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/bmp',
-    'image/webp',
-    'image/svg+xml',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'text/plain',
-];
-
-$extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-if (!in_array($extension, $allowedExtensions, true)) {
-    echo json_encode(['success' => false, 'message' => 'Tipo de arquivo não permitido. Use formatos de imagem ou documentos comuns.']);
-    exit;
-}
-
-$finfo = new finfo(FILEINFO_MIME_TYPE);
-$mimeType = $finfo->file($file['tmp_name']);
-if (!in_array($mimeType, $allowedMimeTypes, true)) {
-    echo json_encode(['success' => false, 'message' => 'Tipo de arquivo inválido. Envie uma imagem ou documento permitido.']);
+$maxSize = 10 * 1024 * 1024;
+if ($file['size'] > $maxSize) {
+    echo json_encode(['success' => false, 'message' => 'Arquivo muito grande. O tamanho máximo permitido é 10 MB.']);
     exit;
 }
 

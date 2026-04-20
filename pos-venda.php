@@ -19,6 +19,41 @@ try {
     if (!in_array('last_checkup',   $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN last_checkup    DATE         DEFAULT NULL");
 } catch (Exception $e) { /* ignore */ }
 
+$schema = [
+    'pos_venda' => [],
+    'projetos' => []
+];
+try {
+    $schema['pos_venda'] = $pdo->query("SHOW TABLES LIKE 'pos_venda'")->fetchAll(PDO::FETCH_COLUMN) ? $pdo->query("SHOW COLUMNS FROM pos_venda")->fetchAll(PDO::FETCH_COLUMN) : [];
+    $schema['projetos'] = $pdo->query("SHOW TABLES LIKE 'projetos'")->fetchAll(PDO::FETCH_COLUMN) ? $pdo->query("SHOW COLUMNS FROM projetos")->fetchAll(PDO::FETCH_COLUMN) : [];
+} catch (Exception $e) { /* ignore */ }
+
+$hasClientStatus   = in_array('client_status',   $schema['projetos'], true);
+$hasPaymentStatus  = in_array('payment_status',  $schema['projetos'], true);
+$hasReferralToken  = in_array('referral_token',  $schema['pos_venda'], true);
+$hasPerformancePct = in_array('performance_pct', $schema['pos_venda'], true);
+$hasLastCheckup    = in_array('last_checkup',    $schema['pos_venda'], true);
+$hasClientType     = in_array('client_type',     $schema['pos_venda'], true);
+
+$missingSchemaMessage = '';
+if (empty($schema['pos_venda'])) {
+    $missingSchemaMessage = 'A tabela pos_venda não existe no banco de dados. Execute a migração da base.';
+} elseif (empty($schema['projetos'])) {
+    $missingSchemaMessage = 'A tabela projetos não existe no banco de dados. Verifique a instalação do CRM.';
+}
+
+if ($missingSchemaMessage) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'message' => $missingSchemaMessage]);
+        exit;
+    }
+    include 'includes/header.php';
+    echo '<div class="container py-5"><div class="alert alert-danger">' . htmlspecialchars($missingSchemaMessage) . '</div></div>';
+    include 'includes/footer.php';
+    exit;
+}
+
 try {
     $c = $pdo->query("SHOW COLUMNS FROM projetos LIKE 'client_status'")->fetchAll();
     if (empty($c)) $pdo->exec("ALTER TABLE projetos ADD COLUMN client_status VARCHAR(50) DEFAULT 'Assinante'");
@@ -44,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!in_array($clientStatus, ['Assinante','Ex-Cliente'])) $clientStatus = 'Assinante';
 
         // update projetos.client_status
-        if ($projId) {
+        if ($projId && $hasClientStatus) {
             $pdo->prepare('UPDATE projetos SET client_status=?, updated_at=NOW() WHERE id=? AND user_id=?')
                 ->execute([$clientStatus, $projId, $_SESSION['user_id']]);
         }
@@ -55,20 +90,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $exId = $ex->fetchColumn();
 
         if ($exId) {
-            $pdo->prepare('UPDATE pos_venda SET installation_date=?,next_maintenance=?,warranty_end=?,notes=?,performance_pct=?,client_type=?,last_checkup=?,updated_at=NOW() WHERE id=?')
-               ->execute([$instDate,$nextMaint,$warranty,$notes,$perf,$clientType,$lastCheckup,$exId]);
+            $updateFields = ['installation_date=?','next_maintenance=?','warranty_end=?','notes=?'];
+            $updateParams = [$instDate,$nextMaint,$warranty,$notes];
+            if ($hasPerformancePct) {
+                $updateFields[] = 'performance_pct=?';
+                $updateParams[] = $perf;
+            }
+            if ($hasClientType) {
+                $updateFields[] = 'client_type=?';
+                $updateParams[] = $clientType;
+            }
+            if ($hasLastCheckup) {
+                $updateFields[] = 'last_checkup=?';
+                $updateParams[] = $lastCheckup;
+            }
+            $updateFields[] = 'updated_at=NOW()';
+            $updateParams[] = $exId;
+            $pdo->prepare('UPDATE pos_venda SET ' . implode(',', $updateFields) . ' WHERE id=?')
+               ->execute($updateParams);
         } else {
             if (!$clientName && $projId) {
                 $r = $pdo->prepare('SELECT client_name FROM projetos WHERE id=? LIMIT 1');
                 $r->execute([$projId]); $clientName = $r->fetchColumn() ?: '';
             }
-            $pdo->prepare('INSERT INTO pos_venda (user_id,project_id,client_name,installation_date,next_maintenance,warranty_end,notes,performance_pct,client_type,last_checkup,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,NOW(),NOW())')
-               ->execute([$_SESSION['user_id'],$projId,$clientName,$instDate,$nextMaint,$warranty,$notes,$perf,$clientType,$lastCheckup]);
+            $cols = ['user_id','project_id','client_name','installation_date','next_maintenance','warranty_end','notes'];
+            $holders = ['?','?','?','?','?','?','?'];
+            $params = [$_SESSION['user_id'],$projId,$clientName,$instDate,$nextMaint,$warranty,$notes];
+            if ($hasPerformancePct) {
+                $cols[] = 'performance_pct'; $holders[] = '?'; $params[] = $perf;
+            }
+            if ($hasClientType) {
+                $cols[] = 'client_type'; $holders[] = '?'; $params[] = $clientType;
+            }
+            if ($hasLastCheckup) {
+                $cols[] = 'last_checkup'; $holders[] = '?'; $params[] = $lastCheckup;
+            }
+            $cols[] = 'created_at'; $holders[] = 'NOW()';
+            $cols[] = 'updated_at'; $holders[] = 'NOW()';
+            $sql = 'INSERT INTO pos_venda (' . implode(',', $cols) . ') VALUES (' . implode(',', $holders) . ')';
+            $pdo->prepare($sql)->execute($params);
         }
         echo json_encode(['success'=>true]); exit;
     }
 
+    if ($action === 'schedule_maintenance') {
+        $pvId = intval($_POST['pv_id'] ?? 0);
+        $date = trim((string)($_POST['maintenance_date'] ?? ''));
+
+        if ($pvId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            echo json_encode(['success'=>false,'message'=>'Dados inválidos']);
+            exit;
+        }
+
+        $pdo->prepare('UPDATE pos_venda SET next_maintenance=?, updated_at=NOW() WHERE id=? AND user_id=?')
+            ->execute([$date, $pvId, $_SESSION['user_id']]);
+
+        echo json_encode(['success'=>true]);
+        exit;
+    }
+
     if ($action === 'gen_referral') {
+        if (!$hasReferralToken) {
+            echo json_encode(['success'=>false,'message'=>'Recurso de indicação não disponível no banco de dados.']);
+            exit;
+        }
         $pvId  = intval($_POST['pv_id'] ?? 0);
         $token = bin2hex(random_bytes(16));
         $pdo->prepare('UPDATE pos_venda SET referral_token=? WHERE id=? AND user_id=?')
@@ -82,16 +167,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ── Fetch data ─────────────────────────────────────────────
-$stmt = $pdo->prepare('
-    SELECT pv.*, p.client_name, p.status AS proj_status, p.closed_date,
-           p.client_status, p.address, p.proposal_value, p.id AS proj_id
+$projetoSelect = [
+    'p.client_name',
+    'p.status AS proj_status',
+    'p.closed_date',
+    $hasClientStatus ? 'p.client_status' : "'Assinante' AS client_status",
+    $hasPaymentStatus ? 'p.payment_status' : 'NULL AS payment_status',
+    'p.address',
+    'p.proposal_value',
+    'p.id AS proj_id'
+];
+$stmt = $pdo->prepare(
+    'SELECT pv.*, ' . implode(', ', $projetoSelect) . "
     FROM pos_venda pv
     JOIN projetos p ON pv.project_id = p.id
     WHERE pv.user_id = ?
     ORDER BY pv.installation_date DESC
-');
+"
+);
 $stmt->execute([$_SESSION['user_id']]);
 $posVendas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$teamTasksAvailable = false;
+try {
+    $teamTasksAvailable = (bool)$pdo->query("SHOW TABLES LIKE 'team_tasks'")->fetchColumn();
+} catch (Exception $e) { /* ignore */ }
+
+$createAutoTask = function ($token, $title, $description, $dueDate, $team = 'Administrativo') use ($pdo, $teamTasksAvailable) {
+    if (!$teamTasksAvailable) return;
+    if (!$dueDate || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dueDate)) return;
+
+    try {
+        $marker = '[' . $token . ']';
+        $exists = $pdo->prepare('SELECT id FROM team_tasks WHERE user_id = ? AND descricao LIKE ? LIMIT 1');
+        $exists->execute([$_SESSION['user_id'], '%' . $marker . '%']);
+        if ($exists->fetchColumn()) return;
+
+        $ins = $pdo->prepare('INSERT INTO team_tasks (user_id, equipe, titulo, descricao, status, responsavel, data_vencimento, criado_em, atualizado_em) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+        $ins->execute([
+            $_SESSION['user_id'],
+            $team,
+            $title,
+            $description . ' ' . $marker,
+            'Pendente',
+            $_SESSION['username'] ?? null,
+            $dueDate,
+        ]);
+    } catch (Exception $e) { /* ignore */ }
+};
 
 // ── KPIs + card enrichment ─────────────────────────────────
 $now = new DateTime();
@@ -106,8 +229,93 @@ foreach ($posVendas as &$pv) {
     $diff = $instDt ? $instDt->diff($now) : null;
     $pv['months_elapsed'] = $diff ? ($diff->y * 12 + $diff->m) : 0;
     $m  = $pv['months_elapsed'];
+
+    // At month 12+, recurring status is automatic based on payment status.
+    $shouldStatus = null;
+    if ($m >= 12) {
+        $pay = strtolower(trim((string)($pv['payment_status'] ?? '')));
+        $shouldStatus = ($pay === 'pago') ? 'Assinante' : 'Ex-Cliente';
+    }
+
+    if ($shouldStatus && $pv['client_status'] !== $shouldStatus) {
+        $pdo->prepare('UPDATE projetos SET client_status=?, updated_at=NOW() WHERE id=? AND user_id=?')
+            ->execute([$shouldStatus, $pv['proj_id'], $_SESSION['user_id']]);
+        $pv['client_status'] = $shouldStatus;
+
+        if ($shouldStatus === 'Ex-Cliente' && !is_null($pv['performance_pct'])) {
+            // Inactive clients lose access to performance reporting data.
+            $pdo->prepare('UPDATE pos_venda SET performance_pct=NULL, updated_at=NOW() WHERE id=? AND user_id=?')
+                ->execute([$pv['id'], $_SESSION['user_id']]);
+            $pv['performance_pct'] = null;
+        }
+    }
+
     $isEx = ($pv['client_status'] === 'Ex-Cliente');
+    $payStatus = strtolower(trim((string)($pv['payment_status'] ?? '')));
+    $pv['payment_ok'] = ($payStatus === 'pago');
     $ct   = $pv['client_type'] ?? 'Degustação';
+
+    // Amigo Solar trigger after 90 days from installation.
+    $daysElapsed = $instDt ? (int)$instDt->diff($now)->format('%a') : 0;
+    $pv['amigo_eligible'] = (!$isEx && $daysElapsed >= 90);
+
+    if ($pv['amigo_eligible'] && empty($pv['referral_token']) && $instDt) {
+        $amigoDate = (clone $instDt)->modify('+90 days')->format('Y-m-d');
+        $amigoToken = 'AUTO_AMIGO90_' . (int)$pv['id'];
+        $createAutoTask(
+            $amigoToken,
+            'Contato Amigo Solar: ' . $pv['client_name'],
+            'Cliente elegivel para programa de indicacoes (90 dias de funcionamento). Oferecer brinde/desconto por indicacao.',
+            $amigoDate,
+            'Comercial'
+        );
+    }
+
+    // Preventive maintenance trigger every 6 months from last check-up (or installation when absent).
+    $checkBase = null;
+    if (!empty($pv['last_checkup']) && $pv['last_checkup'] !== '0000-00-00') {
+        $checkBase = new DateTime($pv['last_checkup']);
+    } elseif ($instDt) {
+        $checkBase = clone $instDt;
+    }
+    if ($checkBase && !$isEx) {
+        $checkDue = (clone $checkBase)->modify('+6 months');
+        if ($now >= $checkDue) {
+            $checkToken = 'AUTO_CHECKUP_' . (int)$pv['id'] . '_' . $checkDue->format('Ymd');
+            $createAutoTask(
+                $checkToken,
+                'Lembrete: agendar limpeza tecnica - ' . $pv['client_name'],
+                'Entrar em contato com o cliente para agendar limpeza/check-up preventivo de 6 meses.',
+                $checkDue->format('Y-m-d'),
+                'Administrativo'
+            );
+        }
+    }
+
+    // Annual renewal trigger on installation anniversary.
+    if ($instDt && !$isEx) {
+        $annivMonth = (int)$instDt->format('m');
+        $annivDay = (int)$instDt->format('d');
+        $currentYear = (int)$now->format('Y');
+        $annivCurrent = new DateTime($currentYear . '-' . str_pad((string)$annivMonth, 2, '0', STR_PAD_LEFT) . '-01');
+        $maxDay = (int)$annivCurrent->format('t');
+        $annivCurrent->setDate($currentYear, $annivMonth, min($annivDay, $maxDay));
+
+        $yearsElapsed = $currentYear - (int)$instDt->format('Y');
+        if ($yearsElapsed >= 1 && $now >= $annivCurrent) {
+            $renewToken = 'AUTO_RENOV_' . (int)$pv['id'] . '_' . $currentYear;
+            $createAutoTask(
+                $renewToken,
+                'Gerar OS de visita tecnica preventiva - ' . $pv['client_name'],
+                'Gerar ordem de servico de renovacao anual para visita tecnica preventiva.',
+                $annivCurrent->format('Y-m-d'),
+                'Tecnica'
+            );
+        }
+    }
+
+    // Annual maintenance only allowed for paid customers after degustation period.
+    $pv['maintenance_locked'] = (!$isEx && $m >= 12 && !$pv['payment_ok']);
 
     // Badge & color
     if ($isEx) {
@@ -117,15 +325,14 @@ foreach ($posVendas as &$pv) {
     } elseif ($m >= 12) {
         $assinantesAtivos++;
         $label = strtolower($ct);
-        if (str_contains($label,'embaixador'))    { $pv['badge_label']='EMBAIXADOR';     $pv['badge_class']='warning'; }
-        elseif (str_contains($label,'cortesia'))  { $pv['badge_label']='CORTESIA';       $pv['badge_class']='info'; }
+        if (strpos($label,'embaixador') !== false)    { $pv['badge_label']='EMBAIXADOR';     $pv['badge_class']='warning'; }
         else                                      { $pv['badge_label']='ASSINANTE ATIVO';$pv['badge_class']='success'; }
         $pv['card_class'] = 'border-success';
     } else {
         $emDegustacao++;
         $label = strtolower($ct);
-        if (str_contains($label,'embaixador'))    { $pv['badge_label']='EMBAIXADOR';     $pv['badge_class']='warning'; }
-        elseif (str_contains($label,'cortesia'))  { $pv['badge_label']='CORTESIA';       $pv['badge_class']='info'; }
+        if (strpos($label,'embaixador') !== false)    { $pv['badge_label']='EMBAIXADOR';     $pv['badge_class']='warning'; }
+        elseif (strpos($label,'cortesia') !== false)  { $pv['badge_label']='CORTESIA';       $pv['badge_class']='info'; }
         else                                      { $pv['badge_label']='EM DEGUSTAÇÃO';  $pv['badge_class']='secondary'; }
         $pv['card_class'] = ($m >= 10) ? 'border-warning' : '';
     }
@@ -155,8 +362,8 @@ unset($pv);
 $total = count($posVendas);
 $conversaoRecorrencia = $total > 0 ? round(($assinantesAtivos / $total) * 100) : 0;
 
-// Fetch all closed/finished projects for the "Add" modal select
-$projStmt = $pdo->prepare("SELECT id, client_name FROM projetos WHERE user_id=? AND (status='Fechado' OR status='Finalizado') ORDER BY client_name ASC");
+// Fetch all eligible projects for the "Add" modal select
+$projStmt = $pdo->prepare("SELECT id, client_name FROM projetos WHERE user_id=? AND status IN ('Fechado','Finalizado','Homologado','Concluído','Concluido') ORDER BY client_name ASC");
 $projStmt->execute([$_SESSION['user_id']]);
 $projetosDisponiveis = $projStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -265,7 +472,7 @@ include 'includes/header.php';
                                 <?= $pv['badge_label'] ?>
                             </span>
                             <?php /* extra CORTESIA badge for Embaixadores in degustação */ ?>
-                            <?php if (!$isEx && str_contains(strtolower($pv['client_type']??''), 'embaixador') && $pv['months_elapsed'] < 12): ?>
+                            <?php if (!$isEx && strpos(strtolower($pv['client_type'] ?? ''), 'embaixador') !== false && $pv['months_elapsed'] < 12): ?>
                             <span class="pv-badge text-info border border-info">CORTESIA</span>
                             <?php endif; ?>
                         </div>
@@ -309,20 +516,27 @@ include 'includes/header.php';
                         <div class="pv-meta-label"><i class="fa fa-wrench me-1"></i>Último Check-up</div>
                         <div class="d-flex justify-content-between align-items-center">
                             <span class="pv-meta-val"><?= htmlspecialchars($pv['checkup_human']) ?></span>
-                            <?php if (!$isEx): ?>
+                            <?php if (!$isEx && empty($pv['maintenance_locked'])): ?>
                             <button class="btn btn-sm fw-semibold pv-btn-limpeza"
                                 style="font-size:.73rem;border:1px solid #0d9488;color:#0d9488;border-radius:6px;padding:2px 8px;"
                                 data-pv-id="<?= $pv['id'] ?>"
                                 data-client="<?= htmlspecialchars($pv['client_name'],ENT_QUOTES) ?>">
                                 AGENDAR LIMPEZA
                             </button>
+                            <?php elseif (!$isEx): ?>
+                            <span class="pv-blocked"><i class="fa fa-lock me-1"></i>Manutenção anual liberada após pagamento</span>
                             <?php endif; ?>
                         </div>
                     </div>
 
                     <div class="mt-auto d-flex flex-column gap-2">
+                        <?php if (!empty($pv['amigo_eligible']) && empty($pv['referral_token']) && !$isEx): ?>
+                        <div class="pv-sla-alert" style="background:#e7f8ef;color:#0f5132;">
+                            <i class="fa fa-gift me-1"></i>Elegível ao Amigo Solar: sugerir brinde/desconto por indicação.
+                        </div>
+                        <?php endif; ?>
                         <!-- Gerar Link Amigo Solar -->
-                        <button class="btn btn-sm btn-outline-secondary btn-amigo pv-btn-amigo"
+                        <button class="btn btn-sm <?= (!empty($pv['amigo_eligible']) && empty($pv['referral_token']) && !$isEx) ? 'btn-outline-success' : 'btn-outline-secondary' ?> btn-amigo pv-btn-amigo"
                             data-pv-id="<?= $pv['id'] ?>"
                             data-client="<?= htmlspecialchars($pv['client_name'],ENT_QUOTES) ?>"
                             data-token="<?= htmlspecialchars($pv['referral_token']??'',ENT_QUOTES) ?>">
@@ -543,16 +757,24 @@ include 'includes/header.php';
     $('pvLimpezaConfirm').addEventListener('click', async ()=>{
         const date = $('pvLimpezaDate').value;
         if (!date || !_limpezaPvId) return;
-        // update next_maintenance via save_pv with partial fields
-        const fd = new FormData();
-        fd.append('action','save_pv');
-        fd.append('project_id', _limpezaPvId); // will be overridden below, use pv id doesn't work, open edit
-        // Instead just reload in edit modal – simpler: save next_maintenance
         try {
-            // We lack project_id here from id alone; fetch it or just alert user
+            const fd = new FormData();
+            fd.append('action', 'schedule_maintenance');
+            fd.append('pv_id', _limpezaPvId);
+            fd.append('maintenance_date', date);
+
+            const r = await fetch('pos-venda.php', { method:'POST', body:fd });
+            const d = await r.json();
+            if (!d.success) {
+                alert('Erro ao agendar limpeza: ' + (d.message || ''));
+                return;
+            }
+
             bootstrap.Modal.getInstance($('pvLimpezaModal'))?.hide();
-            alert('Limpeza agendada para ' + new Date(date).toLocaleDateString('pt-BR') + '.\nAbra "Editar registro" para salvar a data de Próxima Manutenção.');
-        } catch(err){}
+            location.reload();
+        } catch(err){
+            alert('Falha ao agendar limpeza: ' + err.message);
+        }
     });
 
     // ── Gerar Link Amigo Solar ──
