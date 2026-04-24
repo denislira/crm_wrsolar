@@ -253,6 +253,17 @@ body.theme-dark .fc-page { background: #071427; }
                 </div>
               </div>
             </div>
+            <div class="col-lg-6">
+              <div class="fc-panel">
+                <div class="fc-panel-header">
+                  <div class="fc-panel-title"><i class="fa fa-credit-card"></i> Formas de Pagamento</div>
+                  <button id="addPaymentMethodBtnConfig" class="btn-add-stage"><i class="fa fa-plus"></i> Novo item</button>
+                </div>
+                <div class="fc-panel-body">
+                  <div id="paymentMethodsList" style="min-height:220px"></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

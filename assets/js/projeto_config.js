@@ -1,8 +1,10 @@
 (function(){
   const api = 'includes/projeto_stages_api.php';
   const checklistApi = 'includes/project_checklists_api.php';
+  const paymentApi = 'includes/payment_methods_api.php';
   let stages = [];
   let checklistItems = { technical: [], document: [] };
+  let paymentMethods = [];
 
   function $(selector) {
     return document.querySelector(selector);
@@ -64,6 +66,18 @@
     } catch (err) {
       console.error(err);
       showStatus('Erro ao carregar checklists', 'error');
+    }
+  }
+
+  async function loadPaymentMethods() {
+    try {
+      const res = await fetch(`${paymentApi}?action=list`);
+      if (!res.ok) throw new Error('Falha ao carregar formas de pagamento');
+      paymentMethods = await res.json();
+      renderPaymentMethodsList();
+    } catch (err) {
+      console.error(err);
+      showStatus('Erro ao carregar formas de pagamento', 'error');
     }
   }
 
@@ -158,6 +172,41 @@
       const target = e.target.closest('.stages-row');
       if (!target) return;
       await reorderChecklistItems(type, dragId, target.dataset.id);
+    });
+  }
+
+  function renderPaymentMethodsList() {
+    const container = $('#paymentMethodsList');
+    if (!container) return;
+
+    const items = Array.isArray(paymentMethods) ? paymentMethods : [];
+    container.innerHTML = '';
+
+    if (!items.length) {
+      container.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#94a3b8;font-size:.85rem;">Nenhuma forma de pagamento cadastrada.</div>';
+      return;
+    }
+
+    items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'stages-row';
+      row.dataset.id = item.id;
+      row.innerHTML = `
+        <div class="d-flex align-items-center gap-2" style="min-width:0;">
+          <span class="drag-handle" title="Item de pagamento"><i class="fa fa-circle"></i></span>
+          <div style="min-width:0;">
+            <div class="stage-name">${item.name || ''}</div>
+          </div>
+        </div>
+        <div class="d-flex gap-2 align-items-center flex-shrink-0">
+          <button class="btn-edit-stage edit-payment" data-id="${item.id}">Editar</button>
+          <button class="btn-edit-stage delete-payment" data-id="${item.id}">Excluir</button>
+        </div>
+      `;
+
+      row.querySelector('.edit-payment').addEventListener('click', () => editPaymentMethod(item.id));
+      row.querySelector('.delete-payment').addEventListener('click', () => deletePaymentMethod(item.id));
+      container.appendChild(row);
     });
   }
 
@@ -334,6 +383,65 @@
     }
   }
 
+  async function addPaymentMethod() {
+    const name = prompt('Nome da nova forma de pagamento');
+    if (!name) return;
+    try {
+      const body = new URLSearchParams({ name: name.trim() });
+      const res = await fetch(`${paymentApi}?action=add`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body.toString()
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || 'Falha ao cadastrar forma de pagamento');
+      await loadPaymentMethods();
+      showStatus('Forma de pagamento cadastrada com sucesso', 'success');
+    } catch (err) {
+      showStatus(err.message, 'error');
+    }
+  }
+
+  async function editPaymentMethod(id) {
+    const item = (paymentMethods || []).find(x => String(x.id) === String(id));
+    if (!item) return;
+    const name = prompt('Editar forma de pagamento', item.name || '');
+    if (!name) return;
+
+    try {
+      const body = new URLSearchParams({ id: String(id), name: name.trim() });
+      const res = await fetch(`${paymentApi}?action=update`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body.toString()
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || 'Falha ao atualizar forma de pagamento');
+      await loadPaymentMethods();
+      showStatus('Forma de pagamento atualizada com sucesso', 'success');
+    } catch (err) {
+      showStatus(err.message, 'error');
+    }
+  }
+
+  async function deletePaymentMethod(id) {
+    if (!confirm('Excluir forma de pagamento?')) return;
+    try {
+      const body = new URLSearchParams({ id: String(id) });
+      const res = await fetch(`${paymentApi}?action=delete`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body.toString()
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || 'Falha ao excluir forma de pagamento');
+      await loadPaymentMethods();
+      showStatus('Forma de pagamento excluída com sucesso', 'success');
+    } catch (err) {
+      showStatus(err.message, 'error');
+    }
+  }
+
   function renderPreview(stage) {
     const preview = $('#stagePreview');
     if (!preview) return;
@@ -361,15 +469,18 @@
   document.addEventListener('DOMContentLoaded', () => {
     loadStages();
     loadChecklistItems();
+    loadPaymentMethods();
     const addStageBtn = $('#addStageBtn');
     const addTechBtn = $('#addTechnicalItemBtn');
     const addDocBtn = $('#addDocItemBtn');
+    const addPaymentBtn = $('#addPaymentMethodBtnConfig');
     const saveStageBtn = $('#saveStage');
     const deleteStageBtn = $('#deleteStage');
 
     if (addStageBtn) addStageBtn.addEventListener('click', e => { e.preventDefault(); addStage(); });
     if (addTechBtn) addTechBtn.addEventListener('click', e => { e.preventDefault(); addChecklistItem('technical'); });
     if (addDocBtn) addDocBtn.addEventListener('click', e => { e.preventDefault(); addChecklistItem('document'); });
+    if (addPaymentBtn) addPaymentBtn.addEventListener('click', e => { e.preventDefault(); addPaymentMethod(); });
     if (saveStageBtn) saveStageBtn.addEventListener('click', e => { e.preventDefault(); saveStage(); });
     if (deleteStageBtn) deleteStageBtn.addEventListener('click', e => { e.preventDefault(); deleteStage(); });
 

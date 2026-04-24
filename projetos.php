@@ -207,8 +207,26 @@ include 'includes/header.php';
                 </div>
             </div>
             <div class="d-flex gap-2 mb-4 flex-wrap justify-content-center align-items-center">
-                <input type="search" id="filtroPagamento" class="form-control form-control-sm w-auto" placeholder="Filtrar por forma de pagamento...">
-                <input type="search" id="filtroBusca" class="form-control form-control-sm w-50" placeholder="Buscar cliente ou projeto...">
+                <input type="search" id="filtroBusca" class="form-control form-control-sm" style="max-width:250px;" placeholder="Buscar cliente, projeto, contrato, telefone, pagamento...">
+                <select id="filtroStatus" class="form-select form-select-sm w-auto">
+                    <option value="all">Todos os Status</option>
+                    <?php foreach ($kanbanStages as $stageOption): ?>
+                        <option value="<?= htmlspecialchars(strtolower($stageOption)) ?>"><?= htmlspecialchars($stageOption) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <select id="filtroPaymentStatus" class="form-select form-select-sm w-auto">
+                    <option value="all">Todos os Pagamentos</option>
+                    <option value="pago">Pago</option>
+                    <option value="pendente">Pendente</option>
+                </select>
+                <select id="filtroPaymentType" class="form-select form-select-sm w-auto">
+                    <option value="">Todos os tipos</option>
+                    <option value="à vista">À vista</option>
+                    <option value="boleto">Boleto</option>
+                    <option value="financiamento">Financiamento</option>
+                    <option value="cartão">Cartão</option>
+                </select>
+                <button id="btnLimparFiltros" class="btn btn-outline-secondary btn-sm">Limpar filtros</button>
                 <button id="btnCompactCards" class="btn btn-outline-secondary btn-sm">Compactar cards</button>
             </div>
             <!-- Kanban por estágio -->
@@ -235,7 +253,7 @@ include 'includes/header.php';
                             <div class="card-body p-2 board-column" data-stage="<?= $stage ?>" data-stage-color="<?= htmlspecialchars($stageColor) ?>">
                                 <?php foreach ($stageProjects[$stage] as $p): ?>
                                     <?php $projectStageColor = $stageColor; ?>
-                                    <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" data-user-id="<?= $p['user_id'] ?>" draggable="true" style="border-left:4px solid <?= htmlspecialchars($projectStageColor) ?>; border-color: <?= htmlspecialchars($projectStageColor) ?>;">
+                                    <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" data-user-id="<?= $p['user_id'] ?>" data-status="<?= htmlspecialchars(strtolower($p['status'] ?? '')) ?>" data-payment-type="<?= htmlspecialchars(strtolower($p['payment_type'] ?? '')) ?>" data-payment-status="<?= htmlspecialchars(strtolower($paymentStatus)) ?>" data-client-name="<?= htmlspecialchars(strtolower($p['client_name'] ?? '')) ?>" data-contract="<?= htmlspecialchars(strtolower($p['contract'] ?? '')) ?>" data-lead-phone="<?= htmlspecialchars(strtolower($p['lead_phone'] ?? '')) ?>" draggable="true" style="border-left:4px solid <?= htmlspecialchars($projectStageColor) ?>; border-color: <?= htmlspecialchars($projectStageColor) ?>;">
                                         <div class="card-body p-2">
                                             <?php
                                                 $paymentStatus = isset($p['payment_status']) && $p['payment_status'] !== ''
@@ -374,13 +392,12 @@ include 'includes/header.php';
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Forma de Pagamento</label>
-                            <select class="form-select" name="payment_type" id="proj_payment_type">
-                                <option value="">Selecione...</option>
-                                <option value="À vista">À vista</option>
-                                <option value="Boleto">Boleto</option>
-                                <option value="Financiamento">Financiamento</option>
-                                <option value="Cartão">Cartão</option>
-                            </select>
+                            <div class="input-group">
+                                <select class="form-select" name="payment_type" id="proj_payment_type">
+                                    <option value="">Selecione...</option>
+                                </select>
+                                <button type="button" class="btn btn-outline-primary" id="btnAddPaymentType" title="Cadastrar forma de pagamento">+</button>
+                            </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Status do Pagamento</label>
@@ -476,21 +493,85 @@ include 'includes/header.php';
         const bsModal = new bootstrap.Modal(modalEl);
 
         const btnExcluirProjeto = document.getElementById('btnExcluirProjeto');
+        const sessionUserId = "<?= $_SESSION['user_id'] ?>";
+        const paymentMethodsApi = 'includes/payment_methods_api.php';
+        const projPaymentType = document.getElementById('proj_payment_type');
+        const btnAddPaymentType = document.getElementById('btnAddPaymentType');
 
         const checklistApi = 'includes/project_checklists_api.php';
         const projectChecklistOptions = { technical: [], document: [] };
-        const checklistLoaded = loadProjectChecklistOptions();
+        let loadedChecklistOwnerId = null;
 
         document.getElementById('btnNovoProjeto').addEventListener('click', async ()=>{
             document.getElementById('formProjeto').reset();
             document.getElementById('proj_id').value = '';
             document.getElementById('proj_due_days').value = '30';
             btnExcluirProjeto.style.display = 'none';
-            await checklistLoaded;
+            await loadPaymentMethodsSelect('');
+            await loadProjectChecklistOptions(sessionUserId);
             renderProjectChecklistChoices('technical', []);
             renderProjectChecklistChoices('document', []);
             bsModal.show();
         });
+
+        async function loadPaymentMethodsSelect(selectedValue = '') {
+            if (!projPaymentType) return;
+            const selected = String(selectedValue || '');
+            try {
+                const res = await fetch(paymentMethodsApi + '?action=list');
+                if (!res.ok) throw new Error('Falha ao carregar formas de pagamento');
+                const methods = await res.json();
+
+                projPaymentType.innerHTML = '<option value="">Selecione...</option>';
+                (Array.isArray(methods) ? methods : []).forEach(m => {
+                    const name = String(m.name || '').trim();
+                    if (!name) return;
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    projPaymentType.appendChild(opt);
+                });
+
+                if (selected) {
+                    const hasOption = Array.from(projPaymentType.options).some(opt => opt.value === selected);
+                    if (!hasOption) {
+                        const customOpt = document.createElement('option');
+                        customOpt.value = selected;
+                        customOpt.textContent = selected;
+                        projPaymentType.appendChild(customOpt);
+                    }
+                    projPaymentType.value = selected;
+                }
+            } catch (err) {
+                console.error('Falha ao carregar formas de pagamento:', err);
+            }
+        }
+
+        if (btnAddPaymentType) {
+            btnAddPaymentType.addEventListener('click', async () => {
+                const name = prompt('Informe o nome da nova forma de pagamento:');
+                if (!name || !name.trim()) return;
+                const normalized = name.trim();
+                btnAddPaymentType.disabled = true;
+                try {
+                    const body = new URLSearchParams({ name: normalized });
+                    const res = await fetch(paymentMethodsApi + '?action=add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: body.toString()
+                    });
+                    const json = await res.json();
+                    if (!res.ok || json.error) {
+                        throw new Error(json.error || 'Falha ao cadastrar forma de pagamento');
+                    }
+                    await loadPaymentMethodsSelect(normalized);
+                } catch (err) {
+                    alert('Erro ao cadastrar forma de pagamento: ' + (err.message || err));
+                } finally {
+                    btnAddPaymentType.disabled = false;
+                }
+            });
+        }
 
         btnExcluirProjeto.addEventListener('click', async ()=>{
             const projectId = document.getElementById('proj_id').value;
@@ -508,14 +589,22 @@ include 'includes/header.php';
             }
         });
 
-        async function loadProjectChecklistOptions() {
+        async function loadProjectChecklistOptions(ownerUserId, projectId = null) {
+            const resolvedOwnerUserId = String(ownerUserId || sessionUserId);
+            if (loadedChecklistOwnerId === resolvedOwnerUserId) {
+                return;
+            }
+
             try {
+                const ownerParam = '&owner_user_id=' + encodeURIComponent(resolvedOwnerUserId);
+                const projectParam = projectId ? '&project_id=' + encodeURIComponent(String(projectId)) : '';
                 const [techRes, docRes] = await Promise.all([
-                    fetch(`${checklistApi}?action=list&type=technical`),
-                    fetch(`${checklistApi}?action=list&type=document`)
+                    fetch(`${checklistApi}?action=list&type=technical${projectParam}${ownerParam}`),
+                    fetch(`${checklistApi}?action=list&type=document${projectParam}${ownerParam}`)
                 ]);
                 if (techRes.ok) projectChecklistOptions.technical = await techRes.json();
                 if (docRes.ok) projectChecklistOptions.document = await docRes.json();
+                loadedChecklistOwnerId = resolvedOwnerUserId;
             } catch (err) {
                 console.error('Falha ao carregar opções de checklist:', err);
             }
@@ -760,13 +849,13 @@ include 'includes/header.php';
                     document.getElementById('proj_due_days').value = (p.due_days ? p.due_days : 30);
                     document.getElementById('proj_contract').value = p.contract || '';
                     document.getElementById('proj_projeto').value = p.projeto || '';
-                    document.getElementById('proj_payment_type').value = p.payment_type || '';
+                    await loadPaymentMethodsSelect(p.payment_type || '');
                     document.getElementById('proj_payment_status').value = p.payment_status || '';
                     document.getElementById('proj_logistics_tracking_code').value = p.logistics_tracking_code || '';
                     document.getElementById('proj_logistics_delivery_date').value = p.logistics_delivery_date ? p.logistics_delivery_date.split(' ')[0] : '';
                     document.getElementById('proj_inspection_photos').value = p.inspection_photos || '';
 
-                    await checklistLoaded;
+                    await loadProjectChecklistOptions(p.user_id || sessionUserId, p.id);
                     renderProjectChecklistSelections(p);
                     document.getElementById('proj_technical_checklist').value = p.technical_checklist || '';
                     document.getElementById('proj_docs_checklist').value = p.docs_checklist || '';
@@ -918,28 +1007,50 @@ include 'includes/header.php';
         }
 
         const currentUserId = "<?= $_SESSION['user_id'] ?>";
-        const filtroPagamento = document.getElementById('filtroPagamento');
         const filtroBusca = document.getElementById('filtroBusca');
+        const filtroStatus = document.getElementById('filtroStatus');
+        const filtroPaymentStatus = document.getElementById('filtroPaymentStatus');
+        const filtroPaymentType = document.getElementById('filtroPaymentType');
         const btnTodosProjetos = document.getElementById('btnTodosProjetos');
         const btnMeusProjetos = document.getElementById('btnMeusProjetos');
+        const btnLimparFiltros = document.getElementById('btnLimparFiltros');
         let userFilter = 'all';
+
+        const syncBoardColumns = () => {
+            document.querySelectorAll('.board-column').forEach(col => {
+                const visibleCards = Array.from(col.querySelectorAll('.card-project')).filter(card => card.style.display !== 'none').length;
+                col.style.display = visibleCards ? '' : 'none';
+                const headerBadge = col.closest('.kanban-column')?.querySelector('.card-header .badge');
+                if (headerBadge) headerBadge.textContent = visibleCards;
+            });
+        };
 
         const applyFilters = () => {
             const txt = filtroBusca.value.trim().toLowerCase();
-            const pag = filtroPagamento.value.trim().toLowerCase();
+            const statusFilter = filtroStatus.value;
+            const paymentStatusFilter = filtroPaymentStatus.value;
+            const paymentTypeFilter = filtroPaymentType.value.trim().toLowerCase();
 
             document.querySelectorAll('.card-project').forEach(card => {
                 const ownerId = card.dataset.userId;
-                const title = card.querySelector('.project-title')?.textContent.toLowerCase() || '';
-                const contract = card.querySelector('.project-contract')?.textContent.toLowerCase() || '';
-                const status = card.querySelector('.status-badge')?.textContent.toLowerCase() || '';
+                const clientName = (card.dataset.clientName || '').toLowerCase();
+                const projectId = (card.dataset.id || '').toString().toLowerCase();
+                const contract = (card.dataset.contract || '').toLowerCase();
+                const leadPhone = (card.dataset.leadPhone || '').toLowerCase();
+                const paymentType = (card.dataset.paymentType || '').toLowerCase();
+                const paymentStatus = (card.dataset.paymentStatus || '').toLowerCase();
+                const status = (card.dataset.status || '').toLowerCase();
 
                 const byUser = userFilter === 'all' || ownerId === currentUserId;
-                const byText = txt === '' || title.includes(txt) || contract.includes(txt) || status.includes(txt);
-                const byPayment = pag === '' || contract.includes(pag);
+                const byText = txt === '' || clientName.includes(txt) || projectId.includes(txt) || contract.includes(txt) || leadPhone.includes(txt) || paymentType.includes(txt) || paymentStatus.includes(txt) || status.includes(txt);
+                const byStatus = statusFilter === 'all' || statusFilter === '' || status === statusFilter;
+                const byPaymentStatus = paymentStatusFilter === 'all' || paymentStatusFilter === '' || paymentStatus === paymentStatusFilter;
+                const byPaymentType = paymentTypeFilter === '' || paymentType.includes(paymentTypeFilter);
 
-                card.style.display = (byUser && byText && byPayment) ? 'block' : 'none';
+                card.style.display = (byUser && byText && byStatus && byPaymentStatus && byPaymentType) ? 'block' : 'none';
             });
+
+            syncBoardColumns();
         };
 
         btnTodosProjetos.addEventListener('click', () => {
@@ -956,8 +1067,21 @@ include 'includes/header.php';
             applyFilters();
         });
 
-        filtroPagamento.addEventListener('input', applyFilters);
+        btnLimparFiltros.addEventListener('click', () => {
+            filtroBusca.value = '';
+            filtroStatus.value = 'all';
+            filtroPaymentStatus.value = 'all';
+            filtroPaymentType.value = '';
+            userFilter = 'all';
+            btnTodosProjetos.classList.add('active');
+            btnMeusProjetos.classList.remove('active');
+            applyFilters();
+        });
+
         filtroBusca.addEventListener('input', applyFilters);
+        filtroStatus.addEventListener('change', applyFilters);
+        filtroPaymentStatus.addEventListener('change', applyFilters);
+        filtroPaymentType.addEventListener('change', applyFilters);
 
         document.getElementById('leadDetailsPanel').addEventListener('click', (e)=>{
             if (e.target && e.target.id === 'closeLeadPanel') {

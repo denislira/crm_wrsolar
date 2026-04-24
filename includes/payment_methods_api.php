@@ -1,7 +1,21 @@
 <?php
 header('Content-Type: application/json');
 if (session_status() === PHP_SESSION_NONE) session_start();
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Not authenticated']);
+    exit;
+}
+
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/permissions.php';
+
+if (!hasPermission('projetos')) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Access denied']);
+    exit;
+}
+
 $action = $_REQUEST['action'] ?? 'list';
 try {
     if ($action === 'list') {
