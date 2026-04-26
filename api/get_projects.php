@@ -15,7 +15,7 @@ if (!hasPermission('projetos')) {
     exit;
 }
 
-$stmt = $pdo->prepare('SELECT p.*, l.phone AS lead_phone, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto FROM projetos p LEFT JOIN leads l ON l.id = p.lead_id AND l.user_id = p.user_id ORDER BY p.id DESC');
+$stmt = $pdo->prepare('SELECT p.*, l.phone AS lead_phone, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto FROM projetos p LEFT JOIN leads l ON l.id = p.lead_id ORDER BY p.id DESC');
 $stmt->execute();
 $projetos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
