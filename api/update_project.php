@@ -28,7 +28,7 @@ if ($id <= 0) {
     exit;
 }
 
-$allowed = ['client_name','address','proposal_value','projeto','status','contract','closed_date','due_days','client_status','payment_type','payment_status','logistics_tracking_code','logistics_delivery_date','inspection_photos','technical_checklist','docs_checklist','doc_attachments'];
+$allowed = ['client_name','address','proposal_value','projeto','status','contract','closed_date','due_days','client_status','payment_method_id','payment_type','payment_status','logistics_tracking_code','logistics_delivery_date','inspection_photos','technical_checklist','docs_checklist','doc_attachments'];
 $sets = [];
 $params = [];
 $incomingStatus = isset($_POST['status']) ? trim((string)$_POST['status']) : null;
@@ -75,6 +75,20 @@ foreach ($allowed as $f) {
     }
 }
 
+if (isset($_POST['payment_method_id'])) {
+    $paymentMethodId = intval($_POST['payment_method_id']);
+    if ($paymentMethodId > 0) {
+        $pmStmt = $pdo->prepare('SELECT name FROM payment_methods WHERE id = ? AND code = 2 LIMIT 1');
+        $pmStmt->execute([$paymentMethodId]);
+        $resolvedPaymentType = $pmStmt->fetchColumn();
+        $sets[] = 'payment_type = ?';
+        $params[] = ($resolvedPaymentType !== false) ? (string)$resolvedPaymentType : null;
+    } else {
+        $sets[] = 'payment_type = ?';
+        $params[] = null;
+    }
+}
+
 // When a project reaches homologation/closure stages, ensure we stamp closed_date.
 if ($isPostVendaTriggerStatus && !isset($_POST['closed_date'])) {
     $sets[] = 'closed_date = ?';
@@ -90,6 +104,7 @@ if (empty($sets)) {
 try {
     $columnsToCheck = [
         'client_status' => "VARCHAR(50) DEFAULT 'Assinante'",
+        'payment_method_id' => 'INT DEFAULT NULL',
         'payment_type' => "VARCHAR(50) DEFAULT NULL",
         'payment_status' => "VARCHAR(50) DEFAULT NULL",
         'contract' => 'TEXT DEFAULT NULL',

@@ -30,10 +30,20 @@ $closed_date = $_POST['closed_date'] ?? null;
 $contract = isset($_POST['contract']) ? trim($_POST['contract']) : null;
 $contract = $contract === '' ? null : $contract;
 $client_status = $_POST['client_status'] ?? null; // 'Assinante' or 'Ex-Cliente'
+$payment_method_id = isset($_POST['payment_method_id']) && $_POST['payment_method_id'] !== '' ? intval($_POST['payment_method_id']) : null;
 $payment_type = $_POST['payment_type'] ?? null;
 $payment_type = $payment_type === '' ? null : $payment_type;
 $payment_status = $_POST['payment_status'] ?? null;
 $payment_status = $payment_status === '' ? null : $payment_status;
+
+if ($payment_method_id !== null && $payment_method_id > 0) {
+    $pmStmt = $pdo->prepare('SELECT name FROM payment_methods WHERE id = ? AND code = 2 LIMIT 1');
+    $pmStmt->execute([$payment_method_id]);
+    $resolvedPaymentType = $pmStmt->fetchColumn();
+    if ($resolvedPaymentType !== false) {
+        $payment_type = (string)$resolvedPaymentType;
+    }
+}
 
 $logistics_tracking_code = isset($_POST['logistics_tracking_code']) ? trim($_POST['logistics_tracking_code']) : null;
 $logistics_tracking_code = $logistics_tracking_code === '' ? null : $logistics_tracking_code;
@@ -65,6 +75,7 @@ try {
     try {
         $columnsToCheck = [
             'client_status' => "VARCHAR(50) DEFAULT 'Assinante'",
+            'payment_method_id' => 'INT DEFAULT NULL',
             'payment_type' => "VARCHAR(50) DEFAULT NULL",
             'payment_status' => "VARCHAR(50) DEFAULT NULL",
             'contract' => 'TEXT DEFAULT NULL',
@@ -131,7 +142,7 @@ try {
         }
     }
 
-    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, projeto, due_days, client_status, payment_type, payment_status, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, projeto, due_days, client_status, payment_method_id, payment_type, payment_status, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
     $stmt->execute([
         $_SESSION['user_id'],
         $client_name,
@@ -144,6 +155,7 @@ try {
         $projeto,
         $due_days,
         $client_status,
+        $payment_method_id,
         $payment_type,
         $payment_status,
         $logistics_tracking_code,

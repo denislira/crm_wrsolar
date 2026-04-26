@@ -12,8 +12,19 @@ require_once __DIR__ . '/includes/permissions.php';
 
 checkAccessOrRedirect('projetos');
 
+// Safe migration for payment method relation in projects.
+try {
+    $col = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = 'payment_method_id'");
+    $col->execute();
+    if (!$col->fetchColumn()) {
+        $pdo->exec("ALTER TABLE projetos ADD COLUMN payment_method_id INT DEFAULT NULL");
+    }
+} catch (Exception $e) {
+    // Ignore migration errors and keep backward compatibility with payment_type fallback.
+}
+
 // Exibir projetos com dados do lead vinculado (fonte de verdade para telefone, kWh e orçamento)
-$stmt = $pdo->prepare('SELECT p.*, l.phone AS lead_phone, l.orcamento_value AS lead_orcamento_value, l.estimativa_projeto_kwh AS lead_kwh, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value_effective, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto_effective FROM projetos p LEFT JOIN leads l ON l.id = p.lead_id AND l.user_id = p.user_id ORDER BY p.id DESC');
+$stmt = $pdo->prepare('SELECT p.*, pm.name AS payment_method_name, COALESCE(pm.name, p.payment_type) AS payment_type_effective, l.phone AS lead_phone, l.orcamento_value AS lead_orcamento_value, l.estimativa_projeto_kwh AS lead_kwh, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value_effective, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto_effective FROM projetos p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.code = 2 LEFT JOIN leads l ON l.id = p.lead_id AND l.user_id = p.user_id ORDER BY p.id DESC');
 $stmt->execute();
 $projetos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -253,7 +264,7 @@ include 'includes/header.php';
                             <div class="card-body p-2 board-column" data-stage="<?= $stage ?>" data-stage-color="<?= htmlspecialchars($stageColor) ?>">
                                 <?php foreach ($stageProjects[$stage] as $p): ?>
                                     <?php $projectStageColor = $stageColor; ?>
-                                    <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" data-user-id="<?= $p['user_id'] ?>" data-status="<?= htmlspecialchars(strtolower($p['status'] ?? '')) ?>" data-payment-type="<?= htmlspecialchars(strtolower($p['payment_type'] ?? '')) ?>" data-payment-status="<?= htmlspecialchars(strtolower($paymentStatus)) ?>" data-client-name="<?= htmlspecialchars(strtolower($p['client_name'] ?? '')) ?>" data-contract="<?= htmlspecialchars(strtolower($p['contract'] ?? '')) ?>" data-lead-phone="<?= htmlspecialchars(strtolower($p['lead_phone'] ?? '')) ?>" draggable="true" style="border-left:4px solid <?= htmlspecialchars($projectStageColor) ?>; border-color: <?= htmlspecialchars($projectStageColor) ?>;">
+                                    <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" data-user-id="<?= $p['user_id'] ?>" data-status="<?= htmlspecialchars(strtolower($p['status'] ?? '')) ?>" data-payment-type="<?= htmlspecialchars(strtolower($p['payment_type_effective'] ?? '')) ?>" data-payment-status="<?= htmlspecialchars(strtolower($paymentStatus)) ?>" data-client-name="<?= htmlspecialchars(strtolower($p['client_name'] ?? '')) ?>" data-contract="<?= htmlspecialchars(strtolower($p['contract'] ?? '')) ?>" data-lead-phone="<?= htmlspecialchars(strtolower($p['lead_phone'] ?? '')) ?>" draggable="true" style="border-left:4px solid <?= htmlspecialchars($projectStageColor) ?>; border-color: <?= htmlspecialchars($projectStageColor) ?>;">
                                         <div class="card-body p-2">
                                             <?php
                                                 $paymentStatus = isset($p['payment_status']) && $p['payment_status'] !== ''
@@ -277,7 +288,7 @@ include 'includes/header.php';
                                             <div class="text-muted small mb-1 compact-hide">Valor do projeto: R$ <?= number_format((float)($p['proposal_value_effective'] ?? $p['proposal_value'] ?? 0), 2, ',', '.') ?></div>
                                             <div class="text-muted small mb-1 compact-hide"><?= $kwhValue !== null ? htmlspecialchars($kwhValue) . ' kwh' : 'Não informado' ?></div>
                                             <div class="text-muted small mb-1 compact-hide">Telefone: <strong><?= !empty($p['lead_phone']) ? htmlspecialchars($p['lead_phone']) : 'Não informado' ?></strong></div>
-                                            <div class="text-muted small mb-1 compact-hide">Forma de Pagto: <strong><?= !empty($p['payment_type']) ? htmlspecialchars($p['payment_type']) : (!empty($p['contract']) ? htmlspecialchars($p['contract']) : 'Não informado') ?></strong></div>
+                                            <div class="text-muted small mb-1 compact-hide">Forma de Pagto: <strong><?= !empty($p['payment_type_effective']) ? htmlspecialchars($p['payment_type_effective']) : (!empty($p['contract']) ? htmlspecialchars($p['contract']) : 'Não informado') ?></strong></div>
 
                                             <div class="d-flex align-items-center gap-2 mb-1">
                                                 <?php
@@ -393,7 +404,7 @@ include 'includes/header.php';
                         <div class="col-md-4">
                             <label class="form-label">Forma de Pagamento</label>
                             <div class="input-group">
-                                <select class="form-select" name="payment_type" id="proj_payment_type">
+                                <select class="form-select" name="payment_method_id" id="proj_payment_type">
                                     <option value="">Selecione...</option>
                                 </select>
                                 <button type="button" class="btn btn-outline-primary" id="btnAddPaymentType" title="Cadastrar forma de pagamento">+</button>
@@ -495,6 +506,7 @@ include 'includes/header.php';
         const btnExcluirProjeto = document.getElementById('btnExcluirProjeto');
         const sessionUserId = "<?= $_SESSION['user_id'] ?>";
         const paymentMethodsApi = 'includes/payment_methods_api.php';
+        const paymentMethodsCode = 2;
         const projPaymentType = document.getElementById('proj_payment_type');
         const btnAddPaymentType = document.getElementById('btnAddPaymentType');
 
@@ -518,7 +530,7 @@ include 'includes/header.php';
             if (!projPaymentType) return;
             const selected = String(selectedValue || '');
             try {
-                const res = await fetch(paymentMethodsApi + '?action=list');
+                const res = await fetch(paymentMethodsApi + '?action=list&code=' + encodeURIComponent(String(paymentMethodsCode)));
                 if (!res.ok) throw new Error('Falha ao carregar formas de pagamento');
                 const methods = await res.json();
 
@@ -527,20 +539,23 @@ include 'includes/header.php';
                     const name = String(m.name || '').trim();
                     if (!name) return;
                     const opt = document.createElement('option');
-                    opt.value = name;
+                    opt.value = String(m.id || '');
                     opt.textContent = name;
                     projPaymentType.appendChild(opt);
                 });
 
                 if (selected) {
-                    const hasOption = Array.from(projPaymentType.options).some(opt => opt.value === selected);
-                    if (!hasOption) {
-                        const customOpt = document.createElement('option');
-                        customOpt.value = selected;
-                        customOpt.textContent = selected;
-                        projPaymentType.appendChild(customOpt);
+                    // Prefer selecting by id; fallback to name for legacy records.
+                    const byId = Array.from(projPaymentType.options).find(opt => opt.value === selected);
+                    if (byId) {
+                        projPaymentType.value = byId.value;
+                        return;
                     }
-                    projPaymentType.value = selected;
+
+                    const byName = Array.from(projPaymentType.options).find(opt => opt.textContent === selected);
+                    if (byName) {
+                        projPaymentType.value = byName.value;
+                    }
                 }
             } catch (err) {
                 console.error('Falha ao carregar formas de pagamento:', err);
@@ -555,7 +570,7 @@ include 'includes/header.php';
                 btnAddPaymentType.disabled = true;
                 try {
                     const body = new URLSearchParams({ name: normalized });
-                    const res = await fetch(paymentMethodsApi + '?action=add', {
+                    const res = await fetch(paymentMethodsApi + '?action=add&code=' + encodeURIComponent(String(paymentMethodsCode)), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: body.toString()
@@ -849,7 +864,7 @@ include 'includes/header.php';
                     document.getElementById('proj_due_days').value = (p.due_days ? p.due_days : 30);
                     document.getElementById('proj_contract').value = p.contract || '';
                     document.getElementById('proj_projeto').value = p.projeto || '';
-                    await loadPaymentMethodsSelect(p.payment_type || '');
+                    await loadPaymentMethodsSelect(p.payment_method_id || p.payment_type || '');
                     document.getElementById('proj_payment_status').value = p.payment_status || '';
                     document.getElementById('proj_logistics_tracking_code').value = p.logistics_tracking_code || '';
                     document.getElementById('proj_logistics_delivery_date').value = p.logistics_delivery_date ? p.logistics_delivery_date.split(' ')[0] : '';

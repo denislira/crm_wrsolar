@@ -2,6 +2,7 @@
   const api = 'includes/projeto_stages_api.php';
   const checklistApi = 'includes/project_checklists_api.php';
   const paymentApi = 'includes/payment_methods_api.php';
+  const paymentCode = 2;
   let stages = [];
   let checklistItems = { technical: [], document: [] };
   let paymentMethods = [];
@@ -71,7 +72,7 @@
 
   async function loadPaymentMethods() {
     try {
-      const res = await fetch(`${paymentApi}?action=list`);
+      const res = await fetch(`${paymentApi}?action=list&code=${encodeURIComponent(String(paymentCode))}`);
       if (!res.ok) throw new Error('Falha ao carregar formas de pagamento');
       paymentMethods = await res.json();
       renderPaymentMethodsList();
@@ -388,7 +389,7 @@
     if (!name) return;
     try {
       const body = new URLSearchParams({ name: name.trim() });
-      const res = await fetch(`${paymentApi}?action=add`, {
+      const res = await fetch(`${paymentApi}?action=add&code=${encodeURIComponent(String(paymentCode))}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: body.toString()
@@ -410,7 +411,7 @@
 
     try {
       const body = new URLSearchParams({ id: String(id), name: name.trim() });
-      const res = await fetch(`${paymentApi}?action=update`, {
+      const res = await fetch(`${paymentApi}?action=update&code=${encodeURIComponent(String(paymentCode))}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: body.toString()
@@ -428,7 +429,7 @@
     if (!confirm('Excluir forma de pagamento?')) return;
     try {
       const body = new URLSearchParams({ id: String(id) });
-      const res = await fetch(`${paymentApi}?action=delete`, {
+      const res = await fetch(`${paymentApi}?action=delete&code=${encodeURIComponent(String(paymentCode))}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: body.toString()

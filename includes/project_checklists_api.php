@@ -17,21 +17,9 @@ if (!hasPermission('projetos')) {
 }
 
 $userId = $_SESSION['user_id'];
-$listUserId = $userId;
 $action = $_REQUEST['action'] ?? 'list';
 $type = $_REQUEST['type'] ?? '';
 $allowedTypes = ['technical', 'document'];
-
-function resolveAdminChecklistOwnerId(PDO $pdo) {
-    $stmt = $pdo->query('SELECT id FROM users WHERE role_id = 1 ORDER BY id ASC LIMIT 1');
-    $adminId = (int)$stmt->fetchColumn();
-    if ($adminId > 0) {
-        return $adminId;
-    }
-
-    $fallbackStmt = $pdo->query('SELECT user_id FROM projeto_checklist_items ORDER BY id ASC LIMIT 1');
-    return (int)$fallbackStmt->fetchColumn();
-}
 
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS projeto_checklist_items (
@@ -58,43 +46,13 @@ try {
     }
 
     if ($action === 'list') {
-        $projectId = isset($_REQUEST['project_id']) ? (int)$_REQUEST['project_id'] : 0;
-        if ($projectId > 0) {
-            $ownerStmt = $pdo->prepare('SELECT user_id FROM projetos WHERE id = ? LIMIT 1');
-            $ownerStmt->execute([$projectId]);
-            $projectOwnerId = (int)$ownerStmt->fetchColumn();
-            if ($projectOwnerId > 0) {
-                $listUserId = $projectOwnerId;
-            }
-        } else {
-            $requestedOwnerId = isset($_REQUEST['owner_user_id']) ? (int)$_REQUEST['owner_user_id'] : 0;
-            if ($requestedOwnerId > 0) {
-                $listUserId = $requestedOwnerId;
-            }
-        }
-
-        // In generic list contexts (e.g., projeto_config), if user has no checklist,
-        // expose admin-defined checklist so other users can at least see the shared model.
-        if ($projectId <= 0 && empty($_REQUEST['owner_user_id'])) {
-            $countStmt = $pdo->prepare('SELECT COUNT(*) FROM projeto_checklist_items WHERE user_id = ?');
-            $countStmt->execute([$listUserId]);
-            $hasOwnItems = ((int)$countStmt->fetchColumn()) > 0;
-
-            if (!$hasOwnItems) {
-                $adminOwnerId = resolveAdminChecklistOwnerId($pdo);
-                if ($adminOwnerId > 0) {
-                    $listUserId = $adminOwnerId;
-                }
-            }
-        }
-
         if ($type && !in_array($type, $allowedTypes, true)) {
             throw new Exception('Tipo inválido');
         }
 
         if ($type) {
-            $stmt = $pdo->prepare('SELECT id, name, position FROM projeto_checklist_items WHERE user_id = ? AND checklist_type = ? ORDER BY position ASC, id ASC');
-            $stmt->execute([$listUserId, $type]);
+            $stmt = $pdo->prepare('SELECT id, name, position FROM projeto_checklist_items WHERE checklist_type = ? ORDER BY position ASC, id ASC');
+            $stmt->execute([$type]);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode($rows);
             exit;
@@ -102,8 +60,8 @@ try {
 
         $result = [];
         foreach ($allowedTypes as $t) {
-            $stmt = $pdo->prepare('SELECT id, name, position FROM projeto_checklist_items WHERE user_id = ? AND checklist_type = ? ORDER BY position ASC, id ASC');
-            $stmt->execute([$listUserId, $t]);
+            $stmt = $pdo->prepare('SELECT id, name, position FROM projeto_checklist_items WHERE checklist_type = ? ORDER BY position ASC, id ASC');
+            $stmt->execute([$t]);
             $result[$t] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
         echo json_encode($result);
