@@ -227,9 +227,11 @@ try {
         $hasClosedAt = in_array('closed_at', $leadCols);
         $hasIsConversation = in_array('is_conversation', $leadCols);
         $valueCol = null;
-        foreach (['value','amount','budget','estimated_value'] as $vc) if (in_array($vc, $leadCols)) { $valueCol = $vc; break; }
+        foreach (['orcamento_value','proposal_value','value','amount','budget','estimated_value'] as $vc) {
+            if (in_array($vc, $leadCols, true)) { $valueCol = $vc; break; }
+        }
         $sourceCol = null;
-        foreach (['source','origem','lead_source'] as $sc) if (in_array($sc, $leadCols)) { $sourceCol = $sc; break; }
+        foreach (['source','origem','lead_source'] as $sc) if (in_array($sc, $leadCols, true)) { $sourceCol = $sc; break; }
 
         // Check if funil_stages has is_conversion column
         $fsColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
@@ -473,9 +475,13 @@ try {
 // Final stage and conversion — uses funil_stages.is_conversion = 1 when available
 $finalStageCount = 0; $conversionRate = 0.0;
 try {
+        $leadColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
+        $leadCols = $leadColsStmt->fetchAll(PDO::FETCH_COLUMN);
+        $hasStageId = in_array('stage_id', $leadCols, true);
+
         $fsConvColStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
         $fsConvCols = $fsConvColStmt->fetchAll(PDO::FETCH_COLUMN);
-        if (in_array('is_conversion', $fsConvCols, true)) {
+        if ($hasStageId && in_array('is_conversion', $fsConvCols, true)) {
                 // count leads whose current stage is marked as conversion
                 $fstmt = $pdo->prepare(
                         "SELECT COUNT(*) FROM leads l
@@ -483,13 +489,16 @@ try {
                          WHERE {$filterWhere}"
                 );
                 $fstmt->execute($filterParams);
-        } elseif (count($stages) > 0) {
-                // fallback: last stage
+        } elseif ($hasStageId && count($stages) > 0) {
+                // fallback: last stage by stage_id or matching status name
                 $final = end($stages);
                 $fstmt = $pdo->prepare('SELECT COUNT(*) FROM leads WHERE (stage_id = ? OR status = ?) AND ' . $filterWhere);
                 $fstmt->execute(array_merge([$final['id'], $final['name']], $filterParams));
         } else {
-                $fstmt = null;
+                // fallback by status text when stage system is not available
+                $statusPattern = "(status LIKE '%fechado%' OR status LIKE '%ganho%' OR status LIKE '%convertido%')";
+                $fstmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE {$statusPattern} AND {$filterWhere}");
+                $fstmt->execute($filterParams);
         }
         if ($fstmt) {
                 $finalStageCount = (int)$fstmt->fetchColumn();
@@ -2094,14 +2103,18 @@ function renderLeadsMonthlyChart() {
     destroyChart('chartLeadsMonthly');
     
     const monthsMap = {}; 
-    REPORT_MONTHS.forEach(r=>monthsMap[r.ym]=Number(r.cnt));
+    REPORT_MONTHS.forEach(r => monthsMap[r.ym] = Number(r.cnt));
     const monthsClosedMap = {}; 
-    REPORT_MONTHS_CLOSED.forEach(r=>monthsClosedMap[r.ym]=Number(r.cnt));
+    REPORT_MONTHS_CLOSED.forEach(r => monthsClosedMap[r.ym] = Number(r.cnt));
     const last12 = buildLast12Months();
-    const createdData = last12.map(m=>monthsMap[m]||0);
-    const closedData = last12.map(m=>monthsClosedMap[m]||0);
+    const createdData = last12.map(m => monthsMap[m] || 0);
+    const closedData = last12.map(m => monthsClosedMap[m] || 0);
     const labels = last12.map(getMonthName);
-    
+    const maxValue = Math.max(...createdData, ...closedData, 1);
+    const desiredLines = 12;
+    const stepSize = Math.max(1, Math.ceil(maxValue / desiredLines));
+    const maxTick = Math.ceil(maxValue / stepSize) * stepSize;
+
     chartInstances['chartLeadsMonthly'] = new Chart(ctx, { 
         type:'line', 
         data:{ 
@@ -2121,9 +2134,12 @@ function renderLeadsMonthlyChart() {
                     data:closedData, 
                     borderColor:'#10b981', 
                     backgroundColor:'rgba(16,185,129,0.1)', 
-                    fill:true,
+                    fill:false,
                     tension: 0.4,
-                    borderWidth: 2
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor:'#10b981'
                 }
             ]
         }, 
@@ -2135,10 +2151,31 @@ function renderLeadsMonthlyChart() {
                 tooltip: {
                     mode: 'index',
                     intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            const index = context.dataIndex;
+                            const actual = context.dataset.label === 'Leads Criados'
+                                ? createdData[index]
+                                : closedData[index];
+                            return `${context.dataset.label}: ${actual}`;
+                        }
+                    }
                 }
             }, 
             scales:{ 
-                y:{ beginAtZero:true, ticks: { precision: 0 } }
+                y:{
+                    beginAtZero:true,
+                    max: maxTick,
+                    grace: '5%',
+                    ticks: {
+                        precision: 0,
+                        stepSize: stepSize,
+                        maxTicksLimit: desiredLines,
+                        callback: function(value) {
+                            return Number.isInteger(value) ? value : value.toFixed(0);
+                        }
+                    }
+                }
             },
             interaction: {
                 mode: 'nearest',

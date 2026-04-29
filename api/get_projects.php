@@ -8,6 +8,7 @@ if (!isset($_SESSION['user_id'])) {
 
 include '../includes/config.php';
 include '../includes/permissions.php';
+require_once '../includes/project_post_sale_automation.php';
 
 if (!hasPermission('projetos')) {
     http_response_code(403);
@@ -15,7 +16,9 @@ if (!hasPermission('projetos')) {
     exit;
 }
 
-$stmt = $pdo->prepare('SELECT p.*, l.phone AS lead_phone, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto FROM projetos p LEFT JOIN leads l ON l.id = p.lead_id ORDER BY p.id DESC');
+runProjectPostSaleAutomation($pdo, (int) $_SESSION['user_id']);
+
+$stmt = $pdo->prepare('SELECT p.*, l.phone AS lead_phone, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto FROM projetos p LEFT JOIN leads l ON l.id = p.lead_id LEFT JOIN pos_venda pv ON pv.project_id = p.id WHERE pv.id IS NULL ORDER BY p.id DESC');
 $stmt->execute();
 $projetos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

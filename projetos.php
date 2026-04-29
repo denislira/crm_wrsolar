@@ -9,6 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/permissions.php';
+require_once __DIR__ . '/includes/project_post_sale_automation.php';
 
 checkAccessOrRedirect('projetos');
 
@@ -23,8 +24,11 @@ try {
     // Ignore migration errors and keep backward compatibility with payment_type fallback.
 }
 
+// Aplicar automação configurada por coluna antes de listar, para projetos elegíveis sumirem do kanban.
+runProjectPostSaleAutomation($pdo, (int) $_SESSION['user_id']);
+
 // Exibir projetos com dados do lead vinculado (fonte de verdade para telefone, kWh e orçamento)
-$stmt = $pdo->prepare('SELECT p.*, pm.name AS payment_method_name, COALESCE(pm.name, p.payment_type) AS payment_type_effective, l.phone AS lead_phone, l.orcamento_value AS lead_orcamento_value, l.estimativa_projeto_kwh AS lead_kwh, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value_effective, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto_effective FROM projetos p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.code = 2 LEFT JOIN leads l ON l.id = p.lead_id ORDER BY p.id DESC');
+$stmt = $pdo->prepare('SELECT p.*, pm.name AS payment_method_name, COALESCE(pm.name, p.payment_type) AS payment_type_effective, l.phone AS lead_phone, l.orcamento_value AS lead_orcamento_value, l.estimativa_projeto_kwh AS lead_kwh, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value_effective, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto_effective FROM projetos p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.code = 2 LEFT JOIN leads l ON l.id = p.lead_id LEFT JOIN pos_venda pv ON pv.project_id = p.id WHERE pv.id IS NULL ORDER BY p.id DESC');
 $stmt->execute();
 $projetos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -53,6 +57,118 @@ include 'includes/header.php';
             #kanbanBoard > .kanban-column {
                 flex: 0 0 320px;
                 max-width: 320px;
+            }
+            .top-kpi-col { flex: 0 0 auto; }
+            .top-kpi-card {
+                min-width: 170px;
+                padding: 0.9rem !important;
+            }
+            .top-kpi-card .small {
+                font-size: 0.72rem;
+            }
+            .top-kpi-card .h4 {
+                font-size: 1.1rem;
+            }
+            .top-kpi-card i {
+                font-size: 1.35rem !important;
+                margin-top: 0.35rem;
+            }
+            .top-info-toggle {
+                width: 42px;
+                height: 42px;
+                border: 1px solid #dbe4f0;
+                border-radius: 999px;
+                background: rgba(255,255,255,0.92);
+                color: #1d4ed8;
+                box-shadow: 0 10px 24px rgba(15,23,42,0.10);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
+            }
+            .top-info-toggle:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 14px 30px rgba(15,23,42,0.15);
+                background: #ffffff;
+            }
+            .top-info-toggle i {
+                font-size: 1rem;
+            }
+            .project-header-icon-btn {
+                width: 42px;
+                height: 42px;
+                border-radius: 999px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border: 1px solid transparent;
+                box-shadow: 0 10px 24px rgba(15,23,42,0.10);
+                transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease, color .18s ease;
+            }
+            .project-header-icon-btn:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 14px 30px rgba(15,23,42,0.15);
+            }
+            .project-header-icon-btn i {
+                font-size: 1rem;
+            }
+            .project-config-btn {
+                background: #eff6ff;
+                border-color: #93c5fd;
+                color: #1d4ed8;
+            }
+            .project-config-btn:hover {
+                background: #dbeafe;
+                border-color: #60a5fa;
+                color: #1e40af;
+            }
+            .project-filter-btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 999px;
+                width: 42px;
+                height: 42px;
+                padding: 0;
+                font-weight: 600;
+                border-width: 1px;
+                box-shadow: 0 6px 18px rgba(15,23,42,0.08);
+                transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease, color .18s ease;
+            }
+            .project-filter-btn:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 10px 22px rgba(15,23,42,0.12);
+            }
+            .project-filter-btn i {
+                font-size: 0.92rem;
+            }
+            .project-filter-btn-clear {
+                background: #fff7ed;
+                border-color: #fdba74;
+                color: #c2410c;
+            }
+            .project-filter-btn-clear:hover {
+                background: #ffedd5;
+                color: #9a3412;
+                border-color: #fb923c;
+            }
+            .project-filter-btn-compact {
+                background: #ecfdf5;
+                border-color: #86efac;
+                color: #15803d;
+            }
+            .project-filter-btn-compact:hover {
+                background: #dcfce7;
+                color: #166534;
+                border-color: #4ade80;
+            }
+            body.hide-project-top-info .project-top-section {
+                display: none !important;
+            }
+            body.hide-project-top-info .top-info-toggle {
+                background: #1d4ed8;
+                color: #ffffff;
+                border-color: #1d4ed8;
             }
             .stage-card { border: 1px solid #e3e9ef; }
             .board-column { min-height: 400px; max-height: calc(100vh - 360px); overflow-y: auto; background: #f8fafc; border-radius: 0 0 .25rem .25rem; }
@@ -128,7 +244,10 @@ include 'includes/header.php';
             <div class="d-flex align-items-center justify-content-between mb-2">
                 <h1 class="h4 mb-0">Projetos</h1>
                 <div class="d-flex gap-2">
-                    <a href="projeto_config.php" class="btn btn-outline-secondary btn-sm">Configurar Colunas do Projeto</a>
+                    <button type="button" id="toggleTopInfo" class="btn top-info-toggle" title="Ocultar informacoes do topo" aria-label="Ocultar informacoes do topo" aria-pressed="false">
+                        <i class="fa fa-eye-slash" aria-hidden="true"></i>
+                    </button>
+                    <a href="projeto_config.php" class="btn btn-sm project-header-icon-btn project-config-btn" title="Configurar Colunas do Projeto" aria-label="Configurar Colunas do Projeto"><i class="fa fa-sliders-h" aria-hidden="true"></i></a>
                     <button id="btnNovoProjeto" class="btn btn-primary btn-sm">Novo Projeto</button>
                 </div>
             </div>
@@ -178,32 +297,64 @@ include 'includes/header.php';
             $total = count($projetos);
             $concluidos = count(array_filter($projetos, fn($p) => $p['status'] === 'Concluído'));
             $pendentes = $total - $concluidos;
-            $avg = $total ? array_sum(array_map(static fn($proj) => (float)($proj['proposal_value_effective'] ?? $proj['proposal_value'] ?? 0), $projetos)) / $total : 0;
+            $proposalSum = array_sum(array_map(static function($proj) {
+                $raw = $proj['proposal_value'] ?? 0;
+                if ($raw === null || $raw === '') return 0.0;
+                if (is_numeric($raw)) return (float)$raw;
+
+                $value = trim((string)$raw);
+                $value = preg_replace('/[^0-9,.-]/', '', $value);
+
+                if (strpos($value, ',') !== false && strpos($value, '.') !== false) {
+                    // If comma is the last separator, assume BR format: 1.234,56
+                    if (strrpos($value, ',') > strrpos($value, '.')) {
+                        $value = str_replace('.', '', $value);
+                        $value = str_replace(',', '.', $value);
+                    } else {
+                        // US format: 1,234.56
+                        $value = str_replace(',', '', $value);
+                    }
+                } elseif (strpos($value, ',') !== false) {
+                    // Only comma present: treat as decimal separator.
+                    $value = str_replace('.', '', $value);
+                    $value = str_replace(',', '.', $value);
+                }
+
+                return is_numeric($value) ? (float)$value : 0.0;
+            }, $projetos));
+            $avg = $total ? ($proposalSum / $total) : 0;
             ?>
-            <div class="row g-3 mb-4 justify-content-center">
-                <div class="col-md-3">
-                    <div class="card p-3 text-center shadow-sm">
+            <div class="row g-2 mb-4 justify-content-center project-top-section">
+                <div class="col-auto top-kpi-col">
+                    <div class="card top-kpi-card text-center shadow-sm">
                         <div class="small text-muted">Total de Projetos</div>
                         <div class="h4 mb-0"><?= $total ?></div>
                         <i class="fa fa-folder-open fa-2x text-primary"></i>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="card p-3 text-center shadow-sm">
+                <div class="col-auto top-kpi-col">
+                    <div class="card top-kpi-card text-center shadow-sm">
                         <div class="small text-muted">Aguardando Pagamento</div>
                         <div class="h4 mb-0"><?= $pendentes ?></div>
                         <i class="fa fa-clock fa-2x text-danger"></i>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="card p-3 text-center shadow-sm">
+                <div class="col-auto top-kpi-col">
+                    <div class="card top-kpi-card text-center shadow-sm">
                         <div class="small text-muted">Financeiro Aprovado</div>
                         <div class="h4 mb-0"><?= $concluidos ?></div>
                         <i class="fa fa-check-circle fa-2x text-success"></i>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="card p-3 text-center shadow-sm">
+                <div class="col-auto top-kpi-col">
+                    <div class="card top-kpi-card text-center shadow-sm">
+                        <div class="small text-muted">Total em R$</div>
+                        <div class="h4 mb-0">R$ <?= number_format($proposalSum, 2, ',', '.') ?></div>
+                        <i class="fa fa-coins fa-2x text-info"></i>
+                    </div>
+                </div>
+                <div class="col-auto top-kpi-col">
+                    <div class="card top-kpi-card text-center shadow-sm">
                         <div class="small text-muted">Ticket Médio</div>
                         <div class="h4 mb-0">R$ <?= number_format($avg, 2, ',', '.') ?></div>
                         <i class="fa fa-dollar-sign fa-2x text-warning"></i>
@@ -211,13 +362,13 @@ include 'includes/header.php';
                 </div>
             </div>
             <!-- Filtros -->
-            <div class="d-flex gap-2 mb-3 flex-wrap justify-content-center">
+            <div class="d-flex gap-2 mb-3 flex-wrap justify-content-center project-top-section">
                 <div class="btn-group" role="group" aria-label="Filtro de proprietário">
                     <button type="button" id="btnTodosProjetos" class="btn btn-outline-primary btn-sm active">Todos os Projetos</button>
                     <button type="button" id="btnMeusProjetos" class="btn btn-outline-secondary btn-sm">Meus Projetos</button>
                 </div>
             </div>
-            <div class="d-flex gap-2 mb-4 flex-wrap justify-content-center align-items-center">
+            <div class="d-flex gap-2 mb-4 flex-wrap justify-content-center align-items-center project-top-section">
                 <input type="search" id="filtroBusca" class="form-control form-control-sm" style="max-width:250px;" placeholder="Buscar cliente, projeto, contrato, telefone, pagamento...">
                 <select id="filtroStatus" class="form-select form-select-sm w-auto">
                     <option value="all">Todos os Status</option>
@@ -232,13 +383,9 @@ include 'includes/header.php';
                 </select>
                 <select id="filtroPaymentType" class="form-select form-select-sm w-auto">
                     <option value="">Todos os tipos</option>
-                    <option value="à vista">À vista</option>
-                    <option value="boleto">Boleto</option>
-                    <option value="financiamento">Financiamento</option>
-                    <option value="cartão">Cartão</option>
                 </select>
-                <button id="btnLimparFiltros" class="btn btn-outline-secondary btn-sm">Limpar filtros</button>
-                <button id="btnCompactCards" class="btn btn-outline-secondary btn-sm">Compactar cards</button>
+                <button id="btnLimparFiltros" class="btn btn-sm project-filter-btn project-filter-btn-clear" title="Limpar filtros" aria-label="Limpar filtros"><i class="fa fa-eraser" aria-hidden="true"></i></button>
+                <button id="btnCompactCards" class="btn btn-sm project-filter-btn project-filter-btn-compact" title="Compactar cards" aria-label="Compactar cards"><i class="fa fa-compress-alt" aria-hidden="true"></i></button>
             </div>
             <!-- Kanban por estágio -->
             <?php
@@ -504,6 +651,7 @@ include 'includes/header.php';
         const bsModal = new bootstrap.Modal(modalEl);
 
         const btnExcluirProjeto = document.getElementById('btnExcluirProjeto');
+        const toggleTopInfoBtn = document.getElementById('toggleTopInfo');
         const sessionUserId = "<?= $_SESSION['user_id'] ?>";
         const paymentMethodsApi = 'includes/payment_methods_api.php';
         const paymentMethodsCode = 2;
@@ -534,6 +682,8 @@ include 'includes/header.php';
                 if (!res.ok) throw new Error('Falha ao carregar formas de pagamento');
                 const methods = await res.json();
 
+                populatePaymentTypeFilter(methods);
+
                 projPaymentType.innerHTML = '<option value="">Selecione...</option>';
                 (Array.isArray(methods) ? methods : []).forEach(m => {
                     const name = String(m.name || '').trim();
@@ -562,6 +712,25 @@ include 'includes/header.php';
             }
         }
 
+        function populatePaymentTypeFilter(methods) {
+            if (!filtroPaymentType) return;
+            const current = String(filtroPaymentType.value || '');
+            filtroPaymentType.innerHTML = '<option value="">Todos os tipos</option>';
+
+            (Array.isArray(methods) ? methods : []).forEach(m => {
+                const name = String(m.name || '').trim();
+                if (!name) return;
+                const option = document.createElement('option');
+                option.value = name.toLowerCase();
+                option.textContent = name;
+                filtroPaymentType.appendChild(option);
+            });
+
+            if (current && Array.from(filtroPaymentType.options).some(opt => opt.value === current)) {
+                filtroPaymentType.value = current;
+            }
+        }
+
         if (btnAddPaymentType) {
             btnAddPaymentType.addEventListener('click', async () => {
                 const name = prompt('Informe o nome da nova forma de pagamento:');
@@ -580,6 +749,7 @@ include 'includes/header.php';
                         throw new Error(json.error || 'Falha ao cadastrar forma de pagamento');
                     }
                     await loadPaymentMethodsSelect(normalized);
+                    applyFilters();
                 } catch (err) {
                     alert('Erro ao cadastrar forma de pagamento: ' + (err.message || err));
                 } finally {
@@ -1009,16 +1179,40 @@ include 'includes/header.php';
 
         const btnCompactCards = document.getElementById('btnCompactCards');
         const compactStorageKey = 'projetosCompactCards';
+        const topInfoStorageKey = 'projetosHideTopInfo';
         const setCompactView = (enabled) => {
             document.body.classList.toggle('compact-cards', enabled);
             if (btnCompactCards) {
-                btnCompactCards.textContent = enabled ? 'Expandir cards' : 'Compactar cards';
+                btnCompactCards.innerHTML = enabled
+                    ? '<i class="fa fa-expand-alt" aria-hidden="true"></i>'
+                    : '<i class="fa fa-compress-alt" aria-hidden="true"></i>';
+                const compactTitle = enabled ? 'Expandir cards' : 'Compactar cards';
+                btnCompactCards.title = compactTitle;
+                btnCompactCards.setAttribute('aria-label', compactTitle);
             }
             try { localStorage.setItem(compactStorageKey, enabled ? '1' : '0'); } catch (e) { /* ignore */ }
+        };
+        const setTopInfoVisibility = (hidden) => {
+            document.body.classList.toggle('hide-project-top-info', hidden);
+            if (toggleTopInfoBtn) {
+                toggleTopInfoBtn.innerHTML = hidden
+                    ? '<i class="fa fa-eye" aria-hidden="true"></i>'
+                    : '<i class="fa fa-eye-slash" aria-hidden="true"></i>';
+                toggleTopInfoBtn.title = hidden ? 'Mostrar informacoes do topo' : 'Ocultar informacoes do topo';
+                toggleTopInfoBtn.setAttribute('aria-label', hidden ? 'Mostrar informacoes do topo' : 'Ocultar informacoes do topo');
+                toggleTopInfoBtn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+            }
+            try { localStorage.setItem(topInfoStorageKey, hidden ? '1' : '0'); } catch (e) { /* ignore */ }
         };
         if (btnCompactCards) {
             btnCompactCards.addEventListener('click', () => setCompactView(!document.body.classList.contains('compact-cards')));
             setCompactView(localStorage.getItem(compactStorageKey) === '1');
+        }
+        if (toggleTopInfoBtn) {
+            toggleTopInfoBtn.addEventListener('click', () => {
+                setTopInfoVisibility(!document.body.classList.contains('hide-project-top-info'));
+            });
+            setTopInfoVisibility(localStorage.getItem(topInfoStorageKey) === '1');
         }
 
         const currentUserId = "<?= $_SESSION['user_id'] ?>";
@@ -1034,7 +1228,8 @@ include 'includes/header.php';
         const syncBoardColumns = () => {
             document.querySelectorAll('.board-column').forEach(col => {
                 const visibleCards = Array.from(col.querySelectorAll('.card-project')).filter(card => card.style.display !== 'none').length;
-                col.style.display = visibleCards ? '' : 'none';
+                // Keep empty columns visible so cards can be dragged into them.
+                col.style.display = '';
                 const headerBadge = col.closest('.kanban-column')?.querySelector('.card-header .badge');
                 if (headerBadge) headerBadge.textContent = visibleCards;
             });
@@ -1184,7 +1379,7 @@ include 'includes/header.php';
             }
         }
 
-        applyFilters();
+        loadPaymentMethodsSelect('').finally(() => applyFilters());
 
         document.getElementById('formProjeto').addEventListener('submit', async (ev)=>{
             ev.preventDefault();

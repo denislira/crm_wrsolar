@@ -39,6 +39,16 @@ try {
         $existingCols[] = 'is_initial';
     }
 
+    if (!in_array('post_sale_enabled', $existingCols, true)) {
+        $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_enabled TINYINT(1) NOT NULL DEFAULT 0");
+        $existingCols[] = 'post_sale_enabled';
+    }
+
+    if (!in_array('post_sale_days', $existingCols, true)) {
+        $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_days INT NOT NULL DEFAULT 90");
+        $existingCols[] = 'post_sale_days';
+    }
+
     // Ensure history table exists
     $pdo->exec("CREATE TABLE IF NOT EXISTS projeto_stages_history (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -51,7 +61,7 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
     if ($action === 'list') {
-        $cols = ['id', "{$nameCol} AS name", 'is_initial', 'color', 'card_color', 'position'];
+        $cols = ['id', "{$nameCol} AS name", 'is_initial', 'color', 'card_color', 'position', 'post_sale_enabled', 'post_sale_days'];
         $sql = "SELECT " . implode(', ', $cols) . " FROM projeto_stages ORDER BY COALESCE({$positionCol}, id) ASC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute();
@@ -74,6 +84,9 @@ try {
         $isInitial = !empty($data['is_initial']) ? 1 : 0;
         $color = !empty($data['color']) ? trim($data['color']) : '#6c757d';
         $cardColor = !empty($data['card_color']) ? trim($data['card_color']) : '#ffffff';
+        $postSaleEnabled = !empty($data['post_sale_enabled']) ? 1 : 0;
+        $postSaleDays = isset($data['post_sale_days']) ? (int)$data['post_sale_days'] : 90;
+        if ($postSaleDays < 1) $postSaleDays = 90;
 
         if ($isInitial === 1) {
             $resetInitial = $pdo->prepare('UPDATE projeto_stages SET is_initial = 0');
@@ -84,8 +97,8 @@ try {
         $stmt->execute();
         $mx = (int)$stmt->fetchColumn();
 
-        $stmt = $pdo->prepare("INSERT INTO projeto_stages (user_id, {$nameCol}, position, is_initial, color, card_color) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$userId, $data['name'], $mx + 1, $isInitial, $color, $cardColor]);
+        $stmt = $pdo->prepare("INSERT INTO projeto_stages (user_id, {$nameCol}, position, is_initial, color, card_color, post_sale_enabled, post_sale_days) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$userId, $data['name'], $mx + 1, $isInitial, $color, $cardColor, $postSaleEnabled, $postSaleDays]);
         $newId = $pdo->lastInsertId();
 
         $h = $pdo->prepare('INSERT INTO projeto_stages_history (stage_id, user_id, action, changes) VALUES (?, ?, ?, ?)');
@@ -107,14 +120,17 @@ try {
         $isInitial = !empty($data['is_initial']) ? 1 : 0;
         $color = !empty($data['color']) ? trim($data['color']) : ($prev['color'] ?? '#6c757d');
         $cardColor = !empty($data['card_color']) ? trim($data['card_color']) : ($prev['card_color'] ?? '#ffffff');
+        $postSaleEnabled = isset($data['post_sale_enabled']) ? (!empty($data['post_sale_enabled']) ? 1 : 0) : (int)($prev['post_sale_enabled'] ?? 0);
+        $postSaleDays = isset($data['post_sale_days']) ? (int)$data['post_sale_days'] : (int)($prev['post_sale_days'] ?? 90);
+        if ($postSaleDays < 1) $postSaleDays = 90;
 
         if ($isInitial === 1) {
             $resetInitial = $pdo->prepare('UPDATE projeto_stages SET is_initial = 0');
             $resetInitial->execute();
         }
 
-        $sets = ["{$nameCol} = ?", 'is_initial = ?', 'color = ?', 'card_color = ?'];
-        $params = [$data['name'], $isInitial, $color, $cardColor, $data['id']];
+        $sets = ["{$nameCol} = ?", 'is_initial = ?', 'color = ?', 'card_color = ?', 'post_sale_enabled = ?', 'post_sale_days = ?'];
+        $params = [$data['name'], $isInitial, $color, $cardColor, $postSaleEnabled, $postSaleDays, $data['id']];
 
         $sql = "UPDATE projeto_stages SET " . implode(', ', $sets) . " WHERE id = ?";
         $stmt = $pdo->prepare($sql);

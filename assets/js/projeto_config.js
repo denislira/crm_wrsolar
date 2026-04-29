@@ -82,6 +82,27 @@
     }
   }
 
+  function readPostSaleAutomationInputs() {
+    const enabledInput = $('#autoMovePostSaleEnabled');
+    const daysInput = $('#autoMovePostSaleDays');
+    if (!enabledInput || !daysInput) {
+      return { ok: true, enabled: 0, days: 90 };
+    }
+
+    const days = parseInt(daysInput.value, 10);
+    if (Number.isNaN(days) || days < 1) {
+      showStatus('Informe um prazo válido em dias', 'error');
+      daysInput.focus();
+      return { ok: false };
+    }
+
+    return {
+      ok: true,
+      enabled: enabledInput.checked ? 1 : 0,
+      days
+    };
+  }
+
   function renderStages() {
     const list = $('#stagesList');
     if (!list) return;
@@ -104,6 +125,7 @@
             <div class="stage-pos d-flex gap-1 flex-wrap mt-1">
               <span class="badge bg-secondary" style="font-size:.62rem;">#${stage.position || '-'}</span>
               ${Number(stage.is_initial) === 1 ? '<span class="badge bg-primary" style="font-size:.62rem;">Inicio</span>' : ''}
+              ${Number(stage.post_sale_enabled) === 1 ? '<span class="badge bg-success" style="font-size:.62rem;">Pós-venda Auto</span>' : ''}
             </div>
           </div>
         </div>
@@ -215,10 +237,19 @@
     const name = prompt('Nome da nova etapa');
     if (!name) return;
     try {
+      const postSaleConfig = readPostSaleAutomationInputs();
+      if (!postSaleConfig.ok) return;
+
       const res = await fetch(`${api}?action=add`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ name: name.trim(), color: '#6c757d', card_color: '#ffffff' })
+        body: JSON.stringify({
+          name: name.trim(),
+          color: '#6c757d',
+          card_color: '#ffffff',
+          post_sale_enabled: postSaleConfig.enabled,
+          post_sale_days: postSaleConfig.days
+        })
       });
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error || 'Falha ao criar etapa');
@@ -235,10 +266,21 @@
     const name = $('#stageName').value.trim();
     if (!name) return showStatus('Nome da etapa é obrigatório', 'error');
     try {
+      const postSaleConfig = readPostSaleAutomationInputs();
+      if (!postSaleConfig.ok) return;
+
       const res = await fetch(`${api}?action=update`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ id, name, is_initial: $('#stageIsInitial').checked ? 1 : 0, color: $('#stageColor').value, card_color: $('#stageCardColor') ? $('#stageCardColor').value : '#ffffff' })
+        body: JSON.stringify({
+          id,
+          name,
+          is_initial: $('#stageIsInitial').checked ? 1 : 0,
+          color: $('#stageColor').value,
+          card_color: $('#stageCardColor') ? $('#stageCardColor').value : '#ffffff',
+          post_sale_enabled: postSaleConfig.enabled,
+          post_sale_days: postSaleConfig.days
+        })
       });
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error || 'Falha ao salvar etapa');
@@ -281,6 +323,13 @@
     const hexLabel = $('#stageColorHex');
     if (hexLabel) hexLabel.textContent = $('#stageColor').value;
     $('#stageIsInitial').checked = Number(stage.is_initial) === 1;
+    const postSaleEnabledInput = $('#autoMovePostSaleEnabled');
+    const postSaleDaysInput = $('#autoMovePostSaleDays');
+    if (postSaleEnabledInput) {
+      const isEnabled = stage.post_sale_enabled && (stage.post_sale_enabled == 1 || stage.post_sale_enabled === '1');
+      postSaleEnabledInput.checked = isEnabled ? true : false;
+    }
+    if (postSaleDaysInput) postSaleDaysInput.value = stage.post_sale_days || 90;
     renderPreview(stage);
   }
 

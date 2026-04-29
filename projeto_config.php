@@ -135,6 +135,11 @@ input[type=color].fc-form-control { padding: .25rem .4rem; height: 40px; cursor:
 .btn-add-stage:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,.3); }
 .fc-preview-wrap { margin-top: .75rem; }
 .fc-preview-label { font-size: .73rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; margin-bottom: .5rem; }
+.fc-automation-help {
+  font-size: .8rem;
+  color: #64748b;
+  line-height: 1.5;
+}
 [data-theme="dark"] .fc-panel,
 body.theme-dark .fc-panel { background: #0f1e35; border-color: rgba(230,238,248,.06); box-shadow: 0 2px 16px rgba(0,0,0,.3); }
 [data-theme="dark"] .fc-panel-header,
@@ -215,6 +220,26 @@ body.theme-dark .fc-page { background: #071427; }
                           </label>
                         </div>
                         <small class="text-muted">Quando um projeto for criado a partir de lead (+ Projeto), ele sera enviado para esta etapa.</small>
+                      </div>
+                      <div class="col-12">
+                        <div class="fc-section mt-2 mb-0">
+                          <div class="fc-section-title"><i class="fa fa-robot"></i> Automação de Pós-venda</div>
+                          <div class="row g-3 align-items-end">
+                            <div class="col-md-7">
+                              <div class="form-check mt-1">
+                                <input class="form-check-input" type="checkbox" id="autoMovePostSaleEnabled">
+                                <label class="form-check-label" for="autoMovePostSaleEnabled">
+                                  Ativar nesta coluna
+                                </label>
+                              </div>
+                              <div class="fc-automation-help mt-2">Se um card permanecer nesta coluna pelo prazo definido abaixo, ele será enviado automaticamente para Pós-venda e sairá da tela de Projetos.</div>
+                            </div>
+                            <div class="col-md-5">
+                              <label class="fc-form-label">Mover após quantos dias</label>
+                              <input id="autoMovePostSaleDays" type="number" class="fc-form-control" min="1" value="90">
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
