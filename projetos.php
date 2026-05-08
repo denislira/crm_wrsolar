@@ -295,7 +295,10 @@ include 'includes/header.php';
                 }
             }
             $total = count($projetos);
-            $concluidos = count(array_filter($projetos, fn($p) => $p['status'] === 'Concluído'));
+            $concluidos = count(array_filter($projetos, function($p) {
+                return (isset($p['payment_status']) && $p['payment_status'] === 'Pago')
+                    || (!isset($p['payment_status']) || $p['payment_status'] === '') && ($p['status'] === 'Concluído');
+            }));
             $pendentes = $total - $concluidos;
             $proposalSum = array_sum(array_map(static function($proj) {
                 $raw = $proj['proposal_value'] ?? 0;
