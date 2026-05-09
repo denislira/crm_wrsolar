@@ -319,7 +319,7 @@ foreach ($posVendas as &$pv) {
 
     // Badge & color
     if ($isEx) {
-        $pv['badge_label'] = 'INATIVO/RISCO';
+        $pv['badge_label'] = 'EX-CLIENTE';
         $pv['badge_class'] = 'danger';
         $pv['card_class']  = 'border-danger';
     } elseif ($m >= 12) {
@@ -466,6 +466,9 @@ include 'includes/header.php';
                                 <i class="fa fa-calendar-days me-1"></i>Instalado em <?= date('d/m/Y', strtotime($pv['installation_date'])) ?>
                             </div>
                             <?php endif; ?>
+                            <div class="text-muted" style="font-size:.78rem">
+                                <i class="fa fa-user-shield me-1"></i>Status de acesso: <?= htmlspecialchars($pv['client_status'] ?: 'Assinante') ?>
+                            </div>
                         </div>
                         <div class="d-flex flex-column align-items-end gap-1">
                             <span class="pv-badge text-<?= $pv['badge_class'] ?> border border-<?= $pv['badge_class'] ?>">
@@ -816,27 +819,10 @@ include 'includes/header.php';
             .catch(()=>{ try { document.execCommand('copy'); $('pvLinkCopied').classList.remove('d-none'); } catch(e){} });
     });
 
-    // ── SLA: auto-move to 'Renovação de Contrato' at month 11 ──
-    (async function runSla(){
-        <?php foreach ($posVendas as $pv):
-            if ($pv['sla_alert'] && $pv['months_elapsed'] >= 10):
-        ?>
-        try {
-            const fd = new FormData();
-            fd.append('id',     '<?= $pv['proj_id'] ?>');
-            fd.append('status', 'Renovação de Contrato');
-            await fetch('api/update_project.php', {method:'POST', body:fd});
-            // alert for commercial
-            const af = new FormData();
-            af.append('project_id', '<?= $pv['proj_id'] ?>');
-            af.append('type', 'renovation');
-            af.append('message', 'Cliente <?= addslashes(htmlspecialchars($pv['client_name'])) ?> atingiu <?= $pv['months_elapsed'] ?> meses pós-homologação — oferecer plano pago.');
-            await fetch('api/add_alert.php', {method:'POST', body:af});
-        } catch(e){ console.warn('SLA trigger failed', e); }
-        <?php endif; endforeach; ?>
-    })();
+    // SLA auto-trigger is handled by the global assets/js/sla_check.js script.
 
 })();
 </script>
+<script src="/WRCRM/assets/js/sla_check.js"></script>
 
 <?php include 'includes/footer.php'; ?>

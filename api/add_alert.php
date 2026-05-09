@@ -37,6 +37,13 @@ try {
         is_read TINYINT DEFAULT 0
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
+    $exists = $pdo->prepare('SELECT id FROM alerts WHERE user_id = ? AND project_id = ? AND type = ? AND message = ? LIMIT 1');
+    $exists->execute([$_SESSION['user_id'], $project_id, $type, $message]);
+    if ($existingId = $exists->fetchColumn()) {
+        echo json_encode(['success' => true, 'id' => $existingId, 'duplicate' => true]);
+        exit;
+    }
+
     $ins = $pdo->prepare('INSERT INTO alerts (user_id, project_id, type, message) VALUES (?, ?, ?, ?)');
     $ins->execute([$_SESSION['user_id'], $project_id, $type, $message]);
     echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);

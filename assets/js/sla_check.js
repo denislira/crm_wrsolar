@@ -2,14 +2,14 @@
 (function(){
     async function runSlaCheck(){
         try {
-            const res = await fetch('/WRCRM/api/get_projects.php');
+            const res = await fetch('/WRCRM/api/get_projects.php?for_sla=1');
             if (!res.ok) return;
             const payload = await res.json();
             if (!payload.success || !Array.isArray(payload.data)) return;
             const projects = payload.data;
             const now = new Date();
             for (const p of projects) {
-                const closed = p.closed_date || p.closedDate || null;
+                const closed = p.closed_date || p.closedDate || p.installation_date || p.installationDate || null;
                 if (!closed) continue;
                 const d = new Date(closed);
                 if (isNaN(d.getTime())) continue;
