@@ -19,14 +19,14 @@ if (!hasPermission('projetos')) {
 runProjectPostSaleAutomation($pdo, (int) $_SESSION['user_id']);
 
 $forSla = isset($_GET['for_sla']) && $_GET['for_sla'] === '1';
-$sql = 'SELECT p.*, l.phone AS lead_phone, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto '
+$sql = 'SELECT p.*, l.phone AS lead_phone, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto, pv.id AS pos_venda_id, pv.stage AS pos_venda_stage '
      . 'FROM projetos p '
      . 'LEFT JOIN leads l ON l.id = p.lead_id '
      . 'LEFT JOIN pos_venda pv ON pv.project_id = p.id '
-     . ($forSla ? '' : 'WHERE pv.id IS NULL ') 
+    . 'WHERE p.user_id = ? '
      . 'ORDER BY p.id DESC';
 $stmt = $pdo->prepare($sql);
-$stmt->execute();
+$stmt->execute([(int) $_SESSION['user_id']]);
 $projetos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 echo json_encode(['success' => true, 'data' => $projetos]);

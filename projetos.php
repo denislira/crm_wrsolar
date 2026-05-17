@@ -28,7 +28,7 @@ try {
 runProjectPostSaleAutomation($pdo, (int) $_SESSION['user_id']);
 
 // Exibir projetos com dados do lead vinculado (fonte de verdade para telefone, kWh e orçamento)
-$stmt = $pdo->prepare('SELECT p.*, pm.name AS payment_method_name, COALESCE(pm.name, p.payment_type) AS payment_type_effective, l.phone AS lead_phone, l.orcamento_value AS lead_orcamento_value, l.estimativa_projeto_kwh AS lead_kwh, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value_effective, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto_effective FROM projetos p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.code = 2 LEFT JOIN leads l ON l.id = p.lead_id LEFT JOIN pos_venda pv ON pv.project_id = p.id WHERE pv.id IS NULL ORDER BY p.id DESC');
+$stmt = $pdo->prepare('SELECT p.*, pm.name AS payment_method_name, COALESCE(pm.name, p.payment_type) AS payment_type_effective, l.phone AS lead_phone, l.orcamento_value AS lead_orcamento_value, l.estimativa_projeto_kwh AS lead_kwh, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value_effective, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto_effective FROM projetos p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.code = 2 LEFT JOIN leads l ON l.id = p.lead_id ORDER BY p.id DESC');
 $stmt->execute();
 $projetos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

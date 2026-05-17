@@ -70,7 +70,7 @@ include 'includes/header.php';
 
             <!-- Kanban (loaded from funil_stages table) -->
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <div class="d-flex gap-2 align-items-center">
+                <div class="d-flex gap-2 align-items-center flex-wrap w-100 justify-content-end">
                     <button id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger d-none" title="Excluir selecionados"><i class="fa fa-trash"></i></button>
                     <button id="bulkUncheckBtn" class="btn btn-sm btn-outline-secondary d-none" title="Desmarcar todos"><i class="fa fa-times"></i></button>
                     <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>

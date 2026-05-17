@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS projetos (
   address TEXT DEFAULT NULL,
   proposal_value DECIMAL(12,2) DEFAULT 0.00,
   status VARCHAR(100) DEFAULT 'Prospec\u00e7\u00e3o',
+  status_changed_at DATETIME DEFAULT NULL,
+  moved_to_post_sale TINYINT(1) NOT NULL DEFAULT 0,
   lead_id INT DEFAULT NULL,
   closed_date DATETIME DEFAULT NULL,
   contract TEXT DEFAULT NULL,

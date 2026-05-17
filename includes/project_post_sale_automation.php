@@ -22,24 +22,47 @@ if (!function_exists('runProjectPostSaleAutomation')) {
             $existingCols = $colCheck->fetchAll(PDO::FETCH_COLUMN);
             
             $hasPostSaleEnabled = in_array('post_sale_enabled', $existingCols, true);
-            $hasPostSaleDays = in_array('post_sale_days', $existingCols, true);
-            
+            $hasPostSaleTargetStage = in_array('post_sale_target_stage_id', $existingCols, true);
+
             // If columns don't exist, create them
             if (!$hasPostSaleEnabled) {
                 $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_enabled TINYINT(1) NOT NULL DEFAULT 0");
             }
-            if (!$hasPostSaleDays) {
-                $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_days INT NOT NULL DEFAULT 90");
+            if (!$hasPostSaleTargetStage) {
+                $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_target_stage_id INT DEFAULT NULL");
+            }
+
+            $projectColCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = 'status_changed_at'");
+            $projectColCheck->execute();
+            if (!$projectColCheck->fetchColumn()) {
+                $pdo->exec("ALTER TABLE projetos ADD COLUMN status_changed_at DATETIME DEFAULT NULL AFTER status");
+                $pdo->exec("UPDATE projetos SET status_changed_at = COALESCE(updated_at, created_at) WHERE status_changed_at IS NULL");
+            }
+
+            $dueDaysColCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = 'due_days'");
+            $dueDaysColCheck->execute();
+            if (!$dueDaysColCheck->fetchColumn()) {
+                $pdo->exec("ALTER TABLE projetos ADD COLUMN due_days INT DEFAULT 30 AFTER closed_date");
+            }
+
+            $movedFlagColCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = 'moved_to_post_sale'");
+            $movedFlagColCheck->execute();
+            if (!$movedFlagColCheck->fetchColumn()) {
+                $pdo->exec("ALTER TABLE projetos ADD COLUMN moved_to_post_sale TINYINT(1) NOT NULL DEFAULT 0 AFTER status_changed_at");
             }
         } catch (Exception $e) {
             return 0;
         }
 
         $stmt = $pdo->prepare(
-            'SELECT p.id, p.client_name, p.status, p.closed_date, p.created_at,
-                    ps.post_sale_enabled, ps.post_sale_days
+                      'SELECT p.id, p.client_name, p.status, p.status_changed_at, p.closed_date, p.created_at, p.updated_at, p.due_days,
+                          ps.post_sale_enabled,
+                          ps.post_sale_target_stage_id,
+                          pvst.name AS post_sale_target_stage_name
              FROM projetos p
-             JOIN projeto_stages ps ON ps.name COLLATE utf8mb4_unicode_ci = p.status COLLATE utf8mb4_unicode_ci
+                  JOIN projeto_stages ps ON ps.user_id = p.user_id
+                              AND TRIM(ps.name) COLLATE utf8mb4_unicode_ci = TRIM(p.status) COLLATE utf8mb4_unicode_ci
+                  LEFT JOIN pos_venda_stages pvst ON pvst.user_id = p.user_id AND pvst.id = ps.post_sale_target_stage_id
              LEFT JOIN pos_venda pv ON pv.project_id = p.id
              WHERE p.user_id = ?
                AND pv.id IS NULL
@@ -53,17 +76,19 @@ if (!function_exists('runProjectPostSaleAutomation')) {
         }
 
         $insert = $pdo->prepare(
-            'INSERT INTO pos_venda (user_id, project_id, client_name, installation_date, notes, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())'
+            'INSERT INTO pos_venda (user_id, project_id, client_name, installation_date, notes, stage, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())'
         );
+        $markMoved = $pdo->prepare('UPDATE projetos SET moved_to_post_sale = 1, updated_at = NOW() WHERE id = ? AND user_id = ?');
 
         $migrated = 0;
         $now = new DateTimeImmutable('now');
 
         foreach ($projects as $project) {
-            $daysThreshold = max(1, (int) ($project['post_sale_days'] ?? 90));
+            $daysThreshold = max(1, (int) ($project['due_days'] ?? 30));
 
-            $baseDateRaw = $project['closed_date'] ?: $project['created_at'];
+            // Priority: when the project entered current column; fallback to older fields for legacy rows.
+            $baseDateRaw = $project['status_changed_at'] ?: ($project['updated_at'] ?: ($project['closed_date'] ?: $project['created_at']));
             if (empty($baseDateRaw)) {
                 continue;
             }
@@ -81,7 +106,7 @@ if (!function_exists('runProjectPostSaleAutomation')) {
 
             $installationDate = $baseDate->format('Y-m-d');
             $notes = sprintf(
-                'Migrado automaticamente de Projetos para Pós-venda após %d dias.',
+                'Migrado automaticamente de Projetos para Pós-venda após %d dias (prazo do card).',
                 $daysThreshold
             );
 
@@ -92,7 +117,9 @@ if (!function_exists('runProjectPostSaleAutomation')) {
                     (string) ($project['client_name'] ?? ''),
                     $installationDate,
                     $notes,
+                    $project['post_sale_target_stage_name'] ?: null,
                 ]);
+                $markMoved->execute([(int) $project['id'], $userId]);
                 $migrated++;
             } catch (Exception $e) {
                 continue;

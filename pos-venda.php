@@ -17,6 +17,7 @@ try {
     if (!in_array('performance_pct',$cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN performance_pct DECIMAL(5,1) DEFAULT NULL");
     if (!in_array('referral_token', $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN referral_token  VARCHAR(64)  DEFAULT NULL");
     if (!in_array('last_checkup',   $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN last_checkup    DATE         DEFAULT NULL");
+    if (!in_array('stage',          $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN stage          VARCHAR(255) DEFAULT NULL");
 } catch (Exception $e) { /* ignore */ }
 
 $schema = [
@@ -30,6 +31,8 @@ try {
 
 $hasClientStatus   = in_array('client_status',   $schema['projetos'], true);
 $hasPaymentStatus  = in_array('payment_status',  $schema['projetos'], true);
+$hasPaymentType    = in_array('payment_type',    $schema['projetos'], true);
+$hasContract       = in_array('contract',        $schema['projetos'], true);
 $hasReferralToken  = in_array('referral_token',  $schema['pos_venda'], true);
 $hasPerformancePct = in_array('performance_pct', $schema['pos_venda'], true);
 $hasLastCheckup    = in_array('last_checkup',    $schema['pos_venda'], true);
@@ -57,6 +60,8 @@ if ($missingSchemaMessage) {
 try {
     $c = $pdo->query("SHOW COLUMNS FROM projetos LIKE 'client_status'")->fetchAll();
     if (empty($c)) $pdo->exec("ALTER TABLE projetos ADD COLUMN client_status VARCHAR(50) DEFAULT 'Assinante'");
+    $movedCol = $pdo->query("SHOW COLUMNS FROM projetos LIKE 'moved_to_post_sale'")->fetchAll();
+    if (empty($movedCol)) $pdo->exec("ALTER TABLE projetos ADD COLUMN moved_to_post_sale TINYINT(1) NOT NULL DEFAULT 0");
 } catch (Exception $e) { /* ignore */ }
 
 // ── AJAX / POST handler ────────────────────────────────────
@@ -74,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $perf        = (isset($_POST['performance_pct']) && $_POST['performance_pct'] !== '') ? floatval($_POST['performance_pct']) : null;
         $clientType  = trim($_POST['client_type']      ?? 'Degustação');
         $lastCheckup = $_POST['last_checkup']          ?: null;
+        $stage       = trim($_POST['stage']            ?? '');
         $clientStatus= trim($_POST['client_status']    ?? 'Assinante');
 
         if (!in_array($clientStatus, ['Assinante','Ex-Cliente'])) $clientStatus = 'Assinante';
@@ -82,6 +88,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($projId && $hasClientStatus) {
             $pdo->prepare('UPDATE projetos SET client_status=?, updated_at=NOW() WHERE id=? AND user_id=?')
                 ->execute([$clientStatus, $projId, $_SESSION['user_id']]);
+        }
+
+        if ($projId) {
+            $pdo->prepare('UPDATE projetos SET moved_to_post_sale = 1, updated_at = NOW() WHERE id = ? AND user_id = ?')
+                ->execute([$projId, $_SESSION['user_id']]);
         }
 
         // upsert pos_venda
@@ -104,6 +115,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updateFields[] = 'last_checkup=?';
                 $updateParams[] = $lastCheckup;
             }
+            $updateFields[] = 'stage=?';
+            $updateParams[] = $stage ?: null;
             $updateFields[] = 'updated_at=NOW()';
             $updateParams[] = $exId;
             $pdo->prepare('UPDATE pos_venda SET ' . implode(',', $updateFields) . ' WHERE id=?')
@@ -125,6 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($hasLastCheckup) {
                 $cols[] = 'last_checkup'; $holders[] = '?'; $params[] = $lastCheckup;
             }
+            $cols[] = 'stage'; $holders[] = '?'; $params[] = $stage ?: null;
             $cols[] = 'created_at'; $holders[] = 'NOW()';
             $cols[] = 'updated_at'; $holders[] = 'NOW()';
             $sql = 'INSERT INTO pos_venda (' . implode(',', $cols) . ') VALUES (' . implode(',', $holders) . ')';
@@ -149,6 +163,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'update_stage') {
+        $pvId = intval($_POST['pv_id'] ?? 0);
+        $stage = trim($_POST['stage'] ?? '');
+        if ($pvId <= 0) {
+            echo json_encode(['success'=>false,'message'=>'ID inválido']);
+            exit;
+        }
+        $pdo->prepare('UPDATE pos_venda SET stage=?, updated_at=NOW() WHERE id=? AND user_id=?')
+            ->execute([$stage ?: null, $pvId, $_SESSION['user_id']]);
+        echo json_encode(['success'=>true]);
+        exit;
+    }
+
     if ($action === 'gen_referral') {
         if (!$hasReferralToken) {
             echo json_encode(['success'=>false,'message'=>'Recurso de indicação não disponível no banco de dados.']);
@@ -168,24 +195,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Fetch data ─────────────────────────────────────────────
 $projetoSelect = [
-    'p.client_name',
+    'p.client_name AS proj_client_name',
     'p.status AS proj_status',
     'p.closed_date',
-    $hasClientStatus ? 'p.client_status' : "'Assinante' AS client_status",
+    $hasClientStatus ? "COALESCE(p.client_status, 'Assinante') AS client_status" : "'Assinante' AS client_status",
     $hasPaymentStatus ? 'p.payment_status' : 'NULL AS payment_status',
+    $hasPaymentType ? 'p.payment_type' : 'NULL AS payment_type',
+    $hasContract ? 'p.contract' : 'NULL AS contract',
     'p.address',
     'p.proposal_value',
-    'p.id AS proj_id'
+    'p.id AS proj_id',
+    'l.phone AS lead_phone',
+    'pv.stage AS stage'
 ];
 $stmt = $pdo->prepare(
     'SELECT pv.*, ' . implode(', ', $projetoSelect) . "
     FROM pos_venda pv
-    JOIN projetos p ON pv.project_id = p.id
-    WHERE pv.user_id = ?
+    LEFT JOIN projetos p ON pv.project_id = p.id
+    LEFT JOIN leads l ON l.id = p.lead_id
     ORDER BY pv.installation_date DESC
 "
 );
-$stmt->execute([$_SESSION['user_id']]);
+$stmt->execute([]);
 $posVendas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $teamTasksAvailable = false;
@@ -383,6 +414,59 @@ include 'includes/header.php';
 .progress          { height:8px;border-radius:4px; }
 .btn-amigo         { font-size:.76rem;font-weight:600;letter-spacing:.03em; }
 .pv-divider        { border-top:1px solid #f0f0f0; }
+.pv-kanban-board   { display:flex; gap:1rem; overflow-x:auto; padding-bottom:0.5rem; }
+.pv-kanban-col    { min-width:280px; background:#f8fafc; border-radius:14px; box-shadow:0 1px 8px rgba(0,0,0,.05); display:flex; flex-direction:column; max-height:72vh; }
+.pv-kanban-col-header {
+    padding: 0.65rem 0.85rem 0.6rem 0.85rem;
+    border-bottom: none;
+    background: linear-gradient(90deg, #3b82f6 80%, #2563eb 100%);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: .4rem;
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+    position: relative;
+    min-height: 48px;
+}
+.pv-kanban-col-title {
+    margin: 0;
+    font-size: .98rem;
+    font-weight: 700;
+    letter-spacing: .01em;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    color: #fff !important;
+}
+.pv-kanban-col-body { padding:1rem; overflow:auto; min-height:120px; }
+.pv-kanban-card    { background:#fff; border-radius:12px; border:1px solid #e5e7eb; padding:1rem; margin-bottom:.75rem; cursor:grab; }
+.pv-kanban-card:active { cursor:grabbing; }
+.pv-kanban-card:hover { background:#f8fafc; }
+.pv-stage-badge    { display:inline-flex; align-items:center; gap:.35rem; font-size:.75rem; font-weight:700; padding:.35rem .7rem; border-radius:999px; }
+.pv-stage-actions  { display:flex; gap:.35rem; flex-wrap:wrap; }
+#pvStagesList .list-group-item { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
+#pvStagesList .list-group-item .stage-controls { display:flex; gap:.35rem; align-items:center; }
+#pvStagesList .stage-sla-toggle { min-width:180px; display:flex; justify-content:flex-end; }
+#pvStagesNotice { margin-bottom:1rem; }
+.pv-toolbar-search { min-width:260px; }
+.pv-kanban-empty { border:1px dashed #cbd5e1; border-radius:12px; padding:1rem; text-align:center; color:#94a3b8; background:#f8fafc; }
+.pv-kanban-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:.75rem; }
+.pv-kanban-card-title { font-size:.95rem; font-weight:700; line-height:1.2; margin:0; }
+.pv-kanban-meta { font-size:.76rem; color:#64748b; }
+.pv-card-id-line { font-size:.78rem; font-weight:700; color:#475569; margin-bottom:.25rem; display:flex; align-items:center; gap:.45rem; flex-wrap:wrap; }
+.pv-card-client-name { font-size:1rem; font-weight:800; line-height:1.25; margin:0 0 .55rem; color:#111827; }
+.pv-card-kv { display:grid; grid-template-columns:1fr auto; gap:.15rem .8rem; font-size:.82rem; margin-bottom:.5rem; }
+.pv-card-kv .k { color:#64748b; font-weight:600; }
+.pv-card-kv .v { color:#111827; font-weight:700; text-align:right; }
+.pv-expired-chip { border:1px solid #f59e0b; color:#92400e; background:#fef3c7; border-radius:999px; font-size:.66rem; font-weight:700; padding:.12rem .48rem; text-transform:uppercase; }
+.pv-health-head { display:flex; justify-content:space-between; align-items:center; font-size:.8rem; margin:.35rem 0 .2rem; }
+.pv-health-head .label { color:#334155; font-weight:700; }
+.pv-health-head .value { color:#0f172a; font-weight:800; }
+.pv-health-bar { height:7px; border-radius:999px; background:#e2e8f0; overflow:hidden; }
+.pv-health-bar > span { display:block; height:100%; border-radius:999px; }
+.pv-table-search { max-width:320px; }
+.pv-contract-filter .btn { min-width:140px; }
 </style>
 
 <div class="d-flex">
@@ -390,21 +474,77 @@ include 'includes/header.php';
     <main class="flex-grow-1 p-4">
 
         <!-- Page header -->
-        <div class="mb-4">
-            <h1 class="h4 fw-bold mb-1"><i class="fa fa-rotate text-primary me-2"></i>Gestão de Receita Recorrente</h1>
-            <p class="text-muted small mb-0">Transformando clientes concluídos em assinantes recorrentes.</p>
+        <div class="mb-4 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+            <div>
+                <h1 class="h4 fw-bold mb-1"><i class="fa fa-rotate text-primary me-2"></i>Gestão de Receita Recorrente</h1>
+                <p class="text-muted small mb-0">Transformando clientes concluídos em assinantes recorrentes.</p>
+            </div>
+            <div class="d-flex gap-2 align-items-center ms-md-auto mt-2 mt-md-0">
+                <button class="btn btn-primary btn-sm" id="pvNewBtn">
+                    <i class="fa fa-plus me-1"></i>Adicionar
+                </button>
+                <button type="button" id="pvStagesConfigBtn" class="btn btn-outline-secondary btn-sm">Gerenciar Colunas</button>
+            </div>
         </div>
 
-        <!-- KPIs ──────────────────────────────────────────── -->
+        <!-- KPIs NOVOS -->
         <div class="row g-3 mb-4">
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-md-2">
                 <div class="card pv-kpi p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="pv-meta-label">Conversão Recorrência</div>
-                            <div class="fw-bold" style="font-size:2rem;line-height:1.1"><?= $conversaoRecorrencia ?>%</div>
+                            <div class="pv-meta-label">Garantia Ativa</div>
+                            <div class="fw-bold" style="font-size:1.5rem;line-height:1.1"><?php
+                                $garantiasAtivas = 0;
+                                foreach ($posVendas as $pv) {
+                                    if (!empty($pv['warranty_end']) && $pv['warranty_end'] !== '0000-00-00' && $pv['warranty_end'] >= date('Y-m-d')) {
+                                        $garantiasAtivas++;
+                                    }
+                                }
+                                echo $garantiasAtivas;
+                            ?></div>
                         </div>
-                        <div class="pv-kpi-icon bg-primary bg-opacity-10 text-primary"><i class="fa fa-chart-line"></i></div>
+                        <div class="pv-kpi-icon bg-info bg-opacity-10 text-info"><i class="fa fa-shield-halved"></i></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <div class="card pv-kpi p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="pv-meta-label">Planos Pagos</div>
+                            <div class="fw-bold" style="font-size:1.5rem;line-height:1.1"><?php
+                                $planosPagos = 0;
+                                foreach ($posVendas as $pv) {
+                                    if (strtolower($pv['payment_status'] ?? '') === 'pago') {
+                                        $planosPagos++;
+                                    }
+                                }
+                                echo $planosPagos;
+                            ?></div>
+                        </div>
+                        <div class="pv-kpi-icon bg-success bg-opacity-10 text-success"><i class="fa fa-money-bill-wave"></i></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <div class="card pv-kpi p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="pv-meta-label">Aguardando Renovação</div>
+                            <div class="fw-bold" style="font-size:1.5rem;line-height:1.1"><?php
+                                $aguardandoRenov = 0;
+                                foreach ($posVendas as $pv) {
+                                    $m = $pv['months_elapsed'] ?? 0;
+                                    $isEx = ($pv['client_status'] ?? '') === 'Ex-Cliente';
+                                    if (!$isEx && $m >= 10 && $m < 12) {
+                                        $aguardandoRenov++;
+                                    }
+                                }
+                                echo $aguardandoRenov;
+                            ?></div>
+                        </div>
+                        <div class="pv-kpi-icon bg-warning bg-opacity-10 text-warning"><i class="fa fa-hourglass-half"></i></div>
                     </div>
                 </div>
             </div>
@@ -412,10 +552,19 @@ include 'includes/header.php';
                 <div class="card pv-kpi p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="pv-meta-label">Assinantes Ativos</div>
-                            <div class="fw-bold" style="font-size:2rem;line-height:1.1"><?= $assinantesAtivos ?></div>
+                            <div class="pv-meta-label">Ticket Médio Plano</div>
+                            <div class="fw-bold" style="font-size:1.5rem;line-height:1.1"><?php
+                                $total = 0; $count = 0;
+                                foreach ($posVendas as $pv) {
+                                    if (is_numeric($pv['proposal_value']) && $pv['proposal_value'] > 0) {
+                                        $total += $pv['proposal_value'];
+                                        $count++;
+                                    }
+                                }
+                                echo $count ? 'R$ ' . number_format($total/$count, 2, ',', '.') : 'R$ 0,00';
+                            ?></div>
                         </div>
-                        <div class="pv-kpi-icon bg-success bg-opacity-10 text-success"><i class="fa fa-circle-check"></i></div>
+                        <div class="pv-kpi-icon bg-primary bg-opacity-10 text-primary"><i class="fa fa-ticket"></i></div>
                     </div>
                 </div>
             </div>
@@ -423,147 +572,60 @@ include 'includes/header.php';
                 <div class="card pv-kpi p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="pv-meta-label">Em Degustação</div>
-                            <div class="fw-bold" style="font-size:2rem;line-height:1.1"><?= $emDegustacao ?></div>
+                            <div class="pv-meta-label">Meta de Retenção</div>
+                            <div class="fw-bold" style="font-size:1.5rem;line-height:1.1">95%</div>
                         </div>
-                        <div class="pv-kpi-icon bg-warning bg-opacity-10 text-warning"><i class="fa fa-clock"></i></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card pv-kpi p-3 h-100">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="pv-meta-label">Indicações/Mês</div>
-                            <div class="fw-bold" style="font-size:2rem;line-height:1.1"><?= $indicacoesMes ?></div>
-                        </div>
-                        <div class="pv-kpi-icon" style="background:rgba(111,66,193,.1);color:#6f42c1;"><i class="fa fa-share-nodes"></i></div>
+                        <div class="pv-kpi-icon bg-secondary bg-opacity-10 text-secondary"><i class="fa fa-bullseye"></i></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <?php if (empty($posVendas)): ?>
-        <div class="alert alert-info"><i class="fa fa-info-circle me-2"></i>Nenhum cliente em pós-venda cadastrado ainda. Clique em "Adicionar" para começar.</div>
-        <?php else: ?>
-
-        <!-- Client Cards ──────────────────────────────────── -->
-        <div class="row g-3" id="pvCardsContainer">
-        <?php foreach ($posVendas as $pv):
-            $isEx = ($pv['client_status'] === 'Ex-Cliente');
-            $pvJson = htmlspecialchars(json_encode($pv), ENT_QUOTES);
-        ?>
-        <div class="col-md-6 col-xl-4">
-            <div class="card pv-card h-100 <?= $pv['card_class'] ? 'border-start border-3 '.$pv['card_class'] : '' ?>">
-                <div class="card-body d-flex flex-column">
-
-                    <!-- Header: name + badge -->
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h5 class="mb-0 fw-semibold"><?= htmlspecialchars($pv['client_name']) ?></h5>
-                            <?php if ($pv['installation_date'] && $pv['installation_date'] !== '0000-00-00'): ?>
-                            <div class="text-muted" style="font-size:.78rem">
-                                <i class="fa fa-calendar-days me-1"></i>Instalado em <?= date('d/m/Y', strtotime($pv['installation_date'])) ?>
-                            </div>
-                            <?php endif; ?>
-                            <div class="text-muted" style="font-size:.78rem">
-                                <i class="fa fa-user-shield me-1"></i>Status de acesso: <?= htmlspecialchars($pv['client_status'] ?: 'Assinante') ?>
-                            </div>
-                        </div>
-                        <div class="d-flex flex-column align-items-end gap-1">
-                            <span class="pv-badge text-<?= $pv['badge_class'] ?> border border-<?= $pv['badge_class'] ?>">
-                                <?= $pv['badge_label'] ?>
-                            </span>
-                            <?php /* extra CORTESIA badge for Embaixadores in degustação */ ?>
-                            <?php if (!$isEx && strpos(strtolower($pv['client_type'] ?? ''), 'embaixador') !== false && $pv['months_elapsed'] < 12): ?>
-                            <span class="pv-badge text-info border border-info">CORTESIA</span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-
-                    <!-- Régua de Degustação -->
-                    <div class="mt-1 mb-1">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="pv-meta-label mb-0">Régua de Degustação</span>
-                            <span class="fw-bold" style="font-size:.82rem"><?= $pv['months_elapsed'] ?> / 12 meses</span>
-                        </div>
-                        <div class="progress">
-                            <div class="progress-bar bg-<?= $pv['progress_color'] ?>" style="width:<?= $pv['progress_pct'] ?>%"></div>
-                        </div>
-                    </div>
-
-                    <!-- SLA Alert Mês 11 -->
-                    <?php if ($pv['sla_alert']): ?>
-                    <div class="pv-sla-alert mt-2 d-flex align-items-center gap-2">
-                        <i class="fa fa-triangle-exclamation"></i>
-                        <span>ALERTA MÊS <?= $pv['sla_month'] ?>: OFERTAR PLANO PAGO</span>
-                    </div>
-                    <?php endif; ?>
-
-                    <div class="pv-divider my-3"></div>
-
-                    <!-- Relatórios -->
-                    <div class="mb-2">
-                        <div class="pv-meta-label"><i class="fa fa-chart-simple me-1"></i>Relatórios</div>
-                        <?php if ($isEx): ?>
-                            <div class="pv-blocked"><i class="fa fa-lock me-1"></i>Acesso Bloqueado</div>
-                        <?php elseif (!is_null($pv['performance_pct'])): ?>
-                            <div class="pv-meta-val"><?= number_format($pv['performance_pct'], 0) ?>% Performance</div>
-                        <?php else: ?>
-                            <div class="pv-meta-val text-muted">Sem dados de performance</div>
-                        <?php endif; ?>
-                    </div>
-
-                    <!-- Último Check-up -->
-                    <div class="mb-3">
-                        <div class="pv-meta-label"><i class="fa fa-wrench me-1"></i>Último Check-up</div>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="pv-meta-val"><?= htmlspecialchars($pv['checkup_human']) ?></span>
-                            <?php if (!$isEx && empty($pv['maintenance_locked'])): ?>
-                            <button class="btn btn-sm fw-semibold pv-btn-limpeza"
-                                style="font-size:.73rem;border:1px solid #0d9488;color:#0d9488;border-radius:6px;padding:2px 8px;"
-                                data-pv-id="<?= $pv['id'] ?>"
-                                data-client="<?= htmlspecialchars($pv['client_name'],ENT_QUOTES) ?>">
-                                AGENDAR LIMPEZA
-                            </button>
-                            <?php elseif (!$isEx): ?>
-                            <span class="pv-blocked"><i class="fa fa-lock me-1"></i>Manutenção anual liberada após pagamento</span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-
-                    <div class="mt-auto d-flex flex-column gap-2">
-                        <?php if (!empty($pv['amigo_eligible']) && empty($pv['referral_token']) && !$isEx): ?>
-                        <div class="pv-sla-alert" style="background:#e7f8ef;color:#0f5132;">
-                            <i class="fa fa-gift me-1"></i>Elegível ao Amigo Solar: sugerir brinde/desconto por indicação.
-                        </div>
-                        <?php endif; ?>
-                        <!-- Gerar Link Amigo Solar -->
-                        <button class="btn btn-sm <?= (!empty($pv['amigo_eligible']) && empty($pv['referral_token']) && !$isEx) ? 'btn-outline-success' : 'btn-outline-secondary' ?> btn-amigo pv-btn-amigo"
-                            data-pv-id="<?= $pv['id'] ?>"
-                            data-client="<?= htmlspecialchars($pv['client_name'],ENT_QUOTES) ?>"
-                            data-token="<?= htmlspecialchars($pv['referral_token']??'',ENT_QUOTES) ?>">
-                            <i class="fa fa-share-nodes me-1"></i>GERAR LINK "AMIGO SOLAR"
-                        </button>
-                        <!-- Edit -->
-                        <button class="btn btn-sm btn-link text-muted p-0 pv-btn-edit" data-pv='<?= $pvJson ?>'>
-                            <i class="fa fa-pen-to-square me-1"></i>Editar registro
-                        </button>
-                    </div>
-
-                </div><!-- card-body -->
-            </div><!-- card -->
-        </div><!-- col -->
-        <?php endforeach; ?>
-        </div><!-- row -->
-        <?php endif; ?>
-
-        <!-- Add button -->
-        <div class="mt-4">
-            <button class="btn btn-primary" id="pvNewBtn">
-                <i class="fa fa-plus me-2"></i>Adicionar Cliente ao Pós-venda
-            </button>
+        <div class="row align-items-center mb-3 g-2">
+            <div class="col-12 col-md-auto mb-2 mb-md-0">
+                <div class="btn-group btn-group-sm pv-contract-filter" role="group" aria-label="Filtro de contratos">
+                    <button type="button" id="pvFilterAllBtn" class="btn btn-primary active">Todos os Contratos</button>
+                    <button type="button" id="pvFilterExpiredBtn" class="btn btn-outline-secondary">Apenas Vencidos</button>
+                </div>
+            </div>
+            <div class="col-12 col-md text-center mb-2 mb-md-0">
+                <div class="input-group input-group-sm pv-toolbar-search mx-auto" style="max-width:320px;">
+                    <span class="input-group-text bg-white"><i class="fa fa-search text-muted"></i></span>
+                    <input type="text" id="pvSearchInput" class="form-control" placeholder="Buscar cliente ou estágio...">
+                </div>
+            </div>
+            <div class="col-12 col-md-auto text-md-end">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Toggle view">
+                    <button type="button" id="pvViewKanbanBtn" class="btn btn-primary active">Kanban</button>
+                    <button type="button" id="pvViewTableBtn" class="btn btn-outline-secondary">Tabela</button>
+                </div>
+            </div>
         </div>
+
+        <div id="pvStagesNotice" class="alert alert-warning d-none"><i class="fa fa-exclamation-triangle me-2"></i>Não há colunas de pós-venda configuradas. Abra "Gerenciar Colunas" para criar as etapas.</div>
+
+        <div id="pvKanbanWrapper" class="mb-4"></div>
+        <div id="pvTableWrapper" class="table-responsive d-none">
+            <table class="table table-hover align-middle" id="pvTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Estágio</th>
+                        <th>Instalação</th>
+                        <th>Próx. Manutenção</th>
+                        <th>Garantia</th>
+                        <th>Status</th>
+                        <th>Acesso</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="pvTableBody"></tbody>
+            </table>
+        </div>
+
+        <div id="pvEmptyState" class="alert alert-info d-none"><i class="fa fa-info-circle me-2"></i>Nenhum cliente em pós-venda cadastrado ainda. Clique em "Adicionar" para começar.</div>
+
+        <!-- Add button removido: agora está no topo ao lado do Gerenciar Colunas -->
 
     </main>
 </div>
@@ -609,6 +671,12 @@ include 'includes/header.php';
           </select>
         </div>
         <div class="col-md-6">
+          <label class="form-label fw-semibold">Estágio no Pós-venda</label>
+          <select name="stage" id="pvStage" class="form-select">
+            <option value="">— Selecione o estágio —</option>
+          </select>
+        </div>
+        <div class="col-md-6">
           <label class="form-label fw-semibold">Status de Acesso</label>
           <select name="client_status" id="pvClientStatus" class="form-select">
             <option value="Assinante">Assinante — acesso liberado</option>
@@ -641,6 +709,32 @@ include 'includes/header.php';
         <button type="submit" class="btn btn-primary btn-sm" id="pvSaveBtn"><i class="fa fa-floppy-disk me-1"></i>Salvar</button>
       </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ Modal: Gerenciar Colunas Pós-venda ════════════════ -->
+<div class="modal fade" id="pvStagesModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-secondary text-white py-2">
+        <h5 class="modal-title fs-6">Colunas de Pós-venda</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex gap-2 mb-3">
+          <input type="text" id="pvStageNameInput" class="form-control" placeholder="Nome da coluna">
+          <input type="color" id="pvStageColorInput" class="form-control form-control-color" value="#6c757d" title="Cor da coluna">
+          <button type="button" id="pvStageAddBtn" class="btn btn-primary">Adicionar</button>
+        </div>
+                <div class="alert alert-light border small mb-3">
+                    Marque uma coluna como destino do SLA de renovação para que clientes com 11 meses pós-homologação sejam movidos automaticamente para ela.
+                </div>
+        <div id="pvStagesList" class="list-group"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -691,6 +785,499 @@ include 'includes/header.php';
     // ── helpers ──
     const $  = id => document.getElementById(id);
     const bsModal = id => new bootstrap.Modal($(id));
+    const posVendas = <?= json_encode($posVendas, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
+    let posVendaStages = [];
+    let currentView = 'table';
+    let currentSearch = '';
+    let currentContractFilter = 'all';
+    let _limpezaPvId = null;
+
+    function normalize(value){
+        return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function getPosVendaById(id){
+        return posVendas.find(pv => String(pv.id) === String(id)) || null;
+    }
+
+    function parseIsoDate(raw){
+        if (!raw) return null;
+        const str = String(raw).slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return null;
+        const d = new Date(str + 'T00:00:00');
+        if (Number.isNaN(d.getTime())) return null;
+        return d;
+    }
+
+    function isExpiredContract(pv){
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const warranty = parseIsoDate(pv.warranty_end);
+        const maintenance = parseIsoDate(pv.next_maintenance);
+        const byStatus = String(pv.client_status || '').trim() === 'Ex-Cliente';
+        const byWarranty = !!(warranty && warranty < today);
+        const byMaintenance = !!(maintenance && maintenance < today);
+
+        return byStatus || byWarranty || byMaintenance;
+    }
+
+    function filteredPosVendas(){
+        const term = normalize(currentSearch).trim();
+        let base = posVendas;
+        if (currentContractFilter === 'expired') {
+            base = base.filter(isExpiredContract);
+        }
+        if (!term) return base;
+        return base.filter(pv => {
+            const haystack = [
+                pv.client_name,
+                pv.stage,
+                pv.client_status,
+                pv.client_type,
+                pv.proj_status,
+                pv.address
+            ].map(normalize).join(' ');
+            return haystack.includes(term);
+        });
+    }
+
+    async function fetchPosVendaStages(){
+        const res = await fetch('includes/pos_venda_stages_api.php?action=list&global=1');
+        if (!res.ok) return [];
+        const data = await res.json();
+        posVendaStages = Array.isArray(data) ? data : [];
+        return posVendaStages;
+    }
+
+    function buildStageOption(stage){
+        return `<option value="${escapeHtml(stage.name)}">${escapeHtml(stage.name)}</option>`;
+    }
+
+    async function populateStageSelect(){
+        const stages = await fetchPosVendaStages();
+        const select = $('pvStage');
+        select.innerHTML = '<option value="">— Selecione o estágio —</option>' + stages.map(buildStageOption).join('');
+        $('pvStagesNotice').classList.toggle('d-none', stages.length > 0);
+        return stages;
+    }
+
+    function escapeHtml(value){
+        return String(value || '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch]);
+    }
+
+    function formatCurrencyBRL(value){
+        const normalized = String(value ?? '').replace(/\./g, '').replace(',', '.');
+        const amount = Number(normalized);
+        if (!Number.isFinite(amount)) return 'R$ 0,00';
+        return amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    function formatPhoneBR(value){
+        const digits = String(value || '').replace(/\D/g, '');
+        if (digits.length === 11) {
+            return `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+        }
+        if (digits.length === 10) {
+            return `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+        }
+        return value ? String(value) : 'Não informado';
+    }
+
+    function getPlanLabel(pv){
+        return String(pv.payment_type || pv.contract || '').trim() || 'Nenhum';
+    }
+
+    function getPostSaleStatusLabel(pv){
+        return isExpiredContract(pv) ? 'Expirado' : String(pv.client_status || 'Ativo').trim();
+    }
+
+    function renderStageBadge(name){
+        const stage = posVendaStages.find(s => s.name === name);
+        const color = stage?.color || '#6c757d';
+        return `<span class="pv-stage-badge" style="background:${stage?.card_color || '#fff'}; color:${color}; border:1px solid ${color};">${escapeHtml(name || 'Sem estágio')}</span>`;
+    }
+
+    function healthColor(pv){
+        const value = Number(pv.performance_pct || 0);
+        if (value >= 75) return '#22c55e';
+        if (value >= 40) return '#f59e0b';
+        return '#f97316';
+    }
+
+    function renderKanban(){
+        const wrapper = $('pvKanbanWrapper');
+        const items = filteredPosVendas();
+        const stageMap = new Map(posVendaStages.map(stage => [stage.name, stage]));
+        const showUnassigned = items.some(pv => {
+            const stageName = (pv.stage || '').trim();
+            return !stageName || !stageMap.has(stageName);
+        });
+        const stages = [...posVendaStages];
+        if (showUnassigned) {
+            stages.push({name:'Sem estágio', color:'#6c757d', card_color:'#ffffff'});
+        }
+        wrapper.innerHTML = '<div class="pv-kanban-board"></div>';
+        const board = wrapper.querySelector('.pv-kanban-board');
+        stages.forEach(stage => {
+            const cards = items.filter(pv => {
+                const stageName = (pv.stage || '').trim();
+                return stageName === stage.name || (!stageName && stage.name === 'Sem estágio') || (!stageMap.has(stageName) && stage.name === 'Sem estágio');
+            });
+            const col = document.createElement('div');
+            col.className = 'pv-kanban-col';
+            col.dataset.stage = stage.name;
+            col.innerHTML = `
+                <div class="pv-kanban-col-header" style="background:${stage.card_color || '#3b82f6'};">
+                    <div style="flex:1; min-width:0;">
+                        <div class="pv-kanban-col-title">
+                            <i class="fa fa-layer-group me-1" style="font-size:.98em;opacity:.8;"></i>
+                            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(stage.name)}</span>
+                        </div>
+                        <small style="font-size:.72rem; color:#e0e7ef;">${cards.length} item${cards.length !== 1 ? 's' : ''}</small>
+                    </div>
+                    <span class="pv-stage-badge" style="background:rgba(255,255,255,0.13); color:#fff; border:1px solid #fff; font-size:.62rem; padding:.18rem .5rem; box-shadow:0 1px 2px rgba(0,0,0,.04);">${cards.length}</span>
+                </div>
+                <div class="pv-kanban-col-body" data-stage="${escapeHtml(stage.name)}"></div>
+            `;
+            board.appendChild(col);
+            const body = col.querySelector('.pv-kanban-col-body');
+            if (!cards.length) {
+                body.innerHTML = '<div class="pv-kanban-empty">Nenhum item nesta coluna</div>';
+            }
+            cards.forEach(pv => {
+                const card = document.createElement('div');
+                card.className = 'pv-kanban-card';
+                card.draggable = true;
+                card.dataset.pvId = pv.id;
+                const healthPct = Math.max(0, Math.min(100, Number(pv.performance_pct || 0)));
+                const postSaleStatus = getPostSaleStatusLabel(pv);
+                card.innerHTML = `
+                    <div class="pv-kanban-card-top mb-2">
+                        <div style="min-width:0; width:100%;">
+                            <div class="pv-card-id-line">
+                                <span>#${escapeHtml(pv.proj_id || pv.project_id || pv.id)}</span>
+                                <span class="pv-expired-chip">${escapeHtml(postSaleStatus)}</span>
+                            </div>
+                            <p class="pv-card-client-name">${escapeHtml(pv.client_name)}</p>
+                            <div class="pv-card-kv">
+                                <span class="k">Valor projeto</span>
+                                <span class="v">${escapeHtml(formatCurrencyBRL(pv.proposal_value))}</span>
+                                <span class="k">Plano atual</span>
+                                <span class="v">${escapeHtml(getPlanLabel(pv))}</span>
+                                <span class="k">Telefone</span>
+                                <span class="v">${escapeHtml(formatPhoneBR(pv.lead_phone))}</span>
+                            </div>
+                            <div class="pv-health-head">
+                                <span class="label">Saúde do Sistema</span>
+                                <span class="value">${escapeHtml(Math.round(healthPct) + '%')}</span>
+                            </div>
+                            <div class="pv-health-bar mb-3"><span style="width:${healthPct}%; background:${healthColor(pv)}"></span></div>
+                        </div>
+                        ${renderStageBadge(pv.stage)}
+                    </div>
+                    <div class="pv-stage-actions">
+                        <button type="button" class="btn btn-sm btn-outline-primary pv-edit-row" data-pv-id="${pv.id}">Editar</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary pv-schedule-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}">Limpeza</button>
+                        <button type="button" class="btn btn-sm btn-outline-success pv-link-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" data-pv-token="${escapeHtml(pv.referral_token || '')}">Link</button>
+                    </div>
+                `;
+                body.appendChild(card);
+            });
+        });
+        setupKanbanDragAndDrop();
+        attachDynamicListeners();
+    }
+
+    function renderTable(){
+        const body = $('pvTableBody');
+        const items = filteredPosVendas();
+        body.innerHTML = '';
+        const rows = items.map(pv => {
+            return `
+                <tr>
+                    <td>${escapeHtml(pv.client_name)}</td>
+                    <td>${renderStageBadge(pv.stage)}</td>
+                    <td>${escapeHtml(pv.installation_date || 'N/D')}</td>
+                    <td>${escapeHtml(pv.next_maintenance || 'N/D')}</td>
+                    <td>${escapeHtml(pv.warranty_end || 'N/D')}</td>
+                    <td>${escapeHtml(pv.client_status === 'Ex-Cliente' ? 'Ex-Cliente' : (pv.client_status || 'Assinante'))}</td>
+                    <td>${escapeHtml(pv.client_status === 'Ex-Cliente' ? 'Bloqueado' : 'Liberado')}</td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline-primary pv-edit-row" data-pv-id="${pv.id}">Editar</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary pv-schedule-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}">Limpeza</button>
+                        <button type="button" class="btn btn-sm btn-outline-success pv-link-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" data-pv-token="${escapeHtml(pv.referral_token || '')}">Link</button>
+                    </td>
+                </tr>
+            `;
+        });
+        body.innerHTML = rows.join('') || '<tr><td colspan="8" class="text-center text-muted">Nenhum cliente em pós-venda encontrado.</td></tr>';
+        attachDynamicListeners();
+    }
+
+    function attachDynamicListeners(){
+        document.querySelectorAll('.pv-edit-row').forEach(btn => {
+            btn.removeEventListener('click', onEditRowClick);
+            btn.addEventListener('click', onEditRowClick);
+        });
+        document.querySelectorAll('.pv-schedule-btn').forEach(btn => {
+            btn.removeEventListener('click', onScheduleBtnClick);
+            btn.addEventListener('click', onScheduleBtnClick);
+        });
+        document.querySelectorAll('.pv-link-btn').forEach(btn => {
+            btn.removeEventListener('click', onLinkBtnClick);
+            btn.addEventListener('click', onLinkBtnClick);
+        });
+    }
+
+    function onEditRowClick(event){
+        const pv = getPosVendaById(event.currentTarget.dataset.pvId);
+        if (!pv) return;
+        $('pvForm').reset();
+        $('pvProjectPickerWrap').classList.add('d-none');
+        $('pvProjectId').value = pv.project_id || '';
+        $('pvClientNameHidden').value = pv.client_name || '';
+        $('pvInstDate').value = pv.installation_date || '';
+        $('pvNextMaint').value = pv.next_maintenance || '';
+        $('pvLastCheckup').value = pv.last_checkup || '';
+        $('pvWarranty').value = pv.warranty_end || '';
+        $('pvNotes').value = pv.notes || '';
+        $('pvPerf').value = pv.performance_pct != null ? pv.performance_pct : '';
+        $('pvClientType').value = pv.client_type || 'Degustação';
+        $('pvClientStatus').value = pv.client_status || 'Assinante';
+        $('pvStage').value = pv.stage || '';
+        $('pvModalTitle').textContent = 'Editar: ' + pv.client_name;
+        bsModal('pvModal').show();
+    }
+
+    function onScheduleBtnClick(event){
+        const btn = event.currentTarget;
+        _limpezaPvId = btn.dataset.pvId;
+        $('pvLimpezaClientName').textContent = btn.dataset.pvClient;
+        const d = new Date(); d.setDate(d.getDate()+7);
+        $('pvLimpezaDate').value = d.toISOString().split('T')[0];
+        bsModal('pvLimpezaModal').show();
+    }
+
+    async function onLinkBtnClick(event){
+        const btn = event.currentTarget;
+        const pvId = btn.dataset.pvId;
+        const clientName = btn.dataset.pvClient;
+        let token = btn.dataset.pvToken || '';
+
+        $('pvLinkClientName').textContent = clientName;
+
+        if (!token) {
+            const fd = new FormData();
+            fd.append('action', 'gen_referral');
+            fd.append('pv_id', pvId);
+            try {
+                const r = await fetch('pos-venda.php', { method:'POST', body: fd });
+                const d = await r.json();
+                if (!d.success) { alert('Erro ao gerar link'); return; }
+                token = d.token;
+                btn.dataset.pvToken = token;
+                const pv = getPosVendaById(pvId);
+                if (pv) pv.referral_token = token;
+                $('pvLinkInput').value = d.link;
+            } catch (err) {
+                alert('Falha: ' + err.message);
+                return;
+            }
+        } else {
+            $('pvLinkInput').value = window.location.origin + '/indicacao/' + token;
+        }
+
+        $('pvLinkCopied').classList.add('d-none');
+        bsModal('pvLinkModal').show();
+    }
+
+    function setupKanbanDragAndDrop(){
+        const cards = document.querySelectorAll('.pv-kanban-card');
+        const columns = document.querySelectorAll('.pv-kanban-col-body');
+        let draggedId = null;
+
+        cards.forEach(card=>{
+            card.addEventListener('dragstart', ()=>{ draggedId = card.dataset.pvId; card.classList.add('opacity-50'); });
+            card.addEventListener('dragend', ()=>{ card.classList.remove('opacity-50'); draggedId = null; });
+        });
+
+        columns.forEach(column => {
+            column.addEventListener('dragover', e => { e.preventDefault(); column.classList.add('border','border-primary'); });
+            column.addEventListener('dragleave', () => { column.classList.remove('border','border-primary'); });
+            column.addEventListener('drop', async e => {
+                e.preventDefault(); column.classList.remove('border','border-primary');
+                if (!draggedId) return;
+                const targetStage = column.dataset.stage || '';
+                const form = new FormData();
+                form.append('action','update_stage');
+                form.append('pv_id', draggedId);
+                form.append('stage', targetStage);
+                await fetch('pos-venda.php', { method:'POST', body: form });
+                const stageField = posVendas.find(v => String(v.id) === String(draggedId));
+                if (stageField) stageField.stage = targetStage;
+                renderView();
+            });
+        });
+    }
+
+    async function renderView(){
+        const kanban = $('pvKanbanWrapper');
+        const table = $('pvTableWrapper');
+        const empty = $('pvEmptyState');
+        const hasRows = posVendas.length > 0;
+        const hasStages = posVendaStages.length > 0;
+        const hasFilteredRows = filteredPosVendas().length > 0;
+
+        $('pvFilterAllBtn').classList.toggle('btn-primary', currentContractFilter === 'all');
+        $('pvFilterAllBtn').classList.toggle('btn-outline-secondary', currentContractFilter !== 'all');
+        $('pvFilterExpiredBtn').classList.toggle('btn-primary', currentContractFilter === 'expired');
+        $('pvFilterExpiredBtn').classList.toggle('btn-outline-secondary', currentContractFilter !== 'expired');
+
+        $('pvViewKanbanBtn').classList.toggle('btn-primary', currentView === 'kanban');
+        $('pvViewKanbanBtn').classList.toggle('btn-outline-secondary', currentView !== 'kanban');
+        $('pvViewTableBtn').classList.toggle('btn-primary', currentView === 'table');
+        $('pvViewTableBtn').classList.toggle('btn-outline-secondary', currentView !== 'table');
+        kanban.classList.toggle('d-none', currentView !== 'kanban');
+        table.classList.toggle('d-none', currentView !== 'table');
+        empty.classList.toggle('d-none', hasRows || hasStages);
+        if (!hasRows && !hasStages) {
+            kanban.innerHTML = '';
+            $('pvTableBody').innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum cliente em pós-venda encontrado.</td></tr>';
+            return;
+        }
+        if (hasRows && !hasFilteredRows) {
+            kanban.innerHTML = '<div class="alert alert-light border">Nenhum resultado encontrado para a busca atual.</div>';
+            $('pvTableBody').innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum resultado encontrado para a busca atual.</td></tr>';
+            return;
+        }
+        if (currentView === 'kanban') {
+            renderKanban();
+        } else {
+            renderTable();
+        }
+    }
+
+    async function openStagesManager(){
+        await renderStagesManager();
+        bsModal('pvStagesModal').show();
+    }
+
+    async function renderStagesManager(){
+        const list = $('pvStagesList');
+        const stages = await fetchPosVendaStages();
+        list.innerHTML = stages.map((stage, index) => `
+            <div class="list-group-item">
+                <div class="d-flex gap-2 align-items-center flex-grow-1">
+                    <input type="text" class="form-control form-control-sm stage-name" data-id="${stage.id}" value="${escapeHtml(stage.name)}">
+                    <input type="color" class="form-control form-control-sm stage-color" data-id="${stage.id}" value="${escapeHtml(stage.color || '#6c757d')}" style="width:3rem; padding:0;">
+                </div>
+                <div class="stage-sla-toggle">
+                    <div class="form-check form-switch mb-0">
+                        <input type="checkbox" class="form-check-input stage-sla-target" data-id="${stage.id}" ${Number(stage.sla_renewal_target || 0) === 1 ? 'checked' : ''}>
+                        <label class="form-check-label small text-muted">SLA 11 meses</label>
+                    </div>
+                </div>
+                <div class="stage-controls">
+                    <button type="button" class="btn btn-sm btn-outline-secondary stage-move-up" data-index="${index}">▲</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary stage-move-down" data-index="${index}">▼</button>
+                    <button type="button" class="btn btn-sm btn-danger stage-delete" data-id="${stage.id}">Excluir</button>
+                </div>
+            </div>
+        `).join('') || '<div class="text-muted">Nenhuma coluna cadastrada.</div>';
+
+        list.querySelectorAll('.stage-delete').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Excluir esta coluna?')) return;
+                await fetch('includes/pos_venda_stages_api.php?action=delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: btn.dataset.id }) });
+                await renderStagesManager();
+                await populateStageSelect();
+                renderView();
+            });
+        });
+
+        list.querySelectorAll('.stage-move-up, .stage-move-down').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const idx = parseInt(btn.dataset.index, 10);
+                const nextIdx = btn.classList.contains('stage-move-up') ? idx - 1 : idx + 1;
+                if (nextIdx < 0 || nextIdx >= stages.length) return;
+                const positions = stages.map((stage, index) => ({ id: stage.id, position: index + 1 }));
+                const temp = positions[idx].position;
+                positions[idx].position = positions[nextIdx].position;
+                positions[nextIdx].position = temp;
+                positions[idx].id = stages[idx].id;
+                positions[nextIdx].id = stages[nextIdx].id;
+                await fetch('includes/pos_venda_stages_api.php?action=reorder', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ positions }) });
+                await renderStagesManager();
+                await populateStageSelect();
+                renderView();
+            });
+        });
+
+        list.querySelectorAll('.stage-name, .stage-color').forEach(input => {
+            input.addEventListener('blur', async () => {
+                const id = input.dataset.id;
+                const row = input.closest('.list-group-item');
+                const name = row.querySelector('.stage-name').value.trim();
+                const color = row.querySelector('.stage-color').value;
+                if (!name) return;
+                await fetch('includes/pos_venda_stages_api.php?action=update', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id, name, color, card_color: color }) });
+                await populateStageSelect();
+                renderView();
+            });
+        });
+
+        list.querySelectorAll('.stage-sla-target').forEach(input => {
+            input.addEventListener('change', async () => {
+                const id = input.dataset.id;
+                const row = input.closest('.list-group-item');
+                const name = row.querySelector('.stage-name').value.trim();
+                const color = row.querySelector('.stage-color').value;
+                if (!name) {
+                    input.checked = false;
+                    return;
+                }
+                await fetch('includes/pos_venda_stages_api.php?action=update', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ id, name, color, card_color: color, sla_renewal_target: input.checked })
+                });
+                await renderStagesManager();
+                await populateStageSelect();
+                renderView();
+            });
+        });
+    }
+
+    $('pvStageAddBtn').addEventListener('click', async () => {
+        const name = $('pvStageNameInput').value.trim();
+        const color = $('pvStageColorInput').value || '#6c757d';
+        if (!name) { alert('Informe o nome da coluna'); return; }
+        await fetch('includes/pos_venda_stages_api.php?action=add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, color, card_color: '#ffffff' }) });
+        $('pvStageNameInput').value = '';
+        await renderStagesManager();
+        await populateStageSelect();
+        renderView();
+    });
+
+    $('pvStagesConfigBtn').addEventListener('click', openStagesManager);
+
+    $('pvViewKanbanBtn').addEventListener('click', () => { currentView = 'kanban'; renderView(); });
+    $('pvViewTableBtn').addEventListener('click', () => { currentView = 'table'; renderView(); });
+    $('pvFilterAllBtn').addEventListener('click', () => { currentContractFilter = 'all'; renderView(); });
+    $('pvFilterExpiredBtn').addEventListener('click', () => { currentContractFilter = 'expired'; renderView(); });
+    $('pvSearchInput').addEventListener('input', (event) => {
+        currentSearch = event.target.value || '';
+        renderView();
+    });
+
+    async function initializePosVenda(){
+        const stages = await populateStageSelect();
+        currentView = stages.length > 0 ? 'kanban' : 'table';
+        renderView();
+    }
+
+    initializePosVenda();
 
     // ── Open: New record ──
     $('pvNewBtn').addEventListener('click', ()=>{
@@ -709,26 +1296,6 @@ include 'includes/header.php';
         $('pvClientNameHidden').value = opt?.dataset?.name || '';
     });
 
-    // ── Open: Edit record ──
-    document.querySelectorAll('.pv-btn-edit').forEach(btn => {
-        btn.addEventListener('click', ()=>{
-            const pv = JSON.parse(btn.dataset.pv);
-            $('pvProjectPickerWrap').classList.add('d-none');
-            $('pvProjectId').value     = pv.project_id  || '';
-            $('pvClientNameHidden').value = pv.client_name || '';
-            $('pvInstDate').value      = pv.installation_date  || '';
-            $('pvNextMaint').value     = pv.next_maintenance   || '';
-            $('pvLastCheckup').value   = pv.last_checkup       || '';
-            $('pvWarranty').value      = pv.warranty_end       || '';
-            $('pvNotes').value         = pv.notes              || '';
-            $('pvPerf').value          = pv.performance_pct != null ? pv.performance_pct : '';
-            $('pvClientType').value    = pv.client_type        || 'Degustação';
-            $('pvClientStatus').value  = pv.client_status      || 'Assinante';
-            $('pvModalTitle').textContent = 'Editar: ' + pv.client_name;
-            bsModal('pvModal').show();
-        });
-    });
-
     // ── Save form ──
     $('pvForm').addEventListener('submit', async (e)=>{
         e.preventDefault();
@@ -743,18 +1310,6 @@ include 'includes/header.php';
             else { alert('Erro ao salvar: ' + (data.message || '')); }
         } catch(err){ alert('Falha: ' + err.message); }
         finally { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fa fa-floppy-disk me-1"></i>Salvar'; }
-    });
-
-    // ── Agendar Limpeza ──
-    let _limpezaPvId = null;
-    document.querySelectorAll('.pv-btn-limpeza').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-            _limpezaPvId = btn.dataset.pvId;
-            $('pvLimpezaClientName').textContent = btn.dataset.client;
-            const d = new Date(); d.setDate(d.getDate()+7);
-            $('pvLimpezaDate').value = d.toISOString().split('T')[0];
-            bsModal('pvLimpezaModal').show();
-        });
     });
 
     $('pvLimpezaConfirm').addEventListener('click', async ()=>{
@@ -778,36 +1333,6 @@ include 'includes/header.php';
         } catch(err){
             alert('Falha ao agendar limpeza: ' + err.message);
         }
-    });
-
-    // ── Gerar Link Amigo Solar ──
-    document.querySelectorAll('.pv-btn-amigo').forEach(btn=>{
-        btn.addEventListener('click', async ()=>{
-            const pvId      = btn.dataset.pvId;
-            const clientName= btn.dataset.client;
-            let   token     = btn.dataset.token;
-
-            $('pvLinkClientName').textContent = clientName;
-
-            if (!token) {
-                const fd = new FormData();
-                fd.append('action','gen_referral');
-                fd.append('pv_id', pvId);
-                try {
-                    const r = await fetch('pos-venda.php',{method:'POST',body:fd});
-                    const d = await r.json();
-                    if (!d.success) { alert('Erro ao gerar link'); return; }
-                    token = d.token;
-                    btn.dataset.token = token;
-                    $('pvLinkInput').value = d.link;
-                } catch(err){ alert('Falha: '+err.message); return; }
-            } else {
-                $('pvLinkInput').value = window.location.origin + '/indicacao/' + token;
-            }
-
-            $('pvLinkCopied').classList.add('d-none');
-            bsModal('pvLinkModal').show();
-        });
     });
 
     // Copy link

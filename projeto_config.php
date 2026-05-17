@@ -225,18 +225,23 @@ body.theme-dark .fc-page { background: #071427; }
                         <div class="fc-section mt-2 mb-0">
                           <div class="fc-section-title"><i class="fa fa-robot"></i> Automação de Pós-venda</div>
                           <div class="row g-3 align-items-end">
-                            <div class="col-md-7">
+                            <div class="col-12">
                               <div class="form-check mt-1">
                                 <input class="form-check-input" type="checkbox" id="autoMovePostSaleEnabled">
                                 <label class="form-check-label" for="autoMovePostSaleEnabled">
                                   Ativar nesta coluna
                                 </label>
                               </div>
-                              <div class="fc-automation-help mt-2">Se um card permanecer nesta coluna pelo prazo definido abaixo, ele será enviado automaticamente para Pós-venda e sairá da tela de Projetos.</div>
                             </div>
-                            <div class="col-md-5">
-                              <label class="fc-form-label">Mover após quantos dias</label>
-                              <input id="autoMovePostSaleDays" type="number" class="fc-form-control" min="1" value="90">
+                            <div class="col-12">
+                              <label class="fc-form-label">Enviar para coluna do Pós-venda</label>
+                              <select id="postSaleTargetStageId" class="fc-form-control">
+                                <option value="">Carregando colunas do Pós-venda...</option>
+                              </select>
+                              <div class="fc-automation-help mt-2">Escolha para qual coluna do Pós-venda o card deve ser migrado quando a automação disparar.</div>
+                            </div>
+                            <div class="col-12">
+                              <div class="fc-automation-help mt-2">Quando ativado, os cards desta coluna serão enviados automaticamente para Pós-venda ao atingir o prazo individual do próprio card (campo Prazo em dias no projeto).</div>
                             </div>
                           </div>
                         </div>

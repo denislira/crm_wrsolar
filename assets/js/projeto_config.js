@@ -4,6 +4,7 @@
   const paymentApi = 'includes/payment_methods_api.php';
   const paymentCode = 2;
   let stages = [];
+  let posVendaStages = [];
   let checklistItems = { technical: [], document: [] };
   let paymentMethods = [];
 
@@ -84,23 +85,51 @@
 
   function readPostSaleAutomationInputs() {
     const enabledInput = $('#autoMovePostSaleEnabled');
-    const daysInput = $('#autoMovePostSaleDays');
-    if (!enabledInput || !daysInput) {
-      return { ok: true, enabled: 0, days: 90 };
+    const targetSelect = $('#postSaleTargetStageId');
+    if (!enabledInput) {
+      return { ok: true, enabled: 0, targetStageId: null };
     }
 
-    const days = parseInt(daysInput.value, 10);
-    if (Number.isNaN(days) || days < 1) {
-      showStatus('Informe um prazo válido em dias', 'error');
-      daysInput.focus();
-      return { ok: false };
-    }
-
+    const targetStageId = targetSelect ? targetSelect.value.trim() : '';
     return {
       ok: true,
       enabled: enabledInput.checked ? 1 : 0,
-      days
+      targetStageId: targetStageId ? parseInt(targetStageId, 10) : null
     };
+  }
+
+  function loadPosVendaStages() {
+    return fetch('includes/pos_venda_stages_api.php?action=list')
+      .then(res => {
+        if (!res.ok) throw new Error('Falha ao carregar colunas do Pós-venda');
+        return res.json();
+      })
+      .then(data => {
+        posVendaStages = Array.isArray(data) ? data : [];
+        populatePostSaleTargetOptions();
+      })
+      .catch(err => {
+        console.error(err);
+        posVendaStages = [];
+        populatePostSaleTargetOptions();
+      });
+  }
+
+  function populatePostSaleTargetOptions() {
+    const select = $('#postSaleTargetStageId');
+    if (!select) return;
+
+    select.innerHTML = '';
+    if (!posVendaStages.length) {
+      select.innerHTML = '<option value="">Nenhuma coluna do Pós-venda encontrada</option>';
+      select.disabled = true;
+      return;
+    }
+
+    select.disabled = false;
+    select.innerHTML = '<option value="">Selecione a coluna de Pós-venda</option>' + posVendaStages.map(stage => {
+      return `<option value="${stage.id}">${stage.name}</option>`;
+    }).join('');
   }
 
   function renderStages() {
@@ -125,7 +154,7 @@
             <div class="stage-pos d-flex gap-1 flex-wrap mt-1">
               <span class="badge bg-secondary" style="font-size:.62rem;">#${stage.position || '-'}</span>
               ${Number(stage.is_initial) === 1 ? '<span class="badge bg-primary" style="font-size:.62rem;">Inicio</span>' : ''}
-              ${Number(stage.post_sale_enabled) === 1 ? '<span class="badge bg-success" style="font-size:.62rem;">Pós-venda Auto</span>' : ''}
+              ${Number(stage.post_sale_enabled) === 1 ? `<span class="badge bg-success" style="font-size:.62rem;">Pós-venda Auto${stage.post_sale_target_stage_id ? ' → ' + (posVendaStages.find(s => String(s.id) === String(stage.post_sale_target_stage_id))?.name || 'Destino') : ''}</span>` : ''}
             </div>
           </div>
         </div>
@@ -248,7 +277,7 @@
           color: '#6c757d',
           card_color: '#ffffff',
           post_sale_enabled: postSaleConfig.enabled,
-          post_sale_days: postSaleConfig.days
+          post_sale_target_stage_id: postSaleConfig.targetStageId
         })
       });
       const json = await res.json();
@@ -279,7 +308,7 @@
           color: $('#stageColor').value,
           card_color: $('#stageCardColor') ? $('#stageCardColor').value : '#ffffff',
           post_sale_enabled: postSaleConfig.enabled,
-          post_sale_days: postSaleConfig.days
+          post_sale_target_stage_id: postSaleConfig.targetStageId
         })
       });
       const json = await res.json();
@@ -324,12 +353,19 @@
     if (hexLabel) hexLabel.textContent = $('#stageColor').value;
     $('#stageIsInitial').checked = Number(stage.is_initial) === 1;
     const postSaleEnabledInput = $('#autoMovePostSaleEnabled');
-    const postSaleDaysInput = $('#autoMovePostSaleDays');
     if (postSaleEnabledInput) {
       const isEnabled = stage.post_sale_enabled && (stage.post_sale_enabled == 1 || stage.post_sale_enabled === '1');
       postSaleEnabledInput.checked = isEnabled ? true : false;
     }
-    if (postSaleDaysInput) postSaleDaysInput.value = stage.post_sale_days || 90;
+    const targetSelect = $('#postSaleTargetStageId');
+    if (targetSelect) {
+      populatePostSaleTargetOptions();
+      if (stage.post_sale_target_stage_id) {
+        targetSelect.value = stage.post_sale_target_stage_id;
+      } else {
+        targetSelect.value = '';
+      }
+    }
     renderPreview(stage);
   }
 
@@ -526,6 +562,8 @@
     const addPaymentBtn = $('#addPaymentMethodBtnConfig');
     const saveStageBtn = $('#saveStage');
     const deleteStageBtn = $('#deleteStage');
+
+    loadPosVendaStages();
 
     if (addStageBtn) addStageBtn.addEventListener('click', e => { e.preventDefault(); addStage(); });
     if (addTechBtn) addTechBtn.addEventListener('click', e => { e.preventDefault(); addChecklistItem('technical'); });

@@ -44,6 +44,11 @@ try {
         $existingCols[] = 'post_sale_enabled';
     }
 
+    if (!in_array('post_sale_target_stage_id', $existingCols, true)) {
+        $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_target_stage_id INT DEFAULT NULL");
+        $existingCols[] = 'post_sale_target_stage_id';
+    }
+
     if (!in_array('post_sale_days', $existingCols, true)) {
         $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_days INT NOT NULL DEFAULT 90");
         $existingCols[] = 'post_sale_days';
@@ -61,7 +66,7 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
     if ($action === 'list') {
-        $cols = ['id', "{$nameCol} AS name", 'is_initial', 'color', 'card_color', 'position', 'post_sale_enabled', 'post_sale_days'];
+        $cols = ['id', "{$nameCol} AS name", 'is_initial', 'color', 'card_color', 'position', 'post_sale_enabled', 'post_sale_target_stage_id', 'post_sale_days'];
         $sql = "SELECT " . implode(', ', $cols) . " FROM projeto_stages ORDER BY COALESCE({$positionCol}, id) ASC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute();
@@ -85,6 +90,7 @@ try {
         $color = !empty($data['color']) ? trim($data['color']) : '#6c757d';
         $cardColor = !empty($data['card_color']) ? trim($data['card_color']) : '#ffffff';
         $postSaleEnabled = !empty($data['post_sale_enabled']) ? 1 : 0;
+        $postSaleTargetStageId = isset($data['post_sale_target_stage_id']) ? (int)$data['post_sale_target_stage_id'] : null;
         $postSaleDays = isset($data['post_sale_days']) ? (int)$data['post_sale_days'] : 90;
         if ($postSaleDays < 1) $postSaleDays = 90;
 
@@ -97,8 +103,8 @@ try {
         $stmt->execute();
         $mx = (int)$stmt->fetchColumn();
 
-        $stmt = $pdo->prepare("INSERT INTO projeto_stages (user_id, {$nameCol}, position, is_initial, color, card_color, post_sale_enabled, post_sale_days) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$userId, $data['name'], $mx + 1, $isInitial, $color, $cardColor, $postSaleEnabled, $postSaleDays]);
+        $stmt = $pdo->prepare("INSERT INTO projeto_stages (user_id, {$nameCol}, position, is_initial, color, card_color, post_sale_enabled, post_sale_target_stage_id, post_sale_days) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$userId, $data['name'], $mx + 1, $isInitial, $color, $cardColor, $postSaleEnabled, $postSaleTargetStageId, $postSaleDays]);
         $newId = $pdo->lastInsertId();
 
         $h = $pdo->prepare('INSERT INTO projeto_stages_history (stage_id, user_id, action, changes) VALUES (?, ?, ?, ?)');
@@ -121,6 +127,7 @@ try {
         $color = !empty($data['color']) ? trim($data['color']) : ($prev['color'] ?? '#6c757d');
         $cardColor = !empty($data['card_color']) ? trim($data['card_color']) : ($prev['card_color'] ?? '#ffffff');
         $postSaleEnabled = isset($data['post_sale_enabled']) ? (!empty($data['post_sale_enabled']) ? 1 : 0) : (int)($prev['post_sale_enabled'] ?? 0);
+        $postSaleTargetStageId = array_key_exists('post_sale_target_stage_id', $data) ? (is_numeric($data['post_sale_target_stage_id']) ? (int)$data['post_sale_target_stage_id'] : null) : ($prev['post_sale_target_stage_id'] ?? null);
         $postSaleDays = isset($data['post_sale_days']) ? (int)$data['post_sale_days'] : (int)($prev['post_sale_days'] ?? 90);
         if ($postSaleDays < 1) $postSaleDays = 90;
 
@@ -129,8 +136,8 @@ try {
             $resetInitial->execute();
         }
 
-        $sets = ["{$nameCol} = ?", 'is_initial = ?', 'color = ?', 'card_color = ?', 'post_sale_enabled = ?', 'post_sale_days = ?'];
-        $params = [$data['name'], $isInitial, $color, $cardColor, $postSaleEnabled, $postSaleDays, $data['id']];
+        $sets = ["{$nameCol} = ?", 'is_initial = ?', 'color = ?', 'card_color = ?', 'post_sale_enabled = ?', 'post_sale_target_stage_id = ?', 'post_sale_days = ?'];
+        $params = [$data['name'], $isInitial, $color, $cardColor, $postSaleEnabled, $postSaleTargetStageId, $postSaleDays, $data['id']];
 
         $sql = "UPDATE projeto_stages SET " . implode(', ', $sets) . " WHERE id = ?";
         $stmt = $pdo->prepare($sql);

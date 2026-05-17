@@ -8,6 +8,7 @@ if (!isset($_SESSION['user_id'])) {
 
 include '../includes/config.php';
 include '../includes/permissions.php';
+require_once '../includes/project_post_sale_automation.php';
 
 if (!hasPermission('projetos')) {
     http_response_code(403);
@@ -31,9 +32,6 @@ if ($id <= 0) {
 $allowed = ['client_name','address','proposal_value','projeto','status','contract','closed_date','due_days','client_status','payment_method_id','payment_type','payment_status','logistics_tracking_code','logistics_delivery_date','inspection_photos','technical_checklist','docs_checklist','doc_attachments'];
 $sets = [];
 $params = [];
-$incomingStatus = isset($_POST['status']) ? trim((string)$_POST['status']) : null;
-$incomingStatusLower = $incomingStatus !== null ? mb_strtolower($incomingStatus, 'UTF-8') : null;
-$isPostVendaTriggerStatus = in_array($incomingStatusLower, ['homologado', 'concluido', 'concluído', 'fechado', 'finalizado'], true);
 $removedAttachmentPaths = [];
 if (isset($_POST['doc_attachments'])) {
     $existingStmt = $pdo->prepare('SELECT doc_attachments FROM projetos WHERE id = ? LIMIT 1');
@@ -89,12 +87,6 @@ if (isset($_POST['payment_method_id'])) {
     }
 }
 
-// When a project reaches homologation/closure stages, ensure we stamp closed_date.
-if ($isPostVendaTriggerStatus && !isset($_POST['closed_date'])) {
-    $sets[] = 'closed_date = ?';
-    $params[] = date('Y-m-d');
-}
-
 if (empty($sets)) {
     echo json_encode(['success' => false, 'message' => 'Nenhum campo para atualizar']);
     exit;
@@ -104,6 +96,8 @@ if (empty($sets)) {
 try {
     $columnsToCheck = [
         'client_status' => "VARCHAR(50) DEFAULT 'Assinante'",
+        'status_changed_at' => 'DATETIME DEFAULT NULL',
+        'moved_to_post_sale' => 'TINYINT(1) NOT NULL DEFAULT 0',
         'payment_method_id' => 'INT DEFAULT NULL',
         'payment_type' => "VARCHAR(50) DEFAULT NULL",
         'payment_status' => "VARCHAR(50) DEFAULT NULL",
@@ -128,6 +122,19 @@ try {
 
 try {
     $leadId = null;
+    $statusChanged = false;
+    if (isset($_POST['status'])) {
+        $prevStatusStmt = $pdo->prepare('SELECT status FROM projetos WHERE id = ? LIMIT 1');
+        $prevStatusStmt->execute([$id]);
+        $prevStatus = $prevStatusStmt->fetchColumn();
+        $statusChanged = trim((string)$prevStatus) !== trim((string)($_POST['status'] ?? ''));
+    }
+
+    if ($statusChanged) {
+        $sets[] = 'status_changed_at = ?';
+        $params[] = date('Y-m-d H:i:s');
+    }
+
     $leadStmt = $pdo->prepare('SELECT lead_id FROM projetos WHERE id = ? LIMIT 1');
     $leadStmt->execute([$id]);
     $leadId = $leadStmt->fetchColumn();
@@ -178,49 +185,9 @@ try {
         }
     }
 
-    // Auto-enroll project into post-sales when status reaches homologation/closure.
-    if ($isPostVendaTriggerStatus) {
-        $projectStmt = $pdo->prepare('SELECT id, user_id, client_name, closed_date FROM projetos WHERE id = ? LIMIT 1');
-        $projectStmt->execute([$id]);
-        $project = $projectStmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($project && (int)$project['user_id'] === (int)$_SESSION['user_id']) {
-            $installationDate = null;
-            if (!empty($_POST['closed_date'])) {
-                $installationDate = substr((string)$_POST['closed_date'], 0, 10);
-            } elseif (!empty($project['closed_date'])) {
-                $installationDate = substr((string)$project['closed_date'], 0, 10);
-            }
-            if (!$installationDate) {
-                $installationDate = date('Y-m-d');
-            }
-
-            $nextMaintenance = date('Y-m-d', strtotime($installationDate . ' +6 months'));
-
-            $pvStmt = $pdo->prepare('SELECT id, installation_date, next_maintenance FROM pos_venda WHERE project_id = ? AND user_id = ? LIMIT 1');
-            $pvStmt->execute([(int)$project['id'], (int)$_SESSION['user_id']]);
-            $pv = $pvStmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($pv) {
-                $updPv = $pdo->prepare('UPDATE pos_venda SET client_name = ?, installation_date = COALESCE(installation_date, ?), next_maintenance = COALESCE(next_maintenance, ?), updated_at = NOW() WHERE id = ?');
-                $updPv->execute([
-                    (string)$project['client_name'],
-                    $installationDate,
-                    $nextMaintenance,
-                    (int)$pv['id'],
-                ]);
-            } else {
-                $insPv = $pdo->prepare('INSERT INTO pos_venda (user_id, project_id, client_name, installation_date, next_maintenance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())');
-                $insPv->execute([
-                    (int)$_SESSION['user_id'],
-                    (int)$project['id'],
-                    (string)$project['client_name'],
-                    $installationDate,
-                    $nextMaintenance,
-                ]);
-            }
-        }
-    }
+    // Re-run stage-based post-sale automation after updates (including drag/drop status moves).
+    // This keeps migration timing consistent without relying on a page reload.
+    runProjectPostSaleAutomation($pdo, (int) $_SESSION['user_id']);
 
     echo json_encode(['success' => true, 'message' => 'Projeto atualizado com sucesso']);
 } catch (Exception $e) {

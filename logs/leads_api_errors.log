@@ -48,3 +48,4 @@
 [2026-04-17 14:07:21] DELETE_ATTACHMENT success: user=1 lead=5 file=46 filename=DENIS TABELA.xlsx
 [2026-04-17 14:08:17] UPDATE data_inicio (raw): '2026-02-06'
 [2026-04-17 14:08:17] UPDATE data_inicio (parsed): '2026-02-06'
+[2026-05-09 22:56:03] auto promoted anuncios: 1

@@ -1,7 +1,27 @@
-// SLA check: move projects to 'Renovação de Contrato' at 11 months after homologation (closed_date)
+// SLA check: move post-sales records to the configured renewal stage at 11 months after homologation.
 (function(){
+    let missingTargetWarned = false;
+
+    async function fetchRenewalTargetStage(){
+        const res = await fetch('/WRCRM/includes/pos_venda_stages_api.php?action=list');
+        if (!res.ok) return null;
+        const stages = await res.json();
+        if (!Array.isArray(stages)) return null;
+        return stages.find(stage => Number(stage.sla_renewal_target || 0) === 1) || null;
+    }
+
     async function runSlaCheck(){
         try {
+            const renewalTargetStage = await fetchRenewalTargetStage();
+            if (!renewalTargetStage || !renewalTargetStage.name) {
+                if (!missingTargetWarned) {
+                    console.warn('SLA renewal target stage is not configured.');
+                    missingTargetWarned = true;
+                }
+                return;
+            }
+            missingTargetWarned = false;
+
             const res = await fetch('/WRCRM/api/get_projects.php?for_sla=1');
             if (!res.ok) return;
             const payload = await res.json();
@@ -14,26 +34,24 @@
                 const d = new Date(closed);
                 if (isNaN(d.getTime())) continue;
                 const months = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
-                // when reaching 11 months -> trigger move to 'Renovação de Contrato'
-                if (months >= 11 && String(p.status || '').trim() !== 'Renovação de Contrato') {
-                    // update project status
+                const currentStage = String(p.pos_venda_stage || '').trim();
+                if (months >= 11 && currentStage !== renewalTargetStage.name && Number(p.pos_venda_id || 0) > 0) {
                     try {
-                        const form = new URLSearchParams();
-                        form.append('id', String(p.id));
-                        form.append('status', 'Renovação de Contrato');
-                        // send partial update (update_project accepts partial fields)
-                        const up = await fetch('/WRCRM/api/update_project.php', { method: 'POST', body: form });
+                        const form = new FormData();
+                        form.append('action', 'update_stage');
+                        form.append('pv_id', String(p.pos_venda_id));
+                        form.append('stage', renewalTargetStage.name);
+                        const up = await fetch('/WRCRM/pos-venda.php', { method: 'POST', body: form });
                         if (up.ok) {
-                            // create alert for commercial
                             try {
                                 const alertForm = new URLSearchParams();
                                 alertForm.append('project_id', String(p.id));
                                 alertForm.append('type', 'renovation');
-                                alertForm.append('message', `Projeto ${p.client_name || p.id} atingiu 11 meses pós-homologação.`);
+                                alertForm.append('message', `Projeto ${p.client_name || p.id} atingiu 11 meses pós-homologação e foi movido para ${renewalTargetStage.name}.`);
                                 await fetch('/WRCRM/api/add_alert.php', { method: 'POST', body: alertForm });
                             } catch(e) { console.warn('Failed creating alert', e); }
                         }
-                    } catch(e){ console.warn('Failed updating project status for SLA', e); }
+                    } catch(e){ console.warn('Failed updating post-sale stage for SLA', e); }
                 }
             }
         } catch (e) { console.warn('SLA check failed', e); }
