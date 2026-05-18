@@ -100,6 +100,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ex->execute([$projId, $_SESSION['user_id']]);
         $exId = $ex->fetchColumn();
 
+        if ($instDate && !$warranty) {
+            $warranty = date('Y-m-d', strtotime('+12 months', strtotime($instDate)));
+        }
         if ($exId) {
             $updateFields = ['installation_date=?','next_maintenance=?','warranty_end=?','notes=?'];
             $updateParams = [$instDate,$nextMaint,$warranty,$notes];
@@ -467,6 +470,9 @@ include 'includes/header.php';
 .pv-health-head .value { color:#0f172a; font-weight:800; }
 .pv-health-bar { height:7px; border-radius:999px; background:#e2e8f0; overflow:hidden; }
 .pv-health-bar > span { display:block; height:100%; border-radius:999px; }
+.pv-progress-head { display:flex; justify-content:space-between; align-items:center; font-size:.78rem; margin:.45rem 0 .2rem; color:#334155; }
+.pv-progress-bar { height:8px; border-radius:999px; background:#e2e8f0; overflow:hidden; }
+.pv-progress-bar > span { display:block; height:100%; border-radius:999px; }
 .pv-table-search { max-width:320px; }
 .pv-contract-filter .btn { min-width:140px; }
 </style>
@@ -478,7 +484,7 @@ include 'includes/header.php';
         <!-- Page header -->
         <div class="mb-4 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
             <div>
-                <h1 class="h4 fw-bold mb-1"><i class="fa fa-rotate text-primary me-2"></i>Gestão de Receita Recorrente</h1>
+                <h1 class="h4 fw-bold mb-1"><i class="fa fa-rotate text-primary me-2"></i>Gestão de Receita Recorrente 2</h1>
                 <p class="text-muted small mb-0">Transformando clientes concluídos em assinantes recorrentes.</p>
             </div>
             <div class="d-flex gap-2 align-items-center ms-md-auto mt-2 mt-md-0">
@@ -698,7 +704,7 @@ include 'includes/header.php';
           <input type="date" name="next_maintenance" id="pvNextMaint" class="form-control">
         </div>
         <div class="col-md-6">
-          <label class="form-label fw-semibold">Fim da Garantia</label>
+          <label class="form-label fw-semibold">Fim da Garantia (12 meses padrão)</label>
           <input type="date" name="warranty_end" id="pvWarranty" class="form-control">
         </div>
         <div class="col-12">
@@ -820,6 +826,34 @@ include 'includes/header.php';
         const d = new Date(str + 'T00:00:00');
         if (Number.isNaN(d.getTime())) return null;
         return d;
+    }
+
+    function addMonths(date, months){
+        const d = new Date(date.getTime());
+        const targetMonth = d.getMonth() + months;
+        d.setMonth(targetMonth);
+        if (d.getMonth() !== ((targetMonth % 12) + 12) % 12) {
+            d.setDate(0);
+        }
+        return d;
+    }
+
+    function getWarrantyProgress(pv){
+        const installed = parseIsoDate(pv.installation_date);
+        if (!installed) return null;
+
+        let endDate = parseIsoDate(pv.warranty_end);
+        if (!endDate) {
+            endDate = addMonths(installed, 12);
+        }
+
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const totalDays = Math.max(1, Math.round((endDate.getTime() - installed.getTime()) / 86400000));
+        const remainingDays = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / 86400000));
+        const elapsed = Math.max(0, Math.min(totalDays, totalDays - remainingDays));
+        const progressPct = Math.min(100, Math.max(0, Math.round((elapsed / totalDays) * 100)));
+        return { endDate, totalDays, remainingDays, progressPct };
     }
 
     function isExpiredContract(pv){
@@ -1005,6 +1039,19 @@ include 'includes/header.php';
                             <span class="v">${escapeHtml(formatDateBR(pv.installation_date))}</span>
                         </div>
                         ${healthSection}
+                        ${(() => {
+                            const warranty = getWarrantyProgress(pv);
+                            if (!warranty) return '';
+                            const status = warranty.remainingDays > 0 ? `${warranty.remainingDays} dia${warranty.remainingDays !== 1 ? 's' : ''} restantes` : 'Vencido';
+                            const color = warranty.progressPct >= 90 ? '#22c55e' : (warranty.progressPct >= 70 ? '#f59e0b' : '#3b82f6');
+                            return `
+                                <div class="pv-progress-head">
+                                    <span class="label">Garantia / Assinatura</span>
+                                    <span class="value">${status}</span>
+                                </div>
+                                <div class="pv-progress-bar"><span style="width:${warranty.progressPct}%; background:${color}"></span></div>
+                            `;
+                        })()}
                     </div>
                     <div class="pv-card-footer">
                         <button type="button" class="btn btn-sm btn-primary pv-edit-row" data-pv-id="${pv.id}" style="padding:.3rem .55rem;" title="Editar"><i class="fa fa-pen"></i></button>
@@ -1348,11 +1395,25 @@ include 'includes/header.php';
     });
 
     // project select → populate hidden fields
+    function computeDefaultWarranty(){
+        const instValue = $('pvInstDate').value;
+        if (!instValue) return;
+        const inst = parseIsoDate(instValue);
+        if (!inst) return;
+        const selectedWarranty = $('pvWarranty').value;
+        const existing = parseIsoDate(selectedWarranty);
+        if (existing && existing > inst) return;
+        const target = addMonths(inst, 12);
+        $('pvWarranty').value = target.toISOString().slice(0,10);
+    }
+
     $('pvProjectSelect').addEventListener('change', ()=>{
         const opt = $('pvProjectSelect').selectedOptions[0];
         $('pvProjectId').value = opt?.value || '';
         $('pvClientNameHidden').value = opt?.dataset?.name || '';
     });
+
+    $('pvInstDate').addEventListener('change', computeDefaultWarranty);
 
     // ── Save form ──
     $('pvForm').addEventListener('submit', async (e)=>{
