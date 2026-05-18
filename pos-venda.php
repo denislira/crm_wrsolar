@@ -415,7 +415,7 @@ include 'includes/header.php';
 .btn-amigo         { font-size:.76rem;font-weight:600;letter-spacing:.03em; }
 .pv-divider        { border-top:1px solid #f0f0f0; }
 .pv-kanban-board   { display:flex; gap:1rem; overflow-x:auto; padding-bottom:0.5rem; }
-.pv-kanban-col    { min-width:280px; background:#f8fafc; border-radius:14px; box-shadow:0 1px 8px rgba(0,0,0,.05); display:flex; flex-direction:column; max-height:72vh; }
+.pv-kanban-col    { width:360px; min-width:360px; max-width:360px; flex-shrink:0; background:#f8fafc; border-radius:14px; box-shadow:0 1px 8px rgba(0,0,0,.05); display:flex; flex-direction:column; max-height:72vh; }
 .pv-kanban-col-header {
     padding: 0.65rem 0.85rem 0.6rem 0.85rem;
     border-bottom: none;
@@ -427,7 +427,6 @@ include 'includes/header.php';
     border-radius: 14px 14px 0 0;
     box-shadow: 0 2px 8px rgba(0,0,0,.04);
     position: relative;
-    min-height: 48px;
 }
 .pv-kanban-col-title {
     margin: 0;
@@ -440,9 +439,12 @@ include 'includes/header.php';
     color: #fff !important;
 }
 .pv-kanban-col-body { padding:1rem; overflow:auto; min-height:120px; }
-.pv-kanban-card    { background:#fff; border-radius:12px; border:1px solid #e5e7eb; padding:1rem; margin-bottom:.75rem; cursor:grab; }
+.pv-kanban-card    { background:#fff; border-radius:12px; border:1px solid #e5e7eb; padding:0; margin-bottom:.75rem; cursor:grab; overflow:hidden; transition: box-shadow .18s; }
 .pv-kanban-card:active { cursor:grabbing; }
-.pv-kanban-card:hover { background:#f8fafc; }
+.pv-kanban-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.10); }
+.pv-card-header-strip { padding:.65rem 1rem .55rem; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; gap:.5rem; }
+.pv-card-body-inner { padding:.7rem 1rem .6rem; }
+.pv-card-footer { padding:.5rem 1rem .6rem; border-top:1px solid #f1f5f9; display:flex; gap:.4rem; flex-wrap:wrap; background:#f8fafc; }
 .pv-stage-badge    { display:inline-flex; align-items:center; gap:.35rem; font-size:.75rem; font-weight:700; padding:.35rem .7rem; border-radius:999px; }
 .pv-stage-actions  { display:flex; gap:.35rem; flex-wrap:wrap; }
 #pvStagesList .list-group-item { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
@@ -780,6 +782,17 @@ include 'includes/header.php';
   </div>
 </div>
 
+<!-- Preloading overlay: PDF history -->
+<div id="pvHistoryOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,.65); z-index:9999; align-items:center; justify-content:center; flex-direction:column;">
+  <div style="background:#fff; border-radius:16px; padding:2rem 2.5rem; text-align:center; max-width:340px;">
+    <div style="font-size:2rem; margin-bottom:.5rem;">📄</div>
+    <div style="font-weight:700; font-size:1rem; margin-bottom:.25rem;">Gerando histórico PDF…</div>
+    <div id="pvHistoryOverlayName" style="font-size:.85rem; color:#64748b; margin-bottom:1rem;"></div>
+    <div class="spinner-border text-primary" role="status" style="width:2rem; height:2rem;"></div>
+    <div style="font-size:.75rem; color:#94a3b8; margin-top:.75rem;">Uma nova aba será aberta com o relatório.<br>Selecione "Salvar como PDF" para baixar.</div>
+  </div>
+</div>
+
 <script>
 (function(){
     // ── helpers ──
@@ -884,6 +897,13 @@ include 'includes/header.php';
         return value ? String(value) : 'Não informado';
     }
 
+    function formatDateBR(raw){
+        if (!raw || raw === '0000-00-00') return '—';
+        const parts = String(raw).slice(0,10).split('-');
+        if (parts.length !== 3) return raw;
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+
     function getPlanLabel(pv){
         return String(pv.payment_type || pv.contract || '').trim() || 'Nenhum';
     }
@@ -927,16 +947,17 @@ include 'includes/header.php';
             const col = document.createElement('div');
             col.className = 'pv-kanban-col';
             col.dataset.stage = stage.name;
+            const hdrBg = stage.color || '#3b82f6';
             col.innerHTML = `
-                <div class="pv-kanban-col-header" style="background:${stage.card_color || '#3b82f6'};">
+                <div class="pv-kanban-col-header" style="background:${hdrBg};">
                     <div style="flex:1; min-width:0;">
                         <div class="pv-kanban-col-title">
                             <i class="fa fa-layer-group me-1" style="font-size:.98em;opacity:.8;"></i>
                             <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(stage.name)}</span>
                         </div>
-                        <small style="font-size:.72rem; color:#e0e7ef;">${cards.length} item${cards.length !== 1 ? 's' : ''}</small>
+                        <small style="font-size:.72rem; color:rgba(255,255,255,.75);">${cards.length} item${cards.length !== 1 ? 's' : ''}</small>
                     </div>
-                    <span class="pv-stage-badge" style="background:rgba(255,255,255,0.13); color:#fff; border:1px solid #fff; font-size:.62rem; padding:.18rem .5rem; box-shadow:0 1px 2px rgba(0,0,0,.04);">${cards.length}</span>
+                    <span style="background:rgba(255,255,255,0.2); color:#fff; border:1px solid rgba(255,255,255,.4); font-size:.68rem; font-weight:700; padding:.2rem .55rem; border-radius:999px;">${cards.length}</span>
                 </div>
                 <div class="pv-kanban-col-body" data-stage="${escapeHtml(stage.name)}"></div>
             `;
@@ -948,38 +969,49 @@ include 'includes/header.php';
             cards.forEach(pv => {
                 const card = document.createElement('div');
                 card.className = 'pv-kanban-card';
+                card.style.borderColor = stage.color || '#e5e7eb';
+                card.style.borderLeftWidth = '3px';
                 card.draggable = true;
                 card.dataset.pvId = pv.id;
                 const healthPct = Math.max(0, Math.min(100, Number(pv.performance_pct || 0)));
                 const postSaleStatus = getPostSaleStatusLabel(pv);
-                card.innerHTML = `
-                    <div class="pv-kanban-card-top mb-2">
-                        <div style="min-width:0; width:100%;">
-                            <div class="pv-card-id-line">
-                                <span>#${escapeHtml(pv.proj_id || pv.project_id || pv.id)}</span>
-                                <span class="pv-expired-chip">${escapeHtml(postSaleStatus)}</span>
-                            </div>
-                            <p class="pv-card-client-name">${escapeHtml(pv.client_name)}</p>
-                            <div class="pv-card-kv">
-                                <span class="k">Valor projeto</span>
-                                <span class="v">${escapeHtml(formatCurrencyBRL(pv.proposal_value))}</span>
-                                <span class="k">Plano atual</span>
-                                <span class="v">${escapeHtml(getPlanLabel(pv))}</span>
-                                <span class="k">Telefone</span>
-                                <span class="v">${escapeHtml(formatPhoneBR(pv.lead_phone))}</span>
-                            </div>
-                            <div class="pv-health-head">
-                                <span class="label">Saúde do Sistema</span>
-                                <span class="value">${escapeHtml(Math.round(healthPct) + '%')}</span>
-                            </div>
-                            <div class="pv-health-bar mb-3"><span style="width:${healthPct}%; background:${healthColor(pv)}"></span></div>
+                const phoneDigits = String(pv.lead_phone || '').replace(/\D/g, '');
+                const waNum = phoneDigits.length >= 10 ? '55' + phoneDigits : '';
+                const healthSection = pv.performance_pct != null
+                    ? `<div class="pv-health-head">
+                            <span class="label">Sa\u00fade do Sistema</span>
+                            <span class="value" style="color:${healthColor(pv)}">${Math.round(healthPct)}%</span>
                         </div>
-                        ${renderStageBadge(pv.stage)}
+                        <div class="pv-health-bar"><span style="width:${healthPct}%; background:${healthColor(pv)}"></span></div>`
+                    : '';
+                card.innerHTML = `
+                    <div class="pv-card-header-strip">
+                        <div style="display:flex; align-items:center; gap:.45rem; min-width:0; flex-wrap:wrap;">
+                            <span style="font-size:.72rem; font-weight:700; color:#64748b; background:#f1f5f9; border-radius:6px; padding:.1rem .4rem;">#${escapeHtml(String(pv.proj_id || pv.project_id || pv.id))}</span>
+                            <span class="pv-expired-chip" style="${isExpiredContract(pv) ? 'border-color:#ef4444;color:#991b1b;background:#fee2e2;' : 'border-color:#22c55e;color:#14532d;background:#dcfce7;'}">${escapeHtml(postSaleStatus)}</span>
+                        </div>
+                        <span style="font-size:.68rem; font-weight:600; color:#64748b; white-space:nowrap; background:#f1f5f9; padding:.1rem .45rem; border-radius:6px;">${escapeHtml(pv.client_type || 'Degusta\u00e7\u00e3o')}</span>
                     </div>
-                    <div class="pv-stage-actions">
-                        <button type="button" class="btn btn-sm btn-outline-primary pv-edit-row" data-pv-id="${pv.id}">Editar</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary pv-schedule-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}">Limpeza</button>
-                        <button type="button" class="btn btn-sm btn-outline-success pv-link-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" data-pv-token="${escapeHtml(pv.referral_token || '')}">Link</button>
+                    <div class="pv-card-body-inner">
+                        <p class="pv-card-client-name">${escapeHtml(pv.client_name)}</p>
+                        <div class="pv-card-kv">
+                            <span class="k">Valor</span>
+                            <span class="v">${escapeHtml(formatCurrencyBRL(pv.proposal_value))}</span>
+                            <span class="k">Plano</span>
+                            <span class="v">${escapeHtml(getPlanLabel(pv))}</span>
+                            <span class="k">Telefone</span>
+                            <span class="v">${phoneDigits ? `<a href="tel:${phoneDigits}" style="color:inherit;text-decoration:none;">${escapeHtml(formatPhoneBR(pv.lead_phone))}</a>` : '\u2014'}</span>
+                            <span class="k">Instala\u00e7\u00e3o</span>
+                            <span class="v">${escapeHtml(formatDateBR(pv.installation_date))}</span>
+                        </div>
+                        ${healthSection}
+                    </div>
+                    <div class="pv-card-footer">
+                        <button type="button" class="btn btn-sm btn-primary pv-edit-row" data-pv-id="${pv.id}" style="padding:.3rem .55rem;" title="Editar"><i class="fa fa-pen"></i></button>
+                        ${waNum ? `<a href="https://wa.me/${waNum}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" style="padding:.3rem .55rem;" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>` : ''}
+                        <button type="button" class="btn btn-sm btn-outline-secondary pv-schedule-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" style="padding:.3rem .55rem;" title="Agendar Limpeza"><i class="fa fa-broom"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-primary pv-link-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" data-pv-token="${escapeHtml(pv.referral_token || '')}" style="padding:.3rem .55rem;" title="Link de Indicação"><i class="fa fa-share-nodes"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-dark pv-history-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" style="padding:.3rem .55rem;" title="Baixar Histórico PDF"><i class="fa fa-download"></i></button>
                     </div>
                 `;
                 body.appendChild(card);
@@ -998,9 +1030,9 @@ include 'includes/header.php';
                 <tr>
                     <td>${escapeHtml(pv.client_name)}</td>
                     <td>${renderStageBadge(pv.stage)}</td>
-                    <td>${escapeHtml(pv.installation_date || 'N/D')}</td>
-                    <td>${escapeHtml(pv.next_maintenance || 'N/D')}</td>
-                    <td>${escapeHtml(pv.warranty_end || 'N/D')}</td>
+                    <td>${formatDateBR(pv.installation_date)}</td>
+                    <td>${formatDateBR(pv.next_maintenance)}</td>
+                    <td>${formatDateBR(pv.warranty_end)}</td>
                     <td>${escapeHtml(pv.client_status === 'Ex-Cliente' ? 'Ex-Cliente' : (pv.client_status || 'Assinante'))}</td>
                     <td>${escapeHtml(pv.client_status === 'Ex-Cliente' ? 'Bloqueado' : 'Liberado')}</td>
                     <td>
@@ -1028,6 +1060,32 @@ include 'includes/header.php';
             btn.removeEventListener('click', onLinkBtnClick);
             btn.addEventListener('click', onLinkBtnClick);
         });
+        document.querySelectorAll('.pv-history-btn').forEach(btn => {
+            btn.removeEventListener('click', onHistoryBtnClick);
+            btn.addEventListener('click', onHistoryBtnClick);
+        });
+    }
+
+    function onHistoryBtnClick(event){
+        const btn = event.currentTarget;
+        const pvId = btn.dataset.pvId;
+        const clientName = btn.dataset.pvClient;
+
+        // show overlay
+        const overlay = document.getElementById('pvHistoryOverlay');
+        document.getElementById('pvHistoryOverlayName').textContent = clientName;
+        overlay.style.display = 'flex';
+
+        // open in new tab — when it loads it auto-prints
+        const win = window.open('api/client_history_pdf.php?pv_id=' + pvId, '_blank');
+
+        // hide overlay after a short delay (the new tab handles the rest)
+        setTimeout(() => { overlay.style.display = 'none'; }, 3000);
+
+        if (!win) {
+            overlay.style.display = 'none';
+            alert('Permita pop-ups para este site para baixar o relatório PDF.');
+        }
     }
 
     function onEditRowClick(event){
