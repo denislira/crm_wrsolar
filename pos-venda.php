@@ -484,7 +484,7 @@ include 'includes/header.php';
         <!-- Page header -->
         <div class="mb-4 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
             <div>
-                <h1 class="h4 fw-bold mb-1"><i class="fa fa-rotate text-primary me-2"></i>Gestão de Receita Recorrente 2</h1>
+                <h1 class="h4 fw-bold mb-1"><i class="fa fa-rotate text-primary me-2"></i>Gestão de Receita Recorrente 3</h1>
                 <p class="text-muted small mb-0">Transformando clientes concluídos em assinantes recorrentes.</p>
             </div>
             <div class="d-flex gap-2 align-items-center ms-md-auto mt-2 mt-md-0">
