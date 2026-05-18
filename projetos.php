@@ -28,7 +28,7 @@ try {
 runProjectPostSaleAutomation($pdo, (int) $_SESSION['user_id']);
 
 // Exibir projetos com dados do lead vinculado (fonte de verdade para telefone, kWh e orçamento)
-$stmt = $pdo->prepare('SELECT p.*, pm.name AS payment_method_name, COALESCE(pm.name, p.payment_type) AS payment_type_effective, l.phone AS lead_phone, l.orcamento_value AS lead_orcamento_value, l.estimativa_projeto_kwh AS lead_kwh, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value_effective, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto_effective FROM projetos p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.code = 2 LEFT JOIN leads l ON l.id = p.lead_id ORDER BY p.id DESC');
+$stmt = $pdo->prepare('SELECT p.*, pm.name AS payment_method_name, COALESCE(pm.name, p.payment_type) AS payment_type_effective, l.phone AS lead_phone, l.orcamento_value AS lead_orcamento_value, l.estimativa_projeto_kwh AS lead_kwh, COALESCE(l.orcamento_value, p.proposal_value) AS proposal_value_effective, COALESCE(l.estimativa_projeto_kwh, p.projeto) AS projeto_effective FROM projetos p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.code = 2 LEFT JOIN leads l ON l.id = p.lead_id WHERE COALESCE(p.moved_to_post_sale, 0) = 0 ORDER BY p.id DESC');
 $stmt->execute();
 $projetos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -261,7 +261,7 @@ include 'includes/header.php';
                 $nameCol = in_array('name', $projCols, true) ? 'name' : (in_array('stage_name', $projCols, true) ? 'stage_name' : 'name');
                 $orderCol = in_array('position', $projCols, true) ? 'position' : 'id';
 
-                $stagesStmt = $pdo->prepare("SELECT {$nameCol} AS name, color, card_color FROM projeto_stages ORDER BY COALESCE({$orderCol}, id) ASC");
+                $stagesStmt = $pdo->prepare("SELECT {$nameCol} AS name, color, card_color, COALESCE(post_sale_enabled, 0) AS post_sale_enabled FROM projeto_stages ORDER BY COALESCE({$orderCol}, id) ASC");
                 $stagesStmt->execute();
                 $stageRows = $stagesStmt->fetchAll(PDO::FETCH_ASSOC);
                 $kanbanStages = [];
@@ -273,6 +273,7 @@ include 'includes/header.php';
                     $stageStyles[$name] = [
                         'color' => !empty($row['color']) ? $row['color'] : '#6c757d',
                         'card_color' => !empty($row['card_color']) ? $row['card_color'] : '#ffffff',
+                        'post_sale_enabled' => !empty($row['post_sale_enabled']) ? 1 : 0,
                     ];
                 }
             } catch (Exception $e) {
@@ -408,13 +409,28 @@ include 'includes/header.php';
                     <div class="col-12 kanban-column">
                         <div class="card h-100 stage-card" style="background: <?= htmlspecialchars($stageCardColor) ?>; border-color: <?= htmlspecialchars($stageColor) ?>;">
                             <div class="card-header d-flex justify-content-between align-items-center" style="background: <?= htmlspecialchars($stageColor) ?>; color: #fff; border-bottom: 1px solid rgba(0,0,0,0.08);">
-                                <strong class="mb-0"><?= htmlspecialchars($stage) ?></strong>
+                                <div>
+                                    <strong class="mb-0"><?= htmlspecialchars($stage) ?></strong>
+                                    <?php if (!empty($stageStyles[$stage]['post_sale_enabled'])): ?>
+                                        <span class="badge bg-success ms-2" style="font-size:.68rem;">Auto Pós-venda</span>
+                                    <?php endif; ?>
+                                </div>
                                 <span class="badge" style="background: rgba(255,255,255,0.2); color: #fff; font-size:80%;"><?= count($stageProjects[$stage]) ?></span>
                             </div>
-                            <div class="card-body p-2 board-column" data-stage="<?= $stage ?>" data-stage-color="<?= htmlspecialchars($stageColor) ?>">
+                            <div class="card-body p-2 board-column" data-stage="<?= $stage ?>" data-stage-color="<?= htmlspecialchars($stageColor) ?>" data-post-sale-enabled="<?= !empty($stageStyles[$stage]['post_sale_enabled']) ? '1' : '0' ?>">
                                 <?php foreach ($stageProjects[$stage] as $p): ?>
-                                    <?php $projectStageColor = $stageColor; ?>
-                                    <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" data-user-id="<?= $p['user_id'] ?>" data-status="<?= htmlspecialchars(strtolower($p['status'] ?? '')) ?>" data-payment-type="<?= htmlspecialchars(strtolower($p['payment_type_effective'] ?? '')) ?>" data-payment-status="<?= htmlspecialchars(strtolower($paymentStatus)) ?>" data-client-name="<?= htmlspecialchars(strtolower($p['client_name'] ?? '')) ?>" data-contract="<?= htmlspecialchars(strtolower($p['contract'] ?? '')) ?>" data-lead-phone="<?= htmlspecialchars(strtolower($p['lead_phone'] ?? '')) ?>" draggable="true" style="border-left:4px solid <?= htmlspecialchars($projectStageColor) ?>; border-color: <?= htmlspecialchars($projectStageColor) ?>;">
+                                    <?php
+                                        $projectStageColor = $stageColor;
+                                        $today = time();
+                                        $dueDays = isset($p['due_days']) && intval($p['due_days']) > 0 ? intval($p['due_days']) : 30;
+                                        $startedAt = !empty($p['closed_date']) ? strtotime($p['closed_date']) : (isset($p['created_at']) ? strtotime($p['created_at']) : $today);
+                                        $elapsed = max(0, floor(($today - $startedAt) / 86400));
+                                        $remaining = max(0, $dueDays - $elapsed);
+                                        $progressValue = $dueDays > 0 ? intval(min(100, max(0, ($elapsed / $dueDays) * 100))) : 0;
+                                        $deadlineStatus = $remaining > 0 ? "{$remaining} dia" . ($remaining !== 1 ? 's' : '') . ' restantes' : 'Prazo vencido';
+                                        $isOverdue = $remaining <= 0 ? 1 : 0;
+                                    ?>
+                                    <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" data-user-id="<?= $p['user_id'] ?>" data-status="<?= htmlspecialchars(strtolower($p['status'] ?? '')) ?>" data-payment-type="<?= htmlspecialchars(strtolower($p['payment_type_effective'] ?? '')) ?>" data-payment-status="<?= htmlspecialchars(strtolower($paymentStatus)) ?>" data-client-name="<?= htmlspecialchars(strtolower($p['client_name'] ?? '')) ?>" data-contract="<?= htmlspecialchars(strtolower($p['contract'] ?? '')) ?>" data-lead-phone="<?= htmlspecialchars(strtolower($p['lead_phone'] ?? '')) ?>" data-overdue="<?= $isOverdue ?>" draggable="true" style="border-left:4px solid <?= htmlspecialchars($projectStageColor) ?>; border-color: <?= htmlspecialchars($projectStageColor) ?>;">
                                         <div class="card-body p-2">
                                             <?php
                                                 $paymentStatus = isset($p['payment_status']) && $p['payment_status'] !== ''
@@ -441,15 +457,6 @@ include 'includes/header.php';
                                             <div class="text-muted small mb-1 compact-hide">Forma de Pagto: <strong><?= !empty($p['payment_type_effective']) ? htmlspecialchars($p['payment_type_effective']) : (!empty($p['contract']) ? htmlspecialchars($p['contract']) : 'Não informado') ?></strong></div>
 
                                             <div class="d-flex align-items-center gap-2 mb-1">
-                                                <?php
-                                                    $today = time();
-                                                    $dueDays = isset($p['due_days']) && intval($p['due_days']) > 0 ? intval($p['due_days']) : 30;
-                                                    $startedAt = !empty($p['closed_date']) ? strtotime($p['closed_date']) : (isset($p['created_at']) ? strtotime($p['created_at']) : $today);
-                                                    $elapsed = max(0, floor(($today - $startedAt) / 86400));
-                                                    $remaining = max(0, $dueDays - $elapsed);
-                                                    $progressValue = $dueDays > 0 ? intval(min(100, max(0, ($elapsed / $dueDays) * 100))) : 0;
-                                                    $deadlineStatus = $remaining > 0 ? "{$remaining} dia" . ($remaining !== 1 ? 's' : '') . ' restantes' : 'Prazo vencido';
-                                                ?>
                                                 <small class="text-muted"><?= $deadlineStatus ?></small>
                                                 <strong class="text-muted"><?= $progressValue ?>%</strong>
                                             </div>
@@ -893,6 +900,57 @@ include 'includes/header.php';
             });
         }
 
+        function showProjectNotice(card, message, variant = 'info') {
+            if (!card) return;
+            let notice = card.querySelector('.project-status-notice');
+            if (!notice) {
+                notice = document.createElement('div');
+                notice.className = 'project-status-notice';
+                notice.style.cssText = 'margin-top:.5rem;padding:.55rem .75rem;border-radius:.75rem;font-size:.85rem;font-weight:600;';
+                card.querySelector('.card-body')?.appendChild(notice);
+            }
+            notice.textContent = message;
+            notice.style.display = 'block';
+            if (variant === 'error') {
+                notice.style.background = '#fee2e2';
+                notice.style.color = '#991b1b';
+                notice.style.border = '1px solid #fecaca';
+            } else {
+                notice.style.background = '#dbeafe';
+                notice.style.color = '#1e3a8a';
+                notice.style.border = '1px solid #93c5fd';
+            }
+        }
+
+        async function projectHasMovedToPostSale(projectId) {
+            try {
+                const res = await fetch('api/get_project.php?id=' + encodeURIComponent(projectId));
+                if (!res.ok) return false;
+                const data = await res.json();
+                return data.success && Number(data.data.moved_to_post_sale || 0) === 1;
+            } catch (err) {
+                console.error('Falha ao verificar migração para Pós-venda:', err);
+                return false;
+            }
+        }
+
+        async function handlePostSaleAutomationMove(card, column, projectId) {
+            if (!card || !column || column.dataset.postSaleEnabled !== '1') return;
+            if (card.dataset.overdue !== '1') return;
+
+            showProjectNotice(card, 'Prazo vencido. Enviando para Pós-venda em 5 segundos...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            const moved = await projectHasMovedToPostSale(projectId);
+            if (!moved) {
+                showProjectNotice(card, 'Não foi possível enviar para Pós-venda. Verifique a configuração.', 'error');
+                return;
+            }
+            showProjectNotice(card, 'Projeto enviado para Pós-venda. Ocultando em 5 segundos...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            card.remove();
+            updateStageCounts();
+        }
+
         // Enable drop targets on board columns
         document.querySelectorAll('.board-column').forEach(col => {
             col.addEventListener('dragover', (e) => {
@@ -1142,6 +1200,7 @@ include 'includes/header.php';
                     }
 
                     updateStageCounts();
+                    handlePostSaleAutomationMove(card, col, projectId);
                     applyFilters();
                 } catch(err) {
                     console.error(err);

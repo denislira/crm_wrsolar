@@ -29,8 +29,8 @@ BEGIN
         p.user_id,
         p.id,
         p.client_name,
-        DATE(COALESCE(p.status_changed_at, p.updated_at, p.closed_date, p.created_at)) AS installation_date,
-        DATE_ADD(DATE(COALESCE(p.status_changed_at, p.updated_at, p.closed_date, p.created_at)), INTERVAL 6 MONTH) AS next_maintenance,
+        DATE(COALESCE(p.closed_date, p.created_at, p.status_changed_at, p.updated_at)) AS installation_date,
+        DATE_ADD(DATE(COALESCE(p.closed_date, p.created_at, p.status_changed_at, p.updated_at)), INTERVAL 6 MONTH) AS next_maintenance,
         CONCAT('Migrado automaticamente de Projetos para Pos-venda apos ', GREATEST(1, COALESCE(p.due_days, 30)), ' dias (prazo do card).'),
         pvst.name AS stage,
         NOW(),
@@ -49,7 +49,7 @@ BEGIN
       AND pv.id IS NULL
       AND DATEDIFF(
             CURDATE(),
-            DATE(COALESCE(p.status_changed_at, p.updated_at, p.closed_date, p.created_at))
+            DATE(COALESCE(p.closed_date, p.created_at, p.status_changed_at, p.updated_at))
                     ) >= GREATEST(1, COALESCE(p.due_days, 30));
 
         UPDATE projetos p

@@ -88,7 +88,7 @@ if (!function_exists('runProjectPostSaleAutomation')) {
             $daysThreshold = max(1, (int) ($project['due_days'] ?? 30));
 
             // Priority: when the project entered current column; fallback to older fields for legacy rows.
-            $baseDateRaw = $project['status_changed_at'] ?: ($project['updated_at'] ?: ($project['closed_date'] ?: $project['created_at']));
+            $baseDateRaw = $project['closed_date'] ?: $project['created_at'] ?: $project['status_changed_at'] ?: $project['updated_at'];
             if (empty($baseDateRaw)) {
                 continue;
             }
