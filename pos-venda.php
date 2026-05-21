@@ -1015,7 +1015,23 @@ include 'includes/header.php';
     }
 
     function formatCurrencyBRL(value){
-        const normalized = String(value ?? '').replace(/\./g, '').replace(',', '.');
+        const raw = String(value ?? '').trim();
+        if (!raw) return 'R$ 0,00';
+
+        const sanitized = raw.replace(/\s|R\$/gi, '');
+        let normalized = sanitized;
+
+        // Accept both pt-BR (1.234,56) and DB/en (1234.56 or 1,234.56) inputs.
+        if (sanitized.includes(',') && sanitized.includes('.')) {
+            if (sanitized.lastIndexOf(',') > sanitized.lastIndexOf('.')) {
+                normalized = sanitized.replace(/\./g, '').replace(',', '.');
+            } else {
+                normalized = sanitized.replace(/,/g, '');
+            }
+        } else if (sanitized.includes(',')) {
+            normalized = sanitized.replace(/\./g, '').replace(',', '.');
+        }
+
         const amount = Number(normalized);
         if (!Number.isFinite(amount)) return 'R$ 0,00';
         return amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
