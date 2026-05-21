@@ -18,6 +18,7 @@ try {
     if (!in_array('referral_token', $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN referral_token  VARCHAR(64)  DEFAULT NULL");
     if (!in_array('last_checkup',   $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN last_checkup    DATE         DEFAULT NULL");
     if (!in_array('stage',          $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN stage          VARCHAR(255) DEFAULT NULL");
+    if (!in_array('warranty_months',$cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN warranty_months SMALLINT UNSIGNED DEFAULT 12");
 } catch (Exception $e) { /* ignore */ }
 
 $schema = [
@@ -72,10 +73,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'save_pv') {
         $projId      = intval($_POST['project_id'] ?? 0);
         $clientName  = trim($_POST['client_name']      ?? '');
-        $instDate    = $_POST['installation_date']     ?: null;
-        $nextMaint   = $_POST['next_maintenance']      ?: null;
-        $warranty    = $_POST['warranty_end']          ?: null;
-        $notes       = trim($_POST['notes']            ?? '');
+        $instDate      = $_POST['installation_date']     ?: null;
+        $nextMaint     = $_POST['next_maintenance']      ?: null;
+        $warrantyMonths= isset($_POST['warranty_months']) && trim($_POST['warranty_months']) !== '' ? max(1, intval($_POST['warranty_months'])) : 12;
+        $notes         = trim($_POST['notes']            ?? '');
         $perf        = (isset($_POST['performance_pct']) && $_POST['performance_pct'] !== '') ? floatval($_POST['performance_pct']) : null;
         $clientType  = trim($_POST['client_type']      ?? 'Degustação');
         $lastCheckup = $_POST['last_checkup']          ?: null;
@@ -100,9 +101,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ex->execute([$projId, $_SESSION['user_id']]);
         $exId = $ex->fetchColumn();
 
-        if ($instDate && !$warranty) {
-            $warranty = date('Y-m-d', strtotime('+12 months', strtotime($instDate)));
+        $warrantyStart = date('Y-m-d');
+        if ($exId) {
+            $createdAtStmt = $pdo->prepare('SELECT created_at FROM pos_venda WHERE id=? LIMIT 1');
+            $createdAtStmt->execute([$exId]);
+            $createdAt = $createdAtStmt->fetchColumn();
+            if ($createdAt) {
+                $warrantyStart = $createdAt;
+            }
         }
+        $warranty = date('Y-m-d', strtotime('+' . $warrantyMonths . ' months', strtotime($warrantyStart)));
+
         if ($exId) {
             $updateFields = ['installation_date=?','next_maintenance=?','warranty_end=?','notes=?'];
             $updateParams = [$instDate,$nextMaint,$warranty,$notes];
@@ -120,6 +129,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $updateFields[] = 'stage=?';
             $updateParams[] = $stage ?: null;
+            $updateFields[] = 'warranty_months=?';
+            $updateParams[] = $warrantyMonths;
             $updateFields[] = 'updated_at=NOW()';
             $updateParams[] = $exId;
             $pdo->prepare('UPDATE pos_venda SET ' . implode(',', $updateFields) . ' WHERE id=?')
@@ -142,6 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $cols[] = 'last_checkup'; $holders[] = '?'; $params[] = $lastCheckup;
             }
             $cols[] = 'stage'; $holders[] = '?'; $params[] = $stage ?: null;
+            $cols[] = 'warranty_months'; $holders[] = '?'; $params[] = $warrantyMonths;
             $cols[] = 'created_at'; $holders[] = 'NOW()';
             $cols[] = 'updated_at'; $holders[] = 'NOW()';
             $sql = 'INSERT INTO pos_venda (' . implode(',', $cols) . ') VALUES (' . implode(',', $holders) . ')';
@@ -484,7 +496,7 @@ include 'includes/header.php';
         <!-- Page header -->
         <div class="mb-4 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
             <div>
-                <h1 class="h4 fw-bold mb-1"><i class="fa fa-rotate text-primary me-2"></i>Gestão de Receita Recorrente 3</h1>
+                <h1 class="h4 fw-bold mb-1"><i class="fa fa-rotate text-primary me-2"></i>Gestão de Receita Recorrente</h1>
                 <p class="text-muted small mb-0">Transformando clientes concluídos em assinantes recorrentes.</p>
             </div>
             <div class="d-flex gap-2 align-items-center ms-md-auto mt-2 mt-md-0">
@@ -704,8 +716,9 @@ include 'includes/header.php';
           <input type="date" name="next_maintenance" id="pvNextMaint" class="form-control">
         </div>
         <div class="col-md-6">
-          <label class="form-label fw-semibold">Fim da Garantia (12 meses padrão)</label>
-          <input type="date" name="warranty_end" id="pvWarranty" class="form-control">
+          <label class="form-label fw-semibold">Meses de Garantia</label>
+          <input type="number" name="warranty_months" id="pvWarrantyMonths" class="form-control" min="1" max="120" value="12">
+          <div class="form-text">Conta a partir da data de criação do card em pós-venda.</div>
         </div>
         <div class="col-12">
           <label class="form-label fw-semibold">Notas</label>
@@ -839,17 +852,17 @@ include 'includes/header.php';
     }
 
     function getWarrantyProgress(pv){
-        const installed = parseIsoDate(pv.installation_date);
-        if (!installed) return null;
+        const created = parseIsoDate(pv.created_at);
+        if (!created) return null;
 
         let endDate = parseIsoDate(pv.warranty_end);
         if (!endDate) {
-            endDate = addMonths(installed, 12);
+            endDate = addMonths(created, 12);
         }
 
         const today = new Date();
         today.setHours(0,0,0,0);
-        const totalDays = Math.max(1, Math.round((endDate.getTime() - installed.getTime()) / 86400000));
+        const totalDays = Math.max(1, Math.round((endDate.getTime() - created.getTime()) / 86400000));
         const remainingDays = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / 86400000));
         const elapsed = Math.max(0, Math.min(totalDays, totalDays - remainingDays));
         const progressPct = Math.min(100, Math.max(0, Math.round((elapsed / totalDays) * 100)));
@@ -949,7 +962,7 @@ include 'includes/header.php';
     function renderStageBadge(name){
         const stage = posVendaStages.find(s => s.name === name);
         const color = stage?.color || '#6c757d';
-        return `<span class="pv-stage-badge" style="background:${stage?.card_color || '#fff'}; color:${color}; border:1px solid ${color};">${escapeHtml(name || 'Sem estágio')}</span>`;
+        return `<span class="pv-stage-badge" style="background:${stage?.card_color || '#fff'}; color:#fff; border:1px solid ${color};">${escapeHtml(name || 'Sem estágio')}</span>`;
     }
 
     function healthColor(pv){
@@ -1018,6 +1031,12 @@ include 'includes/header.php';
                         </div>
                         <div class="pv-health-bar"><span style="width:${healthPct}%; background:${healthColor(pv)}"></span></div>`
                     : '';
+                const warranty = getWarrantyProgress(pv);
+                const warrantySection = warranty ? `<div class="pv-progress-head">
+                            <span class="label">Garantia / Assinatura</span>
+                            <span class="value">${warranty.remainingDays > 0 ? `${warranty.remainingDays} dia${warranty.remainingDays !== 1 ? 's' : ''} restantes` : 'Vencido'}</span>
+                        </div>
+                        <div class="pv-progress-bar"><span style="width:${Math.max(2, warranty.progressPct)}%; background:${warranty.progressPct >= 90 ? '#22c55e' : (warranty.progressPct >= 70 ? '#f59e0b' : '#3b82f6')}"></span></div>` : '';
                 card.innerHTML = `
                     <div class="pv-card-header-strip">
                         <div style="display:flex; align-items:center; gap:.45rem; min-width:0; flex-wrap:wrap;">
@@ -1039,19 +1058,7 @@ include 'includes/header.php';
                             <span class="v">${escapeHtml(formatDateBR(pv.installation_date))}</span>
                         </div>
                         ${healthSection}
-                        ${(() => {
-                            const warranty = getWarrantyProgress(pv);
-                            if (!warranty) return '';
-                            const status = warranty.remainingDays > 0 ? `${warranty.remainingDays} dia${warranty.remainingDays !== 1 ? 's' : ''} restantes` : 'Vencido';
-                            const color = warranty.progressPct >= 90 ? '#22c55e' : (warranty.progressPct >= 70 ? '#f59e0b' : '#3b82f6');
-                            return `
-                                <div class="pv-progress-head">
-                                    <span class="label">Garantia / Assinatura</span>
-                                    <span class="value">${status}</span>
-                                </div>
-                                <div class="pv-progress-bar"><span style="width:${warranty.progressPct}%; background:${color}"></span></div>
-                            `;
-                        })()}
+                        ${warrantySection}
                     </div>
                     <div class="pv-card-footer">
                         <button type="button" class="btn btn-sm btn-primary pv-edit-row" data-pv-id="${pv.id}" style="padding:.3rem .55rem;" title="Editar"><i class="fa fa-pen"></i></button>
@@ -1073,10 +1080,11 @@ include 'includes/header.php';
         const items = filteredPosVendas();
         body.innerHTML = '';
         const rows = items.map(pv => {
+            const stageCell = String(pv.stage || '').trim() ? renderStageBadge(pv.stage) : '';
             return `
                 <tr>
                     <td>${escapeHtml(pv.client_name)}</td>
-                    <td>${renderStageBadge(pv.stage)}</td>
+                    <td>${stageCell}</td>
                     <td>${formatDateBR(pv.installation_date)}</td>
                     <td>${formatDateBR(pv.next_maintenance)}</td>
                     <td>${formatDateBR(pv.warranty_end)}</td>
@@ -1145,7 +1153,10 @@ include 'includes/header.php';
         $('pvInstDate').value = pv.installation_date || '';
         $('pvNextMaint').value = pv.next_maintenance || '';
         $('pvLastCheckup').value = pv.last_checkup || '';
-        $('pvWarranty').value = pv.warranty_end || '';
+        const months = Number.isFinite(Number(pv.warranty_months)) && pv.warranty_months !== ''
+            ? Number(pv.warranty_months)
+            : (pv.warranty_end && pv.created_at ? Math.max(1, Math.round((new Date(pv.warranty_end).getTime() - new Date(pv.created_at).getTime()) / 86400000 / 30)) : 12);
+        $('pvWarrantyMonths').value = months;
         $('pvNotes').value = pv.notes || '';
         $('pvPerf').value = pv.performance_pct != null ? pv.performance_pct : '';
         $('pvClientType').value = pv.client_type || 'Degustação';
@@ -1390,28 +1401,25 @@ include 'includes/header.php';
         $('pvProjectId').value = '';
         $('pvClientNameHidden').value = '';
         $('pvProjectPickerWrap').classList.remove('d-none');
+        $('pvWarrantyMonths').value = 12;
         $('pvModalTitle').textContent = 'Novo Registro Pós-venda';
         bsModal('pvModal').show();
     });
 
     // project select → populate hidden fields
-    function computeDefaultWarranty(){
-        const instValue = $('pvInstDate').value;
-        if (!instValue) return;
-        const inst = parseIsoDate(instValue);
-        if (!inst) return;
-        const selectedWarranty = $('pvWarranty').value;
-        const existing = parseIsoDate(selectedWarranty);
-        if (existing && existing > inst) return;
-        const target = addMonths(inst, 12);
-        $('pvWarranty').value = target.toISOString().slice(0,10);
-    }
-
     $('pvProjectSelect').addEventListener('change', ()=>{
         const opt = $('pvProjectSelect').selectedOptions[0];
         $('pvProjectId').value = opt?.value || '';
         $('pvClientNameHidden').value = opt?.dataset?.name || '';
     });
+
+    function computeDefaultWarranty(){
+        const instDate = $('pvInstDate').value;
+        if (!instDate) return;
+        const currentMonths = Number($('pvWarrantyMonths').value);
+        if (Number.isFinite(currentMonths) && currentMonths >= 1) return;
+        $('pvWarrantyMonths').value = 12;
+    }
 
     $('pvInstDate').addEventListener('change', computeDefaultWarranty);
 
