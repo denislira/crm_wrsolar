@@ -125,8 +125,20 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
     }
 
     if ($action === 'list') {
+        $hasProjetosTable = false;
         try {
-            $stmt = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, forma_pagamento, anexos_filename, anexos_mimetype, created_at, data_inicio, updated_at, deleted, deleted_at FROM leads WHERE deleted = 0 ORDER BY created_at DESC');
+            $tbl = $pdo->query("SHOW TABLES LIKE 'projetos'");
+            $hasProjetosTable = (bool)$tbl->fetchColumn();
+        } catch (Exception $e) {
+            $hasProjetosTable = false;
+        }
+
+        $projectFlagSql = $hasProjetosTable
+            ? "(CASE WHEN EXISTS(SELECT 1 FROM projetos p WHERE p.lead_id = leads.id) THEN 1 ELSE 0 END) AS has_project"
+            : '0 AS has_project';
+
+        try {
+            $stmt = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, forma_pagamento, anexos_filename, anexos_mimetype, created_at, data_inicio, updated_at, deleted, deleted_at, ' . $projectFlagSql . ' FROM leads WHERE deleted = 0 ORDER BY created_at DESC');
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {

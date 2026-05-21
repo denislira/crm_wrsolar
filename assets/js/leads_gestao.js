@@ -16,6 +16,7 @@
     const KANBAN_BATCH_SIZE = 10;
     let KANBAN_COLUMN_CACHE = {};
     let KANBAN_COLUMN_RENDERED = {};
+    let CURRENT_EDIT_LEAD_LOCKED = false;
 
     function getFilteredLeads(){
         let filtered = allLeads.slice(); // copy
@@ -111,6 +112,35 @@
     }
 
     function escapeText(s){ return s==null? '': String(s); }
+
+    function sanitizeLeadNotesForDisplay(rawNotes){
+        if (rawNotes == null) return '—';
+
+        let text = String(rawNotes).trim();
+        if (!text) return '—';
+
+        // Remove machine metadata block appended by anúncio imports.
+        const marker = /---\s*Anuncio original\s*\(JSON\)\s*---/i;
+        if (marker.test(text)) {
+            text = text.split(marker)[0].trim();
+        }
+
+        // Remove loose metadata lines that should not appear as user notes.
+        text = text
+            .split(/\r?\n/)
+            .filter(line => {
+                const trimmed = line.trim();
+                if (!trimmed) return false;
+                if (/^UTM\s*Origem\s*:/i.test(trimmed)) return false;
+                if (/^Criado\s*em\s*:/i.test(trimmed)) return false;
+                if (/^\{.*\}$/.test(trimmed) && /"utm_origem"\s*:/.test(trimmed)) return false;
+                return true;
+            })
+            .join('\n')
+            .trim();
+
+        return text || '—';
+    }
 
     // color utilities: convert hex to rgb and pick readable text color (black/white)
     function hexToRgb(hex){
@@ -720,7 +750,9 @@
             console.log('Resposta da API:', json);
             
             if (json.success) {
+                lead.has_project = 1;
                 alert('Projeto "' + projectName + '" criado com sucesso!');
+                try { renderAll(); } catch(e) {}
                 // Optionally refresh the page or update UI
                 try { await fetchLeads(); } catch(e) {}
             } else {
@@ -864,6 +896,63 @@
     }
 
     function toCurrency(v){ return 'R$ ' + (Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+    function leadHasProject(lead){
+        const raw = lead?.has_project;
+        return raw === true || raw === 1 || raw === '1' || Number(raw) === 1;
+    }
+
+    function setLeadModalEditLocked(locked){
+        CURRENT_EDIT_LEAD_LOCKED = !!locked;
+        const form = F('leadForm') || document.getElementById('leadForm');
+        const saveBtn = document.getElementById('save-lead');
+        if (!form) return;
+
+        const controls = form.querySelectorAll('input, select, textarea, button');
+        controls.forEach(ctrl => {
+            const id = ctrl.id || '';
+            if (id === 'lead-id' || id === 'leadId') return;
+            ctrl.disabled = !!locked;
+            if (locked) ctrl.setAttribute('aria-disabled', 'true');
+            else ctrl.removeAttribute('aria-disabled');
+        });
+
+        const dropzone = document.getElementById('anexos-dropzone');
+        if (dropzone) {
+            dropzone.style.pointerEvents = locked ? 'none' : '';
+            dropzone.style.opacity = locked ? '0.6' : '';
+        }
+
+        let notice = document.getElementById('leadEditLockNotice');
+        if (!notice) {
+            notice = document.createElement('div');
+            notice.id = 'leadEditLockNotice';
+            notice.className = 'alert alert-warning py-2 px-3 mb-3 d-none';
+            const modalBody = document.querySelector('#leadModal .modal-body');
+            if (modalBody) modalBody.prepend(notice);
+        }
+
+        if (locked) {
+            if (notice) {
+                notice.classList.remove('d-none');
+                notice.innerHTML = '<i class="fa fa-lock me-1"></i> Lead concluido: edicao bloqueada porque ja possui projeto criado.';
+            }
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.classList.add('d-none');
+            }
+            return;
+        }
+
+        if (notice) {
+            notice.classList.add('d-none');
+            notice.textContent = '';
+        }
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.classList.remove('d-none');
+        }
+    }
 
     function formatDateBR(dt){
         if (!dt) return '—';
@@ -1027,6 +1116,9 @@
     }
 
     function leadUpdatedDaysAgo(lead){
+        // Leads that already became projects are considered concluded and
+        // must not enter stalled/no-movement indicators or reports.
+        if (leadHasProject(lead)) return null;
         if (!lead.updated_at) return Infinity;
         const updated = new Date(lead.updated_at.replace(' ','T'));
         const diffMs = Date.now() - updated.getTime();
@@ -1062,35 +1154,45 @@
 
     function makeCard(lead, stageObj){
         const el = document.createElement('div'); el.className='lead-card'; el.draggable = true; el.dataset.id = lead.id;
+        const isProjectLocked = leadHasProject(lead);
+        if (isProjectLocked) {
+            el.classList.add('project-locked');
+            el.dataset.projectLocked = '1';
+            el.draggable = false;
+            try { SELECTED_LEADS.delete(String(lead.id)); } catch(e) {}
+        }
         // selection checkbox for bulk actions
-        const chk = document.createElement('input'); chk.type='checkbox'; chk.className = 'lead-select me-2'; chk.title = 'Selecionar para ações em massa';
-        try { chk.checked = SELECTED_LEADS.has(String(lead.id)); } catch(e){}
-        chk.addEventListener('change', (e)=>{
-            e.stopPropagation();
-            try {
-                if (chk.checked) SELECTED_LEADS.add(String(lead.id)); else SELECTED_LEADS.delete(String(lead.id));
-            } catch(e){}
-            el.classList.toggle('selected', chk.checked);
-            // set border-left to column color when selected, but preserve original left border
-            const colWrap = el.closest('.kanban-column');
-            const colColor = colWrap?.dataset?.color || '#6c757d';
-            if (chk.checked) {
-                if (!el.dataset._selectedPrevBorder) el.dataset._selectedPrevBorder = el.style.borderLeft || '';
-                try { el.style.setProperty('--selected-color', colColor); } catch(e) {}
-                try { el.style.setProperty('border-left', '8px solid ' + colColor, 'important'); } catch(e) { el.style.borderLeft = '8px solid ' + colColor; }
-            } else {
-                const restore = el.dataset._selectedPrevBorder || el.dataset.originalBorder || '7px solid transparent';
-                try { el.style.setProperty('border-left', restore, 'important'); } catch(e) { el.style.borderLeft = restore; }
-                try { el.style.removeProperty('--selected-color'); } catch(e) {}
-                delete el.dataset._selectedPrevBorder;
-            }
-            updateBulkDeleteVisibility();
-        });
-        // prevent clicks/keyboard on the checkbox from bubbling and triggering card click
-        chk.addEventListener('click', (e)=>{ e.stopPropagation(); });
-        chk.addEventListener('keydown', (e)=>{ if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') e.stopPropagation(); });
+        let chk = null;
+        if (!isProjectLocked) {
+            chk = document.createElement('input'); chk.type='checkbox'; chk.className = 'lead-select me-2'; chk.title = 'Selecionar para ações em massa';
+            try { chk.checked = SELECTED_LEADS.has(String(lead.id)); } catch(e){}
+            chk.addEventListener('change', (e)=>{
+                e.stopPropagation();
+                try {
+                    if (chk.checked) SELECTED_LEADS.add(String(lead.id)); else SELECTED_LEADS.delete(String(lead.id));
+                } catch(e){}
+                el.classList.toggle('selected', chk.checked);
+                // set border-left to column color when selected, but preserve original left border
+                const colWrap = el.closest('.kanban-column');
+                const colColor = colWrap?.dataset?.color || '#6c757d';
+                if (chk.checked) {
+                    if (!el.dataset._selectedPrevBorder) el.dataset._selectedPrevBorder = el.style.borderLeft || '';
+                    try { el.style.setProperty('--selected-color', colColor); } catch(e) {}
+                    try { el.style.setProperty('border-left', '8px solid ' + colColor, 'important'); } catch(e) { el.style.borderLeft = '8px solid ' + colColor; }
+                } else {
+                    const restore = el.dataset._selectedPrevBorder || el.dataset.originalBorder || '7px solid transparent';
+                    try { el.style.setProperty('border-left', restore, 'important'); } catch(e) { el.style.borderLeft = restore; }
+                    try { el.style.removeProperty('--selected-color'); } catch(e) {}
+                    delete el.dataset._selectedPrevBorder;
+                }
+                updateBulkDeleteVisibility();
+            });
+            // prevent clicks/keyboard on the checkbox from bubbling and triggering card click
+            chk.addEventListener('click', (e)=>{ e.stopPropagation(); });
+            chk.addEventListener('keydown', (e)=>{ if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') e.stopPropagation(); });
+        }
         const head = document.createElement('div'); head.className = 'd-flex align-items-center justify-content-between';
-        const left = document.createElement('div'); left.className = 'd-flex align-items-center'; left.appendChild(chk);
+        const left = document.createElement('div'); left.className = 'd-flex align-items-center'; if (chk) left.appendChild(chk);
         const title = document.createElement('div'); title.className='title'; title.textContent = escapeText(lead.name || '(sem nome)');
         left.appendChild(title);
         
@@ -1101,35 +1203,37 @@
             // Check for truthy value (1, '1', true)
             if (stageObj.allow_project_creation == 1 || stageObj.allow_project_creation === true || stageObj.allow_project_creation === '1') {
                 console.log('✓ CRIANDO BOTÃO DE PROJETO!');
-                const createProjBtn = document.createElement('button');
-                createProjBtn.className = 'btn btn-sm btn-success ms-2';
-                createProjBtn.innerHTML = '<i class="fa fa-plus" style="font-size: 8px; margin-right: 2px;"></i><span style="font-size: 9px;">Projeto</span>';
-                createProjBtn.title = 'Criar Projeto';
-                createProjBtn.type = 'button';
-                createProjBtn.style.padding = '1px 4px';
-                createProjBtn.style.fontSize = '9px';
-                createProjBtn.style.display = 'inline-flex';
-                createProjBtn.style.alignItems = 'center';
-                createProjBtn.style.height = '18px';
-                createProjBtn.style.lineHeight = '1';
-                createProjBtn.style.backgroundColor = '#28a745';
-                createProjBtn.style.color = '#fff';
-                createProjBtn.style.border = 'none';
-                createProjBtn.style.borderRadius = '2px';
-                createProjBtn.style.whiteSpace = 'nowrap';
-                createProjBtn.style.gap = '2px';
-                createProjBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    console.log('Botão clicado! Lead completo:', lead);
-                    const leadIdToUse = lead.id || lead.lead_id || lead.ID;
-                    if (!leadIdToUse) {
-                        alert('ID do lead não encontrado. Não é possível criar projeto.');
-                        return;
-                    }
-                    createProjectFromLead(lead);
-                });
-                left.appendChild(createProjBtn);
-                console.log('Botão adicionado ao card!');
+                if (!isProjectLocked) {
+                    const createProjBtn = document.createElement('button');
+                    createProjBtn.className = 'btn btn-sm btn-success ms-2';
+                    createProjBtn.innerHTML = '<i class="fa fa-plus" style="font-size: 8px; margin-right: 2px;"></i><span style="font-size: 9px;">Projeto</span>';
+                    createProjBtn.title = 'Criar Projeto';
+                    createProjBtn.type = 'button';
+                    createProjBtn.style.padding = '1px 4px';
+                    createProjBtn.style.fontSize = '9px';
+                    createProjBtn.style.display = 'inline-flex';
+                    createProjBtn.style.alignItems = 'center';
+                    createProjBtn.style.height = '18px';
+                    createProjBtn.style.lineHeight = '1';
+                    createProjBtn.style.backgroundColor = '#28a745';
+                    createProjBtn.style.color = '#fff';
+                    createProjBtn.style.border = 'none';
+                    createProjBtn.style.borderRadius = '2px';
+                    createProjBtn.style.whiteSpace = 'nowrap';
+                    createProjBtn.style.gap = '2px';
+                    createProjBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        console.log('Botão clicado! Lead completo:', lead);
+                        const leadIdToUse = lead.id || lead.lead_id || lead.ID;
+                        if (!leadIdToUse) {
+                            alert('ID do lead não encontrado. Não é possível criar projeto.');
+                            return;
+                        }
+                        await createProjectFromLead(lead);
+                    });
+                    left.appendChild(createProjBtn);
+                    console.log('Botão adicionado ao card!');
+                }
             } else {
                 console.log('✗ Condição não atendida - valor:', stageObj.allow_project_creation);
             }
@@ -1190,7 +1294,16 @@
 
         // events
         el.addEventListener('click', (e)=>{ openPanel(lead.id); });
-        el.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', lead.id); e.dataTransfer.effectAllowed='move'; setTimeout(()=>el.classList.add('dragging'),0); });
+        el.addEventListener('dragstart', (e)=>{
+            if (leadHasProject(lead)) {
+                e.preventDefault();
+                alert('Este lead já possui projeto e está bloqueado para movimentação.');
+                return;
+            }
+            e.dataTransfer.setData('text/plain', lead.id);
+            e.dataTransfer.effectAllowed='move';
+            setTimeout(()=>el.classList.add('dragging'),0);
+        });
         el.addEventListener('dragend', ()=>{
             // ensure dragging class removed and border restored
             el.classList.remove('dragging');
@@ -1736,6 +1849,12 @@
                     flashFeedback(colContent, true);
                 } else {
                     const id = raw;
+                    const movingLead = allLeads.find(x=>String(x.id)===String(id));
+                    if (movingLead && leadHasProject(movingLead)) {
+                        flashFeedback(colContent, false);
+                        alert('Este lead já possui projeto e não pode mais ser movimentado.');
+                        return;
+                    }
                     await updateStatus(id, stageName, { stage_id: stageId });
                     const item = allLeads.find(x=>String(x.id)===String(id)); if (item) { item.status = stageName; item.stage_id = stageId; item.updated_at = (new Date()).toISOString(); }
                     const dragging = document.querySelector('.lead-card.dragging');
@@ -1837,7 +1956,7 @@
         const createdText = formatDateBR(lead.created_at || lead.createdAt || lead.created);
         const daysActive = daysSince(lead.created_at || lead.createdAt || lead.created);
         const createdDiv = document.createElement('div'); createdDiv.className = 'small text-muted'; createdDiv.textContent = 'Criado: ' + createdText + (daysActive !== null ? (' • ' + daysActive + ' dias') : '');
-        const notes = document.createElement('div'); notes.className='mt-3'; notes.textContent = 'Notas: ' + (lead.notes || '—');
+        const notes = document.createElement('div'); notes.className='mt-3'; notes.textContent = 'Notas: ' + sanitizeLeadNotesForDisplay(lead.notes);
             const btns = document.createElement('div'); btns.className='mt-3 d-flex gap-2';
             // compact reminders placeholder (filled after panel open)
             const remindersWrap = document.createElement('div');
@@ -2215,6 +2334,7 @@
 
     function populateLeadForm(lead){
         if (!lead) return;
+        setLeadModalEditLocked(false);
         // close the details panel when opening the edit modal
         closePanel();
         const idEl = F('leadId') || $('#leadId'); if (idEl) idEl.value = lead.id || '';
@@ -2283,8 +2403,10 @@
         const fileNames = document.getElementById('anexos-file-names'); if (fileNames) fileNames.innerHTML = '';
         // render existing attachments UI
         try { renderExistingAttachments(lead); } catch(e){ console.warn('Failed rendering attachments', e); }
+        setLeadModalEditLocked(leadHasProject(lead));
         const m = new bootstrap.Modal($('#leadModal'));
-        const titleEl = F('leadModalTitle') || $('#leadModalTitle'); if (titleEl) titleEl.textContent = 'Editar Lead';
+        const titleEl = F('leadModalTitle') || $('#leadModalTitle');
+        if (titleEl) titleEl.textContent = leadHasProject(lead) ? 'Lead (somente leitura)' : 'Editar Lead';
         // apply configured primary color (if any)
         try { loadAppearance().then(a=>{ const color = (a && (a.primary_color || a.primary || a.color_primary)) ? (a.primary_color||a.primary||a.color_primary) : null; if (color) applyLeadModalPrimaryColor(color); }); } catch(e){}
         m.show();
@@ -2300,6 +2422,7 @@
             const lbl = document.createElement('div'); lbl.className = 'small text-muted mb-1'; lbl.textContent = (lead.anexos_files && lead.anexos_files.length) ? 'Anexos:' : (lead.anexos_filename ? 'Anexo:' : 'Anexos:');
             wrap.appendChild(lbl);
 
+            const isLocked = leadHasProject(lead);
             if (lead.anexos_files && lead.anexos_files.length) {
                 lead.anexos_files.forEach(f => {
                     const row = document.createElement('div'); row.className = 'd-flex align-items-center mb-1';
@@ -2307,8 +2430,13 @@
                     link.textContent = f.filename; link.className = 'me-2';
                     const delBtn = document.createElement('button'); delBtn.type = 'button'; delBtn.className = 'btn btn-sm btn-outline-danger delete-anexo-btn'; delBtn.textContent = 'Excluir';
                     delBtn.dataset.fileId = f.attachment_id; delBtn.dataset.leadId = lead.id;
+                    if (isLocked) {
+                        delBtn.disabled = true;
+                        delBtn.classList.add('d-none');
+                    }
                     delBtn.addEventListener('click', async (e) => {
                         e.preventDefault();
+                        if (leadHasProject(lead)) { alert('Lead com projeto concluido nao permite excluir anexos.'); return; }
                         if (!confirm('Excluir este anexo?')) return;
                         try {
                             const fd = new FormData(); fd.append('file_id', e.currentTarget.dataset.fileId); fd.append('lead_id', e.currentTarget.dataset.leadId);
@@ -2401,6 +2529,7 @@
         const newLeadBtn = $('#newLeadBtn');
         if (newLeadBtn) {
             newLeadBtn.addEventListener('click', ()=>{ 
+            setLeadModalEditLocked(false);
             const m = new bootstrap.Modal($('#leadModal')); 
             $('#leadModalTitle').textContent='Novo Lead'; 
             $('#leadForm').reset(); 
@@ -2505,6 +2634,7 @@
         if (uploadAnexosBtn) {
             uploadAnexosBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
+                if (CURRENT_EDIT_LEAD_LOCKED) { alert('Lead concluido: upload de anexos bloqueado.'); return; }
                 const idEl = F('leadId') || $('#lead-id');
                 const leadId = idEl ? idEl.value : '';
                 if (!leadId) { alert('Salve o lead antes de enviar anexos.'); return; }
@@ -2776,6 +2906,10 @@
         
         (F('leadForm') || $('#leadForm')).addEventListener('submit', async (e)=>{
             e.preventDefault();
+            if (CURRENT_EDIT_LEAD_LOCKED) {
+                alert('Este lead esta bloqueado para edicao porque ja possui projeto criado.');
+                return;
+            }
             // prevent duplicate submits
             if (leadFormSubmitting) {
                 console.warn('Lead form submission blocked: already submitting');

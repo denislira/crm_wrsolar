@@ -23,6 +23,8 @@ body{background:#e9eef5}
 .column-load-hint{margin-top:4px;padding:8px 6px;border-top:1px dashed rgba(11,26,49,0.08);font-size:.78rem}
 .lead-card{background:#fff;padding:12px;border-radius:12px;border:1px solid rgba(11,26,49,0.06);border-left:4px solid transparent;cursor:grab;transition:transform .12s ease,box-shadow .12s ease,border-left .12s ease,outline .12s ease;box-shadow:0 6px 18px rgba(11,26,49,0.06);position:relative}
 .lead-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(11,26,49,0.06)}
+.lead-card.project-locked{cursor:not-allowed;opacity:.92}
+.lead-card.project-locked::after{content:'\f023';font-family:'Font Awesome 6 Free';font-weight:900;position:absolute;top:8px;right:10px;font-size:.72rem;line-height:1;color:#9a3412;background:#ffedd5;border:1px solid #fdba74;border-radius:999px;padding:4px 6px}
 .lead-card .lead-select{transform:scale(1.05)}
 .lead-card.selected{outline:3px solid var(--selected-color,#6c757d);outline-offset:-3px}
 .lead-card .title{font-weight:600}

@@ -19,6 +19,7 @@ try {
     if (!in_array('last_checkup',   $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN last_checkup    DATE         DEFAULT NULL");
     if (!in_array('stage',          $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN stage          VARCHAR(255) DEFAULT NULL");
     if (!in_array('warranty_months',$cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN warranty_months SMALLINT UNSIGNED DEFAULT 12");
+    if (!in_array('plan_value',     $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN plan_value DECIMAL(12,2) DEFAULT NULL");
 } catch (Exception $e) { /* ignore */ }
 
 $schema = [
@@ -75,6 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $clientName  = trim($_POST['client_name']      ?? '');
         $instDate      = $_POST['installation_date']     ?: null;
         $nextMaint     = $_POST['next_maintenance']      ?: null;
+        $planValueRaw = trim((string)($_POST['plan_value'] ?? ''));
         $warrantyMonths= isset($_POST['warranty_months']) && trim($_POST['warranty_months']) !== '' ? max(1, intval($_POST['warranty_months'])) : 12;
         $notes         = trim($_POST['notes']            ?? '');
         $perf        = (isset($_POST['performance_pct']) && $_POST['performance_pct'] !== '') ? floatval($_POST['performance_pct']) : null;
@@ -84,6 +86,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $clientStatus= trim($_POST['client_status']    ?? '');
         if ($clientType === '') $clientType = 'Degustação';
         if ($clientStatus === '') $clientStatus = 'Assinante';
+
+        $planValue = null;
+        if ($planValueRaw !== '') {
+            $sanitized = preg_replace('/\s|R\$/iu', '', $planValueRaw);
+            if (strpos($sanitized, ',') !== false && strpos($sanitized, '.') !== false) {
+                if (strrpos($sanitized, ',') > strrpos($sanitized, '.')) {
+                    $sanitized = str_replace('.', '', $sanitized);
+                    $sanitized = str_replace(',', '.', $sanitized);
+                } else {
+                    $sanitized = str_replace(',', '', $sanitized);
+                }
+            } elseif (strpos($sanitized, ',') !== false) {
+                $sanitized = str_replace('.', '', $sanitized);
+                $sanitized = str_replace(',', '.', $sanitized);
+            }
+            $planValue = is_numeric($sanitized) ? number_format((float)$sanitized, 2, '.', '') : null;
+        }
 
         // update projetos.client_status
         if ($projId && $hasClientStatus) {
@@ -131,6 +150,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $updateParams[] = $stage ?: null;
             $updateFields[] = 'warranty_months=?';
             $updateParams[] = $warrantyMonths;
+            $updateFields[] = 'plan_value=?';
+            $updateParams[] = $planValue;
             $updateFields[] = 'updated_at=NOW()';
             $updateParams[] = $exId;
             $pdo->prepare('UPDATE pos_venda SET ' . implode(',', $updateFields) . ' WHERE id=?')
@@ -154,6 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $cols[] = 'stage'; $holders[] = '?'; $params[] = $stage ?: null;
             $cols[] = 'warranty_months'; $holders[] = '?'; $params[] = $warrantyMonths;
+            $cols[] = 'plan_value'; $holders[] = '?'; $params[] = $planValue;
             $cols[] = 'created_at'; $holders[] = 'NOW()';
             $cols[] = 'updated_at'; $holders[] = 'NOW()';
             $sql = 'INSERT INTO pos_venda (' . implode(',', $cols) . ') VALUES (' . implode(',', $holders) . ')';
@@ -721,8 +743,8 @@ include 'includes/header.php';
                             <div class="fw-bold" style="font-size:1.5rem;line-height:1.1"><?php
                                 $total = 0; $count = 0;
                                 foreach ($posVendas as $pv) {
-                                    if (is_numeric($pv['proposal_value']) && $pv['proposal_value'] > 0) {
-                                        $total += $pv['proposal_value'];
+                                    if (is_numeric($pv['plan_value']) && $pv['plan_value'] > 0) {
+                                        $total += $pv['plan_value'];
                                         $count++;
                                     }
                                 }
@@ -815,7 +837,7 @@ include 'includes/header.php';
           <select class="form-select" id="pvProjectSelect">
             <option value="">— Selecione o projeto —</option>
             <?php foreach ($projetosDisponiveis as $prj): ?>
-            <option value="<?= $prj['id'] ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>">
+                        <option value="<?= $prj['id'] ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>">
               <?= htmlspecialchars($prj['client_name']) ?>
             </option>
             <?php endforeach; ?>
@@ -844,6 +866,10 @@ include 'includes/header.php';
                         <option value="">— Selecione o status de acesso —</option>
                     </select>
         </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Valor do Plano</label>
+                    <input type="text" name="plan_value" id="pvProposalValue" class="form-control" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off">
+                </div>
         <div class="col-md-6">
           <label class="form-label fw-semibold">Performance (%)</label>
           <input type="number" name="performance_pct" id="pvPerf" class="form-control" min="0" max="999" step="0.1" placeholder="ex: 98.5">
@@ -1267,6 +1293,43 @@ include 'includes/header.php';
         return str;
     }
 
+    function toDecimalStringFromCurrency(value){
+        const raw = String(value ?? '').trim();
+        if (!raw) return '';
+        const sanitized = raw.replace(/\s|R\$/gi, '').replace(/[^\d,.-]/g, '');
+        if (!sanitized) return '';
+        let normalized = sanitized;
+        if (sanitized.includes(',') && sanitized.includes('.')) {
+            if (sanitized.lastIndexOf(',') > sanitized.lastIndexOf('.')) {
+                normalized = sanitized.replace(/\./g, '').replace(',', '.');
+            } else {
+                normalized = sanitized.replace(/,/g, '');
+            }
+        } else if (sanitized.includes(',')) {
+            normalized = sanitized.replace(/\./g, '').replace(',', '.');
+        }
+        const amount = Number(normalized);
+        if (!Number.isFinite(amount)) return '';
+        return amount.toFixed(2);
+    }
+
+    function formatCurrencyInputBRL(value){
+        const digits = String(value ?? '').replace(/\D/g, '');
+        if (!digits) return '';
+        const amount = Number(digits) / 100;
+        return amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    function setProposalInputFromValue(value){
+        const input = $('pvProposalValue');
+        const decimal = toDecimalStringFromCurrency(value);
+        if (!decimal) {
+            input.value = '';
+            return;
+        }
+        input.value = Number(decimal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
     function getPlanLabel(pv){
         return String(pv.payment_type || pv.contract || '').trim() || 'Nenhum';
     }
@@ -1365,7 +1428,7 @@ include 'includes/header.php';
                         <p class="pv-card-client-name">${escapeHtml(pv.client_name)}</p>
                         <div class="pv-card-kv">
                             <span class="k">Valor</span>
-                            <span class="v">${escapeHtml(formatCurrencyBRL(pv.proposal_value))}</span>
+                            <span class="v">${escapeHtml(formatCurrencyBRL(pv.plan_value))}</span>
                             <span class="k">Plano</span>
                             <span class="v">${escapeHtml(getPlanLabel(pv))}</span>
                             <span class="k">Telefone</span>
@@ -1480,7 +1543,7 @@ include 'includes/header.php';
 
         const postSaleRows = [
             ['Projeto ID', details.proj_id || pv.proj_id || pv.project_id || '—'],
-            ['Valor', formatCurrencyBRL(details.proposal_value ?? pv.proposal_value ?? 0)],
+            ['Valor do Plano', formatCurrencyBRL(details.plan_value ?? pv.plan_value ?? 0)],
             ['Estágio', details.stage || pv.stage || 'Sem estágio'],
             ['Status', details.client_status || pv.client_status || 'Assinante'],
             ['Plano', details.payment_type || pv.payment_type || details.contract || pv.contract || 'Nenhum'],
@@ -1607,6 +1670,7 @@ include 'includes/header.php';
         $('pvWarrantyMonths').value = months;
         $('pvNotes').value = pv.notes || '';
         $('pvPerf').value = pv.performance_pct != null ? pv.performance_pct : '';
+        setProposalInputFromValue(pv.plan_value || '');
         populateClientTypeSelect(pv.client_type || '');
         populateClientStatusSelect(pv.client_status || 'Assinante');
         $('pvStage').value = pv.stage || '';
@@ -1956,6 +2020,7 @@ include 'includes/header.php';
         $('pvClientNameHidden').value = '';
         $('pvProjectPickerWrap').classList.remove('d-none');
         $('pvWarrantyMonths').value = 12;
+        $('pvProposalValue').value = '';
         populateClientTypeSelect();
         populateClientStatusSelect('Assinante');
         $('pvModalTitle').textContent = 'Novo Registro Pós-venda';
@@ -1967,6 +2032,15 @@ include 'includes/header.php';
         const opt = $('pvProjectSelect').selectedOptions[0];
         $('pvProjectId').value = opt?.value || '';
         $('pvClientNameHidden').value = opt?.dataset?.name || '';
+    });
+
+    $('pvProposalValue').addEventListener('input', (event) => {
+        event.target.value = formatCurrencyInputBRL(event.target.value);
+    });
+
+    $('pvProposalValue').addEventListener('blur', (event) => {
+        const decimal = toDecimalStringFromCurrency(event.target.value);
+        event.target.value = decimal ? Number(decimal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
     });
 
     function computeDefaultWarranty(){
@@ -1987,6 +2061,7 @@ include 'includes/header.php';
         saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Salvando...';
         try {
             const fd = new FormData(e.target);
+            fd.set('plan_value', toDecimalStringFromCurrency($('pvProposalValue').value));
             const res = await fetch('pos-venda.php', {method:'POST', body:fd});
             const data = await res.json();
             if (data.success) { location.reload(); }
