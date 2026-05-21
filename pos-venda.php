@@ -20,6 +20,7 @@ try {
     if (!in_array('stage',          $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN stage          VARCHAR(255) DEFAULT NULL");
     if (!in_array('warranty_months',$cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN warranty_months SMALLINT UNSIGNED DEFAULT 12");
     if (!in_array('plan_value',     $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN plan_value DECIMAL(12,2) DEFAULT NULL");
+    if (!in_array('equipment',      $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN equipment VARCHAR(255) DEFAULT NULL");
 } catch (Exception $e) { /* ignore */ }
 
 $schema = [
@@ -39,6 +40,7 @@ $hasReferralToken  = in_array('referral_token',  $schema['pos_venda'], true);
 $hasPerformancePct = in_array('performance_pct', $schema['pos_venda'], true);
 $hasLastCheckup    = in_array('last_checkup',    $schema['pos_venda'], true);
 $hasClientType     = in_array('client_type',     $schema['pos_venda'], true);
+$hasProjectStatusChangedAt = in_array('status_changed_at', $schema['projetos'], true);
 
 $missingSchemaMessage = '';
 if (empty($schema['pos_venda'])) {
@@ -76,6 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $clientName  = trim($_POST['client_name']      ?? '');
         $instDate      = $_POST['installation_date']     ?: null;
         $nextMaint     = $_POST['next_maintenance']      ?: null;
+        $projectKwhRaw = trim((string)($_POST['project_kwh'] ?? ''));
+        $equipment     = trim((string)($_POST['equipment'] ?? ''));
         $planValueRaw = trim((string)($_POST['plan_value'] ?? ''));
         $warrantyMonths= isset($_POST['warranty_months']) && trim($_POST['warranty_months']) !== '' ? max(1, intval($_POST['warranty_months'])) : 12;
         $notes         = trim($_POST['notes']            ?? '');
@@ -108,6 +112,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($projId && $hasClientStatus) {
             $pdo->prepare('UPDATE projetos SET client_status=?, updated_at=NOW() WHERE id=? AND user_id=?')
                 ->execute([$clientStatus, $projId, $_SESSION['user_id']]);
+        }
+
+        if ($projId) {
+            $projectKwh = $projectKwhRaw !== '' ? str_replace(',', '.', $projectKwhRaw) : null;
+            $pdo->prepare('UPDATE projetos SET projeto=?, updated_at=NOW() WHERE id=? AND user_id=?')
+                ->execute([$projectKwh, $projId, $_SESSION['user_id']]);
         }
 
         if ($projId) {
@@ -152,6 +162,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $updateParams[] = $warrantyMonths;
             $updateFields[] = 'plan_value=?';
             $updateParams[] = $planValue;
+            $updateFields[] = 'equipment=?';
+            $updateParams[] = ($equipment !== '' ? $equipment : null);
             $updateFields[] = 'updated_at=NOW()';
             $updateParams[] = $exId;
             $pdo->prepare('UPDATE pos_venda SET ' . implode(',', $updateFields) . ' WHERE id=?')
@@ -176,6 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cols[] = 'stage'; $holders[] = '?'; $params[] = $stage ?: null;
             $cols[] = 'warranty_months'; $holders[] = '?'; $params[] = $warrantyMonths;
             $cols[] = 'plan_value'; $holders[] = '?'; $params[] = $planValue;
+            $cols[] = 'equipment'; $holders[] = '?'; $params[] = ($equipment !== '' ? $equipment : null);
             $cols[] = 'created_at'; $holders[] = 'NOW()';
             $cols[] = 'updated_at'; $holders[] = 'NOW()';
             $sql = 'INSERT INTO pos_venda (' . implode(',', $cols) . ') VALUES (' . implode(',', $holders) . ')';
@@ -234,13 +247,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        $projectStatusChangedSelect = $hasProjectStatusChangedAt ? 'p.status_changed_at' : 'NULL AS status_changed_at';
         $stmt = $pdo->prepare(
             "SELECT pv.*, 
                     p.id AS proj_id,
                     p.lead_id,
                     p.status AS proj_status,
+                {$projectStatusChangedSelect},
                     p.address,
                     p.proposal_value,
+                    p.projeto AS project_kwh,
                     p.payment_type,
                     p.payment_status,
                     p.contract,
@@ -273,23 +289,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $leadId = intval($details['lead_id'] ?? $details['lead_id_join'] ?? 0);
         $projectId = intval($details['project_id'] ?? 0);
 
-        $leadMovements = [];
-        if ($leadId > 0) {
-            try {
-                $mvStmt = $pdo->prepare(
-                    'SELECT id, from_status, to_status, note, changed_by, is_alert, created_at
-                     FROM lead_movements
-                     WHERE lead_id = ? AND user_id = ?
-                     ORDER BY created_at DESC
-                     LIMIT 30'
-                );
-                $mvStmt->execute([$leadId, $_SESSION['user_id']]);
-                $leadMovements = $mvStmt->fetchAll(PDO::FETCH_ASSOC);
-            } catch (Exception $e) {
-                $leadMovements = [];
-            }
-        }
-
         $reminders = [];
         if ($projectId > 0) {
             try {
@@ -308,6 +307,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $postSaleHistory = [];
+        $projectHistory = [];
+
+        if (!empty($details['proj_created_at'])) {
+            $projectHistory[] = [
+                'kind' => 'project',
+                'date' => $details['proj_created_at'],
+                'title' => 'Projeto criado',
+                'note' => 'Cadastro inicial do projeto.'
+            ];
+        }
+        if (!empty($details['status_changed_at'])) {
+            $projectHistory[] = [
+                'kind' => 'project',
+                'date' => $details['status_changed_at'],
+                'title' => 'Mudança de status no projeto',
+                'note' => 'Status atual: ' . ($details['proj_status'] ?: '—')
+            ];
+        }
+        if (!empty($details['closed_date']) && $details['closed_date'] !== '0000-00-00') {
+            $projectHistory[] = [
+                'kind' => 'project',
+                'date' => $details['closed_date'],
+                'title' => 'Projeto fechado',
+                'note' => 'Projeto marcado como concluído/fechado.'
+            ];
+        }
+        if (!empty($details['proj_updated_at'])) {
+            $projectHistory[] = [
+                'kind' => 'project',
+                'date' => $details['proj_updated_at'],
+                'title' => 'Projeto atualizado',
+                'note' => 'Última atualização registrada no projeto.'
+            ];
+        }
+
+        foreach ($reminders as $reminder) {
+            $projectHistory[] = [
+                'kind' => 'project',
+                'date' => $reminder['remind_at'] ?: $reminder['created_at'],
+                'title' => 'Lembrete do projeto',
+                'note' => trim(($reminder['title'] ?: 'Lembrete') . ' | ' . ($reminder['message'] ?: ''))
+            ];
+        }
+
+        usort($projectHistory, static function ($a, $b) {
+            return strcmp((string)($b['date'] ?? ''), (string)($a['date'] ?? ''));
+        });
+
         if (!empty($details['created_at'])) {
             $postSaleHistory[] = [
                 'kind' => 'pv',
@@ -357,7 +404,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'success' => true,
             'details' => $details,
             'history' => [
-                'lead_movements' => $leadMovements,
+                'project' => $projectHistory,
                 'reminders' => $reminders,
                 'post_sale' => $postSaleHistory,
             ],
@@ -380,6 +427,7 @@ $projetoSelect = [
     'p.lead_id',
     'p.address',
     'p.proposal_value',
+    'p.projeto AS project_kwh',
     'p.id AS proj_id',
     'l.id AS lead_id',
     'l.name AS lead_name',
@@ -575,7 +623,7 @@ $total = count($posVendas);
 $conversaoRecorrencia = $total > 0 ? round(($assinantesAtivos / $total) * 100) : 0;
 
 // Fetch all eligible projects for the "Add" modal select
-$projStmt = $pdo->prepare("SELECT id, client_name FROM projetos WHERE user_id=? AND status IN ('Fechado','Finalizado','Homologado','Concluído','Concluido') ORDER BY client_name ASC");
+$projStmt = $pdo->prepare("SELECT id, client_name, projeto FROM projetos WHERE user_id=? AND status IN ('Fechado','Finalizado','Homologado','Concluído','Concluido') ORDER BY client_name ASC");
 $projStmt->execute([$_SESSION['user_id']]);
 $projetosDisponiveis = $projStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -653,11 +701,58 @@ include 'includes/header.php';
 .pv-progress-bar > span { display:block; height:100%; border-radius:999px; }
 .pv-table-search { max-width:320px; }
 .pv-contract-filter .btn { min-width:140px; }
+.pv-kanban-compact .pv-kanban-col { width:280px; min-width:280px; max-width:280px; }
+.pv-kanban-compact .pv-kanban-col-header { padding:.5rem .65rem; }
+.pv-kanban-compact .pv-kanban-col-title { font-size:.86rem; }
+.pv-kanban-compact .pv-kanban-col-body { padding:.65rem; }
+.pv-kanban-compact .pv-kanban-card { border-radius:10px; margin-bottom:.5rem; }
+.pv-kanban-compact .pv-card-header-strip { padding:.45rem .65rem .4rem; }
+.pv-kanban-compact .pv-card-body-inner { padding:.45rem .65rem; }
+.pv-kanban-compact .pv-card-footer { padding:.35rem .65rem .45rem; gap:.3rem; }
+.pv-kanban-compact .pv-card-client-name { font-size:.9rem; margin-bottom:.35rem; }
+.pv-kanban-compact .pv-card-kv { font-size:.75rem; gap:.1rem .5rem; margin-bottom:.35rem; }
+.pv-kanban-compact .pv-health-head,
+.pv-kanban-compact .pv-progress-head { font-size:.72rem; }
+.pv-kanban-compact .pv-kv-hide-compact { display:none; }
+#pvModal .form-control,
+#pvModal .form-select,
+#pvModal textarea {
+    border-color: var(--bs-primary);
+}
+
+#pvModal .form-control:focus,
+#pvModal .form-select:focus,
+#pvModal textarea:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb), .25);
+}
+.pv-main-with-panel { transition: margin-right .2s ease; }
+.pv-main-with-panel.panel-open { margin-right: 430px; }
+.pv-details-panel {
+    position: fixed;
+    right: 0;
+    top: 56px;
+    width: 420px;
+    height: calc(100vh - 56px);
+    background: #fff;
+    border-left: 1px solid rgba(15,23,42,.08);
+    box-shadow: -8px 0 24px rgba(15,23,42,.12);
+    z-index: 1200;
+    overflow: auto;
+    transition: transform .2s ease;
+}
+.pv-details-panel.hidden { transform: translateX(100%); }
+.pv-details-panel-inner { padding: 1rem; }
+.pv-details-close { position:absolute; top:8px; right:8px; }
+@media (max-width: 992px) {
+    .pv-main-with-panel.panel-open { margin-right: 0; }
+    .pv-details-panel { width: 100%; top: 56px; height: calc(100vh - 56px); }
+}
 </style>
 
 <div class="d-flex">
     <?php include 'includes/sidebar.php'; ?>
-    <main class="flex-grow-1 p-4">
+    <main id="pvMainContent" class="flex-grow-1 p-4 pv-main-with-panel">
 
         <!-- Page header -->
         <div class="mb-4 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
@@ -782,9 +877,19 @@ include 'includes/header.php';
                 </div>
             </div>
             <div class="col-12 col-md-auto text-md-end">
-                <div class="btn-group btn-group-sm" role="group" aria-label="Toggle view">
-                    <button type="button" id="pvViewKanbanBtn" class="btn btn-primary active">Kanban</button>
-                    <button type="button" id="pvViewTableBtn" class="btn btn-outline-secondary">Tabela</button>
+                <div class="d-flex gap-2 justify-content-md-end">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Ações rápidas do kanban">
+                        <button type="button" id="pvClearFiltersBtn" class="btn btn-sm project-filter-btn project-filter-btn-clear" title="Limpar filtros" aria-label="Limpar filtros">
+                            <i class="fa fa-eraser" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" id="pvCompactKanbanBtn" class="btn btn-sm project-filter-btn project-filter-btn-compact" title="Compactar cards do kanban" aria-label="Compactar cards do kanban">
+                            <i class="fa fa-compress-alt" id="pvCompactKanbanIcon" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Toggle view">
+                        <button type="button" id="pvViewKanbanBtn" class="btn btn-primary active">Kanban</button>
+                        <button type="button" id="pvViewTableBtn" class="btn btn-outline-secondary">Tabela</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -815,6 +920,36 @@ include 'includes/header.php';
         <!-- Add button removido: agora está no topo ao lado do Gerenciar Colunas -->
 
     </main>
+
+    <aside id="pvDetailsPanel" class="pv-details-panel hidden">
+        <div class="pv-details-panel-inner">
+            <button id="pvDetailsCloseBtn" type="button" class="btn btn-sm btn-light pv-details-close" title="Fechar">✕</button>
+            <h5 class="mb-3 pe-4" id="pvDetailsTitle">Detalhes do Cliente</h5>
+            <div id="pvDetailsLoading" class="text-muted small">Carregando detalhes...</div>
+            <div id="pvDetailsContent" class="d-none">
+                <div class="border rounded p-3 mb-3 bg-light">
+                    <h6 class="mb-2">Dados do Projeto de Origem</h6>
+                    <div class="small" id="pvProjectDetailsGrid"></div>
+                </div>
+                <div class="border rounded p-3 mb-3">
+                    <h6 class="mb-2">Histórico do Projeto</h6>
+                    <div id="pvHistoryProject" class="small"></div>
+                </div>
+                <div class="border rounded p-3 mb-3 bg-light">
+                    <h6 class="mb-2">Dados do Lead</h6>
+                    <div class="small" id="pvLeadDetailsGrid"></div>
+                </div>
+                <div class="border rounded p-3 mb-3 bg-light">
+                    <h6 class="mb-2">Dados do Pós-venda</h6>
+                    <div class="small" id="pvPostSaleDetailsGrid"></div>
+                </div>
+                <div class="border rounded p-3 mb-3">
+                    <h6 class="mb-2">Histórico do Pós-venda</h6>
+                    <div id="pvHistoryPostSale" class="small"></div>
+                </div>
+            </div>
+        </div>
+    </aside>
 </div>
 
 <!-- ════════════════ Modal: Edit / New ════════════════ -->
@@ -837,7 +972,7 @@ include 'includes/header.php';
           <select class="form-select" id="pvProjectSelect">
             <option value="">— Selecione o projeto —</option>
             <?php foreach ($projetosDisponiveis as $prj): ?>
-                        <option value="<?= $prj['id'] ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>">
+                                                <option value="<?= $prj['id'] ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>">
               <?= htmlspecialchars($prj['client_name']) ?>
             </option>
             <?php endforeach; ?>
@@ -869,6 +1004,14 @@ include 'includes/header.php';
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Valor do Plano</label>
                     <input type="text" name="plan_value" id="pvProposalValue" class="form-control" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">kWh do Projeto</label>
+                    <input type="text" name="project_kwh" id="pvProjectKwh" class="form-control" inputmode="decimal" placeholder="Ex: 4500">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Equipamento</label>
+                    <input type="text" name="equipment" id="pvEquipment" class="form-control" placeholder="Digite o equipamento">
                 </div>
         <div class="col-md-6">
           <label class="form-label fw-semibold">Performance (%)</label>
@@ -1018,61 +1161,6 @@ include 'includes/header.php';
   </div>
 </div>
 
-<!-- Modal: Detalhes do Lead e Histórico do Pós-venda -->
-<div class="modal fade" id="pvDetailsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="pvDetailsTitle">Detalhes do Cliente</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-            </div>
-            <div class="modal-body">
-                <div id="pvDetailsLoading" class="text-muted small">Carregando detalhes...</div>
-                <div id="pvDetailsContent" class="d-none">
-                    <div class="row g-3 mb-3">
-                        <div class="col-12 col-lg-6">
-                            <div class="border rounded p-3 h-100 bg-light">
-                                <h6 class="mb-2">Dados do Lead</h6>
-                                <div class="small" id="pvLeadDetailsGrid"></div>
-                            </div>
-                        </div>
-                        <div class="col-12 col-lg-6">
-                            <div class="border rounded p-3 h-100 bg-light">
-                                <h6 class="mb-2">Dados do Pós-venda</h6>
-                                <div class="small" id="pvPostSaleDetailsGrid"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row g-3">
-                        <div class="col-12 col-lg-4">
-                            <div class="border rounded p-3 h-100">
-                                <h6 class="mb-2">Histórico do Pós-venda</h6>
-                                <div id="pvHistoryPostSale" class="small"></div>
-                            </div>
-                        </div>
-                        <div class="col-12 col-lg-4">
-                            <div class="border rounded p-3 h-100">
-                                <h6 class="mb-2">Movimentações do Lead</h6>
-                                <div id="pvHistoryLead" class="small"></div>
-                            </div>
-                        </div>
-                        <div class="col-12 col-lg-4">
-                            <div class="border rounded p-3 h-100">
-                                <h6 class="mb-2">Lembretes do Projeto</h6>
-                                <div id="pvHistoryReminders" class="small"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
 (function(){
     // ── helpers ──
@@ -1085,7 +1173,17 @@ include 'includes/header.php';
     let currentView = 'table';
     let currentSearch = '';
     let currentContractFilter = 'all';
+    let isKanbanCompact = localStorage.getItem('pvKanbanCompact') === '1';
     let _limpezaPvId = null;
+
+    function applyKanbanCompactState(){
+        $('pvKanbanWrapper').classList.toggle('pv-kanban-compact', isKanbanCompact);
+        const icon = $('pvCompactKanbanIcon');
+        if (icon) {
+            icon.classList.toggle('fa-compress', !isKanbanCompact);
+            icon.classList.toggle('fa-expand', isKanbanCompact);
+        }
+    }
 
     function normalize(value){
         return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -1429,12 +1527,16 @@ include 'includes/header.php';
                         <div class="pv-card-kv">
                             <span class="k">Valor</span>
                             <span class="v">${escapeHtml(formatCurrencyBRL(pv.plan_value))}</span>
-                            <span class="k">Plano</span>
-                            <span class="v">${escapeHtml(getPlanLabel(pv))}</span>
-                            <span class="k">Telefone</span>
-                            <span class="v">${phoneDigits ? `<a href="tel:${phoneDigits}" style="color:inherit;text-decoration:none;">${escapeHtml(formatPhoneBR(pv.lead_phone))}</a>` : '\u2014'}</span>
-                            <span class="k">Instala\u00e7\u00e3o</span>
-                            <span class="v">${escapeHtml(formatDateBR(pv.installation_date))}</span>
+                            <span class="k pv-kv-hide-compact">kWh</span>
+                            <span class="v pv-kv-hide-compact">${escapeHtml(String(pv.project_kwh || '—'))}</span>
+                            <span class="k pv-kv-hide-compact">Equipamento</span>
+                            <span class="v pv-kv-hide-compact">${escapeHtml(String(pv.equipment || '—'))}</span>
+                            <span class="k pv-kv-hide-compact">Plano</span>
+                            <span class="v pv-kv-hide-compact">${escapeHtml(getPlanLabel(pv))}</span>
+                            <span class="k pv-kv-hide-compact">Telefone</span>
+                            <span class="v pv-kv-hide-compact">${phoneDigits ? `<a href="tel:${phoneDigits}" style="color:inherit;text-decoration:none;">${escapeHtml(formatPhoneBR(pv.lead_phone))}</a>` : '\u2014'}</span>
+                            <span class="k pv-kv-hide-compact">Instala\u00e7\u00e3o</span>
+                            <span class="v pv-kv-hide-compact">${escapeHtml(formatDateBR(pv.installation_date))}</span>
                         </div>
                         ${healthSection}
                         ${warrantySection}
@@ -1531,6 +1633,19 @@ include 'includes/header.php';
 
         $('pvDetailsTitle').textContent = 'Detalhes: ' + (details.client_name || pv.client_name || 'Cliente');
 
+        const projectRows = [
+            ['Projeto ID', details.proj_id || pv.proj_id || pv.project_id || '—'],
+            ['Lead ID', details.lead_id || details.lead_id_join || pv.lead_id || '—'],
+            ['Cliente', details.proj_client_name || details.client_name || pv.client_name || '—'],
+            ['Status no Projeto', details.proj_status || pv.proj_status || '—'],
+            ['Valor do Projeto', formatCurrencyBRL(details.proposal_value ?? pv.proposal_value ?? 0)],
+            ['kWh do Projeto', details.project_kwh || pv.project_kwh || '—'],
+            ['Fechamento', formatDateBR(details.closed_date || pv.closed_date)],
+            ['Criado em', formatDateTimeBR(details.proj_created_at)],
+            ['Atualizado em', formatDateTimeBR(details.proj_updated_at)],
+            ['Endereço', details.address || pv.address || '—'],
+        ];
+
         const leadRows = [
             ['Lead ID', details.lead_id || details.lead_id_join || pv.lead_id || '—'],
             ['Nome', details.lead_name || pv.lead_name || pv.client_name || '—'],
@@ -1542,8 +1657,8 @@ include 'includes/header.php';
         ];
 
         const postSaleRows = [
-            ['Projeto ID', details.proj_id || pv.proj_id || pv.project_id || '—'],
             ['Valor do Plano', formatCurrencyBRL(details.plan_value ?? pv.plan_value ?? 0)],
+            ['Equipamento', details.equipment || pv.equipment || '—'],
             ['Estágio', details.stage || pv.stage || 'Sem estágio'],
             ['Status', details.client_status || pv.client_status || 'Assinante'],
             ['Plano', details.payment_type || pv.payment_type || details.contract || pv.contract || 'Nenhum'],
@@ -1553,6 +1668,13 @@ include 'includes/header.php';
             ['Garantia até', formatDateBR(details.warranty_end || pv.warranty_end)],
             ['Atualizado em', formatDateTimeBR(details.updated_at || pv.updated_at)],
         ];
+
+        $('pvProjectDetailsGrid').innerHTML = projectRows.map(([label, value]) => `
+            <div class="d-flex justify-content-between gap-2 border-bottom py-1">
+                <span class="text-muted">${escapeHtml(label)}</span>
+                <span class="text-end">${escapeHtml(String(value ?? '—'))}</span>
+            </div>
+        `).join('');
 
         $('pvLeadDetailsGrid').innerHTML = leadRows.map(([label, value]) => `
             <div class="d-flex justify-content-between gap-2 border-bottom py-1">
@@ -1584,25 +1706,14 @@ include 'includes/header.php';
             note: item.note || ''
         }));
 
-        const leadTimeline = (history.lead_movements || []).map(item => {
-            const from = String(item.from_status || '').trim();
-            const to = String(item.to_status || '').trim();
-            return {
-                title: from || to ? `${from || '—'} -> ${to || '—'}` : 'Movimentação do lead',
-                date: formatDateTimeBR(item.created_at),
-                note: [item.note, item.changed_by ? `por ${item.changed_by}` : ''].filter(Boolean).join(' | ')
-            };
-        });
-
-        const remindersTimeline = (history.reminders || []).map(item => ({
-            title: item.title || 'Lembrete',
-            date: formatDateTimeBR(item.remind_at || item.created_at),
-            note: [item.message || '', item.status ? `status: ${item.status}` : ''].filter(Boolean).join(' | ')
+        const projectTimeline = (history.project || []).map(item => ({
+            title: item.title || 'Evento do projeto',
+            date: formatDateTimeBR(item.date),
+            note: item.note || ''
         }));
 
+        $('pvHistoryProject').innerHTML = renderDetailList(projectTimeline, 'Nenhum histórico de projeto disponível.');
         $('pvHistoryPostSale').innerHTML = renderDetailList(postSaleTimeline, 'Nenhum evento de pós-venda disponível.');
-        $('pvHistoryLead').innerHTML = renderDetailList(leadTimeline, 'Nenhuma movimentação de lead encontrada.');
-        $('pvHistoryReminders').innerHTML = renderDetailList(remindersTimeline, 'Nenhum lembrete cadastrado para este projeto.');
     }
 
     async function onKanbanCardClick(event){
@@ -1617,7 +1728,8 @@ include 'includes/header.php';
         $('pvDetailsLoading').classList.remove('d-none');
         $('pvDetailsContent').classList.add('d-none');
         $('pvDetailsTitle').textContent = 'Detalhes: ' + (pv.client_name || 'Cliente');
-        bsModal('pvDetailsModal').show();
+        $('pvMainContent').classList.add('panel-open');
+        $('pvDetailsPanel').classList.remove('hidden');
 
         try {
             const payload = await fetchPosVendaDetails(pvId);
@@ -1630,6 +1742,11 @@ include 'includes/header.php';
         } catch (err) {
             $('pvDetailsLoading').innerHTML = `<span class="text-danger">${escapeHtml(err.message || 'Erro ao carregar detalhes.')}</span>`;
         }
+    }
+
+    function closeDetailsPanel(){
+        $('pvMainContent').classList.remove('panel-open');
+        $('pvDetailsPanel').classList.add('hidden');
     }
 
     function onHistoryBtnClick(event){
@@ -1671,6 +1788,8 @@ include 'includes/header.php';
         $('pvNotes').value = pv.notes || '';
         $('pvPerf').value = pv.performance_pct != null ? pv.performance_pct : '';
         setProposalInputFromValue(pv.plan_value || '');
+        $('pvProjectKwh').value = pv.project_kwh || '';
+        $('pvEquipment').value = pv.equipment || '';
         populateClientTypeSelect(pv.client_type || '');
         populateClientStatusSelect(pv.client_status || 'Assinante');
         $('pvStage').value = pv.stage || '';
@@ -1766,6 +1885,7 @@ include 'includes/header.php';
         $('pvViewKanbanBtn').classList.toggle('btn-outline-secondary', currentView !== 'kanban');
         $('pvViewTableBtn').classList.toggle('btn-primary', currentView === 'table');
         $('pvViewTableBtn').classList.toggle('btn-outline-secondary', currentView !== 'table');
+        applyKanbanCompactState();
         kanban.classList.toggle('d-none', currentView !== 'kanban');
         table.classList.toggle('d-none', currentView !== 'table');
         empty.classList.toggle('d-none', hasRows || hasStages);
@@ -1997,6 +2117,20 @@ include 'includes/header.php';
     $('pvViewTableBtn').addEventListener('click', () => { currentView = 'table'; renderView(); });
     $('pvFilterAllBtn').addEventListener('click', () => { currentContractFilter = 'all'; renderView(); });
     $('pvFilterExpiredBtn').addEventListener('click', () => { currentContractFilter = 'expired'; renderView(); });
+    $('pvClearFiltersBtn').addEventListener('click', () => {
+        currentContractFilter = 'all';
+        currentSearch = '';
+        $('pvSearchInput').value = '';
+        renderView();
+    });
+    $('pvCompactKanbanBtn').addEventListener('click', () => {
+        isKanbanCompact = !isKanbanCompact;
+        localStorage.setItem('pvKanbanCompact', isKanbanCompact ? '1' : '0');
+        applyKanbanCompactState();
+        if (currentView === 'kanban') {
+            renderKanban();
+        }
+    });
     $('pvSearchInput').addEventListener('input', (event) => {
         currentSearch = event.target.value || '';
         renderView();
@@ -2012,6 +2146,14 @@ include 'includes/header.php';
     }
 
     initializePosVenda();
+    applyKanbanCompactState();
+
+    $('pvDetailsCloseBtn').addEventListener('click', closeDetailsPanel);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeDetailsPanel();
+        }
+    });
 
     // ── Open: New record ──
     $('pvNewBtn').addEventListener('click', ()=>{
@@ -2021,6 +2163,8 @@ include 'includes/header.php';
         $('pvProjectPickerWrap').classList.remove('d-none');
         $('pvWarrantyMonths').value = 12;
         $('pvProposalValue').value = '';
+        $('pvProjectKwh').value = '';
+        $('pvEquipment').value = '';
         populateClientTypeSelect();
         populateClientStatusSelect('Assinante');
         $('pvModalTitle').textContent = 'Novo Registro Pós-venda';
@@ -2032,6 +2176,7 @@ include 'includes/header.php';
         const opt = $('pvProjectSelect').selectedOptions[0];
         $('pvProjectId').value = opt?.value || '';
         $('pvClientNameHidden').value = opt?.dataset?.name || '';
+        $('pvProjectKwh').value = opt?.dataset?.kwh || '';
     });
 
     $('pvProposalValue').addEventListener('input', (event) => {

@@ -51,3 +51,5 @@
 [2026-05-09 22:56:03] auto promoted anuncios: 1
 [2026-05-21 21:50:09] UPDATE data_inicio (raw): '2026-02-16'
 [2026-05-21 21:50:09] UPDATE data_inicio (parsed): '2026-02-16'
+[2026-05-21 22:58:29] promote_anuncio failed: SQLSTATE[HY000]: General error: 1366 Incorrect integer value: 'anuncios' for column 'stage_id' at row 1
+[2026-05-21 22:58:31] promote_anuncio: updated leads_anuncios id 7 as transferred_to_kanban

@@ -576,6 +576,21 @@ body.theme-dark #leadsTableContainer table.table-hover tbody tr:hover {
 #leadsTableContainer.theme-dark .badge-score.cold { background:#06b6d4 !important; }
 #leadsTableContainer.theme-dark .btn-outline-secondary { color: #e6eef8 !important; border-color: rgba(255,255,255,0.06) !important; }
 
+#stalledToggle.active,
+#toggleSemStatusBtn.active,
+#toggleAnunciosBtn.active {
+    color: #fff !important;
+    background-color: var(--bs-primary) !important;
+    border-color: var(--bs-primary) !important;
+}
+#stalledToggle.active:hover,
+#toggleSemStatusBtn.active:hover,
+#toggleAnunciosBtn.active:hover {
+    color: #fff !important;
+    background-color: var(--bs-primary) !important;
+    border-color: var(--bs-primary) !important;
+}
+
 /* Kanban-only mode: hide other page chrome and make kanban fill available space */
 body.kanban-only .main-content-scroll { padding: 4px !important; }
 /* make the main content area flush to the right edge when kanban-only is active

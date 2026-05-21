@@ -1214,7 +1214,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             foreach ($colsRaw as $c) { if (strtolower($c) === $orderCol) { $orderColReal = $c; break; } }
             if (!$orderColReal) $orderColReal = 'id';
 
-            $sql = 'SELECT * FROM leads_anuncios ORDER BY `' . str_replace('`','', $orderColReal) . '` DESC LIMIT 500';
+            $sql = 'SELECT * FROM leads_anuncios' . (in_array('transferred_to_kanban', $cols) ? ' WHERE transferred_to_kanban = 0' : '') . ' ORDER BY `' . str_replace('`','', $orderColReal) . '` DESC LIMIT 500';
             $stmt = $pdo->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1260,8 +1260,8 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $parts[] = json_encode($an, JSON_UNESCAPED_UNICODE);
             $notes = implode("\n", $parts);
 
-            // insert into leads table for current user
-            $ins = $pdo->prepare('INSERT INTO leads (user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+            // insert into leads table for current user with ad source flag
+            $ins = $pdo->prepare('INSERT INTO leads (user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, is_ad_source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
             $ins->execute([
                 $userId,
                 $name,
@@ -1272,16 +1272,27 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
                 $source,
                 'Novo',
                 $targetStage ?: null,
-                $notes
+                $notes,
+                1
             ]);
             $newId = $pdo->lastInsertId();
-            // After successfully creating the lead, remove the original anuncio row
+            // After successfully creating the lead, mark the original anuncio as transferred instead of deleting it
             try {
-                $del = $pdo->prepare('DELETE FROM leads_anuncios WHERE id = ?');
-                $del->execute([$anId]);
-                _leads_api_log("promote_anuncio: deleted leads_anuncios id {$anId}");
+                $colChk2 = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads_anuncios'");
+                $colChk2->execute();
+                $colsRaw2 = $colChk2->fetchAll(PDO::FETCH_COLUMN);
+                $hasTransferCol = in_array('transferred_to_kanban', array_map('strtolower', $colsRaw2));
+                if ($hasTransferCol) {
+                    $upd = $pdo->prepare('UPDATE leads_anuncios SET transferred_to_kanban = 1, promoted_at = NOW(), lead_id = ? WHERE id = ?');
+                    $upd->execute([$newId, $anId]);
+                    _leads_api_log("promote_anuncio: updated leads_anuncios id {$anId} as transferred_to_kanban");
+                } else {
+                    $del = $pdo->prepare('DELETE FROM leads_anuncios WHERE id = ?');
+                    $del->execute([$anId]);
+                    _leads_api_log("promote_anuncio: deleted leads_anuncios id {$anId}");
+                }
             } catch (Exception $e) {
-                _leads_api_log('promote_anuncio: failed to delete leads_anuncios id ' . $anId . ': ' . $e->getMessage());
+                _leads_api_log('promote_anuncio: failed to update leads_anuncios id ' . $anId . ': ' . $e->getMessage());
             }
             echo json_encode(['ok' => true, 'id' => $newId]);
             exit;
