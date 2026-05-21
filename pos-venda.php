@@ -81,9 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $clientType  = trim($_POST['client_type']      ?? 'Degustação');
         $lastCheckup = $_POST['last_checkup']          ?: null;
         $stage       = trim($_POST['stage']            ?? '');
-        $clientStatus= trim($_POST['client_status']    ?? 'Assinante');
-
-        if (!in_array($clientStatus, ['Assinante','Ex-Cliente'])) $clientStatus = 'Assinante';
+        $clientStatus= trim($_POST['client_status']    ?? '');
+        if ($clientType === '') $clientType = 'Degustação';
+        if ($clientStatus === '') $clientStatus = 'Assinante';
 
         // update projetos.client_status
         if ($projId && $hasClientStatus) {
@@ -503,6 +503,7 @@ include 'includes/header.php';
                 <button class="btn btn-primary btn-sm" id="pvNewBtn">
                     <i class="fa fa-plus me-1"></i>Adicionar
                 </button>
+                <button type="button" id="pvFieldsConfigBtn" class="btn btn-outline-secondary btn-sm">Configurar Campos</button>
                 <button type="button" id="pvStagesConfigBtn" class="btn btn-outline-secondary btn-sm">Gerenciar Colunas</button>
             </div>
         </div>
@@ -683,12 +684,9 @@ include 'includes/header.php';
         </div>
         <div class="col-md-6">
           <label class="form-label fw-semibold">Tipo de Cliente</label>
-          <select name="client_type" id="pvClientType" class="form-select">
-            <option value="Degustação">Degustação</option>
-            <option value="Cortesia">Cortesia</option>
-            <option value="Embaixador">Embaixador</option>
-            <option value="Assinante Ativo">Assinante Ativo</option>
-          </select>
+                    <select name="client_type" id="pvClientType" class="form-select">
+                        <option value="">— Selecione o tipo de cliente —</option>
+                    </select>
         </div>
         <div class="col-md-6">
           <label class="form-label fw-semibold">Estágio no Pós-venda</label>
@@ -698,10 +696,9 @@ include 'includes/header.php';
         </div>
         <div class="col-md-6">
           <label class="form-label fw-semibold">Status de Acesso</label>
-          <select name="client_status" id="pvClientStatus" class="form-select">
-            <option value="Assinante">Assinante — acesso liberado</option>
-            <option value="Ex-Cliente">Ex-Cliente — acesso bloqueado</option>
-          </select>
+                    <select name="client_status" id="pvClientStatus" class="form-select">
+                        <option value="">— Selecione o status de acesso —</option>
+                    </select>
         </div>
         <div class="col-md-6">
           <label class="form-label fw-semibold">Performance (%)</label>
@@ -732,6 +729,45 @@ include 'includes/header.php';
       </form>
     </div>
   </div>
+</div>
+
+<!-- ════════════════ Modal: Configurar Campos (Tipo/Status) ════════════════ -->
+<div class="modal fade" id="pvFieldsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white py-2">
+                <h5 class="modal-title fs-6">Configurar Campos de Cadastro</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <div class="border rounded p-3 h-100">
+                            <h6 class="mb-2">Tipo de Cliente</h6>
+                            <div class="d-flex gap-2 mb-3">
+                                <input type="text" id="pvClientTypeNameInput" class="form-control" placeholder="Novo tipo de cliente">
+                                <button type="button" id="pvClientTypeAddBtn" class="btn btn-primary">Adicionar</button>
+                            </div>
+                            <div id="pvClientTypeList" class="list-group"></div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="border rounded p-3 h-100">
+                            <h6 class="mb-2">Status de Acesso</h6>
+                            <div class="d-flex gap-2 mb-3">
+                                <input type="text" id="pvClientStatusNameInput" class="form-control" placeholder="Novo status de acesso">
+                                <button type="button" id="pvClientStatusAddBtn" class="btn btn-primary">Adicionar</button>
+                            </div>
+                            <div id="pvClientStatusList" class="list-group"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- ════════════════ Modal: Gerenciar Colunas Pós-venda ════════════════ -->
@@ -819,6 +855,8 @@ include 'includes/header.php';
     const bsModal = id => new bootstrap.Modal($(id));
     const posVendas = <?= json_encode($posVendas, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
     let posVendaStages = [];
+    let posVendaClientTypes = [];
+    let posVendaAccessStatuses = [];
     let currentView = 'table';
     let currentSearch = '';
     let currentContractFilter = 'all';
@@ -912,6 +950,56 @@ include 'includes/header.php';
 
     function buildStageOption(stage){
         return `<option value="${escapeHtml(stage.name)}">${escapeHtml(stage.name)}</option>`;
+    }
+
+    async function fetchPosVendaFieldOptions(fieldKey){
+        const res = await fetch(`includes/pos_venda_fields_api.php?action=list&field_key=${encodeURIComponent(fieldKey)}`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+    }
+
+    function ensureSelectOption(selectEl, value, fallbackLabel){
+        const normalizedValue = String(value || '').trim();
+        if (!normalizedValue) return;
+        const exists = Array.from(selectEl.options).some(opt => String(opt.value).trim() === normalizedValue);
+        if (!exists) {
+            const option = document.createElement('option');
+            option.value = normalizedValue;
+            option.textContent = fallbackLabel || normalizedValue;
+            selectEl.appendChild(option);
+        }
+    }
+
+    function populateClientTypeSelect(selectedValue = ''){
+        const select = $('pvClientType');
+        const optionsHtml = posVendaClientTypes
+            .map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`)
+            .join('');
+        select.innerHTML = '<option value="">— Selecione o tipo de cliente —</option>' + optionsHtml;
+        ensureSelectOption(select, selectedValue);
+        select.value = String(selectedValue || '').trim();
+    }
+
+    function populateClientStatusSelect(selectedValue = ''){
+        const select = $('pvClientStatus');
+        const optionsHtml = posVendaAccessStatuses
+            .map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`)
+            .join('');
+        select.innerHTML = '<option value="">— Selecione o status de acesso —</option>' + optionsHtml;
+        ensureSelectOption(select, selectedValue);
+        select.value = String(selectedValue || '').trim();
+    }
+
+    async function refreshFieldOptions(){
+        const [types, statuses] = await Promise.all([
+            fetchPosVendaFieldOptions('client_type'),
+            fetchPosVendaFieldOptions('client_status')
+        ]);
+        posVendaClientTypes = types;
+        posVendaAccessStatuses = statuses;
+        populateClientTypeSelect();
+        populateClientStatusSelect();
     }
 
     async function populateStageSelect(){
@@ -1159,8 +1247,8 @@ include 'includes/header.php';
         $('pvWarrantyMonths').value = months;
         $('pvNotes').value = pv.notes || '';
         $('pvPerf').value = pv.performance_pct != null ? pv.performance_pct : '';
-        $('pvClientType').value = pv.client_type || 'Degustação';
-        $('pvClientStatus').value = pv.client_status || 'Assinante';
+        populateClientTypeSelect(pv.client_type || '');
+        populateClientStatusSelect(pv.client_status || 'Assinante');
         $('pvStage').value = pv.stage || '';
         $('pvModalTitle').textContent = 'Editar: ' + pv.client_name;
         bsModal('pvModal').show();
@@ -1279,6 +1367,82 @@ include 'includes/header.php';
         bsModal('pvStagesModal').show();
     }
 
+    async function openFieldsManager(){
+        await renderFieldOptionsManager();
+        bsModal('pvFieldsModal').show();
+    }
+
+    async function renderSingleFieldOptions(fieldKey, listElementId){
+        const list = $(listElementId);
+        const options = await fetchPosVendaFieldOptions(fieldKey);
+        list.innerHTML = options.map((item, index) => `
+            <div class="list-group-item d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                <input type="text" class="form-control form-control-sm pv-field-option-name" data-id="${item.id}" data-field-key="${fieldKey}" value="${escapeHtml(item.name)}" style="min-width:220px;">
+                <div class="d-flex gap-1">
+                    <button type="button" class="btn btn-sm btn-outline-secondary pv-field-option-up" data-field-key="${fieldKey}" data-index="${index}">▲</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary pv-field-option-down" data-field-key="${fieldKey}" data-index="${index}">▼</button>
+                    <button type="button" class="btn btn-sm btn-danger pv-field-option-delete" data-id="${item.id}" data-field-key="${fieldKey}">Excluir</button>
+                </div>
+            </div>
+        `).join('') || '<div class="text-muted">Nenhuma opção cadastrada.</div>';
+
+        list.querySelectorAll('.pv-field-option-name').forEach(input => {
+            input.addEventListener('blur', async () => {
+                const id = input.dataset.id;
+                const targetField = input.dataset.fieldKey;
+                const name = input.value.trim();
+                if (!name) return;
+                await fetch(`includes/pos_venda_fields_api.php?action=update&field_key=${encodeURIComponent(targetField)}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ id, name })
+                });
+                await refreshFieldOptions();
+            });
+        });
+
+        list.querySelectorAll('.pv-field-option-delete').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Excluir esta opção?')) return;
+                const id = btn.dataset.id;
+                const targetField = btn.dataset.fieldKey;
+                await fetch(`includes/pos_venda_fields_api.php?action=delete&field_key=${encodeURIComponent(targetField)}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ id })
+                });
+                await renderFieldOptionsManager();
+                await refreshFieldOptions();
+            });
+        });
+
+        list.querySelectorAll('.pv-field-option-up, .pv-field-option-down').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const targetField = btn.dataset.fieldKey;
+                const idx = parseInt(btn.dataset.index, 10);
+                const currentItems = await fetchPosVendaFieldOptions(targetField);
+                const nextIdx = btn.classList.contains('pv-field-option-up') ? idx - 1 : idx + 1;
+                if (nextIdx < 0 || nextIdx >= currentItems.length) return;
+                const positions = currentItems.map((item, index) => ({ id: item.id, position: index + 1 }));
+                const temp = positions[idx].position;
+                positions[idx].position = positions[nextIdx].position;
+                positions[nextIdx].position = temp;
+                await fetch(`includes/pos_venda_fields_api.php?action=reorder&field_key=${encodeURIComponent(targetField)}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ positions })
+                });
+                await renderFieldOptionsManager();
+                await refreshFieldOptions();
+            });
+        });
+    }
+
+    async function renderFieldOptionsManager(){
+        await renderSingleFieldOptions('client_type', 'pvClientTypeList');
+        await renderSingleFieldOptions('client_status', 'pvClientStatusList');
+    }
+
     async function renderStagesManager(){
         const list = $('pvStagesList');
         const stages = await fetchPosVendaStages();
@@ -1376,6 +1540,33 @@ include 'includes/header.php';
         renderView();
     });
 
+    $('pvClientTypeAddBtn').addEventListener('click', async () => {
+        const name = $('pvClientTypeNameInput').value.trim();
+        if (!name) { alert('Informe o tipo de cliente'); return; }
+        await fetch('includes/pos_venda_fields_api.php?action=add&field_key=client_type', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ name })
+        });
+        $('pvClientTypeNameInput').value = '';
+        await renderFieldOptionsManager();
+        await refreshFieldOptions();
+    });
+
+    $('pvClientStatusAddBtn').addEventListener('click', async () => {
+        const name = $('pvClientStatusNameInput').value.trim();
+        if (!name) { alert('Informe o status de acesso'); return; }
+        await fetch('includes/pos_venda_fields_api.php?action=add&field_key=client_status', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ name })
+        });
+        $('pvClientStatusNameInput').value = '';
+        await renderFieldOptionsManager();
+        await refreshFieldOptions();
+    });
+
+    $('pvFieldsConfigBtn').addEventListener('click', openFieldsManager);
     $('pvStagesConfigBtn').addEventListener('click', openStagesManager);
 
     $('pvViewKanbanBtn').addEventListener('click', () => { currentView = 'kanban'; renderView(); });
@@ -1388,7 +1579,10 @@ include 'includes/header.php';
     });
 
     async function initializePosVenda(){
-        const stages = await populateStageSelect();
+        const [stages] = await Promise.all([
+            populateStageSelect(),
+            refreshFieldOptions()
+        ]);
         currentView = stages.length > 0 ? 'kanban' : 'table';
         renderView();
     }
@@ -1402,6 +1596,8 @@ include 'includes/header.php';
         $('pvClientNameHidden').value = '';
         $('pvProjectPickerWrap').classList.remove('d-none');
         $('pvWarrantyMonths').value = 12;
+        populateClientTypeSelect();
+        populateClientStatusSelect('Assinante');
         $('pvModalTitle').textContent = 'Novo Registro Pós-venda';
         bsModal('pvModal').show();
     });
