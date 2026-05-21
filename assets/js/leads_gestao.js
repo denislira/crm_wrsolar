@@ -13,6 +13,9 @@
     let CURRENT_SCORE_FILTER = '';
     let CURRENT_CIDADE_FILTER = '';
     let CURRENT_STALLED_ONLY = false;
+    const KANBAN_BATCH_SIZE = 10;
+    let KANBAN_COLUMN_CACHE = {};
+    let KANBAN_COLUMN_RENDERED = {};
 
     function getFilteredLeads(){
         let filtered = allLeads.slice(); // copy
@@ -912,6 +915,117 @@
 
     function clearColumns(){ $all('.column-content').forEach(c=>c.innerHTML=''); }
 
+    function resetKanbanColumnState(){
+        KANBAN_COLUMN_CACHE = {};
+        KANBAN_COLUMN_RENDERED = {};
+    }
+
+    function updateColumnLoadHint(stageKey){
+        const col = document.getElementById('col-' + stageKey);
+        if (!col) return;
+        const total = (KANBAN_COLUMN_CACHE[stageKey] || []).length;
+        const rendered = KANBAN_COLUMN_RENDERED[stageKey] || 0;
+
+        let hint = col.querySelector('.column-load-hint');
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.className = 'column-load-hint small text-muted text-center';
+            col.appendChild(hint);
+        }
+
+        if (total === 0) {
+            hint.textContent = 'Nenhum lead nesta coluna';
+            hint.classList.remove('d-none');
+            return;
+        }
+
+        if (rendered < total) {
+            hint.textContent = `Role para carregar mais (${rendered}/${total})`;
+            hint.classList.remove('d-none');
+            return;
+        }
+
+        hint.textContent = `Total carregado: ${total}`;
+        hint.classList.remove('d-none');
+    }
+
+    function renderNextKanbanBatch(stageKey){
+        const col = document.getElementById('col-' + stageKey);
+        if (!col) return;
+
+        const rows = KANBAN_COLUMN_CACHE[stageKey] || [];
+        const alreadyRendered = KANBAN_COLUMN_RENDERED[stageKey] || 0;
+        if (alreadyRendered >= rows.length) {
+            updateColumnLoadHint(stageKey);
+            return;
+        }
+
+        const nextRows = rows.slice(alreadyRendered, alreadyRendered + KANBAN_BATCH_SIZE);
+        const colWrap = col.closest('.kanban-column');
+        let cardColor = colWrap?.dataset?.cardColor || '';
+        let headerColor = colWrap?.dataset?.color || '';
+        const stageObj = STAGES.find(s => String(s.id) === String(stageKey)) || null;
+
+        if (stageObj) {
+            cardColor = cardColor || (stageObj.card_color || '');
+            headerColor = headerColor || (stageObj.color || '');
+        }
+        if (!headerColor) headerColor = '#6c757d';
+
+        nextRows.forEach(l => {
+            const card = makeCard(l, stageObj);
+            if (cardColor) {
+                card.style.backgroundColor = cardColor;
+                card.style.color = readableTextColor(cardColor);
+            }
+            card.style.borderLeft = headerColor ? ('6px solid ' + headerColor) : '6px solid transparent';
+            card.dataset.originalBorder = card.style.borderLeft || '6px solid transparent';
+            col.appendChild(card);
+        });
+
+        KANBAN_COLUMN_RENDERED[stageKey] = alreadyRendered + nextRows.length;
+        updateColumnLoadHint(stageKey);
+    }
+
+    function fillVisibleColumnArea(stageKey){
+        const col = document.getElementById('col-' + stageKey);
+        if (!col) return;
+
+        let guard = 0;
+        while (
+            guard < 20 &&
+            (KANBAN_COLUMN_RENDERED[stageKey] || 0) < (KANBAN_COLUMN_CACHE[stageKey] || []).length &&
+            col.scrollHeight <= col.clientHeight + 6
+        ) {
+            renderNextKanbanBatch(stageKey);
+            guard++;
+        }
+    }
+
+    function setupColumnInfiniteScroll(stageKey){
+        const col = document.getElementById('col-' + stageKey);
+        if (!col) return;
+
+        col.onscroll = () => {
+            if (col.scrollTop + col.clientHeight >= col.scrollHeight - 80) {
+                renderNextKanbanBatch(stageKey);
+            }
+        };
+    }
+
+    function primeKanbanColumn(stageKey, leads){
+        const col = document.getElementById('col-' + stageKey);
+        if (!col) return;
+
+        col.innerHTML = '';
+        KANBAN_COLUMN_CACHE[stageKey] = Array.isArray(leads) ? leads : [];
+        KANBAN_COLUMN_RENDERED[stageKey] = 0;
+
+        renderNextKanbanBatch(stageKey);
+        setupColumnInfiniteScroll(stageKey);
+        fillVisibleColumnArea(stageKey);
+    }
+
     function leadUpdatedDaysAgo(lead){
         if (!lead.updated_at) return Infinity;
         const updated = new Date(lead.updated_at.replace(' ','T'));
@@ -1478,11 +1592,15 @@
         const vm = getViewMode();
         if (vm === 'list') { renderGrid(); return; }
         clearColumns();
+        resetKanbanColumnState();
         const filtered = getFilteredLeads();
         console.log('Filtered leads:', filtered.length);
         // compute sums per stage id
         const sums = {};
         STAGES.forEach(s=> sums[s.id] = 0);
+        const groupedByStage = {};
+        STAGES.forEach(s=> groupedByStage[String(s.id)] = []);
+        groupedByStage.sem_status = [];
 
         filtered.forEach(l=>{
             let stageKey = '0';
@@ -1493,40 +1611,23 @@
             } else {
                 stageKey = (STAGES.find(s=>s.name === (l.status||'')) || {id:'0'}).id;
             }
-            const col = document.getElementById('col-' + stageKey);
-            if (col) {
-                // determine colors: prefer DOM dataset, then STAGES data
-                const colWrap = col.closest('.kanban-column');
-                let cardColor = colWrap?.dataset?.cardColor || '';
-                let headerColor = colWrap?.dataset?.color || '';
-                // Always try to find stageObj for button logic
-                let stageObj = null;
-                if (STAGES && STAGES.length) {
-                    stageObj = STAGES.find(s => String(s.id) === String(stageKey));
-                    if (stageObj) {
-                        cardColor = cardColor || (stageObj.card_color || '');
-                        headerColor = headerColor || (stageObj.color || '');
-                    }
-                }
-                // Create card with stage object for button logic
-                const card = makeCard(l, stageObj);
-                if (!headerColor) headerColor = '#6c757d';
-                if (cardColor) {
-                    card.style.backgroundColor = cardColor;
-                    card.style.color = readableTextColor(cardColor);
-                }
-                card.style.borderLeft = headerColor ? ('6px solid ' + headerColor) : '6px solid transparent';
-                card.dataset.originalBorder = card.style.borderLeft || '6px solid transparent';
-                col.appendChild(card);
-            }
+            const normalizedStageKey = String(stageKey);
+            if (!groupedByStage[normalizedStageKey]) groupedByStage[normalizedStageKey] = [];
+            groupedByStage[normalizedStageKey].push(l);
             const val = parseFloat(l.orcamento_value || 0) || 0;
-            sums[stageKey] = (sums[stageKey] || 0) + val;
+            sums[normalizedStageKey] = (sums[normalizedStageKey] || 0) + val;
+        });
+
+        Object.keys(groupedByStage).forEach(stageKey => {
+            if (document.getElementById('col-' + stageKey)) {
+                primeKanbanColumn(stageKey, groupedByStage[stageKey]);
+            }
         });
 
         STAGES.forEach(s=>{
             const countEl = document.getElementById('count-' + s.id);
             if (countEl) {
-                const cnt = (document.getElementById('col-' + s.id) || {children:[]}).children.length;
+                const cnt = (groupedByStage[String(s.id)] || []).length;
                 countEl.textContent = cnt;
             }
             const sumEl = document.getElementById('sum-' + s.id);
@@ -1534,6 +1635,9 @@
             const colWrap = document.querySelector(`[data-stage-id='${s.id}']`);
             if (colWrap) colWrap.classList.remove('largest-stage');
         });
+
+        const semStatusCount = document.getElementById('count-sem_status');
+        if (semStatusCount) semStatusCount.textContent = String((groupedByStage.sem_status || []).length);
 
         // highlight largest stage by value
         const largest = Object.keys(sums).reduce((mx,k)=> sums[k] > (sums[mx]||0) ? k : mx, Object.keys(sums)[0]);

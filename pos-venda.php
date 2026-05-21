@@ -205,6 +205,144 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'get_pv_details') {
+        $pvId = intval($_POST['pv_id'] ?? 0);
+        if ($pvId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'ID inválido']);
+            exit;
+        }
+
+        $stmt = $pdo->prepare(
+            "SELECT pv.*, 
+                    p.id AS proj_id,
+                    p.lead_id,
+                    p.status AS proj_status,
+                    p.address,
+                    p.proposal_value,
+                    p.payment_type,
+                    p.payment_status,
+                    p.contract,
+                    p.closed_date,
+                    p.created_at AS proj_created_at,
+                    p.updated_at AS proj_updated_at,
+                    l.id AS lead_id_join,
+                    l.name AS lead_name,
+                    l.phone AS lead_phone,
+                    l.email AS lead_email,
+                    l.cidade AS lead_city,
+                    l.source AS lead_source,
+                    l.notes AS lead_notes,
+                    l.observacao AS lead_observacao,
+                    l.created_at AS lead_created_at
+             FROM pos_venda pv
+             LEFT JOIN projetos p ON p.id = pv.project_id
+             LEFT JOIN leads l ON l.id = p.lead_id
+             WHERE pv.id = ? AND pv.user_id = ?
+             LIMIT 1"
+        );
+        $stmt->execute([$pvId, $_SESSION['user_id']]);
+        $details = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$details) {
+            echo json_encode(['success' => false, 'message' => 'Registro não encontrado']);
+            exit;
+        }
+
+        $leadId = intval($details['lead_id'] ?? $details['lead_id_join'] ?? 0);
+        $projectId = intval($details['project_id'] ?? 0);
+
+        $leadMovements = [];
+        if ($leadId > 0) {
+            try {
+                $mvStmt = $pdo->prepare(
+                    'SELECT id, from_status, to_status, note, changed_by, is_alert, created_at
+                     FROM lead_movements
+                     WHERE lead_id = ? AND user_id = ?
+                     ORDER BY created_at DESC
+                     LIMIT 30'
+                );
+                $mvStmt->execute([$leadId, $_SESSION['user_id']]);
+                $leadMovements = $mvStmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Exception $e) {
+                $leadMovements = [];
+            }
+        }
+
+        $reminders = [];
+        if ($projectId > 0) {
+            try {
+                $remStmt = $pdo->prepare(
+                    'SELECT id, title, message, remind_at, status, created_at
+                     FROM reminders
+                     WHERE project_id = ?
+                     ORDER BY remind_at DESC, created_at DESC
+                     LIMIT 30'
+                );
+                $remStmt->execute([$projectId]);
+                $reminders = $remStmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Exception $e) {
+                $reminders = [];
+            }
+        }
+
+        $postSaleHistory = [];
+        if (!empty($details['created_at'])) {
+            $postSaleHistory[] = [
+                'kind' => 'pv',
+                'date' => $details['created_at'],
+                'title' => 'Cliente entrou no pós-venda',
+                'note' => 'Card criado na área de pós-venda.'
+            ];
+        }
+        if (!empty($details['updated_at'])) {
+            $postSaleHistory[] = [
+                'kind' => 'pv',
+                'date' => $details['updated_at'],
+                'title' => 'Registro atualizado',
+                'note' => 'Última atualização do cadastro de pós-venda.'
+            ];
+        }
+        if (!empty($details['next_maintenance']) && $details['next_maintenance'] !== '0000-00-00') {
+            $postSaleHistory[] = [
+                'kind' => 'pv',
+                'date' => $details['next_maintenance'],
+                'title' => 'Manutenção programada',
+                'note' => 'Próxima manutenção registrada no pós-venda.'
+            ];
+        }
+        if (!empty($details['last_checkup']) && $details['last_checkup'] !== '0000-00-00') {
+            $postSaleHistory[] = [
+                'kind' => 'pv',
+                'date' => $details['last_checkup'],
+                'title' => 'Check-up realizado',
+                'note' => 'Data do último check-up registrada no pós-venda.'
+            ];
+        }
+        if (!empty($details['warranty_end']) && $details['warranty_end'] !== '0000-00-00') {
+            $postSaleHistory[] = [
+                'kind' => 'pv',
+                'date' => $details['warranty_end'],
+                'title' => 'Fim da garantia',
+                'note' => 'Data prevista de encerramento da garantia/assinatura.'
+            ];
+        }
+
+        usort($postSaleHistory, static function ($a, $b) {
+            return strcmp((string)($b['date'] ?? ''), (string)($a['date'] ?? ''));
+        });
+
+        echo json_encode([
+            'success' => true,
+            'details' => $details,
+            'history' => [
+                'lead_movements' => $leadMovements,
+                'reminders' => $reminders,
+                'post_sale' => $postSaleHistory,
+            ],
+        ]);
+        exit;
+    }
+
     echo json_encode(['success'=>false,'message'=>'Unknown action']); exit;
 }
 
@@ -217,10 +355,16 @@ $projetoSelect = [
     $hasPaymentStatus ? 'p.payment_status' : 'NULL AS payment_status',
     $hasPaymentType ? 'p.payment_type' : 'NULL AS payment_type',
     $hasContract ? 'p.contract' : 'NULL AS contract',
+    'p.lead_id',
     'p.address',
     'p.proposal_value',
     'p.id AS proj_id',
+    'l.id AS lead_id',
+    'l.name AS lead_name',
     'l.phone AS lead_phone',
+    'l.email AS lead_email',
+    'l.cidade AS lead_city',
+    'l.source AS lead_source',
     'pv.stage AS stage'
 ];
 $stmt = $pdo->prepare(
@@ -848,6 +992,61 @@ include 'includes/header.php';
   </div>
 </div>
 
+<!-- Modal: Detalhes do Lead e Histórico do Pós-venda -->
+<div class="modal fade" id="pvDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pvDetailsTitle">Detalhes do Cliente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="pvDetailsLoading" class="text-muted small">Carregando detalhes...</div>
+                <div id="pvDetailsContent" class="d-none">
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-lg-6">
+                            <div class="border rounded p-3 h-100 bg-light">
+                                <h6 class="mb-2">Dados do Lead</h6>
+                                <div class="small" id="pvLeadDetailsGrid"></div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <div class="border rounded p-3 h-100 bg-light">
+                                <h6 class="mb-2">Dados do Pós-venda</h6>
+                                <div class="small" id="pvPostSaleDetailsGrid"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-12 col-lg-4">
+                            <div class="border rounded p-3 h-100">
+                                <h6 class="mb-2">Histórico do Pós-venda</h6>
+                                <div id="pvHistoryPostSale" class="small"></div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-4">
+                            <div class="border rounded p-3 h-100">
+                                <h6 class="mb-2">Movimentações do Lead</h6>
+                                <div id="pvHistoryLead" class="small"></div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-4">
+                            <div class="border rounded p-3 h-100">
+                                <h6 class="mb-2">Lembretes do Projeto</h6>
+                                <div id="pvHistoryReminders" class="small"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function(){
     // ── helpers ──
@@ -1055,6 +1254,19 @@ include 'includes/header.php';
         return `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
 
+    function formatDateTimeBR(raw){
+        if (!raw) return '—';
+        const str = String(raw).trim();
+        if (!str) return '—';
+        const normalized = str.replace(' ', 'T');
+        const d = new Date(normalized);
+        if (!Number.isNaN(d.getTime())) {
+            return d.toLocaleString('pt-BR', { hour12: false });
+        }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return formatDateBR(str);
+        return str;
+    }
+
     function getPlanLabel(pv){
         return String(pv.payment_type || pv.contract || '').trim() || 'Nenhum';
     }
@@ -1207,6 +1419,10 @@ include 'includes/header.php';
     }
 
     function attachDynamicListeners(){
+        document.querySelectorAll('.pv-kanban-card').forEach(card => {
+            card.removeEventListener('click', onKanbanCardClick);
+            card.addEventListener('click', onKanbanCardClick);
+        });
         document.querySelectorAll('.pv-edit-row').forEach(btn => {
             btn.removeEventListener('click', onEditRowClick);
             btn.addEventListener('click', onEditRowClick);
@@ -1223,6 +1439,134 @@ include 'includes/header.php';
             btn.removeEventListener('click', onHistoryBtnClick);
             btn.addEventListener('click', onHistoryBtnClick);
         });
+    }
+
+    function renderDetailList(items, emptyMessage){
+        if (!Array.isArray(items) || !items.length) {
+            return `<div class="text-muted">${escapeHtml(emptyMessage)}</div>`;
+        }
+        return items.map(item => `
+            <div class="border-bottom pb-2 mb-2">
+                <div class="fw-semibold">${escapeHtml(item.title || 'Evento')}</div>
+                <div class="text-muted">${escapeHtml(item.date || '—')}</div>
+                ${item.note ? `<div>${escapeHtml(item.note)}</div>` : ''}
+            </div>
+        `).join('');
+    }
+
+    async function fetchPosVendaDetails(pvId){
+        const fd = new FormData();
+        fd.append('action', 'get_pv_details');
+        fd.append('pv_id', String(pvId));
+        const response = await fetch('pos-venda.php', { method: 'POST', body: fd });
+        return response.json();
+    }
+
+    function renderPosVendaDetails(payload, pv){
+        const details = payload?.details || {};
+        const history = payload?.history || {};
+
+        $('pvDetailsTitle').textContent = 'Detalhes: ' + (details.client_name || pv.client_name || 'Cliente');
+
+        const leadRows = [
+            ['Lead ID', details.lead_id || details.lead_id_join || pv.lead_id || '—'],
+            ['Nome', details.lead_name || pv.lead_name || pv.client_name || '—'],
+            ['Telefone', formatPhoneBR(details.lead_phone || pv.lead_phone || '')],
+            ['E-mail', details.lead_email || pv.lead_email || '—'],
+            ['Cidade', details.lead_city || pv.lead_city || '—'],
+            ['Origem', details.lead_source || pv.lead_source || '—'],
+            ['Criado em', formatDateTimeBR(details.lead_created_at)],
+        ];
+
+        const postSaleRows = [
+            ['Projeto ID', details.proj_id || pv.proj_id || pv.project_id || '—'],
+            ['Valor', formatCurrencyBRL(details.proposal_value ?? pv.proposal_value ?? 0)],
+            ['Estágio', details.stage || pv.stage || 'Sem estágio'],
+            ['Status', details.client_status || pv.client_status || 'Assinante'],
+            ['Plano', details.payment_type || pv.payment_type || details.contract || pv.contract || 'Nenhum'],
+            ['Status Pagamento', details.payment_status || pv.payment_status || '—'],
+            ['Instalação', formatDateBR(details.installation_date || pv.installation_date)],
+            ['Próx. manutenção', formatDateBR(details.next_maintenance || pv.next_maintenance)],
+            ['Garantia até', formatDateBR(details.warranty_end || pv.warranty_end)],
+            ['Atualizado em', formatDateTimeBR(details.updated_at || pv.updated_at)],
+        ];
+
+        $('pvLeadDetailsGrid').innerHTML = leadRows.map(([label, value]) => `
+            <div class="d-flex justify-content-between gap-2 border-bottom py-1">
+                <span class="text-muted">${escapeHtml(label)}</span>
+                <span class="text-end">${escapeHtml(String(value ?? '—'))}</span>
+            </div>
+        `).join('') + ((details.lead_notes || details.lead_observacao) ? `
+            <div class="mt-2">
+                <div class="text-muted mb-1">Observações do lead</div>
+                <div class="p-2 border rounded bg-white" style="white-space:pre-wrap;">${escapeHtml(String((details.lead_notes || '') + '\n' + (details.lead_observacao || '')).trim())}</div>
+            </div>
+        ` : '');
+
+        $('pvPostSaleDetailsGrid').innerHTML = postSaleRows.map(([label, value]) => `
+            <div class="d-flex justify-content-between gap-2 border-bottom py-1">
+                <span class="text-muted">${escapeHtml(label)}</span>
+                <span class="text-end">${escapeHtml(String(value ?? '—'))}</span>
+            </div>
+        `).join('') + (details.notes ? `
+            <div class="mt-2">
+                <div class="text-muted mb-1">Notas do pós-venda</div>
+                <div class="p-2 border rounded bg-white" style="white-space:pre-wrap;">${escapeHtml(details.notes)}</div>
+            </div>
+        ` : '');
+
+        const postSaleTimeline = (history.post_sale || []).map(item => ({
+            title: item.title || 'Evento do pós-venda',
+            date: formatDateTimeBR(item.date),
+            note: item.note || ''
+        }));
+
+        const leadTimeline = (history.lead_movements || []).map(item => {
+            const from = String(item.from_status || '').trim();
+            const to = String(item.to_status || '').trim();
+            return {
+                title: from || to ? `${from || '—'} -> ${to || '—'}` : 'Movimentação do lead',
+                date: formatDateTimeBR(item.created_at),
+                note: [item.note, item.changed_by ? `por ${item.changed_by}` : ''].filter(Boolean).join(' | ')
+            };
+        });
+
+        const remindersTimeline = (history.reminders || []).map(item => ({
+            title: item.title || 'Lembrete',
+            date: formatDateTimeBR(item.remind_at || item.created_at),
+            note: [item.message || '', item.status ? `status: ${item.status}` : ''].filter(Boolean).join(' | ')
+        }));
+
+        $('pvHistoryPostSale').innerHTML = renderDetailList(postSaleTimeline, 'Nenhum evento de pós-venda disponível.');
+        $('pvHistoryLead').innerHTML = renderDetailList(leadTimeline, 'Nenhuma movimentação de lead encontrada.');
+        $('pvHistoryReminders').innerHTML = renderDetailList(remindersTimeline, 'Nenhum lembrete cadastrado para este projeto.');
+    }
+
+    async function onKanbanCardClick(event){
+        const blocked = event.target.closest('.pv-card-footer, button, a, .pv-edit-row, .pv-link-btn, .pv-schedule-btn, .pv-history-btn');
+        if (blocked) return;
+
+        const card = event.currentTarget;
+        const pvId = card.dataset.pvId;
+        const pv = getPosVendaById(pvId);
+        if (!pv) return;
+
+        $('pvDetailsLoading').classList.remove('d-none');
+        $('pvDetailsContent').classList.add('d-none');
+        $('pvDetailsTitle').textContent = 'Detalhes: ' + (pv.client_name || 'Cliente');
+        bsModal('pvDetailsModal').show();
+
+        try {
+            const payload = await fetchPosVendaDetails(pvId);
+            if (!payload || !payload.success) {
+                throw new Error(payload?.message || 'Falha ao buscar detalhes.');
+            }
+            renderPosVendaDetails(payload, pv);
+            $('pvDetailsLoading').classList.add('d-none');
+            $('pvDetailsContent').classList.remove('d-none');
+        } catch (err) {
+            $('pvDetailsLoading').innerHTML = `<span class="text-danger">${escapeHtml(err.message || 'Erro ao carregar detalhes.')}</span>`;
+        }
     }
 
     function onHistoryBtnClick(event){
