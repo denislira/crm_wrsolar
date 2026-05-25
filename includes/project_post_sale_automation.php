@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/movements.php';
+
 if (!function_exists('runProjectPostSaleAutomation')) {
     function runProjectPostSaleAutomation(PDO $pdo, int $userId): int
     {
@@ -119,7 +121,29 @@ if (!function_exists('runProjectPostSaleAutomation')) {
                     $notes,
                     $project['post_sale_target_stage_name'] ?: null,
                 ]);
+                $newPvId = (int) $pdo->lastInsertId();
                 $markMoved->execute([(int) $project['id'], $userId]);
+                log_project_movement(
+                    $pdo,
+                    (int) $project['id'],
+                    $userId,
+                    'moved_to_post_sale',
+                    null,
+                    null,
+                    null,
+                    null,
+                    'Projeto migrado automaticamente para pós-venda.'
+                );
+                log_pos_venda_movement(
+                    $pdo,
+                    $newPvId,
+                    (int) $project['id'],
+                    $userId,
+                    'created',
+                    null,
+                    $project['post_sale_target_stage_name'] ?: null,
+                    'Migrado automaticamente de Projetos para Pós-venda.'
+                );
                 $migrated++;
             } catch (Exception $e) {
                 continue;

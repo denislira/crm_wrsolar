@@ -7,6 +7,7 @@ if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/permissions.php';
+require_once __DIR__ . '/includes/movements.php';
 
 checkAccessOrRedirect('pos-venda');
 
@@ -21,6 +22,9 @@ try {
     if (!in_array('warranty_months',$cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN warranty_months SMALLINT UNSIGNED DEFAULT 12");
     if (!in_array('plan_value',     $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN plan_value DECIMAL(12,2) DEFAULT NULL");
     if (!in_array('equipment',      $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN equipment VARCHAR(255) DEFAULT NULL");
+    if (!in_array('phone',          $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN phone VARCHAR(50) DEFAULT NULL");
+    if (!in_array('email',          $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN email VARCHAR(255) DEFAULT NULL");
+    if (!in_array('address',        $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN address TEXT DEFAULT NULL");
 } catch (Exception $e) { /* ignore */ }
 
 $schema = [
@@ -74,20 +78,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'save_pv') {
-        $projId      = intval($_POST['project_id'] ?? 0);
-        $clientName  = trim($_POST['client_name']      ?? '');
+        $id            = isset($_POST['id']) ? intval($_POST['id']) : 0;
+        $projId        = isset($_POST['project_id']) && trim((string)($_POST['project_id'] ?? '')) !== '' ? intval($_POST['project_id']) : 0;
+        $clientName    = trim($_POST['client_name'] ?? '');
+        $clientPhone   = trim($_POST['phone'] ?? '');
+        $clientEmail   = trim($_POST['email'] ?? '');
+        $clientAddress = trim($_POST['address'] ?? '');
         $instDate      = $_POST['installation_date']     ?: null;
         $nextMaint     = $_POST['next_maintenance']      ?: null;
         $projectKwhRaw = trim((string)($_POST['project_kwh'] ?? ''));
         $equipment     = trim((string)($_POST['equipment'] ?? ''));
-        $planValueRaw = trim((string)($_POST['plan_value'] ?? ''));
+        $planValueRaw  = trim((string)($_POST['plan_value'] ?? ''));
         $warrantyMonths= isset($_POST['warranty_months']) && trim($_POST['warranty_months']) !== '' ? max(1, intval($_POST['warranty_months'])) : 12;
         $notes         = trim($_POST['notes']            ?? '');
-        $perf        = (isset($_POST['performance_pct']) && $_POST['performance_pct'] !== '') ? floatval($_POST['performance_pct']) : null;
-        $clientType  = trim($_POST['client_type']      ?? 'Degustação');
-        $lastCheckup = $_POST['last_checkup']          ?: null;
-        $stage       = trim($_POST['stage']            ?? '');
-        $clientStatus= trim($_POST['client_status']    ?? '');
+        $perf          = (isset($_POST['performance_pct']) && $_POST['performance_pct'] !== '') ? floatval($_POST['performance_pct']) : null;
+        $clientType    = trim($_POST['client_type']      ?? 'Degustação');
+        $lastCheckup   = $_POST['last_checkup']          ?: null;
+        $stage         = trim($_POST['stage']            ?? '');
+        $clientStatus  = trim($_POST['client_status']    ?? '');
         if ($clientType === '') $clientType = 'Degustação';
         if ($clientStatus === '') $clientStatus = 'Assinante';
 
@@ -108,6 +116,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $planValue = is_numeric($sanitized) ? number_format((float)$sanitized, 2, '.', '') : null;
         }
 
+        $existingPv = null;
+        if ($id) {
+            $existingStmt = $pdo->prepare('SELECT * FROM pos_venda WHERE id=? AND user_id=? LIMIT 1');
+            $existingStmt->execute([$id, $_SESSION['user_id']]);
+            $existingPv = $existingStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+
+        $previousProjectMoved = null;
+        if ($projId) {
+            $prevProjectStmt = $pdo->prepare('SELECT moved_to_post_sale FROM projetos WHERE id=? LIMIT 1');
+            $prevProjectStmt->execute([$projId]);
+            $previousProjectMoved = intval($prevProjectStmt->fetchColumn() ?: 0);
+        }
+
         // update projetos.client_status
         if ($projId && $hasClientStatus) {
             $pdo->prepare('UPDATE projetos SET client_status=?, updated_at=NOW() WHERE id=? AND user_id=?')
@@ -123,12 +145,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($projId) {
             $pdo->prepare('UPDATE projetos SET moved_to_post_sale = 1, updated_at = NOW() WHERE id = ? AND user_id = ?')
                 ->execute([$projId, $_SESSION['user_id']]);
+            if ($previousProjectMoved === 0) {
+                log_project_movement(
+                    $pdo,
+                    $projId,
+                    $_SESSION['user_id'],
+                    'moved_to_post_sale',
+                    null,
+                    null,
+                    null,
+                    null,
+                    'Projeto enviado para pós-venda via registro de pós-venda.'
+                );
+            }
         }
 
-        // upsert pos_venda
-        $ex = $pdo->prepare('SELECT id FROM pos_venda WHERE project_id=? AND user_id=? LIMIT 1');
-        $ex->execute([$projId, $_SESSION['user_id']]);
-        $exId = $ex->fetchColumn();
+        // upsert pos_venda by project_id only when a project is linked
+        $exId = 0;
+        if ($projId) {
+            $ex = $pdo->prepare('SELECT id FROM pos_venda WHERE project_id=? AND user_id=? LIMIT 1');
+            $ex->execute([$projId, $_SESSION['user_id']]);
+            $exId = $ex->fetchColumn();
+        }
 
         $warrantyStart = date('Y-m-d');
         if ($exId) {
@@ -141,9 +179,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $warranty = date('Y-m-d', strtotime('+' . $warrantyMonths . ' months', strtotime($warrantyStart)));
 
-        if ($exId) {
-            $updateFields = ['installation_date=?','next_maintenance=?','warranty_end=?','notes=?'];
-            $updateParams = [$instDate,$nextMaint,$warranty,$notes];
+        if ($id) {
+            $updateFields = ['client_name=?','installation_date=?','next_maintenance=?','warranty_end=?','notes=?','phone=?','email=?','address=?'];
+            $updateParams = [$clientName,$instDate,$nextMaint,$warranty,$notes,$clientPhone ?: null,$clientEmail ?: null,$clientAddress ?: null];
             if ($hasPerformancePct) {
                 $updateFields[] = 'performance_pct=?';
                 $updateParams[] = $perf;
@@ -164,18 +202,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $updateParams[] = $planValue;
             $updateFields[] = 'equipment=?';
             $updateParams[] = ($equipment !== '' ? $equipment : null);
+            $updateFields[] = 'project_id=?';
+            $updateParams[] = $projId ?: null;
             $updateFields[] = 'updated_at=NOW()';
-            $updateParams[] = $exId;
-            $pdo->prepare('UPDATE pos_venda SET ' . implode(',', $updateFields) . ' WHERE id=?')
+            $updateParams[] = $id;
+            $updateParams[] = $_SESSION['user_id'];
+            $pdo->prepare('UPDATE pos_venda SET ' . implode(',', $updateFields) . ' WHERE id=? AND user_id=?')
                ->execute($updateParams);
+
+            if ($existingPv) {
+                if (($existingPv['stage'] ?? '') !== $stage) {
+                    log_pos_venda_movement(
+                        $pdo,
+                        $id,
+                        $projId ?: null,
+                        $_SESSION['user_id'],
+                        'stage_changed',
+                        trim((string)$existingPv['stage']),
+                        trim((string)$stage),
+                        'Estágio do pós-venda alterado.'
+                    );
+                }
+                $pvChangedFields = [];
+                $fieldsToCheck = [
+                    'client_name' => $clientName,
+                    'phone' => $clientPhone,
+                    'email' => $clientEmail,
+                    'address' => $clientAddress,
+                    'installation_date' => $instDate,
+                    'next_maintenance' => $nextMaint,
+                    'warranty_end' => $warranty,
+                    'notes' => $notes,
+                    'performance_pct' => $perf,
+                    'client_type' => $clientType,
+                    'last_checkup' => $lastCheckup,
+                    'warranty_months' => $warrantyMonths,
+                    'plan_value' => $planValue,
+                    'equipment' => ($equipment !== '' ? $equipment : null),
+                    'project_id' => $projId ?: null,
+                ];
+                foreach ($fieldsToCheck as $field => $value) {
+                    if (($existingPv[$field] ?? null) != $value && $field !== 'stage') {
+                        $pvChangedFields[] = $field;
+                    }
+                }
+                if (!empty($pvChangedFields)) {
+                    log_pos_venda_movement(
+                        $pdo,
+                        $id,
+                        $projId ?: null,
+                        $_SESSION['user_id'],
+                        'updated',
+                        trim((string)$existingPv['stage']),
+                        trim((string)$stage),
+                        'Campos alterados: ' . implode(', ', $pvChangedFields)
+                    );
+                }
+            }
         } else {
             if (!$clientName && $projId) {
                 $r = $pdo->prepare('SELECT client_name FROM projetos WHERE id=? LIMIT 1');
                 $r->execute([$projId]); $clientName = $r->fetchColumn() ?: '';
             }
-            $cols = ['user_id','project_id','client_name','installation_date','next_maintenance','warranty_end','notes'];
-            $holders = ['?','?','?','?','?','?','?'];
-            $params = [$_SESSION['user_id'],$projId,$clientName,$instDate,$nextMaint,$warranty,$notes];
+            $cols = ['user_id','project_id','client_name','installation_date','next_maintenance','warranty_end','notes','phone','email','address'];
+            $holders = ['?','?','?','?','?','?','?','?','?','?'];
+            $params = [$_SESSION['user_id'],$projId ?: null,$clientName,$instDate,$nextMaint,$warranty,$notes,$clientPhone ?: null,$clientEmail ?: null,$clientAddress ?: null];
             if ($hasPerformancePct) {
                 $cols[] = 'performance_pct'; $holders[] = '?'; $params[] = $perf;
             }
@@ -192,7 +283,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cols[] = 'created_at'; $holders[] = 'NOW()';
             $cols[] = 'updated_at'; $holders[] = 'NOW()';
             $sql = 'INSERT INTO pos_venda (' . implode(',', $cols) . ') VALUES (' . implode(',', $holders) . ')';
-            $pdo->prepare($sql)->execute($params);
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            $newPvId = (int)$pdo->lastInsertId();
+            log_pos_venda_movement(
+                $pdo,
+                $newPvId,
+                $projId ?: null,
+                $_SESSION['user_id'],
+                'created',
+                null,
+                $stage ?: null,
+                'Registro de pós-venda criado.'
+            );
         }
         echo json_encode(['success'=>true]); exit;
     }
@@ -206,8 +309,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        $prevStmt = $pdo->prepare('SELECT next_maintenance FROM pos_venda WHERE id=? AND user_id=? LIMIT 1');
+        $prevStmt->execute([$pvId, $_SESSION['user_id']]);
+        $prevNext = $prevStmt->fetchColumn();
+
         $pdo->prepare('UPDATE pos_venda SET next_maintenance=?, updated_at=NOW() WHERE id=? AND user_id=?')
             ->execute([$date, $pvId, $_SESSION['user_id']]);
+
+        log_pos_venda_movement(
+            $pdo,
+            $pvId,
+            null,
+            $_SESSION['user_id'],
+            'maintenance_scheduled',
+            $prevNext ?: null,
+            $date,
+            'Manutenção programada para ' . $date
+        );
 
         echo json_encode(['success'=>true]);
         exit;
@@ -220,8 +338,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['success'=>false,'message'=>'ID inválido']);
             exit;
         }
+        $prevStmt = $pdo->prepare('SELECT stage, project_id FROM pos_venda WHERE id=? AND user_id=? LIMIT 1');
+        $prevStmt->execute([$pvId, $_SESSION['user_id']]);
+        $prevRow = $prevStmt->fetch(PDO::FETCH_ASSOC);
+
         $pdo->prepare('UPDATE pos_venda SET stage=?, updated_at=NOW() WHERE id=? AND user_id=?')
             ->execute([$stage ?: null, $pvId, $_SESSION['user_id']]);
+
+        log_pos_venda_movement(
+            $pdo,
+            $pvId,
+            $prevRow['project_id'] ?? null,
+            $_SESSION['user_id'],
+            'stage_changed',
+            trim((string)($prevRow['stage'] ?? '')),
+            trim((string)$stage),
+            'Estágio do pós-venda alterado.'
+        );
+
         echo json_encode(['success'=>true]);
         exit;
     }
@@ -351,6 +485,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
         }
 
+        if (!empty($projectId)) {
+            try {
+                $movStmt = $pdo->prepare('SELECT action, from_status, to_status, from_client_status, to_client_status, note, created_at FROM project_movements WHERE project_id = ? ORDER BY created_at DESC');
+                $movStmt->execute([$projectId]);
+                $projectMovements = $movStmt->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($projectMovements as $move) {
+                    $title = 'Movimentação do projeto';
+                    if ($move['action'] === 'status_changed') {
+                        $title = 'Status do projeto alterado';
+                    } elseif ($move['action'] === 'client_status_changed') {
+                        $title = 'Status de acesso alterado';
+                    } elseif ($move['action'] === 'moved_to_post_sale') {
+                        $title = 'Projeto enviado para pós-venda';
+                    } elseif ($move['action'] === 'project_updated') {
+                        $title = 'Projeto atualizado';
+                    }
+                    $note = trim(($move['note'] ?? '') . (
+                        !empty($move['from_status']) || !empty($move['to_status']) ? ' ' . trim(sprintf('De %s para %s.', $move['from_status'] ?: '—', $move['to_status'] ?: '—')) : ''
+                    ));
+                    $projectHistory[] = [
+                        'kind' => 'project',
+                        'date' => $move['created_at'],
+                        'title' => $title,
+                        'note' => $note
+                    ];
+                }
+            } catch (Exception $e) {
+                // ignore
+            }
+        }
+
         usort($projectHistory, static function ($a, $b) {
             return strcmp((string)($b['date'] ?? ''), (string)($a['date'] ?? ''));
         });
@@ -394,6 +559,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'title' => 'Fim da garantia',
                 'note' => 'Data prevista de encerramento da garantia/assinatura.'
             ];
+        }
+
+        try {
+            $pvMovStmt = $pdo->prepare('SELECT action, from_stage, to_stage, note, created_at FROM pos_venda_movements WHERE pos_venda_id = ? ORDER BY created_at DESC');
+            $pvMovStmt->execute([$pvId]);
+            $pvMovements = $pvMovStmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($pvMovements as $move) {
+                $title = 'Movimentação do pós-venda';
+                if ($move['action'] === 'stage_changed') {
+                    $title = 'Estágio do pós-venda alterado';
+                } elseif ($move['action'] === 'maintenance_scheduled') {
+                    $title = 'Manutenção agendada';
+                } elseif ($move['action'] === 'created') {
+                    $title = 'Registro criado';
+                } elseif ($move['action'] === 'updated') {
+                    $title = 'Registro atualizado';
+                }
+                $note = trim(($move['note'] ?? '') . (
+                    !empty($move['from_stage']) || !empty($move['to_stage']) ? ' ' . trim(sprintf('De %s para %s.', $move['from_stage'] ?: '—', $move['to_stage'] ?: '—')) : ''
+                ));
+                $postSaleHistory[] = [
+                    'kind' => 'pv',
+                    'date' => $move['created_at'],
+                    'title' => $title,
+                    'note' => $note
+                ];
+            }
+        } catch (Exception $e) {
+            // ignore
         }
 
         usort($postSaleHistory, static function ($a, $b) {
@@ -644,7 +838,7 @@ include 'includes/header.php';
 .btn-amigo         { font-size:.76rem;font-weight:600;letter-spacing:.03em; }
 .pv-divider        { border-top:1px solid #f0f0f0; }
 .pv-kanban-board   { display:flex; gap:1rem; overflow-x:auto; padding-bottom:0.5rem; }
-.pv-kanban-col    { width:360px; min-width:360px; max-width:360px; flex-shrink:0; background:#f8fafc; border-radius:14px; box-shadow:0 1px 8px rgba(0,0,0,.05); display:flex; flex-direction:column; max-height:72vh; }
+.pv-kanban-col    { width:360px; min-width:360px; max-width:360px; flex-shrink:0; background:#f8fafc; border-radius:14px; box-shadow:0 1px 8px rgba(0,0,0,.05); display:flex; flex-direction:column; }
 .pv-kanban-col-header {
     padding: 0.65rem 0.85rem 0.6rem 0.85rem;
     border-bottom: none;
@@ -667,7 +861,8 @@ include 'includes/header.php';
     gap: .4rem;
     color: #fff !important;
 }
-.pv-kanban-col-body { padding:1rem; overflow:auto; min-height:120px; }
+.pv-kanban-col-body { padding:1rem; overflow-y:auto; min-height:400px; max-height:calc(100vh - 360px); flex:1 1 auto; background:#f8fafc; border-radius:0 0 14px 14px; }
+.pv-kanban-col-body.drop-target { border:2px dashed #0d6efd; background:#e7f1ff; }
 .pv-kanban-card    { background:#fff; border-radius:12px; border:1px solid #e5e7eb; padding:0; margin-bottom:.75rem; cursor:grab; overflow:hidden; transition: box-shadow .18s; }
 .pv-kanban-card:active { cursor:grabbing; }
 .pv-kanban-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.10); }
@@ -927,15 +1122,15 @@ include 'includes/header.php';
             <h5 class="mb-3 pe-4" id="pvDetailsTitle">Detalhes do Cliente</h5>
             <div id="pvDetailsLoading" class="text-muted small">Carregando detalhes...</div>
             <div id="pvDetailsContent" class="d-none">
-                <div class="border rounded p-3 mb-3 bg-light">
+                <div class="border rounded p-3 mb-3 bg-light" id="pvProjectDetailsSection">
                     <h6 class="mb-2">Dados do Projeto de Origem</h6>
                     <div class="small" id="pvProjectDetailsGrid"></div>
                 </div>
-                <div class="border rounded p-3 mb-3">
+                <div class="border rounded p-3 mb-3" id="pvProjectHistorySection">
                     <h6 class="mb-2">Histórico do Projeto</h6>
                     <div id="pvHistoryProject" class="small"></div>
                 </div>
-                <div class="border rounded p-3 mb-3 bg-light">
+                <div class="border rounded p-3 mb-3 bg-light" id="pvLeadDetailsSection">
                     <h6 class="mb-2">Dados do Lead</h6>
                     <div class="small" id="pvLeadDetailsGrid"></div>
                 </div>
@@ -963,8 +1158,25 @@ include 'includes/header.php';
       <form id="pvForm">
       <div class="modal-body row g-3">
         <input type="hidden" name="action" value="save_pv">
+        <input type="hidden" name="id" id="pvId">
         <input type="hidden" name="project_id" id="pvProjectId">
-        <input type="hidden" name="client_name" id="pvClientNameHidden">
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Cliente</label>
+          <input type="text" name="client_name" id="pvClientName" class="form-control" placeholder="Nome do cliente" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Telefone</label>
+          <input type="text" name="phone" id="pvPhone" class="form-control" placeholder="(11) 99999-9999">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">E-mail</label>
+          <input type="email" name="email" id="pvEmail" class="form-control" placeholder="email@dominio.com">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Endereço</label>
+          <textarea name="address" id="pvAddress" class="form-control" rows="2" placeholder="Endereço do cliente"></textarea>
+        </div>
 
         <!-- Project picker (only for new) -->
         <div class="col-12" id="pvProjectPickerWrap">
@@ -1449,6 +1661,31 @@ include 'includes/header.php';
         return '#f97316';
     }
 
+    function updateKanbanColumnMeta(column){
+        if (!column) return;
+        const cards = column.querySelectorAll('.pv-kanban-card');
+        const count = cards.length;
+        const col = column.closest('.pv-kanban-col');
+        const countBadge = col?.querySelector('.pv-kanban-col-header span:last-child');
+        const subtitle = col?.querySelector('.pv-kanban-col-header small');
+
+        if (countBadge) {
+            countBadge.textContent = String(count);
+        }
+        if (subtitle) {
+            subtitle.textContent = `${count} item${count !== 1 ? 's' : ''}`;
+        }
+
+        const empty = column.querySelector('.pv-kanban-empty');
+        if (count === 0) {
+            if (!empty) {
+                column.innerHTML = '<div class="pv-kanban-empty">Nenhum item nesta coluna</div>';
+            }
+        } else if (empty) {
+            empty.remove();
+        }
+    }
+
     function renderKanban(){
         const wrapper = $('pvKanbanWrapper');
         const items = filteredPosVendas();
@@ -1483,7 +1720,7 @@ include 'includes/header.php';
                     </div>
                     <span style="background:rgba(255,255,255,0.2); color:#fff; border:1px solid rgba(255,255,255,.4); font-size:.68rem; font-weight:700; padding:.2rem .55rem; border-radius:999px;">${cards.length}</span>
                 </div>
-                <div class="pv-kanban-col-body" data-stage="${escapeHtml(stage.name)}"></div>
+                <div class="pv-kanban-col-body" data-stage="${escapeHtml(stage.name)}" data-stage-color="${escapeHtml(stage.color || '#6c757d')}"></div>
             `;
             board.appendChild(col);
             const body = col.querySelector('.pv-kanban-col-body');
@@ -1633,8 +1870,10 @@ include 'includes/header.php';
 
         $('pvDetailsTitle').textContent = 'Detalhes: ' + (details.client_name || pv.client_name || 'Cliente');
 
+        const projectId = Number(details.proj_id ?? details.proj_id_join ?? pv.proj_id ?? pv.project_id ?? 0);
+        const hasProject = projectId > 0;
         const projectRows = [
-            ['Projeto ID', details.proj_id || pv.proj_id || pv.project_id || '—'],
+            ['Projeto ID', hasProject ? projectId : '—'],
             ['Lead ID', details.lead_id || details.lead_id_join || pv.lead_id || '—'],
             ['Cliente', details.proj_client_name || details.client_name || pv.client_name || '—'],
             ['Status no Projeto', details.proj_status || pv.proj_status || '—'],
@@ -1658,6 +1897,9 @@ include 'includes/header.php';
 
         const postSaleRows = [
             ['Valor do Plano', formatCurrencyBRL(details.plan_value ?? pv.plan_value ?? 0)],
+            ['Telefone', details.phone || pv.phone || '—'],
+            ['E-mail', details.email || pv.email || '—'],
+            ['Endereço', details.address || pv.address || '—'],
             ['Equipamento', details.equipment || pv.equipment || '—'],
             ['Estágio', details.stage || pv.stage || 'Sem estágio'],
             ['Status', details.client_status || pv.client_status || 'Assinante'],
@@ -1669,12 +1911,25 @@ include 'includes/header.php';
             ['Atualizado em', formatDateTimeBR(details.updated_at || pv.updated_at)],
         ];
 
-        $('pvProjectDetailsGrid').innerHTML = projectRows.map(([label, value]) => `
-            <div class="d-flex justify-content-between gap-2 border-bottom py-1">
-                <span class="text-muted">${escapeHtml(label)}</span>
-                <span class="text-end">${escapeHtml(String(value ?? '—'))}</span>
-            </div>
-        `).join('');
+        const projectSection = $('pvProjectDetailsSection');
+        const projectHistorySection = $('pvProjectHistorySection');
+        const leadDetailsSection = $('pvLeadDetailsSection');
+        if (hasProject) {
+            projectSection.style.display = '';
+            projectHistorySection.style.display = '';
+            leadDetailsSection.style.display = '';
+            $('pvProjectDetailsGrid').innerHTML = projectRows.map(([label, value]) => `
+                <div class="d-flex justify-content-between gap-2 border-bottom py-1">
+                    <span class="text-muted">${escapeHtml(label)}</span>
+                    <span class="text-end">${escapeHtml(String(value ?? '—'))}</span>
+                </div>
+            `).join('');
+        } else {
+            projectSection.style.display = 'none';
+            projectHistorySection.style.display = 'none';
+            leadDetailsSection.style.display = 'none';
+            $('pvProjectDetailsGrid').innerHTML = '';
+        }
 
         $('pvLeadDetailsGrid').innerHTML = leadRows.map(([label, value]) => `
             <div class="d-flex justify-content-between gap-2 border-bottom py-1">
@@ -1776,8 +2031,12 @@ include 'includes/header.php';
         if (!pv) return;
         $('pvForm').reset();
         $('pvProjectPickerWrap').classList.add('d-none');
+        $('pvId').value = pv.id || '';
         $('pvProjectId').value = pv.project_id || '';
-        $('pvClientNameHidden').value = pv.client_name || '';
+        $('pvClientName').value = pv.client_name || '';
+        $('pvPhone').value = pv.phone || '';
+        $('pvEmail').value = pv.email || '';
+        $('pvAddress').value = pv.address || '';
         $('pvInstDate').value = pv.installation_date || '';
         $('pvNextMaint').value = pv.next_maintenance || '';
         $('pvLastCheckup').value = pv.last_checkup || '';
@@ -1850,20 +2109,51 @@ include 'includes/header.php';
         });
 
         columns.forEach(column => {
-            column.addEventListener('dragover', e => { e.preventDefault(); column.classList.add('border','border-primary'); });
-            column.addEventListener('dragleave', () => { column.classList.remove('border','border-primary'); });
+            column.addEventListener('dragover', e => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                column.classList.add('drop-target');
+            });
+            column.addEventListener('dragleave', () => { column.classList.remove('drop-target'); });
             column.addEventListener('drop', async e => {
-                e.preventDefault(); column.classList.remove('border','border-primary');
+                e.preventDefault(); column.classList.remove('drop-target');
                 if (!draggedId) return;
                 const targetStage = column.dataset.stage || '';
+                const card = document.querySelector(`.pv-kanban-card[data-pv-id="${draggedId}"]`);
+                const sourceColumn = card ? card.closest('.pv-kanban-col-body') : null;
+                if (!card || !sourceColumn || sourceColumn === column) {
+                    draggedId = null;
+                    return;
+                }
                 const form = new FormData();
                 form.append('action','update_stage');
                 form.append('pv_id', draggedId);
                 form.append('stage', targetStage);
-                await fetch('pos-venda.php', { method:'POST', body: form });
-                const stageField = posVendas.find(v => String(v.id) === String(draggedId));
-                if (stageField) stageField.stage = targetStage;
-                renderView();
+
+                try {
+                    const response = await fetch('pos-venda.php', { method:'POST', body: form });
+                    const data = await response.json();
+                    if (!response.ok || !data.success) {
+                        throw new Error(data?.message || 'Falha ao atualizar estágio');
+                    }
+
+                    const stageField = posVendas.find(v => String(v.id) === String(draggedId));
+                    if (stageField) {
+                        stageField.stage = targetStage;
+                    }
+
+                    const targetColor = column.dataset.stageColor || '#6c757d';
+                    column.querySelector('.pv-kanban-empty')?.remove();
+                    column.appendChild(card);
+                    card.style.borderColor = targetColor;
+
+                    updateKanbanColumnMeta(sourceColumn);
+                    updateKanbanColumnMeta(column);
+                } catch (err) {
+                    alert('Não foi possível mover o card: ' + (err.message || err));
+                } finally {
+                    draggedId = null;
+                }
             });
         });
     }
@@ -2158,8 +2448,12 @@ include 'includes/header.php';
     // ── Open: New record ──
     $('pvNewBtn').addEventListener('click', ()=>{
         $('pvForm').reset();
+        $('pvId').value = '';
         $('pvProjectId').value = '';
-        $('pvClientNameHidden').value = '';
+        $('pvClientName').value = '';
+        $('pvPhone').value = '';
+        $('pvEmail').value = '';
+        $('pvAddress').value = '';
         $('pvProjectPickerWrap').classList.remove('d-none');
         $('pvWarrantyMonths').value = 12;
         $('pvProposalValue').value = '';
@@ -2167,15 +2461,16 @@ include 'includes/header.php';
         $('pvEquipment').value = '';
         populateClientTypeSelect();
         populateClientStatusSelect('Assinante');
+        $('pvStage').value = '';
         $('pvModalTitle').textContent = 'Novo Registro Pós-venda';
         bsModal('pvModal').show();
     });
 
-    // project select → populate hidden fields
+    // project select → populate client fields
     $('pvProjectSelect').addEventListener('change', ()=>{
         const opt = $('pvProjectSelect').selectedOptions[0];
         $('pvProjectId').value = opt?.value || '';
-        $('pvClientNameHidden').value = opt?.dataset?.name || '';
+        $('pvClientName').value = opt?.dataset?.name || '';
         $('pvProjectKwh').value = opt?.dataset?.kwh || '';
     });
 

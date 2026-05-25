@@ -63,6 +63,9 @@ CREATE TABLE IF NOT EXISTS pos_venda (
   user_id INT NOT NULL,
   project_id INT DEFAULT NULL,
   client_name VARCHAR(255) NOT NULL,
+  phone VARCHAR(50) DEFAULT NULL,
+  email VARCHAR(255) DEFAULT NULL,
+  address TEXT DEFAULT NULL,
   installation_date DATE DEFAULT NULL,
   next_maintenance DATE DEFAULT NULL,
   warranty_end DATE DEFAULT NULL,
@@ -72,6 +75,41 @@ CREATE TABLE IF NOT EXISTS pos_venda (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (project_id) REFERENCES projetos(id) ON DELETE SET NULL
 );
+
+CREATE TABLE IF NOT EXISTS project_movements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  user_id INT NOT NULL,
+  action VARCHAR(100) NOT NULL,
+  from_status VARCHAR(100) DEFAULT NULL,
+  to_status VARCHAR(100) DEFAULT NULL,
+  from_client_status VARCHAR(50) DEFAULT NULL,
+  to_client_status VARCHAR(50) DEFAULT NULL,
+  note TEXT DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_project_movements_project (project_id),
+  INDEX idx_project_movements_user (user_id),
+  FOREIGN KEY (project_id) REFERENCES projetos(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_venda_movements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  pos_venda_id INT NOT NULL,
+  project_id INT DEFAULT NULL,
+  user_id INT NOT NULL,
+  action VARCHAR(100) NOT NULL,
+  from_stage VARCHAR(255) DEFAULT NULL,
+  to_stage VARCHAR(255) DEFAULT NULL,
+  note TEXT DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_pos_venda_movements_pv (pos_venda_id),
+  INDEX idx_pos_venda_movements_project (project_id),
+  INDEX idx_pos_venda_movements_user (user_id),
+  FOREIGN KEY (pos_venda_id) REFERENCES pos_venda(id) ON DELETE CASCADE,
+  FOREIGN KEY (project_id) REFERENCES projetos(id) ON DELETE SET NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS customers (
   id INT AUTO_INCREMENT PRIMARY KEY,
