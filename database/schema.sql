@@ -76,6 +76,22 @@ CREATE TABLE IF NOT EXISTS pos_venda (
   FOREIGN KEY (project_id) REFERENCES projetos(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS pos_venda_referrals (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  pos_venda_id INT NOT NULL,
+  user_id INT NOT NULL,
+  referral_token VARCHAR(64) NOT NULL,
+  indicator_name VARCHAR(255) NOT NULL,
+  indicator_phone VARCHAR(50) DEFAULT NULL,
+  indicator_email VARCHAR(255) DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (pos_venda_id) REFERENCES pos_venda(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY ux_pos_venda_referrals_token (referral_token)
+);
+
 CREATE TABLE IF NOT EXISTS project_movements (
   id INT AUTO_INCREMENT PRIMARY KEY,
   project_id INT NOT NULL,

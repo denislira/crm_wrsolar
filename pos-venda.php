@@ -25,6 +25,23 @@ try {
     if (!in_array('phone',          $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN phone VARCHAR(50) DEFAULT NULL");
     if (!in_array('email',          $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN email VARCHAR(255) DEFAULT NULL");
     if (!in_array('address',        $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN address TEXT DEFAULT NULL");
+    if ($pdo->query("SHOW TABLES LIKE 'pos_venda_referrals'")->fetchColumn() === false) {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS pos_venda_referrals (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pos_venda_id INT NOT NULL,
+            user_id INT NOT NULL,
+            referral_token VARCHAR(64) NOT NULL,
+            indicator_name VARCHAR(255) NOT NULL,
+            indicator_phone VARCHAR(50) DEFAULT NULL,
+            indicator_email VARCHAR(255) DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (pos_venda_id) REFERENCES pos_venda(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE KEY ux_pos_venda_referrals_token (referral_token)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    }
 } catch (Exception $e) { /* ignore */ }
 
 $schema = [
@@ -369,8 +386,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $token = bin2hex(random_bytes(16));
         $pdo->prepare('UPDATE pos_venda SET referral_token=? WHERE id=? AND user_id=?')
            ->execute([$token, $pvId, $_SESSION['user_id']]);
-        $base = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS']==='on' ? 'https' : 'http').'://'.$_SERVER['HTTP_HOST'];
-        echo json_encode(['success'=>true,'link'=>$base.'/indicacao/'.$token,'token'=>$token]);
+        $base = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS']==='on' ? 'https' : 'http').'://'.$_SERVER['HTTP_HOST'].rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
+        echo json_encode(['success'=>true,'link'=>$base.'/indicacao.php?token='.$token,'token'=>$token]);
+        exit;
+    }
+
+    if ($action === 'list_referrals') {
+        $stmt = $pdo->prepare(
+            'SELECT r.id, r.pos_venda_id, r.indicator_name, r.indicator_phone, r.indicator_email, r.notes, r.created_at, pv.client_name AS pv_client_name
+             FROM pos_venda_referrals r
+             LEFT JOIN pos_venda pv ON pv.id = r.pos_venda_id
+             ORDER BY r.created_at DESC'
+        );
+        $stmt->execute([]);
+        $referrals = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode(['success' => true, 'referrals' => $referrals]);
         exit;
     }
 
@@ -959,6 +989,7 @@ include 'includes/header.php';
                 <button class="btn btn-primary btn-sm" id="pvNewBtn">
                     <i class="fa fa-plus me-1"></i>Adicionar
                 </button>
+                <button type="button" id="pvReferralsBtn" class="btn btn-outline-primary btn-sm">Indicações</button>
                 <button type="button" id="pvFieldsConfigBtn" class="btn btn-outline-secondary btn-sm">Configurar Campos</button>
                 <button type="button" id="pvStagesConfigBtn" class="btn btn-outline-secondary btn-sm">Gerenciar Colunas</button>
             </div>
@@ -1336,6 +1367,42 @@ include 'includes/header.php';
           <button class="btn btn-outline-primary btn-sm" id="pvLinkCopy"><i class="fa fa-copy"></i></button>
         </div>
         <div id="pvLinkCopied" class="text-success small mt-1 d-none"><i class="fa fa-check me-1"></i>Copiado!</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ Modal: Indicações ════════════════ -->
+<div class="modal fade" id="pvReferralsModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title fs-6">Indicações recebidas</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="pvReferralsLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div>
+        </div>
+        <div id="pvReferralsEmpty" class="alert alert-light d-none">Nenhuma indicação registrada até agora.</div>
+        <div class="table-responsive d-none" id="pvReferralsTableWrap">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Cliente Pós-venda</th>
+                <th>Indicador</th>
+                <th>Telefone</th>
+                <th>E-mail</th>
+                <th>Observações</th>
+                <th>Data</th>
+              </tr>
+            </thead>
+            <tbody id="pvReferralsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>
@@ -2091,11 +2158,59 @@ include 'includes/header.php';
                 return;
             }
         } else {
-            $('pvLinkInput').value = window.location.origin + '/indicacao/' + token;
+            const basePath = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '');
+            $('pvLinkInput').value = basePath + '/indicacao.php?token=' + encodeURIComponent(token);
         }
 
         $('pvLinkCopied').classList.add('d-none');
         bsModal('pvLinkModal').show();
+    }
+
+    async function loadReferrals(){
+        const loading = $('pvReferralsLoading');
+        const empty = $('pvReferralsEmpty');
+        const wrap = $('pvReferralsTableWrap');
+        const body = $('pvReferralsTableBody');
+        loading.classList.remove('d-none');
+        empty.classList.add('d-none');
+        wrap.classList.add('d-none');
+        body.innerHTML = '';
+
+        try {
+            const fd = new FormData();
+            fd.append('action', 'list_referrals');
+            const response = await fetch('pos-venda.php', { method:'POST', body: fd });
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.message || 'Falha ao carregar indicações');
+            }
+            const referrals = Array.isArray(data.referrals) ? data.referrals : [];
+            if (!referrals.length) {
+                empty.classList.remove('d-none');
+            } else {
+                wrap.classList.remove('d-none');
+                body.innerHTML = referrals.map(ref => `
+                    <tr>
+                        <td>${escapeHtml(ref.pv_client_name || ('#' + (ref.pos_venda_id || '—')))}</td>
+                        <td>${escapeHtml(ref.indicator_name || '—')}</td>
+                        <td>${escapeHtml(ref.indicator_phone || '—')}</td>
+                        <td>${escapeHtml(ref.indicator_email || '—')}</td>
+                        <td>${escapeHtml(ref.notes || '—')}</td>
+                        <td>${escapeHtml(formatDateTimeBR(ref.created_at || ''))}</td>
+                    </tr>
+                `).join('');
+            }
+        } catch (err) {
+            empty.classList.remove('d-none');
+            empty.textContent = 'Erro ao carregar indicações: ' + (err.message || '');
+        } finally {
+            loading.classList.add('d-none');
+        }
+    }
+
+    function openReferralsModal(){
+        bsModal('pvReferralsModal').show();
+        loadReferrals();
     }
 
     function setupKanbanDragAndDrop(){
@@ -2405,6 +2520,10 @@ include 'includes/header.php';
 
     $('pvViewKanbanBtn').addEventListener('click', () => { currentView = 'kanban'; renderView(); });
     $('pvViewTableBtn').addEventListener('click', () => { currentView = 'table'; renderView(); });
+    const pvReferralsBtn = $('pvReferralsBtn');
+    if (pvReferralsBtn) {
+        pvReferralsBtn.addEventListener('click', openReferralsModal);
+    }
     $('pvFilterAllBtn').addEventListener('click', () => { currentContractFilter = 'all'; renderView(); });
     $('pvFilterExpiredBtn').addEventListener('click', () => { currentContractFilter = 'expired'; renderView(); });
     $('pvClearFiltersBtn').addEventListener('click', () => {
