@@ -1037,7 +1037,10 @@ include __DIR__ . '/includes/sidebar.php';
 
         if (btnUpload) btnUpload.addEventListener('click', async ()=>{
             if (!avatarInput.files || !avatarInput.files[0]) { avatarMsg.innerHTML = '<div class="text-danger small">Selecione um arquivo.</div>'; return; }
+            btnUpload.disabled = true;
             const fd = new FormData(); fd.append('avatar', avatarInput.files[0]);
+            try {
+                const res = await fetch('api/upload_avatar.php', { method: 'POST', body: fd, credentials: 'same-origin' });
                 const text = await res.text();
                 let data = null;
                 try { data = JSON.parse(text); } catch (e){ avatarMsg.innerHTML = '<div class="text-danger small">Resposta inválida do servidor</div>'; console.error('upload raw:', text); btnUpload.disabled = false; return; }
