@@ -225,9 +225,34 @@ $now = date('d/m/Y H:i');
   </div>
 </section>
 
-<!-- ══ 2. MOVIMENTAÇÕES DO LEAD ══ -->
+<!-- ══ 2. PÓS-VENDA ══ -->
 <section>
-  <h2>2. Movimentações no Funil de Vendas</h2>
+  <h2>2. Pós-venda</h2>
+  <div class="sec-body">
+    <div class="field-grid">
+      <div class="field"><div class="label">Estágio Pós-venda</div><div class="val"><?= h($pv['stage']) ?: '—' ?></div></div>
+      <div class="field"><div class="label">Tipo de Cliente</div><div class="val"><?= h($pv['client_type']) ?: '—' ?></div></div>
+      <div class="field"><div class="label">Performance</div><div class="val"><?= $pv['performance_pct'] !== null ? h($pv['performance_pct']) . '%' : '—' ?></div></div>
+      <div class="field"><div class="label">Data de Instalação</div><div class="val"><?= dateBR($pv['installation_date']) ?></div></div>
+      <div class="field"><div class="label">Próx. Manutenção</div><div class="val"><?= dateBR($pv['next_maintenance']) ?></div></div>
+      <div class="field"><div class="label">Fim da Garantia</div><div class="val"><?= dateBR($pv['warranty_end']) ?></div></div>
+      <div class="field"><div class="label">Último Check-up</div><div class="val"><?= dateBR($pv['last_checkup']) ?></div></div>
+      <div class="field"><div class="label">Cadastrado em</div><div class="val"><?= dtBR($pv['created_at']) ?></div></div>
+      <div class="field"><div class="label">Atualizado em</div><div class="val"><?= dtBR($pv['updated_at']) ?></div></div>
+    </div>
+
+    <?php if (!empty($pv['notes'])): ?>
+    <div style="margin-top:10px;">
+      <div class="field"><div class="label">Notas do Pós-venda</div></div>
+      <div class="obs-block" style="margin-top:4px;"><?= h($pv['notes']) ?></div>
+    </div>
+    <?php endif; ?>
+  </div>
+</section>
+
+<!-- ══ 3. MOVIMENTAÇÕES DO LEAD ══ -->
+<section>
+  <h2>3. Movimentações no Funil de Vendas</h2>
   <div class="sec-body">
   <?php if (empty($leadMovements)): ?>
     <p style="color:#94a3b8; font-size:11px;">Nenhuma movimentação registrada.</p>
@@ -257,9 +282,9 @@ $now = date('d/m/Y H:i');
   </div>
 </section>
 
-<!-- ══ 3. PROJETO ══ -->
+<!-- ══ 4. PROJETO ══ -->
 <section>
-  <h2>3. Projeto</h2>
+  <h2>4. Projeto</h2>
   <div class="sec-body">
     <div class="field-grid">
       <div class="field"><div class="label">ID Projeto</div><div class="val">#<?= h($projId) ?></div></div>
@@ -295,10 +320,10 @@ $now = date('d/m/Y H:i');
   </div>
 </section>
 
-<!-- ══ 4. LEMBRETES / AGENDAMENTOS ══ -->
+<!-- ══ 5. LEMBRETES / AGENDAMENTOS ══ -->
 <?php if (!empty($reminders)): ?>
 <section>
-  <h2>4. Lembretes & Agendamentos</h2>
+  <h2>5. Lembretes & Agendamentos</h2>
   <div class="sec-body">
     <?php foreach ($reminders as $rem): ?>
     <div class="rem-item">
@@ -312,31 +337,6 @@ $now = date('d/m/Y H:i');
   </div>
 </section>
 <?php endif; ?>
-
-<!-- ══ 5. PÓS-VENDA ══ -->
-<section>
-  <h2><?= !empty($reminders) ? '5' : '4' ?>. Pós-venda</h2>
-  <div class="sec-body">
-    <div class="field-grid">
-      <div class="field"><div class="label">Estágio Pós-venda</div><div class="val"><?= h($pv['stage']) ?: '—' ?></div></div>
-      <div class="field"><div class="label">Tipo de Cliente</div><div class="val"><?= h($pv['client_type']) ?: '—' ?></div></div>
-      <div class="field"><div class="label">Performance</div><div class="val"><?= $pv['performance_pct'] !== null ? h($pv['performance_pct']) . '%' : '—' ?></div></div>
-      <div class="field"><div class="label">Data de Instalação</div><div class="val"><?= dateBR($pv['installation_date']) ?></div></div>
-      <div class="field"><div class="label">Próx. Manutenção</div><div class="val"><?= dateBR($pv['next_maintenance']) ?></div></div>
-      <div class="field"><div class="label">Fim da Garantia</div><div class="val"><?= dateBR($pv['warranty_end']) ?></div></div>
-      <div class="field"><div class="label">Último Check-up</div><div class="val"><?= dateBR($pv['last_checkup']) ?></div></div>
-      <div class="field"><div class="label">Cadastrado em</div><div class="val"><?= dtBR($pv['created_at']) ?></div></div>
-      <div class="field"><div class="label">Atualizado em</div><div class="val"><?= dtBR($pv['updated_at']) ?></div></div>
-    </div>
-
-    <?php if (!empty($pv['notes'])): ?>
-    <div style="margin-top:10px;">
-      <div class="field"><div class="label">Notas do Pós-venda</div></div>
-      <div class="obs-block" style="margin-top:4px;"><?= h($pv['notes']) ?></div>
-    </div>
-    <?php endif; ?>
-  </div>
-</section>
 
 <div class="footer">WR CRM · Relatório gerado em <?= $now ?> · Documento gerado automaticamente — não requer assinatura.</div>
 

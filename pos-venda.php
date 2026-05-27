@@ -1153,6 +1153,14 @@ include 'includes/header.php';
             <h5 class="mb-3 pe-4" id="pvDetailsTitle">Detalhes do Cliente</h5>
             <div id="pvDetailsLoading" class="text-muted small">Carregando detalhes...</div>
             <div id="pvDetailsContent" class="d-none">
+                <div class="border rounded p-3 mb-3 bg-light">
+                    <h6 class="mb-2">Dados do Pós-venda</h6>
+                    <div class="small" id="pvPostSaleDetailsGrid"></div>
+                </div>
+                <div class="border rounded p-3 mb-3">
+                    <h6 class="mb-2">Histórico do Pós-venda</h6>
+                    <div id="pvHistoryPostSale" class="small"></div>
+                </div>
                 <div class="border rounded p-3 mb-3 bg-light" id="pvProjectDetailsSection">
                     <h6 class="mb-2">Dados do Projeto de Origem</h6>
                     <div class="small" id="pvProjectDetailsGrid"></div>
@@ -1164,14 +1172,6 @@ include 'includes/header.php';
                 <div class="border rounded p-3 mb-3 bg-light" id="pvLeadDetailsSection">
                     <h6 class="mb-2">Dados do Lead</h6>
                     <div class="small" id="pvLeadDetailsGrid"></div>
-                </div>
-                <div class="border rounded p-3 mb-3 bg-light">
-                    <h6 class="mb-2">Dados do Pós-venda</h6>
-                    <div class="small" id="pvPostSaleDetailsGrid"></div>
-                </div>
-                <div class="border rounded p-3 mb-3">
-                    <h6 class="mb-2">Histórico do Pós-venda</h6>
-                    <div id="pvHistoryPostSale" class="small"></div>
                 </div>
             </div>
         </div>
@@ -1846,6 +1846,7 @@ include 'includes/header.php';
                         ${warrantySection}
                     </div>
                     <div class="pv-card-footer">
+                        <button type="button" class="btn btn-sm btn-outline-primary pv-view-details-btn" data-pv-id="${pv.id}" style="padding:.3rem .55rem;" title="Ver Detalhes"><i class="fa fa-eye"></i></button>
                         <button type="button" class="btn btn-sm btn-primary pv-edit-row" data-pv-id="${pv.id}" style="padding:.3rem .55rem;" title="Editar"><i class="fa fa-pen"></i></button>
                         ${waNum ? `<a href="https://wa.me/${waNum}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" style="padding:.3rem .55rem;" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>` : ''}
                         <button type="button" class="btn btn-sm btn-outline-secondary pv-schedule-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" style="padding:.3rem .55rem;" title="Agendar Limpeza"><i class="fa fa-broom"></i></button>
@@ -1907,6 +1908,10 @@ include 'includes/header.php';
         document.querySelectorAll('.pv-history-btn').forEach(btn => {
             btn.removeEventListener('click', onHistoryBtnClick);
             btn.addEventListener('click', onHistoryBtnClick);
+        });
+        document.querySelectorAll('.pv-view-details-btn').forEach(btn => {
+            btn.removeEventListener('click', onViewDetailsBtnClick);
+            btn.addEventListener('click', onViewDetailsBtnClick);
         });
     }
 
@@ -2047,6 +2052,20 @@ include 'includes/header.php';
         const pv = getPosVendaById(pvId);
         if (!pv) return;
 
+        await openPosVendaDetails(pv);
+    }
+
+    async function onViewDetailsBtnClick(event){
+        const btn = event.currentTarget;
+        const pvId = btn.dataset.pvId;
+        const pv = getPosVendaById(pvId);
+        if (!pv) return;
+
+        await openPosVendaDetails(pv);
+    }
+
+    async function openPosVendaDetails(pv){
+        const pvId = pv.id;
         $('pvDetailsLoading').classList.remove('d-none');
         $('pvDetailsContent').classList.add('d-none');
         $('pvDetailsTitle').textContent = 'Detalhes: ' + (pv.client_name || 'Cliente');
