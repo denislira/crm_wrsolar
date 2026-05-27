@@ -20,6 +20,8 @@ try {
     if (!in_array('last_checkup',   $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN last_checkup    DATE         DEFAULT NULL");
     if (!in_array('stage',          $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN stage          VARCHAR(255) DEFAULT NULL");
     if (!in_array('warranty_months',$cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN warranty_months SMALLINT UNSIGNED DEFAULT 12");
+    if (!in_array('cpf',            $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN cpf VARCHAR(20) DEFAULT NULL");
+    if (!in_array('birth_date',     $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN birth_date DATE DEFAULT NULL");
     if (!in_array('plan_value',     $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN plan_value DECIMAL(12,2) DEFAULT NULL");
     if (!in_array('equipment',      $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN equipment VARCHAR(255) DEFAULT NULL");
     if (!in_array('phone',          $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN phone VARCHAR(50) DEFAULT NULL");
@@ -197,8 +199,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $warranty = date('Y-m-d', strtotime('+' . $warrantyMonths . ' months', strtotime($warrantyStart)));
 
         if ($id) {
-            $updateFields = ['client_name=?','installation_date=?','next_maintenance=?','warranty_end=?','notes=?','phone=?','email=?','address=?'];
-            $updateParams = [$clientName,$instDate,$nextMaint,$warranty,$notes,$clientPhone ?: null,$clientEmail ?: null,$clientAddress ?: null];
+            $updateFields = ['client_name=?','installation_date=?','next_maintenance=?','warranty_end=?','notes=?','phone=?','email=?','cpf=?','birth_date=?','address=?'];
+            $updateParams = [$clientName,$instDate,$nextMaint,$warranty,$notes,$clientPhone ?: null,$clientEmail ?: null,$cpf ?: null,$birthDate,$clientAddress ?: null];
             if ($hasPerformancePct) {
                 $updateFields[] = 'performance_pct=?';
                 $updateParams[] = $perf;
@@ -245,6 +247,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'client_name' => $clientName,
                     'phone' => $clientPhone,
                     'email' => $clientEmail,
+                    'cpf' => $cpf,
+                    'birth_date' => $birthDate,
                     'address' => $clientAddress,
                     'installation_date' => $instDate,
                     'next_maintenance' => $nextMaint,
@@ -281,9 +285,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $r = $pdo->prepare('SELECT client_name FROM projetos WHERE id=? LIMIT 1');
                 $r->execute([$projId]); $clientName = $r->fetchColumn() ?: '';
             }
-            $cols = ['user_id','project_id','client_name','installation_date','next_maintenance','warranty_end','notes','phone','email','address'];
-            $holders = ['?','?','?','?','?','?','?','?','?','?'];
-            $params = [$_SESSION['user_id'],$projId ?: null,$clientName,$instDate,$nextMaint,$warranty,$notes,$clientPhone ?: null,$clientEmail ?: null,$clientAddress ?: null];
+            $cols = ['user_id','project_id','client_name','installation_date','next_maintenance','warranty_end','notes','phone','email','cpf','birth_date','address'];
+            $holders = ['?','?','?','?','?','?','?','?','?','?','?','?'];
+            $params = [$_SESSION['user_id'],$projId ?: null,$clientName,$instDate,$nextMaint,$warranty,$notes,$clientPhone ?: null,$clientEmail ?: null,$cpf ?: null,$birthDate,$clientAddress ?: null];
             if ($hasPerformancePct) {
                 $cols[] = 'performance_pct'; $holders[] = '?'; $params[] = $perf;
             }
@@ -1195,6 +1199,14 @@ include 'includes/header.php';
         <div class="col-12">
           <label class="form-label fw-semibold">Cliente</label>
           <input type="text" name="client_name" id="pvClientName" class="form-control" placeholder="Nome do cliente" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">CPF</label>
+          <input type="text" name="cpf" id="pvCpf" class="form-control" placeholder="000.000.000-00">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Data de Nascimento</label>
+          <input type="date" name="birth_date" id="pvBirthDate" class="form-control">
         </div>
         <div class="col-md-6">
           <label class="form-label fw-semibold">Telefone</label>
@@ -2120,6 +2132,8 @@ include 'includes/header.php';
         $('pvId').value = pv.id || '';
         $('pvProjectId').value = pv.project_id || '';
         $('pvClientName').value = pv.client_name || '';
+        $('pvCpf').value = pv.cpf || '';
+        $('pvBirthDate').value = pv.birth_date || '';
         $('pvPhone').value = pv.phone || '';
         $('pvEmail').value = pv.email || '';
         $('pvAddress').value = pv.address || '';
@@ -2589,6 +2603,8 @@ include 'includes/header.php';
         $('pvId').value = '';
         $('pvProjectId').value = '';
         $('pvClientName').value = '';
+        $('pvCpf').value = '';
+        $('pvBirthDate').value = '';
         $('pvPhone').value = '';
         $('pvEmail').value = '';
         $('pvAddress').value = '';
