@@ -321,6 +321,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['success'=>true]); exit;
     }
 
+    if ($action === 'delete_pv') {
+        $id = isset($_POST['pv_id']) ? intval($_POST['pv_id']) : 0;
+        $password = trim((string)($_POST['password'] ?? ''));
+
+        if ($id <= 0 || $password === '') {
+            echo json_encode(['success' => false, 'message' => 'ID e senha são obrigatórios.']);
+            exit;
+        }
+
+        $stmt = $pdo->prepare('SELECT password FROM users WHERE id = ? LIMIT 1');
+        $stmt->execute([$_SESSION['user_id']]);
+        $hash = $stmt->fetchColumn();
+        if (!$hash || !password_verify($password, $hash)) {
+            echo json_encode(['success' => false, 'message' => 'Senha incorreta.']);
+            exit;
+        }
+
+        $deleteStmt = $pdo->prepare('DELETE FROM pos_venda WHERE id = ? AND user_id = ?');
+        $deleteStmt->execute([$id, $_SESSION['user_id']]);
+        if ($deleteStmt->rowCount() === 0) {
+            echo json_encode(['success' => false, 'message' => 'Registro não encontrado ou sem permissão.']);
+            exit;
+        }
+
+        echo json_encode(['success' => true]); exit;
+    }
+
     if ($action === 'schedule_maintenance') {
         $pvId = intval($_POST['pv_id'] ?? 0);
         $date = trim((string)($_POST['maintenance_date'] ?? ''));
@@ -1299,6 +1326,32 @@ include 'includes/header.php';
   </div>
 </div>
 
+<div class="modal fade" id="pvDeleteConfirmModal" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white py-2">
+        <h5 class="modal-title fs-6">Confirmar exclusão</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="pvDeleteConfirmForm">
+      <div class="modal-body">
+          <input type="hidden" id="pvDeleteId" name="pv_id">
+          <p>Informe a senha do usuário logado para confirmar a exclusão deste card de pós-venda.</p>
+          <div class="mb-3">
+            <label for="pvDeletePassword" class="form-label">Senha</label>
+            <input type="password" id="pvDeletePassword" name="password" class="form-control" placeholder="Senha" required>
+          </div>
+          <div id="pvDeleteError" class="text-danger small"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
+      </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- ════════════════ Modal: Configurar Campos (Tipo/Status) ════════════════ -->
 <div class="modal fade" id="pvFieldsModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -1456,7 +1509,11 @@ include 'includes/header.php';
 (function(){
     // ── helpers ──
     const $  = id => document.getElementById(id);
-    const bsModal = id => new bootstrap.Modal($(id));
+    const bsModal = id => {
+        const modalEl = $(id);
+        if (!modalEl) return null;
+        return bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    };
     const posVendas = <?= json_encode($posVendas, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
     let posVendaStages = [];
     let posVendaClientTypes = [];
@@ -1858,6 +1915,7 @@ include 'includes/header.php';
                         ${warrantySection}
                     </div>
                     <div class="pv-card-footer">
+                        <button type="button" class="btn btn-sm btn-outline-danger pv-delete-btn" data-pv-id="${pv.id}" style="padding:.3rem .55rem;" title="Excluir"><i class="fa fa-trash"></i></button>
                         <button type="button" class="btn btn-sm btn-outline-primary pv-view-details-btn" data-pv-id="${pv.id}" style="padding:.3rem .55rem;" title="Ver Detalhes"><i class="fa fa-eye"></i></button>
                         <button type="button" class="btn btn-sm btn-primary pv-edit-row" data-pv-id="${pv.id}" style="padding:.3rem .55rem;" title="Editar"><i class="fa fa-pen"></i></button>
                         ${waNum ? `<a href="https://wa.me/${waNum}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" style="padding:.3rem .55rem;" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>` : ''}
@@ -1920,6 +1978,10 @@ include 'includes/header.php';
         document.querySelectorAll('.pv-history-btn').forEach(btn => {
             btn.removeEventListener('click', onHistoryBtnClick);
             btn.addEventListener('click', onHistoryBtnClick);
+        });
+        document.querySelectorAll('.pv-delete-btn').forEach(btn => {
+            btn.removeEventListener('click', onDeleteBtnClick);
+            btn.addEventListener('click', onDeleteBtnClick);
         });
         document.querySelectorAll('.pv-view-details-btn').forEach(btn => {
             btn.removeEventListener('click', onViewDetailsBtnClick);
@@ -2056,7 +2118,7 @@ include 'includes/header.php';
     }
 
     async function onKanbanCardClick(event){
-        const blocked = event.target.closest('.pv-card-footer, button, a, .pv-edit-row, .pv-link-btn, .pv-schedule-btn, .pv-history-btn');
+        const blocked = event.target.closest('.pv-card-footer, button, a, .pv-edit-row, .pv-link-btn, .pv-schedule-btn, .pv-history-btn, .pv-delete-btn');
         if (blocked) return;
 
         const card = event.currentTarget;
@@ -2094,6 +2156,51 @@ include 'includes/header.php';
             $('pvDetailsContent').classList.remove('d-none');
         } catch (err) {
             $('pvDetailsLoading').innerHTML = `<span class="text-danger">${escapeHtml(err.message || 'Erro ao carregar detalhes.')}</span>`;
+        }
+    }
+
+    function onDeleteBtnClick(event){
+        const pvId = event.currentTarget.dataset.pvId;
+        if (!pvId) return;
+        $('pvDeleteId').value = pvId;
+        $('pvDeletePassword').value = '';
+        $('pvDeleteError').textContent = '';
+        bsModal('pvDeleteConfirmModal').show();
+    }
+
+    async function deletePosVenda(event){
+        event.preventDefault();
+        const pvId = $('pvDeleteId').value;
+        const password = $('pvDeletePassword').value.trim();
+        if (!pvId || !password) {
+            $('pvDeleteError').textContent = 'Informe a senha para confirmar a exclusão.';
+            return;
+        }
+        const form = new FormData();
+        form.append('action', 'delete_pv');
+        form.append('pv_id', pvId);
+        form.append('password', password);
+
+        try {
+            const response = await fetch('pos-venda.php', { method: 'POST', body: form });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Não foi possível excluir o registro.');
+            }
+            const modal = bsModal('pvDeleteConfirmModal');
+            modal?.hide();
+            $('pvDeleteError').textContent = '';
+            const idx = posVendas.findIndex(v => String(v.id) === String(pvId));
+            if (idx !== -1) {
+                posVendas.splice(idx, 1);
+            }
+            renderView();
+            if ($('pvDetailsPanel') && $('pvDetailsPanel').classList.contains('pv-details-panel') && !$('pvDetailsPanel').classList.contains('hidden')) {
+                closeDetailsPanel();
+            }
+            alert('Registro de pós-venda excluído com sucesso.');
+        } catch (err) {
+            $('pvDeleteError').textContent = err.message || 'Erro ao excluir.';
         }
     }
 
@@ -2550,6 +2657,7 @@ include 'includes/header.php';
 
     $('pvFieldsConfigBtn').addEventListener('click', openFieldsManager);
     $('pvStagesConfigBtn').addEventListener('click', openStagesManager);
+    $('pvDeleteConfirmForm').addEventListener('submit', deletePosVenda);
 
     $('pvViewKanbanBtn').addEventListener('click', () => { currentView = 'kanban'; renderView(); });
     $('pvViewTableBtn').addEventListener('click', () => { currentView = 'table'; renderView(); });
