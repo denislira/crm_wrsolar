@@ -99,6 +99,25 @@ function ensure_utf8_local($s) {
 // to avoid performing metadata queries or DDL on each request. Migrations should be
 // applied manually using the scripts/ tools (for example scripts/add_new_leads_columns.php).
 
+try {
+    $t = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pos_venda_referrals'");
+    $t->execute();
+    if ((bool)$t->fetchColumn()) {
+        $colChk = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pos_venda_referrals'");
+        $colChk->execute();
+        $colsRaw = $colChk->fetchAll(PDO::FETCH_COLUMN);
+        $cols = array_map('strtolower', $colsRaw ?: []);
+        if (!in_array('transferred_to_kanban', $cols, true)) {
+            $pdo->exec("ALTER TABLE pos_venda_referrals ADD COLUMN transferred_to_kanban TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        if (!in_array('promoted_at', $cols, true)) {
+            $pdo->exec("ALTER TABLE pos_venda_referrals ADD COLUMN promoted_at DATETIME DEFAULT NULL");
+        }
+    }
+} catch (Exception $e) {
+    // ignore schema migration failures on request
+}
+
 // Helper: inserts a movement record (best-effort, swallow errors)
 function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $fromStatus, $toStatus, $changedBy = null, $note = null, $isAlert = 0) {
     try {
@@ -1204,7 +1223,6 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             $colChk->execute();
             $colsRaw = $colChk->fetchAll(PDO::FETCH_COLUMN);
             $cols = array_map(function($c){ return strtolower(trim($c)); }, $colsRaw ?: []);
-            $hasUser = in_array('user_id', $cols);
             $preferred = ['data_criacao'];
             $orderCol = 'id';
             foreach ($preferred as $pc) { if (in_array($pc, $cols)) { $orderCol = $pc; break; } }
@@ -1222,6 +1240,33 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             exit;
         } catch (Exception $e) {
             _leads_api_log('list_anuncios failed: ' . $e->getMessage());
+            echo json_encode([]);
+            exit;
+        }
+    }
+
+    // List referred contacts created by indicação.php submissions
+    if ($action === 'list_indicacoes') {
+        try {
+            $t = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pos_venda_referrals'");
+            $t->execute();
+            $exists = (bool)$t->fetchColumn();
+            if (!$exists) { echo json_encode([]); exit; }
+
+            $stmt = $pdo->prepare(
+                'SELECT r.*, pv.client_name AS pv_client_name
+                 FROM pos_venda_referrals r
+                 LEFT JOIN pos_venda pv ON pv.id = r.pos_venda_id
+                 WHERE r.user_id = ? AND r.transferred_to_kanban = 0
+                 ORDER BY r.created_at DESC
+                 LIMIT 500'
+            );
+            $stmt->execute([$userId]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode($rows);
+            exit;
+        } catch (Exception $e) {
+            _leads_api_log('list_indicacoes failed: ' . $e->getMessage());
             echo json_encode([]);
             exit;
         }
@@ -1299,6 +1344,66 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         } catch (Exception $e) {
             _leads_api_log('promote_anuncio failed: ' . $e->getMessage());
             http_response_code(500); echo json_encode(['error' => 'Failed to promote']); exit;
+        }
+    }
+
+    // Promote an indicação into the main leads table (creates a new lead)
+    if ($action === 'promote_indicacao') {
+        $refId = $_POST['id'] ?? $_GET['id'] ?? null;
+        $targetStage = $_POST['stage_id'] ?? null;
+        $status = trim($_POST['status'] ?? '');
+        if (empty($refId)) { http_response_code(400); echo json_encode(['error' => 'Missing id']); exit; }
+        try {
+            $t = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pos_venda_referrals'");
+            $t->execute(); if (!(bool)$t->fetchColumn()) { http_response_code(404); echo json_encode(['error' => 'Tabela de indicações não encontrada']); exit; }
+
+            $stmt = $pdo->prepare('SELECT r.*, pv.client_name AS pv_client_name FROM pos_venda_referrals r LEFT JOIN pos_venda pv ON pv.id = r.pos_venda_id WHERE r.id = ? AND r.user_id = ? LIMIT 1');
+            $stmt->execute([$refId, $userId]); $ref = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$ref) { http_response_code(404); echo json_encode(['error' => 'Indicação não encontrada']); exit; }
+
+            $name = $ref['indicator_name'] ?? '';
+            $email = $ref['indicator_email'] ?? '';
+            $phone = $ref['indicator_phone'] ?? '';
+            $source = 'Indicação';
+            $notes = [];
+            if (!empty($ref['pv_client_name'])) $notes[] = 'Indicação para cliente: ' . $ref['pv_client_name'];
+            if (!empty($ref['notes'])) $notes[] = $ref['notes'];
+            if (!empty($ref['created_at'])) $notes[] = 'Recebida em: ' . $ref['created_at'];
+            $notes[] = 'Token: ' . ($ref['referral_token'] ?? '');
+            $notes = implode("\n", array_filter($notes));
+
+            $resolvedStageId = null;
+            if (!empty($targetStage) && is_numeric($targetStage)) {
+                $resolvedStageId = (int)$targetStage;
+            } elseif (!empty($status)) {
+                $stageQuery = $pdo->prepare('SELECT id FROM funil_stages WHERE stage_name = ? LIMIT 1');
+                $stageQuery->execute([$status]);
+                $stageRow = $stageQuery->fetch(PDO::FETCH_ASSOC);
+                if ($stageRow) $resolvedStageId = (int)$stageRow['id'];
+            }
+
+            $ins = $pdo->prepare('INSERT INTO leads (user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, initial_stage_id, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+            $ins->execute([
+                $userId,
+                $name,
+                '',
+                $email,
+                $phone,
+                '',
+                $source,
+                $status ?: 'Novo',
+                $resolvedStageId,
+                $resolvedStageId,
+                $notes,
+            ]);
+            $newId = $pdo->lastInsertId();
+            $update = $pdo->prepare('UPDATE pos_venda_referrals SET transferred_to_kanban = 1, promoted_at = NOW() WHERE id = ? AND user_id = ?');
+            $update->execute([$refId, $userId]);
+            echo json_encode(['ok' => true, 'id' => $newId]);
+            exit;
+        } catch (Exception $e) {
+            _leads_api_log('promote_indicacao failed: ' . $e->getMessage());
+            http_response_code(500); echo json_encode(['error' => 'Failed to promote indicação']); exit;
         }
     }
 

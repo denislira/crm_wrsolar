@@ -37,12 +37,23 @@ try {
             indicator_phone VARCHAR(50) DEFAULT NULL,
             indicator_email VARCHAR(255) DEFAULT NULL,
             notes TEXT DEFAULT NULL,
+            transferred_to_kanban TINYINT(1) NOT NULL DEFAULT 0,
+            promoted_at DATETIME DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (pos_venda_id) REFERENCES pos_venda(id) ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
             UNIQUE KEY ux_pos_venda_referrals_token (referral_token)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    }
+    if ($pdo->query("SHOW TABLES LIKE 'pos_venda_referrals'")->fetchColumn() !== false) {
+        $refCols = $pdo->query("SHOW COLUMNS FROM pos_venda_referrals")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('transferred_to_kanban', $refCols, true)) {
+            $pdo->exec("ALTER TABLE pos_venda_referrals ADD COLUMN transferred_to_kanban TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        if (!in_array('promoted_at', $refCols, true)) {
+            $pdo->exec("ALTER TABLE pos_venda_referrals ADD COLUMN promoted_at DATETIME DEFAULT NULL");
+        }
     }
 } catch (Exception $e) { /* ignore */ }
 

@@ -76,6 +76,7 @@ include 'includes/header.php';
                     <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
                     <button id="toggleSemStatusBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Sem Status">Sem Status</button>
                     <button id="toggleAnunciosBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Anúncios">Anúncios</button>
+                    <button id="toggleIndicadosBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Indicações">Indicações</button>
                     <button id="bulkActionsBtn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#bulkModal">Ações em massa</button>
                     <button id="printSelectedBtn" class="btn btn-sm btn-outline-secondary d-none" title="Imprimir leads selecionados"><i class="fa fa-print"></i> Imprimir Selecionados</button>
                     <button id="toggleViewBtn" class="btn btn-sm btn-outline-secondary" title="Alternar visualização Kanban / Grade"><i class="fa fa-columns"></i></button>

@@ -53,3 +53,5 @@
 [2026-05-21 21:50:09] UPDATE data_inicio (parsed): '2026-02-16'
 [2026-05-21 22:58:29] promote_anuncio failed: SQLSTATE[HY000]: General error: 1366 Incorrect integer value: 'anuncios' for column 'stage_id' at row 1
 [2026-05-21 22:58:31] promote_anuncio: updated leads_anuncios id 7 as transferred_to_kanban
+[2026-05-27T22:04:56+02:00] Uncaught exception: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[2026-05-27T22:06:34+02:00] Uncaught exception: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'

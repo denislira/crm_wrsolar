@@ -430,6 +430,49 @@
         // we intentionally do NOT show names here; only the count is displayed
     }
 
+    async function fetchIndicados(){
+        try {
+            const res = await fetch(apiBase + '?action=list_indicacoes');
+            if (!res.ok) throw new Error('Falha ao carregar indicações');
+            const payload = await res.json();
+            const rows = Array.isArray(payload) ? payload : (payload.indicacoes || (payload.referrals ? payload.referrals : []));
+            const count = rows && rows.length ? rows.length : 0;
+            const colCountEl = document.getElementById('count-indicados'); if (colCountEl) colCountEl.textContent = String(count);
+            const prev = INDICADOS_PRESENT;
+            INDICADOS_PRESENT = count > 0;
+            if (prev !== INDICADOS_PRESENT && STAGES && STAGES.length) {
+                try { buildColumns(); renderAll(); } catch(e) { console.warn('Failed to rebuild columns after indicados change', e); }
+            }
+            return Array.isArray(rows) ? rows : [];
+        } catch(e){ console.warn('fetchIndicados failed', e); return []; }
+    }
+
+    function makeIndicadosCard(ref){
+        const el = document.createElement('div'); el.className = 'lead-card indicados-card'; el.draggable = true; el.dataset.indicacaoId = ref.id;
+        el.style.borderLeft = '6px solid #BDE7D7';
+        el.style.backgroundColor = '#f3faf4';
+        const head = document.createElement('div'); head.className = 'd-flex align-items-center justify-content-between';
+        const title = document.createElement('div'); title.className = 'title'; title.textContent = ref.indicator_name || ref.nome || '(sem nome)';
+        const meta = document.createElement('span'); meta.className = 'small text-muted ms-2'; meta.textContent = ref.indicator_phone || ref.indicator_email || '';
+        head.appendChild(title); head.appendChild(meta);
+        el.appendChild(head);
+        const sub = document.createElement('div'); sub.className = 'small text-muted mt-1';
+        const parts = [];
+        if (ref.indicator_email) parts.push(ref.indicator_email);
+        if (ref.notes) parts.push(ref.notes);
+        if (ref.pv_client_name) parts.push('Referente a: ' + ref.pv_client_name);
+        if (ref.created_at) parts.push('Enviada: ' + ref.created_at);
+        sub.textContent = parts.join(' • ');
+        el.appendChild(sub);
+        el.addEventListener('dragstart', (e)=>{
+            e.dataTransfer.setData('text/plain', 'indicacao:' + ref.id);
+            e.dataTransfer.effectAllowed = 'copyMove';
+            el.classList.add('dragging');
+        });
+        el.addEventListener('dragend', ()=> el.classList.remove('dragging'));
+        return el;
+    }
+
     function makeAnuncioItem(an){
         const it = document.createElement('div'); it.className = 'list-group-item d-flex justify-content-between align-items-start anuncio-item';
         it.draggable = true; it.dataset.anuncioId = an.id;
@@ -602,12 +645,16 @@
     }
     // whether the Anúncios column should be shown (only when there are rows in leads_anuncios)
     let ANUNCIOS_PRESENT = false;
+    // whether the Indicações column should be shown (only when there are referral submissions)
+    let INDICADOS_PRESENT = false;
     // Sem Status column: present when there are leads with stage_id === 0
     let SEMSTATUS_PRESENT = false;
     // user preference whether to show Sem Status column (persisted)
     let SEMSTATUS_SHOWN = (localStorage.getItem('showSemStatus') !== '0');
-    // user preference whether to show Anuncios column (persisted)
+    // user preference whether to show Anúncios column (persisted)
     let ANUNCIOS_SHOWN = (localStorage.getItem('showAnuncios') !== '0');
+    // user preference whether to show Indicações column (persisted)
+    let INDICADOS_SHOWN = (localStorage.getItem('showIndicados') !== '0');
     async function fetchStages(){
         try{
             const res = await fetch('includes/funil_stages_api.php?action=list'); if (!res.ok) throw new Error('Falha ao carregar estágios');
@@ -794,6 +841,20 @@
                 anWrap.appendChild(anHeader); anWrap.appendChild(anContent);
                 wrap.appendChild(anWrap);
             } catch(e){ console.warn('failed creating anuncios column', e); }
+        }
+        // Insert Indicações column next (if present and user enabled)
+        if (INDICADOS_PRESENT && INDICADOS_SHOWN) {
+            try {
+                const indWrap = document.createElement('div'); indWrap.className = 'kanban-column'; indWrap.dataset.stageId = 'indicados'; indWrap.dataset.stageName = 'Indicações';
+                indWrap.dataset.color = '#BDE7D7';
+                const indHeader = document.createElement('div'); indHeader.className = 'kanban-header';
+                const indTitle = document.createElement('span'); indTitle.className = 'kanban-title'; indTitle.textContent = 'Indicações';
+                const indCount = document.createElement('span'); indCount.className = 'badge bg-light text-muted ms-2'; indCount.id = 'count-indicados'; indCount.textContent = '0';
+                indHeader.appendChild(indTitle); indHeader.appendChild(indCount);
+                const indContent = document.createElement('div'); indContent.className = 'column-content'; indContent.id = 'col-indicados';
+                indWrap.appendChild(indHeader); indWrap.appendChild(indContent);
+                wrap.appendChild(indWrap);
+            } catch(e){ console.warn('failed creating Indicados column', e); }
         }
         STAGES.forEach(s=>{
             const colWrap = document.createElement('div'); colWrap.className = 'kanban-column'; colWrap.dataset.stageId = s.id; colWrap.dataset.stageName = s.name;
@@ -1321,12 +1382,14 @@
         const btn = document.getElementById('toggleViewBtn');
         const semStatusBtn = document.getElementById('toggleSemStatusBtn');
         const anunciosBtn = document.getElementById('toggleAnunciosBtn');
+        const indicadosBtn = document.getElementById('toggleIndicadosBtn');
         // support two modes: 'kanban' and 'list' (table)
         if (mode === 'kanban') {
             if (kanban) kanban.classList.remove('d-none');
             if (list) list.classList.add('d-none');
             if (semStatusBtn) semStatusBtn.classList.remove('d-none');
             if (anunciosBtn) anunciosBtn.classList.remove('d-none');
+            if (indicadosBtn) indicadosBtn.classList.remove('d-none');
             if (btn) btn.innerHTML = '<i class="fa fa-list"></i>';
         } else if (mode === 'list') {
             GRID_PAGE = 1;
@@ -1334,6 +1397,7 @@
             if (list) list.classList.remove('d-none');
             if (semStatusBtn) semStatusBtn.classList.add('d-none');
             if (anunciosBtn) anunciosBtn.classList.add('d-none');
+            if (indicadosBtn) indicadosBtn.classList.add('d-none');
             if (btn) btn.innerHTML = '<i class="fa fa-th-list"></i>';
         }
     }
@@ -1783,6 +1847,26 @@
                 } catch(e){ console.warn('renderAnuncios failed', e); }
             }).catch(()=>{});
         } catch(e) { /* ignore */ }
+
+        // populate Indicações column
+        try {
+            fetchIndicados().then(rows=>{
+                try {
+                    const col = document.getElementById('col-indicados');
+                    if (!col) return;
+                    col.innerHTML = '';
+                    if (rows && rows.length) {
+                        rows.forEach(r=>{
+                            const card = makeIndicadosCard(r);
+                            col.appendChild(card);
+                        });
+                    } else {
+                        const empty = document.createElement('div'); empty.className='p-3 small text-muted'; empty.textContent = 'Nenhuma indicação registrada.'; col.appendChild(empty);
+                    }
+                    const colBadge = document.getElementById('count-indicados'); if (colBadge) colBadge.textContent = (rows && rows.length) ? String(rows.length) : '0';
+                } catch(e){ console.warn('renderIndicados failed', e); }
+            }).catch(()=>{});
+        } catch(e) { /* ignore */ }
     }
 
     function setupDragDrop(){
@@ -1825,6 +1909,11 @@
             const stageId = colWrap?.dataset?.stageId;
             const stageName = colWrap?.dataset?.stageName;
             try {
+                // Prevent dropping any cards into 'Indicações' column
+                if (stageId === 'indicados') {
+                    flashFeedback(colContent, false);
+                    return;
+                }
                 // Prevent dropping existing lead cards into the Anúncios column
                 if (stageId === 'anuncios' && !raw.startsWith('anuncio:')) {
                     flashFeedback(colContent, false);
@@ -1846,6 +1935,14 @@
                     await fetchLeads();
                     // refresh anuncios list and rebuild columns if necessary
                     try { await fetchAnuncios(); } catch(e){}
+                    flashFeedback(colContent, true);
+                } else if (raw.startsWith('indicacao:')) {
+                    const refId = raw.split(':',2)[1];
+                    const fd = new FormData(); fd.append('action','promote_indicacao'); fd.append('id', refId); fd.append('stage_id', stageId || ''); fd.append('status', stageName || '');
+                    const res = await fetch(apiBase, { method: 'POST', body: fd });
+                    const json = await res.json(); if (!res.ok || json.error) throw new Error(json.error || 'Falha ao promover indicação');
+                    await fetchLeads();
+                    try { await fetchIndicados(); } catch(e){}
                     flashFeedback(colContent, true);
                 } else {
                     const id = raw;
@@ -2678,6 +2775,14 @@
                     if (rows && rows.length && adsCol) adsCol.classList.remove('d-none');
                 } catch(e){ /* ignore */ }
             })();
+            // load Indicações presence so the column can appear if data exists
+            (async ()=>{
+                try {
+                    const rows = await fetchIndicados();
+                    const indBtn = document.getElementById('toggleIndicadosBtn');
+                    if (indBtn && rows && rows.length) indBtn.classList.remove('d-none');
+                } catch(e){ /* ignore */ }
+            })();
         } catch(e){ console.warn('ads UI setup failed', e); }
 
         // Sem Status toggle button
@@ -2709,6 +2814,20 @@
                 });
             }
         } catch(e){ console.warn('anuncios toggle setup failed', e); }
+
+        // Indicados toggle button
+        try {
+            const indBtn = document.getElementById('toggleIndicadosBtn');
+            if (indBtn) {
+                indBtn.classList.toggle('active', INDICADOS_SHOWN);
+                indBtn.addEventListener('click', ()=>{
+                    INDICADOS_SHOWN = !INDICADOS_SHOWN;
+                    localStorage.setItem('showIndicados', INDICADOS_SHOWN ? '1' : '0');
+                    indBtn.classList.toggle('active', INDICADOS_SHOWN);
+                    try { buildColumns(); renderAll(); } catch(e){ console.warn('Failed toggling Indicações column', e); }
+                });
+            }
+        } catch(e){ console.warn('indicados toggle setup failed', e); }
 
         // attach input masks for phone and CPF/CNPJ
         try { attachMaskHandlers(); } catch(e){ console.warn('attachMaskHandlers failed', e); }
