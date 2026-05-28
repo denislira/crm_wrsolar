@@ -2,8 +2,14 @@
 (function(){
     let missingTargetWarned = false;
 
+    const APP_ROOT = (() => {
+        const script = document.currentScript;
+        if (!script || !script.src) return '';
+        return script.src.replace(/\/assets\/js\/sla_check\.js(?:\?.*)?$/, '');
+    })();
+
     async function fetchRenewalTargetStage(){
-        const res = await fetch('/WRCRM/includes/pos_venda_stages_api.php?action=list');
+        const res = await fetch(`${APP_ROOT}/includes/pos_venda_stages_api.php?action=list`);
         if (!res.ok) return null;
         const stages = await res.json();
         if (!Array.isArray(stages)) return null;
@@ -22,7 +28,7 @@
             }
             missingTargetWarned = false;
 
-            const res = await fetch('/WRCRM/api/get_projects.php?for_sla=1');
+            const res = await fetch(`${APP_ROOT}/api/get_projects.php?for_sla=1`);
             if (!res.ok) return;
             const payload = await res.json();
             if (!payload.success || !Array.isArray(payload.data)) return;
@@ -41,14 +47,14 @@
                         form.append('action', 'update_stage');
                         form.append('pv_id', String(p.pos_venda_id));
                         form.append('stage', renewalTargetStage.name);
-                        const up = await fetch('/WRCRM/pos-venda.php', { method: 'POST', body: form });
+                        const up = await fetch(`${APP_ROOT}/pos-venda.php`, { method: 'POST', body: form });
                         if (up.ok) {
                             try {
                                 const alertForm = new URLSearchParams();
                                 alertForm.append('project_id', String(p.id));
                                 alertForm.append('type', 'renovation');
                                 alertForm.append('message', `Projeto ${p.client_name || p.id} atingiu 11 meses pós-homologação e foi movido para ${renewalTargetStage.name}.`);
-                                await fetch('/WRCRM/api/add_alert.php', { method: 'POST', body: alertForm });
+                                await fetch(`${APP_ROOT}/api/add_alert.php`, { method: 'POST', body: alertForm });
                             } catch(e) { console.warn('Failed creating alert', e); }
                         }
                     } catch(e){ console.warn('Failed updating post-sale stage for SLA', e); }
