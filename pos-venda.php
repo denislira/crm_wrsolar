@@ -2841,6 +2841,6 @@ include 'includes/header.php';
 
 })();
 </script>
-<script src="/WRCRM/assets/js/sla_check.js"></script>
+<script src="<?= rtrim(dirname($_SERVER['PHP_SELF']), '/\\') ?: '' ?>/assets/js/sla_check.js"></script>
 
 <?php include 'includes/footer.php'; ?>
