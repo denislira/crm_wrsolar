@@ -457,10 +457,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare(
             "SELECT pv.*, 
                     p.id AS proj_id,
+                    p.client_name AS proj_client_name,
                     p.lead_id,
                     p.status AS proj_status,
                 {$projectStatusChangedSelect},
-                    p.address,
+                    p.address AS proj_address,
                     p.proposal_value,
                     p.projeto AS project_kwh,
                     p.payment_type,
@@ -473,6 +474,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     l.name AS lead_name,
                     l.phone AS lead_phone,
                     l.email AS lead_email,
+                    l.cpf_cnpj AS lead_cpf,
                     l.cidade AS lead_city,
                     l.source AS lead_source,
                     l.notes AS lead_notes,
@@ -691,7 +693,7 @@ $projetoSelect = [
     $hasPaymentType ? 'p.payment_type' : 'NULL AS payment_type',
     $hasContract ? 'p.contract' : 'NULL AS contract',
     'p.lead_id',
-    'p.address',
+    'p.address AS proj_address',
     'p.proposal_value',
     'p.projeto AS project_kwh',
     'p.id AS proj_id',
@@ -699,6 +701,7 @@ $projetoSelect = [
     'l.name AS lead_name',
     'l.phone AS lead_phone',
     'l.email AS lead_email',
+    'l.cpf_cnpj AS lead_cpf',
     'l.cidade AS lead_city',
     'l.source AS lead_source',
     'pv.stage AS stage'
@@ -708,10 +711,11 @@ $stmt = $pdo->prepare(
     FROM pos_venda pv
     LEFT JOIN projetos p ON pv.project_id = p.id
     LEFT JOIN leads l ON l.id = p.lead_id
+    WHERE pv.user_id = ?
     ORDER BY pv.installation_date DESC
 "
 );
-$stmt->execute([]);
+$stmt->execute([$_SESSION['user_id']]);
 $posVendas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $teamTasksAvailable = false;
@@ -889,7 +893,11 @@ $total = count($posVendas);
 $conversaoRecorrencia = $total > 0 ? round(($assinantesAtivos / $total) * 100) : 0;
 
 // Fetch all eligible projects for the "Add" modal select
-$projStmt = $pdo->prepare("SELECT id, client_name, projeto FROM projetos WHERE user_id=? AND status IN ('Fechado','Finalizado','Homologado','Concluído','Concluido') ORDER BY client_name ASC");
+$projStmt = $pdo->prepare("SELECT p.id, p.client_name, p.projeto, p.address AS proj_address, l.phone AS lead_phone, l.email AS lead_email, l.cpf_cnpj AS lead_cpf
+    FROM projetos p
+    LEFT JOIN leads l ON l.id = p.lead_id
+    WHERE p.user_id=? AND p.status IN ('Fechado','Finalizado','Homologado','Concluído','Concluido')
+    ORDER BY p.client_name ASC");
 $projStmt->execute([$_SESSION['user_id']]);
 $projetosDisponiveis = $projStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1265,9 +1273,9 @@ include 'includes/header.php';
           <select class="form-select" id="pvProjectSelect">
             <option value="">— Selecione o projeto —</option>
             <?php foreach ($projetosDisponiveis as $prj): ?>
-                                                <option value="<?= $prj['id'] ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>">
-              <?= htmlspecialchars($prj['client_name']) ?>
-            </option>
+              <option value="<?= $prj['id'] ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>" data-phone="<?= htmlspecialchars((string)($prj['lead_phone'] ?? ''), ENT_QUOTES) ?>" data-email="<?= htmlspecialchars((string)($prj['lead_email'] ?? ''), ENT_QUOTES) ?>" data-cpf="<?= htmlspecialchars((string)($prj['lead_cpf'] ?? ''), ENT_QUOTES) ?>" data-address="<?= htmlspecialchars((string)($prj['proj_address'] ?? ''), ENT_QUOTES) ?>">
+                <?= htmlspecialchars($prj['client_name']) ?>
+              </option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -1883,7 +1891,7 @@ include 'includes/header.php';
                 card.dataset.pvId = pv.id;
                 const healthPct = Math.max(0, Math.min(100, Number(pv.performance_pct || 0)));
                 const postSaleStatus = getPostSaleStatusLabel(pv);
-                const phoneDigits = String(pv.lead_phone || '').replace(/\D/g, '');
+                const phoneDigits = String(pv.phone || pv.lead_phone || '').replace(/\D/g, '');
                 const waNum = phoneDigits.length >= 10 ? '55' + phoneDigits : '';
                 const healthSection = pv.performance_pct != null
                     ? `<div class="pv-health-head">
@@ -1918,7 +1926,7 @@ include 'includes/header.php';
                             <span class="k pv-kv-hide-compact">Plano</span>
                             <span class="v pv-kv-hide-compact">${escapeHtml(getPlanLabel(pv))}</span>
                             <span class="k pv-kv-hide-compact">Telefone</span>
-                            <span class="v pv-kv-hide-compact">${phoneDigits ? `<a href="tel:${phoneDigits}" style="color:inherit;text-decoration:none;">${escapeHtml(formatPhoneBR(pv.lead_phone))}</a>` : '\u2014'}</span>
+                            <span class="v pv-kv-hide-compact">${phoneDigits ? `<a href="tel:${phoneDigits}" style="color:inherit;text-decoration:none;">${escapeHtml(formatPhoneBR(pv.phone || pv.lead_phone))}</a>` : '\u2014'}</span>
                             <span class="k pv-kv-hide-compact">Instala\u00e7\u00e3o</span>
                             <span class="v pv-kv-hide-compact">${escapeHtml(formatDateBR(pv.installation_date))}</span>
                         </div>
@@ -2039,14 +2047,15 @@ include 'includes/header.php';
             ['Fechamento', formatDateBR(details.closed_date || pv.closed_date)],
             ['Criado em', formatDateTimeBR(details.proj_created_at)],
             ['Atualizado em', formatDateTimeBR(details.proj_updated_at)],
-            ['Endereço', details.address || pv.address || '—'],
+            ['Endereço', details.proj_address || pv.proj_address || pv.address || '—'],
         ];
 
         const leadRows = [
             ['Lead ID', details.lead_id || details.lead_id_join || pv.lead_id || '—'],
             ['Nome', details.lead_name || pv.lead_name || pv.client_name || '—'],
-            ['Telefone', formatPhoneBR(details.lead_phone || pv.lead_phone || '')],
-            ['E-mail', details.lead_email || pv.lead_email || '—'],
+            ['Telefone', formatPhoneBR(details.lead_phone || pv.lead_phone || details.phone || pv.phone || '')],
+            ['E-mail', details.lead_email || pv.lead_email || details.email || pv.email || '—'],
+            ['CPF', details.lead_cpf || pv.lead_cpf || pv.cpf || '—'],
             ['Cidade', details.lead_city || pv.lead_city || '—'],
             ['Origem', details.lead_source || pv.lead_source || '—'],
             ['Criado em', formatDateTimeBR(details.lead_created_at)],
@@ -2054,9 +2063,10 @@ include 'includes/header.php';
 
         const postSaleRows = [
             ['Valor do Plano', formatCurrencyBRL(details.plan_value ?? pv.plan_value ?? 0)],
-            ['Telefone', details.phone || pv.phone || '—'],
-            ['E-mail', details.email || pv.email || '—'],
-            ['Endereço', details.address || pv.address || '—'],
+            ['CPF', details.cpf || pv.cpf || details.lead_cpf || pv.lead_cpf || '—'],
+            ['Telefone', details.phone || pv.phone || details.lead_phone || pv.lead_phone || '—'],
+            ['E-mail', details.email || pv.email || details.lead_email || pv.lead_email || '—'],
+            ['Endereço', details.proj_address || details.address || pv.address || pv.proj_address || '—'],
             ['Equipamento', details.equipment || pv.equipment || '—'],
             ['Estágio', details.stage || pv.stage || 'Sem estágio'],
             ['Status', details.client_status || pv.client_status || 'Assinante'],
@@ -2250,11 +2260,11 @@ include 'includes/header.php';
         $('pvId').value = pv.id || '';
         $('pvProjectId').value = pv.project_id || '';
         $('pvClientName').value = pv.client_name || '';
-        $('pvCpf').value = pv.cpf || '';
+        $('pvCpf').value = pv.cpf || pv.lead_cpf || '';
         $('pvBirthDate').value = pv.birth_date || '';
-        $('pvPhone').value = pv.phone || '';
-        $('pvEmail').value = pv.email || '';
-        $('pvAddress').value = pv.address || '';
+        $('pvPhone').value = pv.phone || pv.lead_phone || '';
+        $('pvEmail').value = pv.email || pv.lead_email || '';
+        $('pvAddress').value = pv.address || pv.proj_address || '';
         $('pvInstDate').value = pv.installation_date || '';
         $('pvNextMaint').value = pv.next_maintenance || '';
         $('pvLastCheckup').value = pv.last_checkup || '';
@@ -2745,6 +2755,18 @@ include 'includes/header.php';
         $('pvProjectId').value = opt?.value || '';
         $('pvClientName').value = opt?.dataset?.name || '';
         $('pvProjectKwh').value = opt?.dataset?.kwh || '';
+        if (!$('pvCpf').value && opt?.dataset?.cpf) {
+            $('pvCpf').value = opt.dataset.cpf;
+        }
+        if (!$('pvPhone').value && opt?.dataset?.phone) {
+            $('pvPhone').value = opt.dataset.phone;
+        }
+        if (!$('pvEmail').value && opt?.dataset?.email) {
+            $('pvEmail').value = opt.dataset.email;
+        }
+        if (!$('pvAddress').value && opt?.dataset?.address) {
+            $('pvAddress').value = opt.dataset.address;
+        }
     });
 
     $('pvProposalValue').addEventListener('input', (event) => {
