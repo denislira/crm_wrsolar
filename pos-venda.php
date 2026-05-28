@@ -483,10 +483,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              FROM pos_venda pv
              LEFT JOIN projetos p ON p.id = pv.project_id
              LEFT JOIN leads l ON l.id = p.lead_id
-             WHERE pv.id = ? AND pv.user_id = ?
+             WHERE pv.id = ?
              LIMIT 1"
         );
-        $stmt->execute([$pvId, $_SESSION['user_id']]);
+        $stmt->execute([$pvId]);
         $details = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$details) {
@@ -711,11 +711,10 @@ $stmt = $pdo->prepare(
     FROM pos_venda pv
     LEFT JOIN projetos p ON pv.project_id = p.id
     LEFT JOIN leads l ON l.id = p.lead_id
-    WHERE pv.user_id = ?
     ORDER BY pv.installation_date DESC
 "
 );
-$stmt->execute([$_SESSION['user_id']]);
+$stmt->execute([]);
 $posVendas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $teamTasksAvailable = false;
@@ -1534,6 +1533,7 @@ include 'includes/header.php';
         return bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     };
     const posVendas = <?= json_encode($posVendas, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
+    const APP_ROOT = '<?= rtrim(dirname($_SERVER['PHP_SELF']), '/\\') ?: '' ?>';
     let posVendaStages = [];
     let posVendaClientTypes = [];
     let posVendaAccessStatuses = [];
@@ -1631,7 +1631,7 @@ include 'includes/header.php';
     }
 
     async function fetchPosVendaStages(){
-        const res = await fetch('includes/pos_venda_stages_api.php?action=list&global=1');
+        const res = await fetch(`${APP_ROOT}/includes/pos_venda_stages_api.php?action=list&global=1`);
         if (!res.ok) return [];
         const data = await res.json();
         posVendaStages = Array.isArray(data) ? data : [];

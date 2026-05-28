@@ -4,8 +4,11 @@
 
     const APP_ROOT = (() => {
         const script = document.currentScript;
-        if (!script || !script.src) return '';
-        return script.src.replace(/\/assets\/js\/sla_check\.js(?:\?.*)?$/, '');
+        if (script && script.src) {
+            return script.src.replace(/\/assets\/js\/sla_check\.js(?:\?.*)?$/, '');
+        }
+        const path = window.location.pathname.replace(/\/[^/]*$/, '');
+        return path === '/' ? '' : path;
     })();
 
     async function fetchRenewalTargetStage(){
