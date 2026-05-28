@@ -148,8 +148,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $existingPv = null;
         if ($id) {
-            $existingStmt = $pdo->prepare('SELECT * FROM pos_venda WHERE id=? AND user_id=? LIMIT 1');
-            $existingStmt->execute([$id, $_SESSION['user_id']]);
+            $existingStmt = $pdo->prepare('SELECT * FROM pos_venda WHERE id=? LIMIT 1');
+            $existingStmt->execute([$id]);
             $existingPv = $existingStmt->fetch(PDO::FETCH_ASSOC) ?: null;
         }
 
@@ -162,14 +162,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // update projetos.client_status
         if ($projId && $hasClientStatus) {
-            $pdo->prepare('UPDATE projetos SET client_status=?, updated_at=NOW() WHERE id=? AND user_id=?')
-                ->execute([$clientStatus, $projId, $_SESSION['user_id']]);
+            $pdo->prepare('UPDATE projetos SET client_status=?, updated_at=NOW() WHERE id=?')
+                ->execute([$clientStatus, $projId]);
         }
 
         if ($projId) {
             $projectKwh = $projectKwhRaw !== '' ? str_replace(',', '.', $projectKwhRaw) : null;
-            $pdo->prepare('UPDATE projetos SET projeto=?, updated_at=NOW() WHERE id=? AND user_id=?')
-                ->execute([$projectKwh, $projId, $_SESSION['user_id']]);
+            $pdo->prepare('UPDATE projetos SET projeto=?, updated_at=NOW() WHERE id=?')
+                ->execute([$projectKwh, $projId]);
         }
 
         if ($projId) {
@@ -193,8 +193,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // upsert pos_venda by project_id only when a project is linked
         $exId = 0;
         if ($projId) {
-            $ex = $pdo->prepare('SELECT id FROM pos_venda WHERE project_id=? AND user_id=? LIMIT 1');
-            $ex->execute([$projId, $_SESSION['user_id']]);
+            $ex = $pdo->prepare('SELECT id FROM pos_venda WHERE project_id=? LIMIT 1');
+            $ex->execute([$projId]);
             $exId = $ex->fetchColumn();
         }
 
@@ -236,8 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $updateParams[] = $projId ?: null;
             $updateFields[] = 'updated_at=NOW()';
             $updateParams[] = $id;
-            $updateParams[] = $_SESSION['user_id'];
-            $pdo->prepare('UPDATE pos_venda SET ' . implode(',', $updateFields) . ' WHERE id=? AND user_id=?')
+            $pdo->prepare('UPDATE pos_venda SET ' . implode(',', $updateFields) . ' WHERE id=?')
                ->execute($updateParams);
 
             if ($existingPv) {
@@ -349,10 +348,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        $deleteStmt = $pdo->prepare('DELETE FROM pos_venda WHERE id = ? AND user_id = ?');
-        $deleteStmt->execute([$id, $_SESSION['user_id']]);
+        $deleteStmt = $pdo->prepare('DELETE FROM pos_venda WHERE id = ?');
+        $deleteStmt->execute([$id]);
         if ($deleteStmt->rowCount() === 0) {
-            echo json_encode(['success' => false, 'message' => 'Registro não encontrado ou sem permissão.']);
+            echo json_encode(['success' => false, 'message' => 'Registro não encontrado.']);
             exit;
         }
 
@@ -368,12 +367,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        $prevStmt = $pdo->prepare('SELECT next_maintenance FROM pos_venda WHERE id=? AND user_id=? LIMIT 1');
-        $prevStmt->execute([$pvId, $_SESSION['user_id']]);
+        $prevStmt = $pdo->prepare('SELECT next_maintenance FROM pos_venda WHERE id=? LIMIT 1');
+        $prevStmt->execute([$pvId]);
         $prevNext = $prevStmt->fetchColumn();
 
-        $pdo->prepare('UPDATE pos_venda SET next_maintenance=?, updated_at=NOW() WHERE id=? AND user_id=?')
-            ->execute([$date, $pvId, $_SESSION['user_id']]);
+        $pdo->prepare('UPDATE pos_venda SET next_maintenance=?, updated_at=NOW() WHERE id=?')
+            ->execute([$date, $pvId]);
 
         log_pos_venda_movement(
             $pdo,
@@ -397,12 +396,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['success'=>false,'message'=>'ID inválido']);
             exit;
         }
-        $prevStmt = $pdo->prepare('SELECT stage, project_id FROM pos_venda WHERE id=? AND user_id=? LIMIT 1');
-        $prevStmt->execute([$pvId, $_SESSION['user_id']]);
+        $prevStmt = $pdo->prepare('SELECT stage, project_id FROM pos_venda WHERE id=? LIMIT 1');
+        $prevStmt->execute([$pvId]);
         $prevRow = $prevStmt->fetch(PDO::FETCH_ASSOC);
 
-        $pdo->prepare('UPDATE pos_venda SET stage=?, updated_at=NOW() WHERE id=? AND user_id=?')
-            ->execute([$stage ?: null, $pvId, $_SESSION['user_id']]);
+        $pdo->prepare('UPDATE pos_venda SET stage=?, updated_at=NOW() WHERE id=?')
+            ->execute([$stage ?: null, $pvId]);
 
         log_pos_venda_movement(
             $pdo,
@@ -426,8 +425,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $pvId  = intval($_POST['pv_id'] ?? 0);
         $token = bin2hex(random_bytes(16));
-        $pdo->prepare('UPDATE pos_venda SET referral_token=? WHERE id=? AND user_id=?')
-           ->execute([$token, $pvId, $_SESSION['user_id']]);
+        $pdo->prepare('UPDATE pos_venda SET referral_token=? WHERE id=?')
+           ->execute([$token, $pvId]);
         $base = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS']==='on' ? 'https' : 'http').'://'.$_SERVER['HTTP_HOST'].rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
         echo json_encode(['success'=>true,'link'=>$base.'/indicacao.php?token='.$token,'token'=>$token]);
         exit;
@@ -767,14 +766,14 @@ foreach ($posVendas as &$pv) {
     }
 
     if ($shouldStatus && $pv['client_status'] !== $shouldStatus) {
-        $pdo->prepare('UPDATE projetos SET client_status=?, updated_at=NOW() WHERE id=? AND user_id=?')
-            ->execute([$shouldStatus, $pv['proj_id'], $_SESSION['user_id']]);
+        $pdo->prepare('UPDATE projetos SET client_status=?, updated_at=NOW() WHERE id=?')
+            ->execute([$shouldStatus, $pv['proj_id']]);
         $pv['client_status'] = $shouldStatus;
 
         if ($shouldStatus === 'Ex-Cliente' && !is_null($pv['performance_pct'])) {
             // Inactive clients lose access to performance reporting data.
-            $pdo->prepare('UPDATE pos_venda SET performance_pct=NULL, updated_at=NOW() WHERE id=? AND user_id=?')
-                ->execute([$pv['id'], $_SESSION['user_id']]);
+            $pdo->prepare('UPDATE pos_venda SET performance_pct=NULL, updated_at=NOW() WHERE id=?')
+                ->execute([$pv['id']]);
             $pv['performance_pct'] = null;
         }
     }
