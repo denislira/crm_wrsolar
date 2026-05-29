@@ -151,6 +151,7 @@ body.theme-dark .integration-card,
 body.theme-dark .reminder-card-modern,
 body.theme-dark .evento-card-modern,
 body.theme-dark .section-left-border,
+body.theme-dark .card-body,
 body.theme-dark .bg-light,
 body.theme-dark .bg-white,
 body.theme-dark .list-group.position-absolute.bg-white {
@@ -159,9 +160,26 @@ body.theme-dark .list-group.position-absolute.bg-white {
     border-color: rgba(255,255,255,0.08) !important;
     box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
 }
+body.theme-dark .card-body .bg-light,
+body.theme-dark .card-body .bg-white,
+body.theme-dark .card-body .rounded-3.p-3.mb-3,
 body.theme-dark .card-header.bg-white,
 body.theme-dark .card-header.bg-light,
 body.theme-dark .modal-header.bg-light {
+    background: rgba(255,255,255,0.04) !important;
+    border-color: rgba(255,255,255,0.08) !important;
+}
+body.theme-dark .card-body {
+    background: rgba(255,255,255,0.03) !important;
+}
+body.theme-dark .card-body .btn.btn-sm,
+body.theme-dark .card-body .form-select,
+body.theme-dark .card-body .form-control {
+    background: rgba(255,255,255,0.06) !important;
+    color: #e6eef8 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+body.theme-dark .integration-filters-panel {
     background: rgba(255,255,255,0.04) !important;
     border-color: rgba(255,255,255,0.08) !important;
 }
@@ -300,7 +318,7 @@ body.theme-dark .status-Concluida {
                         </div>
                         <div class="card-body px-4 py-3">
                             <!-- Filtros Modernos e Compactos -->
-                            <div class="bg-light rounded-3 p-3 mb-3" style="background: #f8fafc !important; border: 1px solid #e2e8f0;">
+                            <div class="integration-filters-panel bg-light rounded-3 p-3 mb-3 border" style="border-color: #e2e8f0;">
                                 <div class="row g-2 align-items-center">
                                     <!-- Linha 1: Filtros principais -->
                                     <div class="col-12 d-flex flex-wrap gap-2 align-items-center">

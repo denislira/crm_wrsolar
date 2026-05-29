@@ -274,6 +274,19 @@ body.theme-dark .btn-link {
   color: #e6eef8 !important;
 }
 
+body.theme-dark .btn-light {
+  background: rgba(255,255,255,0.08) !important;
+  border-color: rgba(255,255,255,0.12) !important;
+}
+
+body.theme-dark .btn-light:hover,
+body.theme-dark .btn-light:focus,
+body.theme-dark .btn-light.active,
+body.theme-dark .btn-light:active {
+  background: rgba(255,255,255,0.14) !important;
+  color: #e6eef8 !important;
+}
+
 body.theme-dark .btn-outline-secondary,
 body.theme-dark .btn-outline-primary,
 body.theme-dark .btn-outline-warning,

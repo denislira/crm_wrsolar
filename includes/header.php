@@ -12,11 +12,8 @@ include_once 'includes/permissions.php';
   <!-- Browser also requests /favicon.ico automatically; provide explicit fallback -->
   <link rel="shortcut icon" href="/favicon.ico">
   <link rel="stylesheet" href="assets/css/bootstrap.min.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <!-- Font Awesome (CDN) - integrity removed to avoid blocking if hash mismatches -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer" />
+  <link href="assets/css/inter.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/fontawesome.min.css" />
   <!-- Site theme (overrides and design system) -->
   <link rel="stylesheet" href="assets/css/theme.css">
   <link rel="stylesheet" href="assets/css/leads_gestao.css">

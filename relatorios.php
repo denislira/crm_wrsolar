@@ -1864,9 +1864,9 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(59,130
 </div>
 
 <!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="assets/js/chart.min.js"></script>
 <!-- html2pdf (bundles html2canvas + jsPDF) for accurate PDF export of the on-screen report -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+<script src="assets/js/html2pdf.bundle.min.js"></script>
 <script>
 // ── Source dropdown logic ──
 function toggleSourceDropdown() {
