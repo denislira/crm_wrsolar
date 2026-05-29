@@ -124,7 +124,7 @@ try {
 try {
     $leadId = null;
     $statusChanged = false;
-    $prevProjectStmt = $pdo->prepare('SELECT status, client_status, moved_to_post_sale FROM projetos WHERE id = ? LIMIT 1');
+    $prevProjectStmt = $pdo->prepare('SELECT status, client_status, moved_to_post_sale, user_id FROM projetos WHERE id = ? LIMIT 1');
     $prevProjectStmt->execute([$id]);
     $prevProject = $prevProjectStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
@@ -256,7 +256,8 @@ try {
 
     // Re-run stage-based post-sale automation after updates (including drag/drop status moves).
     // This keeps migration timing consistent without relying on a page reload.
-    runProjectPostSaleAutomation($pdo, (int) $_SESSION['user_id']);
+    $automationUserId = (int)($prevProject['user_id'] ?? $_SESSION['user_id']);
+    runProjectPostSaleAutomation($pdo, $automationUserId);
 
     echo json_encode(['success' => true, 'message' => 'Projeto atualizado com sucesso']);
 } catch (Exception $e) {

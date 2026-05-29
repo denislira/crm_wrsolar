@@ -5,6 +5,8 @@ require_once __DIR__ . '/movements.php';
 if (!function_exists('runProjectPostSaleAutomation')) {
     function runProjectPostSaleAutomation(PDO $pdo, int $userId): int
     {
+        $stageNameCol = 'name';
+
         try {
             $hasPosVenda = (bool) $pdo->query("SHOW TABLES LIKE 'pos_venda'")->fetchColumn();
             $hasProjetos = (bool) $pdo->query("SHOW TABLES LIKE 'projetos'")->fetchColumn();
@@ -22,6 +24,10 @@ if (!function_exists('runProjectPostSaleAutomation')) {
             $colCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projeto_stages'");
             $colCheck->execute();
             $existingCols = $colCheck->fetchAll(PDO::FETCH_COLUMN);
+
+            $stageNameCol = in_array('name', $existingCols, true)
+                ? 'name'
+                : (in_array('stage_name', $existingCols, true) ? 'stage_name' : 'name');
             
             $hasPostSaleEnabled = in_array('post_sale_enabled', $existingCols, true);
             $hasPostSaleTargetStage = in_array('post_sale_target_stage_id', $existingCols, true);
@@ -57,18 +63,27 @@ if (!function_exists('runProjectPostSaleAutomation')) {
         }
 
         $stmt = $pdo->prepare(
-                      'SELECT p.id, p.client_name, p.status, p.status_changed_at, p.closed_date, p.created_at, p.updated_at, p.due_days,
+                      "SELECT p.id, p.client_name, p.status, p.status_changed_at, p.closed_date, p.created_at, p.updated_at, p.due_days,
                           ps.post_sale_enabled,
                           ps.post_sale_target_stage_id,
                           pvst.name AS post_sale_target_stage_name
              FROM projetos p
-                  JOIN projeto_stages ps ON ps.user_id = p.user_id
-                              AND TRIM(ps.name) COLLATE utf8mb4_unicode_ci = TRIM(p.status) COLLATE utf8mb4_unicode_ci
-                  LEFT JOIN pos_venda_stages pvst ON pvst.user_id = p.user_id AND pvst.id = ps.post_sale_target_stage_id
+                  JOIN (
+                      SELECT
+                          TRIM({$stageNameCol}) COLLATE utf8mb4_unicode_ci AS stage_name,
+                          MAX(COALESCE(post_sale_enabled, 0)) AS post_sale_enabled,
+                          COALESCE(
+                              MAX(CASE WHEN COALESCE(post_sale_enabled, 0) = 1 THEN post_sale_target_stage_id END),
+                              MAX(post_sale_target_stage_id)
+                          ) AS post_sale_target_stage_id
+                      FROM projeto_stages
+                      GROUP BY TRIM({$stageNameCol}) COLLATE utf8mb4_unicode_ci
+                  ) ps ON ps.stage_name = TRIM(p.status) COLLATE utf8mb4_unicode_ci
+                  LEFT JOIN pos_venda_stages pvst ON pvst.id = ps.post_sale_target_stage_id
              LEFT JOIN pos_venda pv ON pv.project_id = p.id
              WHERE p.user_id = ?
                AND pv.id IS NULL
-               AND COALESCE(ps.post_sale_enabled, 0) = 1'
+               AND COALESCE(ps.post_sale_enabled, 0) = 1"
         );
         $stmt->execute([$userId]);
         $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
