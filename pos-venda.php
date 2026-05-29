@@ -74,6 +74,8 @@ $hasReferralToken  = in_array('referral_token',  $schema['pos_venda'], true);
 $hasPerformancePct = in_array('performance_pct', $schema['pos_venda'], true);
 $hasLastCheckup    = in_array('last_checkup',    $schema['pos_venda'], true);
 $hasClientType     = in_array('client_type',     $schema['pos_venda'], true);
+$hasKit            = in_array('kit',             $schema['pos_venda'], true);
+$hasMarca          = in_array('marca',           $schema['pos_venda'], true);
 $hasProjectStatusChangedAt = in_array('status_changed_at', $schema['projetos'], true);
 
 $missingSchemaMessage = '';
@@ -100,6 +102,16 @@ try {
     if (empty($c)) $pdo->exec("ALTER TABLE projetos ADD COLUMN client_status VARCHAR(50) DEFAULT 'Assinante'");
     $movedCol = $pdo->query("SHOW COLUMNS FROM projetos LIKE 'moved_to_post_sale'")->fetchAll();
     if (empty($movedCol)) $pdo->exec("ALTER TABLE projetos ADD COLUMN moved_to_post_sale TINYINT(1) NOT NULL DEFAULT 0");
+    $kitCol = $pdo->query("SHOW COLUMNS FROM pos_venda LIKE 'kit'")->fetchAll();
+    if (empty($kitCol)) {
+        $pdo->exec("ALTER TABLE pos_venda ADD COLUMN kit VARCHAR(255) DEFAULT NULL");
+        $hasKit = true;
+    }
+    $marcaCol = $pdo->query("SHOW COLUMNS FROM pos_venda LIKE 'marca'")->fetchAll();
+    if (empty($marcaCol)) {
+        $pdo->exec("ALTER TABLE pos_venda ADD COLUMN marca VARCHAR(255) DEFAULT NULL");
+        $hasMarca = true;
+    }
 } catch (Exception $e) { /* ignore */ }
 
 // ── AJAX / POST handler ────────────────────────────────────
@@ -108,26 +120,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'save_pv') {
-        $id            = isset($_POST['id']) ? intval($_POST['id']) : 0;
-        $projId        = isset($_POST['project_id']) && trim((string)($_POST['project_id'] ?? '')) !== '' ? intval($_POST['project_id']) : 0;
-        $clientName    = trim($_POST['client_name'] ?? '');
-        $clientPhone   = trim($_POST['phone'] ?? '');
-        $clientEmail   = trim($_POST['email'] ?? '');
-        $clientAddress = trim($_POST['address'] ?? '');
-        $instDate      = $_POST['installation_date']     ?: null;
-        $nextMaint     = $_POST['next_maintenance']      ?: null;
-        $projectKwhRaw = trim((string)($_POST['project_kwh'] ?? ''));
-        $equipment     = trim((string)($_POST['equipment'] ?? ''));
-        $planValueRaw  = trim((string)($_POST['plan_value'] ?? ''));
-        $warrantyMonths= isset($_POST['warranty_months']) && trim($_POST['warranty_months']) !== '' ? max(1, intval($_POST['warranty_months'])) : 12;
-        $notes         = trim($_POST['notes']            ?? '');
-        $perf          = (isset($_POST['performance_pct']) && $_POST['performance_pct'] !== '') ? floatval($_POST['performance_pct']) : null;
-        $clientType    = trim($_POST['client_type']      ?? 'Degustação');
-        $lastCheckup   = $_POST['last_checkup']          ?: null;
-        $stage         = trim($_POST['stage']            ?? '');
-        $clientStatus  = trim($_POST['client_status']    ?? '');
-        if ($clientType === '') $clientType = 'Degustação';
-        if ($clientStatus === '') $clientStatus = 'Assinante';
+        try {
+            $id            = isset($_POST['id']) ? intval($_POST['id']) : 0;
+            $projId        = isset($_POST['project_id']) && trim((string)($_POST['project_id'] ?? '')) !== '' ? intval($_POST['project_id']) : 0;
+            $clientName    = trim($_POST['client_name'] ?? '');
+            $clientPhone   = trim($_POST['phone'] ?? '');
+            $clientEmail   = trim($_POST['email'] ?? '');
+            $clientAddress = trim($_POST['address'] ?? '');
+            $cpf           = trim((string)($_POST['cpf'] ?? ''));
+            $birthDate     = $_POST['birth_date'] ?: null;
+            $instDate      = $_POST['installation_date']     ?: null;
+            $nextMaint     = $_POST['next_maintenance']      ?: null;
+            $projectKwhRaw = trim((string)($_POST['project_kwh'] ?? ''));
+            $equipment     = trim((string)($_POST['equipment'] ?? ''));
+            $planValueRaw  = trim((string)($_POST['plan_value'] ?? ''));
+            $warrantyMonths= isset($_POST['warranty_months']) && trim($_POST['warranty_months']) !== '' ? max(1, intval($_POST['warranty_months'])) : 12;
+            $notes         = trim($_POST['notes']            ?? '');
+            $perf          = (isset($_POST['performance_pct']) && $_POST['performance_pct'] !== '') ? floatval($_POST['performance_pct']) : null;
+            $kit           = trim($_POST['kit']              ?? '');
+            $marca         = trim($_POST['marca']            ?? '');
+            $clientType    = trim($_POST['client_type']      ?? 'Degustação');
+            $lastCheckup   = $_POST['last_checkup']          ?: null;
+            $stage         = trim($_POST['stage']            ?? '');
+            $clientStatus  = trim($_POST['client_status']    ?? '');
+            if ($clientType === '') $clientType = 'Degustação';
+            if ($clientStatus === '') $clientStatus = 'Assinante';
 
         $planValue = null;
         if ($planValueRaw !== '') {
@@ -224,6 +241,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updateFields[] = 'last_checkup=?';
                 $updateParams[] = $lastCheckup;
             }
+            if ($hasKit) {
+                $updateFields[] = 'kit=?';
+                $updateParams[] = ($kit !== '' ? $kit : null);
+            }
+            if ($hasMarca) {
+                $updateFields[] = 'marca=?';
+                $updateParams[] = ($marca !== '' ? $marca : null);
+            }
             $updateFields[] = 'stage=?';
             $updateParams[] = $stage ?: null;
             $updateFields[] = 'warranty_months=?';
@@ -272,6 +297,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'equipment' => ($equipment !== '' ? $equipment : null),
                     'project_id' => $projId ?: null,
                 ];
+                if ($hasKit) {
+                    $fieldsToCheck['kit'] = ($kit !== '' ? $kit : null);
+                }
+                if ($hasMarca) {
+                    $fieldsToCheck['marca'] = ($marca !== '' ? $marca : null);
+                }
                 foreach ($fieldsToCheck as $field => $value) {
                     if (($existingPv[$field] ?? null) != $value && $field !== 'stage') {
                         $pvChangedFields[] = $field;
@@ -307,6 +338,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($hasLastCheckup) {
                 $cols[] = 'last_checkup'; $holders[] = '?'; $params[] = $lastCheckup;
             }
+            if ($hasKit) {
+                $cols[] = 'kit'; $holders[] = '?'; $params[] = ($kit !== '' ? $kit : null);
+            }
+            if ($hasMarca) {
+                $cols[] = 'marca'; $holders[] = '?'; $params[] = ($marca !== '' ? $marca : null);
+            }
             $cols[] = 'stage'; $holders[] = '?'; $params[] = $stage ?: null;
             $cols[] = 'warranty_months'; $holders[] = '?'; $params[] = $warrantyMonths;
             $cols[] = 'plan_value'; $holders[] = '?'; $params[] = $planValue;
@@ -328,7 +365,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'Registro de pós-venda criado.'
             );
         }
-        echo json_encode(['success'=>true]); exit;
+            echo json_encode(['success'=>true]); exit;
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Erro ao salvar pós-venda: ' . $e->getMessage()]);
+            exit;
+        }
     }
 
     if ($action === 'delete_pv') {
