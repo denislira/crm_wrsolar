@@ -902,8 +902,6 @@
                 wrap.appendChild(ssWrap);
             } catch(e){ console.warn('failed creating Sem Status column', e); }
         }
-        const loading = document.getElementById('kanbanLoading'); if (loading) loading.remove();
-        
         // Set up top scrollbar synchronization
         syncTopScrollbar();
     }
@@ -2595,12 +2593,9 @@
                 const idx = order.indexOf(cur);
                 const next = order[(idx + 1) % order.length];
 
-                showPreloader('Carregando visualização...');
                 setViewMode(next);
                 await nextPaint();
                 renderAll();
-                await nextPaint();
-                hidePreloader();
             });
         }
         const closeBtn = $('#closeLeadPanel');

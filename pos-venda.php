@@ -1778,7 +1778,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
 </div>
 
 <!-- Preloading overlay: PDF history -->
-<div id="pvHistoryOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,.65); z-index:9999; align-items:center; justify-content:center; flex-direction:column;">
+<div id="pvHistoryOverlay" style="display:none; position:fixed; top:48px; left:var(--sidebar-w); width:calc(100% - var(--sidebar-w)); height:calc(100vh - 48px); background:rgba(15,23,42,0.92); z-index:1025; align-items:center; justify-content:center; flex-direction:column;">
   <div style="background:#fff; border-radius:16px; padding:2rem 2.5rem; text-align:center; max-width:340px;">
     <div style="font-size:2rem; margin-bottom:.5rem;">📄</div>
     <div style="font-weight:700; font-size:1rem; margin-bottom:.25rem;">Gerando histórico PDF…</div>

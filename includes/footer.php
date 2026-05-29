@@ -9,8 +9,13 @@
       document.querySelectorAll('.app-sidebar a.nav-link').forEach(link => {
         link.addEventListener('click', function(e) {
           const href = this.getAttribute('href');
-          // Don't show for logout or external links or same page
-          if (href && href !== '#' && !href.startsWith('javascript:') && href !== window.location.pathname) {
+          if (!href || href === '#' || href.startsWith('javascript:')) return;
+          try {
+            const targetPath = new URL(href, window.location.href).pathname;
+            if (targetPath !== window.location.pathname) {
+              overlay.classList.add('active');
+            }
+          } catch (err) {
             overlay.classList.add('active');
           }
         });

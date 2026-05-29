@@ -105,6 +105,18 @@ include_once 'includes/permissions.php';
   </style>
 </head>
 <body>
+  <script>
+    (function(){
+      try {
+        var collapsed = localStorage.getItem('sidebar.collapsed');
+        if (collapsed === '1') {
+          document.body.classList.add('sidebar-collapsed');
+        }
+      } catch (e) {
+        // ignore storage access errors
+      }
+    })();
+  </script>
   <?php if (empty($noNavbar)): ?>
   <nav class="navbar navbar-light bg-white">
     <div class="container-fluid d-flex align-items-center">
@@ -165,8 +177,8 @@ include_once 'includes/permissions.php';
       left: var(--sidebar-w, 220px); /* start after the sidebar */
       width: calc(100% - var(--sidebar-w, 220px));
       height: calc(100vh - 48px);
-      background: var(--muted-bg); /* match main content background (cinza fosco) */
-      z-index: 1020; /* below sidebar (1030) and navbar (1040) */
+      background: rgba(233,238,245,0.96); /* less transparent background */
+      z-index: 1025; /* above page content, below sidebar/navbar */
       display: none;
       align-items: center;
       justify-content: center;
@@ -179,8 +191,8 @@ include_once 'includes/permissions.php';
     }
     /* When the sidebar is collapsed we persist a smaller left offset */
     body.sidebar-collapsed .page-loading-overlay {
-      left: 60px;
-      width: calc(100% - 60px);
+      left: var(--sidebar-collapsed-w);
+      width: calc(100% - var(--sidebar-collapsed-w));
     }
     /* When sidebar is collapsed move navbar accordingly */
     body.sidebar-collapsed .navbar { left: var(--sidebar-collapsed-w); width: calc(100% - var(--sidebar-collapsed-w)); }
@@ -229,6 +241,46 @@ include_once 'includes/permissions.php';
       min-width: 60px; 
       max-width: 60px; 
       flex: 0 0 60px; 
+    }
+
+    body.sidebar-collapsed .app-sidebar {
+      width: var(--sidebar-collapsed-w) !important;
+      min-width: var(--sidebar-collapsed-w) !important;
+      max-width: var(--sidebar-collapsed-w) !important;
+      flex: 0 0 var(--sidebar-collapsed-w) !important;
+    }
+
+    body.sidebar-collapsed .app-sidebar .nav-link {
+      justify-content: center;
+      padding: 0.75rem 0;
+      margin: 0.25rem 0;
+      margin-left: -0.5rem;
+      margin-right: -0.5rem;
+      width: calc(100% + 1rem);
+      transform: none;
+      border-radius: 0;
+    }
+
+    body.sidebar-collapsed .app-sidebar .nav-link:hover,
+    body.sidebar-collapsed .app-sidebar .nav-link.active {
+      border-radius: 0;
+    }
+
+    body.sidebar-collapsed .app-sidebar .nav-link .icon {
+      justify-content: center;
+    }
+
+    body.sidebar-collapsed .app-sidebar .nav-link .label {
+      opacity: 0;
+      visibility: hidden;
+      width: 0;
+      margin: 0;
+      padding: 0;
+      display: none !important;
+    }
+
+    body.sidebar-collapsed .app-sidebar .nav-link:hover::after {
+      opacity: 1;
     }
     
     .sidebar-content {

@@ -94,7 +94,32 @@ include 'includes/header.php';
                 <div id="topScrollbarContent"></div>
             </div>
             <div id="kanbanWrap" class="kanban-wrap">
-                <div id="kanbanLoading" class="p-4 text-muted">Carregando etapas do funil...</div>
+                <div class="kanban-skeleton" aria-hidden="true">
+                    <div class="kanban-skeleton-column">
+                        <div class="kanban-skeleton-header shimmer"></div>
+                        <div class="kanban-skeleton-card shimmer"></div>
+                        <div class="kanban-skeleton-card shimmer"></div>
+                        <div class="kanban-skeleton-card shimmer short"></div>
+                    </div>
+                    <div class="kanban-skeleton-column">
+                        <div class="kanban-skeleton-header shimmer"></div>
+                        <div class="kanban-skeleton-card shimmer"></div>
+                        <div class="kanban-skeleton-card shimmer short"></div>
+                        <div class="kanban-skeleton-card shimmer"></div>
+                    </div>
+                    <div class="kanban-skeleton-column">
+                        <div class="kanban-skeleton-header shimmer"></div>
+                        <div class="kanban-skeleton-card shimmer"></div>
+                        <div class="kanban-skeleton-card shimmer"></div>
+                        <div class="kanban-skeleton-card shimmer short"></div>
+                    </div>
+                    <div class="kanban-skeleton-column">
+                        <div class="kanban-skeleton-header shimmer"></div>
+                        <div class="kanban-skeleton-card shimmer short"></div>
+                        <div class="kanban-skeleton-card shimmer"></div>
+                        <div class="kanban-skeleton-card shimmer"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- Fixed hidden column for Anúncios removed (floating panel not needed) -->
@@ -122,7 +147,6 @@ include 'includes/header.php';
 
             <!-- Lista / Grade alternativa -->
             <div id="listWrap" class="list-wrap d-none p-2">
-                <div id="listLoading" class="p-4 text-muted d-none">Carregando lista...</div>
                 <div id="leadsTableContainer"></div>
             </div>
 

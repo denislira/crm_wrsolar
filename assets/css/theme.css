@@ -428,7 +428,7 @@ body.theme-dark .sidebar-footer {
 }
 
 body.theme-dark .page-loading-overlay { 
-  background: rgba(7,10,16,0.8) !important; 
+  background: rgba(7,10,16,0.94) !important; 
 }
 
 body.theme-dark .text-dark,

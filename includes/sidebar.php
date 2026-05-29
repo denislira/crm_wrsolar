@@ -31,8 +31,10 @@ $current = basename($_SERVER['PHP_SELF']);
 .app-sidebar.collapsed .nav-link { padding-left: 0.5rem; padding-right: 0.5rem; }
 /* collapsed logo handling */
 .brand-logo-collapsed { height:32px; width:32px; object-fit:contain; display:none; }
-.app-sidebar.collapsed .brand .normal-logo { display: none !important; }
-.app-sidebar.collapsed .brand .brand-logo-collapsed { display: block !important; }
+.app-sidebar.collapsed .brand .normal-logo,
+body.sidebar-collapsed .brand .normal-logo { display: none !important; }
+.app-sidebar.collapsed .brand .brand-logo-collapsed,
+body.sidebar-collapsed .brand .brand-logo-collapsed { display: block !important; }
 </style>
 
 <aside class="app-sidebar d-flex flex-column">
