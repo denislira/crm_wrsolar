@@ -211,6 +211,38 @@ include 'includes/sidebar.php';
 .consultant-row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid #f8fafc; }
 .consultant-row:last-child { border-bottom:none; }
 .consultant-avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#3b82f6,#8b5cf6); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.8rem; flex-shrink:0; }
+
+body.theme-dark .dash-kpi,
+body.theme-dark .dash-card {
+    background: rgba(255,255,255,0.04) !important;
+    color: #e6eef8 !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+}
+body.theme-dark .dash-kpi .kpi-label,
+body.theme-dark .dash-kpi .kpi-delta,
+body.theme-dark .dash-card-title,
+body.theme-dark .funnel-mini-label,
+body.theme-dark .funnel-mini-count,
+body.theme-dark .alert-sla-item,
+body.theme-dark .consultant-row,
+body.theme-dark .badge-src,
+body.theme-dark .text-muted {
+    color: #c3d5ea !important;
+}
+body.theme-dark .dash-card-title i,
+body.theme-dark .badge-src {
+    color: #93c5fd !important;
+}
+body.theme-dark .funnel-mini-bar {
+    background: rgba(255,255,255,0.08) !important;
+}
+body.theme-dark .alert-sla-item {
+    border-bottom-color: rgba(255,255,255,0.08) !important;
+}
+body.theme-dark .consultant-row {
+    border-bottom-color: rgba(255,255,255,0.08) !important;
+}
 </style>
 
 <main class="flex-grow-1 p-4 main-content-scroll">

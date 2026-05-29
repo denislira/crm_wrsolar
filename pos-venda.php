@@ -1059,6 +1059,52 @@ include 'includes/header.php';
 .pv-kanban-compact .pv-health-head,
 .pv-kanban-compact .pv-progress-head { font-size:.72rem; }
 .pv-kanban-compact .pv-kv-hide-compact { display:none; }
+body.theme-dark .pv-kanban-col {
+    background: #071427 !important;
+    border-color: rgba(255,255,255,.06) !important;
+    box-shadow: 0 10px 28px rgba(0,0,0,.35) !important;
+}
+body.theme-dark .pv-kanban-col-header {
+    background: linear-gradient(90deg, #3b82f6 80%, #2563eb 100%) !important;
+    border-color: rgba(255,255,255,.08) !important;
+}
+body.theme-dark .pv-kanban-col-body {
+    background: #071427 !important;
+}
+body.theme-dark .pv-kanban-card {
+    background: #0f1724 !important;
+    border-color: rgba(255,255,255,.08) !important;
+    color: #e6eef8 !important;
+}
+body.theme-dark .pv-kanban-card:hover {
+    box-shadow: 0 8px 22px rgba(0,0,0,.38) !important;
+}
+body.theme-dark .pv-kanban-empty {
+    background: #071427 !important;
+    border-color: rgba(255,255,255,.08) !important;
+    color: #c3d5ea !important;
+}
+body.theme-dark .pv-card-header-strip,
+body.theme-dark .pv-card-body-inner,
+body.theme-dark .pv-card-footer {
+    background: transparent !important;
+    border-color: rgba(255,255,255,.06) !important;
+}
+body.theme-dark .pv-card-client-name,
+body.theme-dark .pv-card-kv .k,
+body.theme-dark .pv-card-kv .v,
+body.theme-dark .pv-kanban-meta,
+body.theme-dark .pv-meta-val,
+body.theme-dark .pv-meta-label,
+body.theme-dark .pv-health-head .label,
+body.theme-dark .pv-health-head .value,
+body.theme-dark .pv-progress-head {
+    color: #e6eef8 !important;
+}
+body.theme-dark .pv-progress-bar,
+body.theme-dark .pv-health-bar {
+    background: rgba(255,255,255,.08) !important;
+}
 #pvModal .form-control,
 #pvModal .form-select,
 #pvModal textarea {
@@ -1086,6 +1132,52 @@ include 'includes/header.php';
     max-height: calc(100vh - 220px);
     overflow-y: auto;
     padding-right: 1rem;
+}
+body.theme-dark #pvModal .modal-content,
+body.theme-dark #pvModal .modal-body,
+body.theme-dark #pvModal .modal-footer,
+body.theme-dark #pvModal .modal-header {
+    background: #0b172b !important;
+    color: #e6eef8 !important;
+    border-color: rgba(255,255,255,0.1) !important;
+}
+body.theme-dark #pvModal .modal-header {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+}
+body.theme-dark #pvModal .nav-pills .nav-link {
+    color: #cbd5e1 !important;
+}
+body.theme-dark #pvModal .nav-pills .nav-link.active {
+    background-color: rgba(59,130,246,0.9) !important;
+    color: #fff !important;
+}
+body.theme-dark #pvModal .form-control,
+body.theme-dark #pvModal .form-select,
+body.theme-dark #pvModal textarea {
+    background: rgba(255,255,255,0.05) !important;
+    color: #e6eef8 !important;
+    border-color: rgba(255,255,255,0.16) !important;
+}
+body.theme-dark #pvModal .form-control:focus,
+body.theme-dark #pvModal .form-select:focus,
+body.theme-dark #pvModal textarea:focus {
+    background: rgba(255,255,255,0.08) !important;
+    color: #e6eef8 !important;
+    border-color: rgba(59,130,246,0.6) !important;
+    box-shadow: 0 0 0 .2rem rgba(59,130,246,0.2) !important;
+}
+body.theme-dark #pvModal .btn-outline-secondary,
+body.theme-dark #pvModal .btn-outline-primary {
+    border-color: rgba(255,255,255,0.16) !important;
+    color: #e6eef8 !important;
+    background: transparent !important;
+}
+body.theme-dark #pvModal .btn-primary {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+}
+body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
+    background: #0c172a !important;
 }
 #pvModal .tab-pane .row.g-3 {
     gap: .85rem;

@@ -144,6 +144,51 @@ try {
 .status-Em\ andamento { background: linear-gradient(180deg, rgba(13,110,253,0.06), rgba(13,110,253,0.03)); border-color: rgba(13,110,253,0.12); }
 .status-Conclu\00edda, .status-Concluida { background: linear-gradient(180deg, rgba(59,181,115,0.06), rgba(59,181,115,0.03)); border-color: rgba(59,181,115,0.12); }
 
+body.theme-dark .card.card-shadow,
+body.theme-dark .form-card-modern,
+body.theme-dark .modal-content,
+body.theme-dark .integration-card,
+body.theme-dark .reminder-card-modern,
+body.theme-dark .evento-card-modern,
+body.theme-dark .section-left-border,
+body.theme-dark .bg-light,
+body.theme-dark .bg-white,
+body.theme-dark .list-group.position-absolute.bg-white {
+    background: rgba(255,255,255,0.04) !important;
+    color: #e6eef8 !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+}
+body.theme-dark .card-header.bg-white,
+body.theme-dark .card-header.bg-light,
+body.theme-dark .modal-header.bg-light {
+    background: rgba(255,255,255,0.04) !important;
+    border-color: rgba(255,255,255,0.08) !important;
+}
+body.theme-dark .integration-task-item {
+    background: rgba(255,255,255,0.03) !important;
+    border-color: rgba(255,255,255,0.08) !important;
+}
+body.theme-dark .integration-task-item .task-title,
+body.theme-dark .integration-task-item .task-meta,
+body.theme-dark .fw-semibold,
+body.theme-dark .small.text-muted,
+body.theme-dark .text-muted,
+body.theme-dark h5,
+body.theme-dark h6 {
+    color: #e6eef8 !important;
+}
+body.theme-dark .integration-avatar-fallback {
+    background: rgba(255,255,255,0.08) !important;
+    color: #fff !important;
+}
+body.theme-dark .status-Pendente,
+body.theme-dark .status-Em\ andamento,
+body.theme-dark .status-Conclu\00edda,
+body.theme-dark .status-Concluida {
+    border-color: rgba(255,255,255,0.08) !important;
+}
+
 </style>
 
 <div class="d-flex">

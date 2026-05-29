@@ -163,13 +163,46 @@ body.theme-dark .modal-footer {
 }
 
 body.theme-dark .table thead th { 
-  color: var(--text-700) !important; 
+  color: #c3d5ea !important; 
   border-bottom: 1px solid rgba(255,255,255,0.06) !important; 
+  background: rgba(255,255,255,0.03) !important;
 }
 
-body.theme-dark .table tbody tr { 
+body.theme-dark .table tbody tr, 
+body.theme-dark .data-table tbody tr { 
   background: rgba(255,255,255,0.02) !important; 
-  color: var(--text-900) !important;
+  color: #e6eef8 !important;
+}
+
+body.theme-dark .table th,
+body.theme-dark .table td,
+body.theme-dark .data-table th,
+body.theme-dark .data-table td,
+body.theme-dark .table > :not(caption) > * > *,
+body.theme-dark .data-table > tbody > tr > * {
+  background: transparent !important;
+  color: #e6eef8 !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+body.theme-dark .table-hover > tbody > tr:hover > *,
+body.theme-dark .data-table tr:hover > * {
+  background: rgba(255,255,255,0.06) !important;
+}
+
+body.theme-dark .table tbody tr:hover,
+body.theme-dark .data-table tbody tr:hover {
+  background: rgba(255,255,255,0.06) !important;
+}
+
+body.theme-dark .table-striped > tbody > tr:nth-of-type(odd) > *,
+body.theme-dark .data-table tbody tr:nth-of-type(odd) > * {
+  background: rgba(255,255,255,0.03) !important;
+}
+
+body.theme-dark .table-striped tbody tr:nth-of-type(odd),
+body.theme-dark .data-table tbody tr:nth-of-type(odd) {
+  background: rgba(255,255,255,0.03) !important;
 }
 
 body.theme-dark .form-control, 
@@ -226,6 +259,140 @@ body.theme-dark .btn-primary {
   color: #fff !important; 
   box-shadow: 0 8px 20px rgba(3,10,18,0.5) !important; 
   border: none !important;
+}
+
+body.theme-dark .btn,
+body.theme-dark .btn-outline-secondary,
+body.theme-dark .btn-outline-primary,
+body.theme-dark .btn-outline-warning,
+body.theme-dark .btn-outline-danger,
+body.theme-dark .btn-outline-info,
+body.theme-dark .btn-outline-success,
+body.theme-dark .btn-secondary,
+body.theme-dark .btn-light,
+body.theme-dark .btn-link {
+  color: #e6eef8 !important;
+}
+
+body.theme-dark .btn-outline-secondary,
+body.theme-dark .btn-outline-primary,
+body.theme-dark .btn-outline-warning,
+body.theme-dark .btn-outline-danger,
+body.theme-dark .btn-outline-info,
+body.theme-dark .btn-outline-success {
+  background: transparent !important;
+  border-color: rgba(255,255,255,0.12) !important;
+}
+
+body.theme-dark .btn-outline-secondary:hover,
+body.theme-dark .btn-outline-primary:hover,
+body.theme-dark .btn-outline-warning:hover,
+body.theme-dark .btn-outline-danger:hover,
+body.theme-dark .btn-outline-info:hover,
+body.theme-dark .btn-outline-success:hover {
+  background: rgba(255,255,255,0.05) !important;
+}
+
+body.theme-dark .nav-tabs {
+  border-bottom-color: rgba(255,255,255,0.08) !important;
+}
+
+body.theme-dark .nav-tabs .nav-link,
+body.theme-dark .nav-pills .nav-link {
+  color: #c3d5ea !important;
+}
+
+body.theme-dark .nav-tabs .nav-link.active,
+body.theme-dark .nav-pills .nav-link.active {
+  background: rgba(255,255,255,0.08) !important;
+  color: #fff !important;
+  border-color: rgba(255,255,255,0.12) !important;
+}
+
+body.theme-dark .table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(255,255,255,0.03) !important;
+}
+
+body.theme-dark .table-hover tbody tr:hover {
+  background-color: rgba(255,255,255,0.05) !important;
+}
+
+body.theme-dark .table-responsive,
+body.theme-dark .card-shadow,
+body.theme-dark .accordion-item,
+body.theme-dark .list-group-item,
+body.theme-dark .alert {
+  color: #e6eef8 !important;
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+body.theme-dark .alert-primary,
+body.theme-dark .alert-secondary,
+body.theme-dark .alert-success,
+body.theme-dark .alert-info,
+body.theme-dark .alert-warning,
+body.theme-dark .alert-danger,
+body.theme-dark .alert-light,
+body.theme-dark .alert-dark {
+  background: rgba(255,255,255,0.06) !important;
+  border-color: rgba(255,255,255,0.12) !important;
+  color: #e6eef8 !important;
+}
+
+body.theme-dark .alert-primary { background: rgba(59,130,246,0.18) !important; }
+body.theme-dark .alert-secondary { background: rgba(148,163,184,0.15) !important; }
+body.theme-dark .alert-success { background: rgba(16,185,129,0.16) !important; }
+body.theme-dark .alert-info { background: rgba(56,189,248,0.16) !important; }
+body.theme-dark .alert-warning { background: rgba(245,158,11,0.16) !important; }
+body.theme-dark .alert-danger { background: rgba(239,68,68,0.16) !important; }
+body.theme-dark .alert-light { background: rgba(255,255,255,0.06) !important; color: #e6eef8 !important; }
+body.theme-dark .alert-dark { background: rgba(15,23,42,0.95) !important; }
+
+body.theme-dark .alert .btn-close {
+  filter: invert(1) brightness(1.15) !important;
+  opacity: 0.7 !important;
+}
+
+body.theme-dark .border,
+body.theme-dark .border-top,
+body.theme-dark .border-bottom,
+body.theme-dark .border-start,
+body.theme-dark .border-end {
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+body.theme-dark .kanban-column,
+body.theme-dark .board-column,
+body.theme-dark .pv-kanban-col,
+body.theme-dark .pv-kanban-col-body,
+body.theme-dark .pv-kanban-card,
+body.theme-dark .card-project,
+body.theme-dark .stage-card {
+  background: rgba(255,255,255,0.03) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+  color: #e6eef8 !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35) !important;
+}
+
+body.theme-dark .pv-kanban-col {
+  background: #071427 !important;
+}
+
+body.theme-dark .pv-kanban-col-header,
+body.theme-dark .pv-kanban-card:hover,
+body.theme-dark .pv-kanban-empty,
+body.theme-dark .board-column.drop-target {
+  background: rgba(255,255,255,0.05) !important;
+}
+
+body.theme-dark .card-project .card-body,
+body.theme-dark .pv-card-header-strip,
+body.theme-dark .pv-card-body-inner,
+body.theme-dark .pv-card-footer,
+body.theme-dark .board-column,
+body.theme-dark .pv-kanban-card {
+  background: rgba(255,255,255,0.03) !important;
 }
 
 body.theme-dark .app-sidebar .nav-link { 
@@ -313,6 +480,87 @@ body.theme-dark .reminder-title-modern { color: var(--text-700) !important; }
 body.theme-dark .bg-white {
   background: var(--surface) !important;
   color: var(--text-900) !important;
+}
+
+body.theme-dark .bg-light {
+  background: rgba(255,255,255,0.04) !important;
+  color: var(--text-900) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+body.theme-dark .card-header.bg-white,
+body.theme-dark .card-header.bg-light {
+  background: rgba(255,255,255,0.04) !important;
+  color: var(--text-900) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+body.theme-dark .report-card,
+body.theme-dark .insight-card,
+body.theme-dark .integration-card,
+body.theme-dark .integration-task-item,
+body.theme-dark .form-card-modern,
+body.theme-dark .section-left-border {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+  color: var(--text-900) !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+}
+
+body.theme-dark .integration-task-item {
+  background: rgba(255,255,255,0.03) !important;
+}
+
+body.theme-dark .integration-avatar-fallback {
+  background: rgba(255,255,255,0.08) !important;
+  color: #fff !important;
+}
+
+body.theme-dark .data-table thead {
+  background: rgba(255,255,255,0.05) !important;
+}
+
+body.theme-dark .data-table th,
+body.theme-dark .data-table td {
+  color: #e6eef8 !important;
+  border-color: rgba(255,255,255,0.08) !important;
+  background: transparent !important;
+}
+
+body.theme-dark .data-table tbody tr,
+body.theme-dark .data-table tbody tr:hover {
+  color: #e6eef8 !important;
+}
+
+body.theme-dark .data-table tr:hover {
+  background: rgba(255,255,255,0.06) !important;
+}
+
+body.theme-dark .report-card-title,
+body.theme-dark .integration-task-item .task-title,
+body.theme-dark .integration-task-item .task-meta,
+body.theme-dark .card-header h6,
+body.theme-dark .card-body h6,
+body.theme-dark .card-body .fw-semibold {
+  color: #e6eef8 !important;
+}
+
+body.theme-dark .source-dropdown-menu,
+body.theme-dark .list-group.position-absolute.bg-white {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+body.theme-dark .bg-white,
+body.theme-dark .bg-light,
+body.theme-dark .report-card,
+body.theme-dark .insight-card,
+body.theme-dark .integration-card,
+body.theme-dark .integration-task-item,
+body.theme-dark .section-left-border,
+body.theme-dark .card-header.bg-white,
+body.theme-dark .card-header.bg-light {
+  color: #e6eef8 !important;
 }
 
 body.theme-dark .border {

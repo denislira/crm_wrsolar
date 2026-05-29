@@ -230,6 +230,9 @@ include __DIR__ . '/includes/sidebar.php';
     .badge-pendente { background: #fef3c7; color: #92400e; }
     .badge-andamento { background: #dbeafe; color: #1e40af; }
     .badge-concluida { background: #d1fae5; color: #065f46; }
+    body.theme-dark .badge-custom.badge-pendente { background: rgba(254,243,199,0.18) !important; color: #f59e0b !important; border: 1px solid rgba(255,255,255,0.12) !important; }
+    body.theme-dark .badge-custom.badge-andamento { background: rgba(219,234,254,0.18) !important; color: #93c5fd !important; border: 1px solid rgba(255,255,255,0.12) !important; }
+    body.theme-dark .badge-custom.badge-concluida { background: rgba(209,250,229,0.18) !important; color: #34d399 !important; border: 1px solid rgba(255,255,255,0.12) !important; }
     .list-item {
         padding: 1rem;
         border-bottom: 1px solid #f0f0f0;
@@ -354,6 +357,90 @@ include __DIR__ . '/includes/sidebar.php';
     /* Modal edit task styles */
     .task-avatar { width:56px; height:56px; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:1.25rem; color:#fff; background:#6c757d; }
     .modal-header.colorful { background:#0b5ed7; color:#fff; }
+    body.theme-dark .profile-header-gradient,
+    body.theme-dark .profile-card,
+    body.theme-dark .task-item,
+    body.theme-dark .list-item,
+    body.theme-dark .fluxo-card,
+    body.theme-dark .modal-content,
+    body.theme-dark .modal-header.colorful,
+    body.theme-dark .modal-body,
+    body.theme-dark .modal-footer {
+        background: rgba(255,255,255,0.04) !important;
+        color: #e6eef8 !important;
+        border-color: rgba(255,255,255,0.08) !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+    }
+    body.theme-dark #modalEditarTarefa .modal-header.colorful {
+        background: rgba(37,99,235,0.9) !important;
+        border-bottom: 1px solid rgba(255,255,255,0.12) !important;
+    }
+    body.theme-dark .modal-body .form-label,
+    body.theme-dark .modal-body .text-muted,
+    body.theme-dark .modal-body .small {
+        color: #cbd5e1 !important;
+    }
+    body.theme-dark .modal-body .form-control,
+    body.theme-dark .modal-body .form-select {
+        background: rgba(255,255,255,0.05) !important;
+        color: #e6eef8 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }
+    body.theme-dark .modal-body .form-control:focus,
+    body.theme-dark .modal-body .form-select:focus {
+        background: rgba(255,255,255,0.07) !important;
+        box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.2) !important;
+    }
+    body.theme-dark .profile-header-gradient h2,
+    body.theme-dark .profile-header-gradient p,
+    body.theme-dark .profile-header-gradient a,
+    body.theme-dark .profile-section-title,
+    body.theme-dark .profile-info-label,
+    body.theme-dark .profile-info-value,
+    body.theme-dark .task-item,
+    body.theme-dark .task-item *,
+    body.theme-dark .list-item,
+    body.theme-dark .list-item *,
+    body.theme-dark .fluxo-card,
+    body.theme-dark .fluxo-card *,
+    body.theme-dark .text-muted,
+    body.theme-dark .small {
+        color: #e6eef8 !important;
+    }
+    body.theme-dark .profile-info-item,
+    body.theme-dark .task-item,
+    body.theme-dark .list-item {
+        border-bottom-color: rgba(255,255,255,0.08) !important;
+    }
+    body.theme-dark .profile-avatar-large {
+        border-color: rgba(255,255,255,0.18) !important;
+    }
+    body.theme-dark #perfilTabs .nav-link:not(.active):hover {
+        background: rgba(255,255,255,0.05) !important;
+        color: #fff !important;
+    }
+    body.theme-dark .fluxo-number {
+        background: rgba(255,255,255,0.08) !important;
+        color: #e6eef8 !important;
+    }
+    body.theme-dark .fluxo-badge-blue,
+    body.theme-dark .fluxo-badge-purple,
+    body.theme-dark .fluxo-badge-red {
+        background: rgba(255,255,255,0.08) !important;
+        color: #e6eef8 !important;
+    }
+    body.theme-dark .btn-modern.btn-outline-primary,
+    body.theme-dark .btn-modern.btn-outline-danger,
+    body.theme-dark .btn-modern.btn-outline-secondary,
+    body.theme-dark .btn-modern.btn-primary {
+        color: #e6eef8 !important;
+    }
+    body.theme-dark .btn-modern.btn-outline-primary,
+    body.theme-dark .btn-modern.btn-outline-danger,
+    body.theme-dark .btn-modern.btn-outline-secondary {
+        border-color: rgba(255,255,255,0.12) !important;
+        background: transparent !important;
+    }
 </style>
 
 <main class="flex-grow-1 p-4 main-content-scroll">

@@ -162,6 +162,43 @@ include 'includes/header.php';
                 color: #166534;
                 border-color: #4ade80;
             }
+            body.theme-dark .top-kpi-card {
+                background: rgba(255,255,255,0.04) !important;
+                color: #e6eef8 !important;
+                border-color: rgba(255,255,255,0.10) !important;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.35) !important;
+            }
+            body.theme-dark .project-filter-btn,
+            body.theme-dark .project-filter-btn-clear,
+            body.theme-dark .project-filter-btn-compact {
+                background: rgba(255,255,255,0.04) !important;
+                border-color: rgba(255,255,255,0.10) !important;
+                color: #e6eef8 !important;
+            }
+            body.theme-dark .project-filter-btn:hover,
+            body.theme-dark .project-filter-btn-clear:hover,
+            body.theme-dark .project-filter-btn-compact:hover {
+                background: rgba(255,255,255,0.08) !important;
+            }
+            body.theme-dark .stage-card {
+                background: rgba(255,255,255,0.03) !important;
+                border-color: rgba(255,255,255,0.08) !important;
+            }
+            body.theme-dark .board-column {
+                background: rgba(255,255,255,0.03) !important;
+                color: #e6eef8 !important;
+            }
+            body.theme-dark .card-project {
+                background: rgba(255,255,255,0.05) !important;
+                border-color: rgba(255,255,255,0.10) !important;
+            }
+            body.theme-dark .card-project .project-title,
+            body.theme-dark .card-project .text-muted,
+            body.theme-dark .card-project .project-contract,
+            body.theme-dark .card-project .pv-kanban-meta,
+            body.theme-dark .card-project .badge {
+                color: #e6eef8 !important;
+            }
             body.hide-project-top-info .project-top-section {
                 display: none !important;
             }
@@ -199,6 +236,45 @@ include 'includes/header.php';
             .modal-content .btn-primary { background: #1d4ed8; border-color: #1d4ed8; }
             .modal-content .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
             .modal-content .btn-secondary { background: #e2e8f0; color: #102a43; border-color: #cbd5e1; }
+            body.theme-dark .modal-content,
+            body.theme-dark .modal-body,
+            body.theme-dark .modal-footer {
+                background: #0d1726 !important;
+                color: #e6eef8 !important;
+                border-color: rgba(255,255,255,0.10) !important;
+                box-shadow: 0 32px 100px rgba(0,0,0,0.35) !important;
+            }
+            body.theme-dark .modal-header {
+                background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+                color: #fff !important;
+            }
+            body.theme-dark .modal-content .form-control,
+            body.theme-dark .modal-content .form-select,
+            body.theme-dark .modal-content textarea.form-control {
+                background: rgba(255,255,255,0.06) !important;
+                color: #e6eef8 !important;
+                border-color: rgba(255,255,255,0.12) !important;
+                box-shadow: none !important;
+            }
+            body.theme-dark .modal-content .form-control:focus,
+            body.theme-dark .modal-content .form-select:focus,
+            body.theme-dark .modal-content textarea.form-control:focus {
+                background: rgba(255,255,255,0.08) !important;
+                border-color: rgba(59,130,246,0.6) !important;
+                box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.2) !important;
+            }
+            body.theme-dark .modal-content .form-label {
+                color: #cbd5e1 !important;
+            }
+            body.theme-dark .modal-content .btn-secondary {
+                background: transparent !important;
+                color: #e6eef8 !important;
+                border-color: rgba(255,255,255,0.12) !important;
+            }
+            body.theme-dark .modal-content .btn-primary {
+                background: #2563eb !important;
+                border-color: #1d4ed8 !important;
+            }
             .file-dropzone {
                 position: relative;
                 border: 2px dashed #cbd5e1;

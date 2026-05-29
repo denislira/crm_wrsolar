@@ -23,6 +23,83 @@ $teams = $stmt_teams->fetchAll();
 include 'includes/header.php';
 ?>
 
+<style>
+body.theme-dark .card.card-shadow,
+body.theme-dark .card.card-shadow .card-header,
+body.theme-dark .card.card-shadow .card-body,
+body.theme-dark .modal-content,
+body.theme-dark .accordion-item,
+body.theme-dark .table-responsive,
+body.theme-dark #waStatusCard,
+body.theme-dark #waHelpCard,
+body.theme-dark #appearancePreview {
+    background: rgba(255,255,255,0.04) !important;
+    color: #e6eef8 !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+}
+body.theme-dark .nav-tabs {
+    border-bottom-color: rgba(255,255,255,0.08) !important;
+}
+body.theme-dark .nav-tabs .nav-link {
+    color: #c3d5ea !important;
+}
+body.theme-dark .nav-tabs .nav-link.active {
+    background: rgba(255,255,255,0.08) !important;
+    color: #fff !important;
+}
+body.theme-dark .table thead th,
+body.theme-dark .table tbody td,
+body.theme-dark .table-striped tbody tr,
+body.theme-dark .table-hover tbody tr {
+    color: #e6eef8 !important;
+    border-color: rgba(255,255,255,0.08) !important;
+}
+body.theme-dark .table-striped tbody tr:nth-of-type(odd) {
+    background: rgba(255,255,255,0.03) !important;
+}
+body.theme-dark .table-hover tbody tr:hover {
+    background: rgba(255,255,255,0.05) !important;
+}
+body.theme-dark .btn-outline-secondary,
+body.theme-dark .btn-outline-primary,
+body.theme-dark .btn-outline-warning,
+body.theme-dark .btn-outline-danger,
+body.theme-dark .btn-outline-info {
+    color: #e6eef8 !important;
+    background: transparent !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+body.theme-dark .btn-outline-secondary:hover,
+body.theme-dark .btn-outline-primary:hover,
+body.theme-dark .btn-outline-warning:hover,
+body.theme-dark .btn-outline-danger:hover,
+body.theme-dark .btn-outline-info:hover {
+    background: rgba(255,255,255,0.05) !important;
+}
+body.theme-dark .bg-white,
+body.theme-dark .bg-light,
+body.theme-dark .border,
+body.theme-dark .border-top,
+body.theme-dark .border-bottom,
+body.theme-dark .border-start,
+body.theme-dark .border-end {
+    border-color: rgba(255,255,255,0.08) !important;
+}
+body.theme-dark #waStatusCard,
+body.theme-dark #waHelpCard,
+body.theme-dark #appearancePreview,
+body.theme-dark .accordion-body {
+    color: #e6eef8 !important;
+}
+body.theme-dark .form-check-label,
+body.theme-dark .form-label,
+body.theme-dark .small,
+body.theme-dark .text-muted {
+    color: #c3d5ea !important;
+}
+</style>
+
 <div class="d-flex">
     <?php include 'includes/sidebar.php'; ?>
     <main class="flex-grow-1 p-4">
