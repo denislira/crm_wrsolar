@@ -1293,7 +1293,6 @@ include 'includes/header.php';
       <div class="modal-header border-0 pb-0 px-4 pt-4">
         <div>
           <h5 class="modal-title fs-5 fw-semibold" id="pvModalTitle">Registro Pós-venda</h5>
-          <p class="mb-0 text-muted small">Navegue entre as abas para preencher clientes, acompanhamento e notas sem rolagem excessiva.</p>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
