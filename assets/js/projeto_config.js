@@ -99,7 +99,7 @@
   }
 
   function loadPosVendaStages() {
-    return fetch('includes/pos_venda_stages_api.php?action=list')
+    return fetch('includes/pos_venda_stages_api.php?action=list&global=1')
       .then(res => {
         if (!res.ok) throw new Error('Falha ao carregar colunas do Pós-venda');
         return res.json();
