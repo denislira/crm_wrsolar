@@ -519,7 +519,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     l.source AS lead_source,
                     l.notes AS lead_notes,
                     l.observacao AS lead_observacao,
-                    l.created_at AS lead_created_at
+                    l.anexos_filename AS lead_anexos_filename,
+                    l.anexos_mimetype AS lead_anexos_mimetype,
+                    l.created_at AS lead_created_at,
+                    p.doc_attachments AS project_doc_attachments
              FROM pos_venda pv
              LEFT JOIN projetos p ON p.id = pv.project_id
              LEFT JOIN leads l ON l.id = p.lead_id
@@ -536,6 +539,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $leadId = intval($details['lead_id'] ?? $details['lead_id_join'] ?? 0);
         $projectId = intval($details['project_id'] ?? 0);
+
+        $leadAttachments = [];
+        if ($leadId > 0) {
+            try {
+                $leadAttStmt = $pdo->prepare('SELECT id AS attachment_id, filename, mimetype FROM leads_attachments WHERE lead_id = ? ORDER BY id ASC');
+                $leadAttStmt->execute([$leadId]);
+                $leadAttachments = $leadAttStmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Exception $e) {
+                $leadAttachments = [];
+            }
+            if (empty($leadAttachments) && !empty($details['lead_anexos_filename'])) {
+                $leadAttachments[] = [
+                    'attachment_id' => null,
+                    'filename' => $details['lead_anexos_filename'],
+                    'mimetype' => $details['lead_anexos_mimetype'] ?? 'application/octet-stream'
+                ];
+            }
+        }
+
+        $projectAttachments = [];
+        if ($projectId > 0 && !empty($details['project_doc_attachments'])) {
+            $decoded = json_decode($details['project_doc_attachments'], true);
+            if (is_array($decoded)) {
+                $projectAttachments = $decoded;
+            }
+        }
 
         $reminders = [];
         if ($projectId > 0) {
@@ -711,6 +740,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode([
             'success' => true,
             'details' => $details,
+            'leadAttachments' => $leadAttachments,
+            'projectAttachments' => $projectAttachments,
             'history' => [
                 'project' => $projectHistory,
                 'reminders' => $reminders,
@@ -932,7 +963,7 @@ $total = count($posVendas);
 $conversaoRecorrencia = $total > 0 ? round(($assinantesAtivos / $total) * 100) : 0;
 
 // Fetch all eligible projects for the "Add" modal select
-$projStmt = $pdo->prepare("SELECT p.id, p.client_name, p.projeto, p.address AS proj_address, l.phone AS lead_phone, l.email AS lead_email, l.cpf_cnpj AS lead_cpf
+$projStmt = $pdo->prepare("SELECT p.id, p.client_name, p.projeto, p.address AS proj_address, l.id AS lead_id, l.phone AS lead_phone, l.email AS lead_email, l.cpf_cnpj AS lead_cpf
     FROM projetos p
     LEFT JOIN leads l ON l.id = p.lead_id
     WHERE p.user_id=? AND p.status IN ('Fechado','Finalizado','Homologado','Concluído','Concluido')
@@ -1315,6 +1346,9 @@ include 'includes/header.php';
             <button class="nav-link" id="pvTabProjeto" data-bs-toggle="pill" data-bs-target="#pvTabPanelProjeto" type="button" role="tab">Projeto</button>
           </li>
           <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pvTabLead" data-bs-toggle="pill" data-bs-target="#pvTabPanelLead" type="button" role="tab">Lead</button>
+          </li>
+          <li class="nav-item" role="presentation">
             <button class="nav-link" id="pvTabPovenda" data-bs-toggle="pill" data-bs-target="#pvTabPanelPovenda" type="button" role="tab">Pós-venda</button>
           </li>
           <li class="nav-item" role="presentation">
@@ -1327,6 +1361,7 @@ include 'includes/header.php';
         <input type="hidden" name="action" value="save_pv">
         <input type="hidden" name="id" id="pvId">
         <input type="hidden" name="project_id" id="pvProjectId">
+        <input type="hidden" name="lead_id" id="pvLeadId">
 
         <div class="tab-content">
           <div class="tab-pane fade show active" id="pvTabPanelCliente" role="tabpanel" aria-labelledby="pvTabCliente">
@@ -1365,7 +1400,7 @@ include 'includes/header.php';
                 <select class="form-select" id="pvProjectSelect">
                   <option value="">— Selecione o projeto —</option>
                   <?php foreach ($projetosDisponiveis as $prj): ?>
-                    <option value="<?= $prj['id'] ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>" data-phone="<?= htmlspecialchars((string)($prj['lead_phone'] ?? ''), ENT_QUOTES) ?>" data-email="<?= htmlspecialchars((string)($prj['lead_email'] ?? ''), ENT_QUOTES) ?>" data-cpf="<?= htmlspecialchars((string)($prj['lead_cpf'] ?? ''), ENT_QUOTES) ?>" data-address="<?= htmlspecialchars((string)($prj['proj_address'] ?? ''), ENT_QUOTES) ?>">
+                    <option value="<?= $prj['id'] ?>" data-lead-id="<?= htmlspecialchars((string)($prj['lead_id'] ?? ''), ENT_QUOTES) ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>" data-phone="<?= htmlspecialchars((string)($prj['lead_phone'] ?? ''), ENT_QUOTES) ?>" data-email="<?= htmlspecialchars((string)($prj['lead_email'] ?? ''), ENT_QUOTES) ?>" data-cpf="<?= htmlspecialchars((string)($prj['lead_cpf'] ?? ''), ENT_QUOTES) ?>" data-address="<?= htmlspecialchars((string)($prj['proj_address'] ?? ''), ENT_QUOTES) ?>">
                       <?= htmlspecialchars($prj['client_name']) ?>
                     </option>
                   <?php endforeach; ?>
@@ -1394,6 +1429,31 @@ include 'includes/header.php';
               <div class="col-md-6">
                 <label class="form-label fw-semibold">Marca</label>
                 <input type="text" name="marca" id="pvMarca" class="form-control" placeholder="Digite a marca">
+              </div>
+              <div class="col-12">
+                <div class="border rounded p-3 bg-light">
+                  <div class="fw-semibold mb-2">Documentos do Projeto</div>
+                  <div id="pvProjectDocumentsList" class="small mb-2"></div>
+                  <div id="pvProjectDocumentsUpload">
+                    <label class="form-label small mb-1" for="pvProjectDocFile">Adicionar documento ao projeto</label>
+                    <input type="file" id="pvProjectDocFile" class="form-control form-control-sm" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="pvTabPanelLead" role="tabpanel" aria-labelledby="pvTabLead">
+            <div class="row g-2">
+              <div class="col-12">
+                <div class="border rounded p-3 bg-light">
+                  <div class="fw-semibold mb-2">Anexos do Lead</div>
+                  <div id="pvLeadAttachmentsList" class="small mb-2"></div>
+                  <div id="pvLeadAttachmentsUpload">
+                    <label class="form-label small mb-1" for="pvLeadAttachmentFile">Adicionar anexo ao lead</label>
+                    <input type="file" id="pvLeadAttachmentFile" class="form-control form-control-sm" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1655,6 +1715,7 @@ include 'includes/header.php';
     let currentContractFilter = 'all';
     let isKanbanCompact = localStorage.getItem('pvKanbanCompact') === '1';
     let _limpezaPvId = null;
+    let currentOpenPosVenda = null;
 
     function applyKanbanCompactState(){
         $('pvKanbanWrapper').classList.toggle('pv-kanban-compact', isKanbanCompact);
@@ -2261,6 +2322,8 @@ include 'includes/header.php';
             </div>
         ` : '');
 
+        // Attachments are now shown and managed in the edit modal instead of the details panel.
+
         const postSaleTimeline = (history.post_sale || []).map(item => ({
             title: item.title || 'Evento do pós-venda',
             date: formatDateTimeBR(item.date),
@@ -2299,6 +2362,7 @@ include 'includes/header.php';
     }
 
     async function openPosVendaDetails(pv){
+        currentOpenPosVenda = pv;
         const pvId = pv.id;
         $('pvDetailsLoading').classList.remove('d-none');
         $('pvDetailsContent').classList.add('d-none');
@@ -2391,13 +2455,14 @@ include 'includes/header.php';
         }
     }
 
-    function onEditRowClick(event){
+    async function onEditRowClick(event){
         const pv = getPosVendaById(event.currentTarget.dataset.pvId);
         if (!pv) return;
         $('pvForm').reset();
         $('pvProjectPickerWrap').classList.add('d-none');
         $('pvId').value = pv.id || '';
         $('pvProjectId').value = pv.project_id || '';
+        $('pvLeadId').value = '';
         $('pvClientName').value = pv.client_name || '';
         $('pvCpf').value = pv.cpf || pv.lead_cpf || '';
         $('pvBirthDate').value = pv.birth_date || '';
@@ -2423,6 +2488,48 @@ include 'includes/header.php';
         $('pvStage').value = pv.stage || '';
         $('pvModalTitle').textContent = 'Editar: ' + pv.client_name;
         bsModal('pvModal').show();
+        try {
+            const payload = await fetchPosVendaDetails(pv.id);
+            if (payload && payload.success) {
+                const leadId = payload.details.lead_id || payload.details.lead_id_join || pv.lead_id || '';
+                $('pvLeadId').value = String(leadId);
+                renderPvEditAttachments(payload);
+            }
+        } catch (err) {
+            console.warn('Falha ao carregar anexos para edição:', err);
+        }
+    }
+
+    function renderPvEditAttachments(payload) {
+        const projectAttachments = Array.isArray(payload.projectAttachments) ? payload.projectAttachments : [];
+        const leadAttachments = Array.isArray(payload.leadAttachments) ? payload.leadAttachments : [];
+        const projectId = $('pvProjectId').value || '';
+        const leadId = $('pvLeadId').value || '';
+
+        const renderProjectAttachment = (att, index) => `
+            <div class="d-flex justify-content-between align-items-center gap-2 border-bottom py-1">
+                <span class="text-truncate">${escapeHtml(att.name || att.filename || att.title || 'Documento')}</span>
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="${escapeHtml(att.path || att.url || '#')}" target="_blank" class="btn btn-outline-primary">Abrir</a>
+                    <button type="button" class="btn btn-outline-danger pv-delete-project-attachment-btn" data-attachment-index="${index}">Excluir</button>
+                </div>
+            </div>
+        `;
+
+        const renderLeadAttachment = (att) => `
+            <div class="d-flex justify-content-between align-items-center gap-2 border-bottom py-1">
+                <span class="text-truncate">${escapeHtml(att.filename || 'Anexo')}</span>
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="${escapeHtml(leadId ? `includes/leads_api.php?action=download_anexo&id=${encodeURIComponent(leadId)}${att.attachment_id ? `&file_id=${encodeURIComponent(att.attachment_id)}` : ''}` : '#')}" target="_blank" class="btn btn-outline-primary">Abrir</a>
+                    ${att.attachment_id ? `<button type="button" class="btn btn-outline-danger pv-delete-lead-attachment-btn" data-file-id="${escapeHtml(String(att.attachment_id))}">Excluir</button>` : ''}
+                </div>
+            </div>
+        `;
+
+        $('pvProjectDocumentsList').innerHTML = projectAttachments.length ? projectAttachments.map(renderProjectAttachment).join('') : '<div class="text-muted small">Nenhum documento do projeto.</div>';
+        $('pvLeadAttachmentsList').innerHTML = leadAttachments.length ? leadAttachments.map(renderLeadAttachment).join('') : '<div class="text-muted small">Nenhum anexo do lead.</div>';
+        $('pvProjectDocumentsUpload').style.display = projectId ? '' : 'none';
+        $('pvLeadAttachmentsUpload').style.display = leadId ? '' : 'none';
     }
 
     function onScheduleBtnClick(event){
@@ -2866,6 +2973,114 @@ include 'includes/header.php';
     $('pvDetailsLinkBtn').addEventListener('click', async (event) => { await onLinkBtnClick({ currentTarget: event.currentTarget }); });
     $('pvDetailsHistoryBtn').addEventListener('click', (event) => onHistoryBtnClick({ currentTarget: event.currentTarget }));
     $('pvDetailsDeleteBtn').addEventListener('click', (event) => onDeleteBtnClick({ currentTarget: event.currentTarget }));
+    const pvProjectDocumentsList = $('pvProjectDocumentsList');
+    const pvLeadAttachmentsList = $('pvLeadAttachmentsList');
+    if (pvProjectDocumentsList) {
+        pvProjectDocumentsList.addEventListener('click', async (event) => {
+            const btn = event.target.closest('.pv-delete-project-attachment-btn');
+            if (!btn) return;
+            const index = Number(btn.dataset.attachmentIndex);
+            const projectId = $('pvProjectId').value || '';
+            if (!projectId || Number.isNaN(index)) return;
+            if (!confirm('Excluir este documento do projeto?')) return;
+            try {
+                const fd = new FormData();
+                fd.append('project_id', projectId);
+                fd.append('attachment_index', String(index));
+                const res = await fetch('api/delete_project_attachment.php', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'Falha ao excluir documento.');
+                }
+                const pvId = $('pvId').value || '';
+                if (pvId) {
+                    const payload = await fetchPosVendaDetails(pvId);
+                    if (payload && payload.success) renderPvEditAttachments(payload);
+                }
+            } catch (err) {
+                alert(err.message || 'Erro ao excluir documento do projeto.');
+            }
+        });
+    }
+    if (pvLeadAttachmentsList) {
+        pvLeadAttachmentsList.addEventListener('click', async (event) => {
+            const btn = event.target.closest('.pv-delete-lead-attachment-btn');
+            if (!btn) return;
+            const leadId = $('pvLeadId').value || '';
+            const fileId = btn.dataset.fileId;
+            if (!leadId || !fileId) return;
+            if (!confirm('Excluir este anexo do lead?')) return;
+            try {
+                const fd = new FormData();
+                fd.append('lead_id', leadId);
+                fd.append('file_id', fileId);
+                const res = await fetch('includes/leads_api.php?action=delete_attachment', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (!res.ok || data.error) {
+                    throw new Error(data.error || 'Falha ao excluir anexo.');
+                }
+                const pvId = $('pvId').value || '';
+                if (pvId) {
+                    const payload = await fetchPosVendaDetails(pvId);
+                    if (payload && payload.success) renderPvEditAttachments(payload);
+                }
+            } catch (err) {
+                alert(err.message || 'Erro ao excluir anexo do lead.');
+            }
+        });
+    }
+    const pvProjectDocFile = $('pvProjectDocFile');
+    if (pvProjectDocFile) {
+        pvProjectDocFile.addEventListener('change', async (event) => {
+            const file = event.target.files?.[0];
+            const projectId = $('pvProjectId').value || '';
+            if (!file || !projectId) return;
+            try {
+                const fd = new FormData();
+                fd.append('project_id', projectId);
+                fd.append('doc_file', file);
+                const res = await fetch('api/upload_project_attachment.php', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'Falha ao enviar documento.');
+                }
+                event.target.value = '';
+                const pvId = $('pvId').value || '';
+                if (pvId) {
+                    const payload = await fetchPosVendaDetails(pvId);
+                    if (payload && payload.success) renderPvEditAttachments(payload);
+                }
+            } catch (err) {
+                alert(err.message || 'Erro ao enviar documento do projeto.');
+            }
+        });
+    }
+    const pvLeadAttachmentFile = $('pvLeadAttachmentFile');
+    if (pvLeadAttachmentFile) {
+        pvLeadAttachmentFile.addEventListener('change', async (event) => {
+            const file = event.target.files?.[0];
+            const leadId = $('pvLeadId').value || '';
+            if (!file || !leadId) return;
+            try {
+                const fd = new FormData();
+                fd.append('id', leadId);
+                fd.append('anexos[]', file);
+                const res = await fetch('includes/leads_api.php?action=upload_attachment', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (!res.ok || data.error) {
+                    throw new Error(data.error || 'Falha ao enviar anexo.');
+                }
+                event.target.value = '';
+                const pvId = $('pvId').value || '';
+                if (pvId) {
+                    const payload = await fetchPosVendaDetails(pvId);
+                    if (payload && payload.success) renderPvEditAttachments(payload);
+                }
+            } catch (err) {
+                alert(err.message || 'Erro ao enviar anexo do lead.');
+            }
+        });
+    }
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             closeDetailsPanel();
@@ -2901,6 +3116,7 @@ include 'includes/header.php';
     $('pvProjectSelect').addEventListener('change', ()=>{
         const opt = $('pvProjectSelect').selectedOptions[0];
         $('pvProjectId').value = opt?.value || '';
+        $('pvLeadId').value = opt?.dataset?.leadId || '';
         $('pvClientName').value = opt?.dataset?.name || '';
         $('pvProjectKwh').value = opt?.dataset?.kwh || '';
         if (!$('pvCpf').value && opt?.dataset?.cpf) {
