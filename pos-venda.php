@@ -999,6 +999,25 @@ include 'includes/header.php';
     border-color: var(--bs-primary);
     box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb), .25);
 }
+#pvModal .nav-pills .nav-link {
+    border-radius: 999px;
+    padding: .7rem 1.1rem;
+    font-weight: 600;
+    color: #334155;
+}
+#pvModal .nav-pills .nav-link.active {
+    background-color: var(--bs-primary);
+    color: #fff;
+}
+#pvModal .tab-pane { min-height: 1px; }
+#pvModal .modal-body {
+    max-height: calc(100vh - 220px);
+    overflow-y: auto;
+    padding-right: 1rem;
+}
+#pvModal .tab-pane .row.g-3 {
+    gap: .85rem;
+}
 .pv-main-with-panel { transition: margin-right .2s ease; }
 .pv-main-with-panel.panel-open { margin-right: 430px; }
 .pv-details-panel {
@@ -1228,114 +1247,159 @@ include 'includes/header.php';
 
 <!-- ════════════════ Modal: Edit / New ════════════════ -->
 <div class="modal fade" id="pvModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header bg-primary text-white py-2">
-        <h5 class="modal-title fs-6" id="pvModalTitle">Registro Pós-venda</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow-sm overflow-hidden">
+      <div class="modal-header border-0 pb-0 px-4 pt-4">
+        <div>
+          <h5 class="modal-title fs-5 fw-semibold" id="pvModalTitle">Registro Pós-venda</h5>
+          <p class="mb-0 text-muted small">Navegue entre as abas para preencher clientes, acompanhamento e notas sem rolagem excessiva.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="px-4">
+        <ul class="nav nav-pills nav-justified gap-2 mb-3" id="pvModalTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="pvTabCliente" data-bs-toggle="pill" data-bs-target="#pvTabPanelCliente" type="button" role="tab">Cliente</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pvTabProjeto" data-bs-toggle="pill" data-bs-target="#pvTabPanelProjeto" type="button" role="tab">Projeto</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pvTabPovenda" data-bs-toggle="pill" data-bs-target="#pvTabPanelPovenda" type="button" role="tab">Pós-venda</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pvTabNotas" data-bs-toggle="pill" data-bs-target="#pvTabPanelNotas" type="button" role="tab">Notas</button>
+          </li>
+        </ul>
       </div>
       <form id="pvForm">
-      <div class="modal-body row g-3">
+      <div class="modal-body pb-3">
         <input type="hidden" name="action" value="save_pv">
         <input type="hidden" name="id" id="pvId">
         <input type="hidden" name="project_id" id="pvProjectId">
 
-        <div class="col-12">
-          <label class="form-label fw-semibold">Cliente</label>
-          <input type="text" name="client_name" id="pvClientName" class="form-control" placeholder="Nome do cliente" required>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">CPF</label>
-          <input type="text" name="cpf" id="pvCpf" class="form-control" placeholder="000.000.000-00">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Data de Nascimento</label>
-          <input type="date" name="birth_date" id="pvBirthDate" class="form-control">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Telefone</label>
-          <input type="text" name="phone" id="pvPhone" class="form-control" placeholder="(11) 99999-9999">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">E-mail</label>
-          <input type="email" name="email" id="pvEmail" class="form-control" placeholder="email@dominio.com">
-        </div>
-        <div class="col-12">
-          <label class="form-label fw-semibold">Endereço</label>
-          <textarea name="address" id="pvAddress" class="form-control" rows="2" placeholder="Endereço do cliente"></textarea>
-        </div>
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="pvTabPanelCliente" role="tabpanel" aria-labelledby="pvTabCliente">
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label fw-semibold">Cliente</label>
+                <input type="text" name="client_name" id="pvClientName" class="form-control" placeholder="Nome do cliente" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">CPF</label>
+                <input type="text" name="cpf" id="pvCpf" class="form-control" placeholder="000.000.000-00">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Data de Nascimento</label>
+                <input type="date" name="birth_date" id="pvBirthDate" class="form-control">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Telefone</label>
+                <input type="text" name="phone" id="pvPhone" class="form-control" placeholder="(11) 99999-9999">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">E-mail</label>
+                <input type="email" name="email" id="pvEmail" class="form-control" placeholder="email@dominio.com">
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-semibold">Endereço</label>
+                <textarea name="address" id="pvAddress" class="form-control" rows="2" placeholder="Endereço do cliente"></textarea>
+              </div>
+            </div>
+          </div>
 
-        <!-- Project picker (only for new) -->
-        <div class="col-12" id="pvProjectPickerWrap">
-          <label class="form-label fw-semibold">Projeto</label>
-          <select class="form-select" id="pvProjectSelect">
-            <option value="">— Selecione o projeto —</option>
-            <?php foreach ($projetosDisponiveis as $prj): ?>
-              <option value="<?= $prj['id'] ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>" data-phone="<?= htmlspecialchars((string)($prj['lead_phone'] ?? ''), ENT_QUOTES) ?>" data-email="<?= htmlspecialchars((string)($prj['lead_email'] ?? ''), ENT_QUOTES) ?>" data-cpf="<?= htmlspecialchars((string)($prj['lead_cpf'] ?? ''), ENT_QUOTES) ?>" data-address="<?= htmlspecialchars((string)($prj['proj_address'] ?? ''), ENT_QUOTES) ?>">
-                <?= htmlspecialchars($prj['client_name']) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
+          <div class="tab-pane fade" id="pvTabPanelProjeto" role="tabpanel" aria-labelledby="pvTabProjeto">
+            <div class="row g-2">
+              <div class="col-12" id="pvProjectPickerWrap">
+                <label class="form-label fw-semibold">Projeto</label>
+                <select class="form-select" id="pvProjectSelect">
+                  <option value="">— Selecione o projeto —</option>
+                  <?php foreach ($projetosDisponiveis as $prj): ?>
+                    <option value="<?= $prj['id'] ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>" data-phone="<?= htmlspecialchars((string)($prj['lead_phone'] ?? ''), ENT_QUOTES) ?>" data-email="<?= htmlspecialchars((string)($prj['lead_email'] ?? ''), ENT_QUOTES) ?>" data-cpf="<?= htmlspecialchars((string)($prj['lead_cpf'] ?? ''), ENT_QUOTES) ?>" data-address="<?= htmlspecialchars((string)($prj['proj_address'] ?? ''), ENT_QUOTES) ?>">
+                      <?= htmlspecialchars($prj['client_name']) ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Data de Instalação (Homologação)</label>
+                <input type="date" name="installation_date" id="pvInstDate" class="form-control">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Valor do Plano</label>
+                <input type="text" name="plan_value" id="pvProposalValue" class="form-control" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">kWh do Projeto</label>
+                <input type="text" name="project_kwh" id="pvProjectKwh" class="form-control" inputmode="decimal" placeholder="Ex: 4500">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Equipamento</label>
+                <input type="text" name="equipment" id="pvEquipment" class="form-control" placeholder="Digite o equipamento">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Kit</label>
+                <input type="text" name="kit" id="pvKit" class="form-control" placeholder="Digite o kit">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Marca</label>
+                <input type="text" name="marca" id="pvMarca" class="form-control" placeholder="Digite a marca">
+              </div>
+            </div>
+          </div>
 
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Data de Instalação (Homologação)</label>
-          <input type="date" name="installation_date" id="pvInstDate" class="form-control">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Tipo de Cliente</label>
-                    <select name="client_type" id="pvClientType" class="form-select">
-                        <option value="">— Selecione o tipo de cliente —</option>
-                    </select>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Estágio no Pós-venda</label>
-          <select name="stage" id="pvStage" class="form-select">
-            <option value="">— Selecione o estágio —</option>
-          </select>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Status de Acesso</label>
-                    <select name="client_status" id="pvClientStatus" class="form-select">
-                        <option value="">— Selecione o status de acesso —</option>
-                    </select>
-        </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold">Valor do Plano</label>
-                    <input type="text" name="plan_value" id="pvProposalValue" class="form-control" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold">kWh do Projeto</label>
-                    <input type="text" name="project_kwh" id="pvProjectKwh" class="form-control" inputmode="decimal" placeholder="Ex: 4500">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold">Equipamento</label>
-                    <input type="text" name="equipment" id="pvEquipment" class="form-control" placeholder="Digite o equipamento">
-                </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Performance (%)</label>
-          <input type="number" name="performance_pct" id="pvPerf" class="form-control" min="0" max="999" step="0.1" placeholder="ex: 98.5">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Último Check-up</label>
-          <input type="date" name="last_checkup" id="pvLastCheckup" class="form-control">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Próx. Manutenção</label>
-          <input type="date" name="next_maintenance" id="pvNextMaint" class="form-control">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Meses de Garantia</label>
-          <input type="number" name="warranty_months" id="pvWarrantyMonths" class="form-control" min="1" max="120" value="12">
-          <div class="form-text">Conta a partir da data de criação do card em pós-venda.</div>
-        </div>
-        <div class="col-12">
-          <label class="form-label fw-semibold">Notas</label>
-          <textarea name="notes" id="pvNotes" class="form-control" rows="2"></textarea>
+          <div class="tab-pane fade" id="pvTabPanelPovenda" role="tabpanel" aria-labelledby="pvTabPovenda">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Tipo de Cliente</label>
+                <select name="client_type" id="pvClientType" class="form-select">
+                  <option value="">— Selecione o tipo de cliente —</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Estágio no Pós-venda</label>
+                <select name="stage" id="pvStage" class="form-select">
+                  <option value="">— Selecione o estágio —</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Status de Acesso</label>
+                <select name="client_status" id="pvClientStatus" class="form-select">
+                  <option value="">— Selecione o status de acesso —</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Performance (%)</label>
+                <input type="number" name="performance_pct" id="pvPerf" class="form-control" min="0" max="999" step="0.1" placeholder="ex: 98.5">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Último Check-up</label>
+                <input type="date" name="last_checkup" id="pvLastCheckup" class="form-control">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Próx. Manutenção</label>
+                <input type="date" name="next_maintenance" id="pvNextMaint" class="form-control">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Meses de Garantia</label>
+                <input type="number" name="warranty_months" id="pvWarrantyMonths" class="form-control" min="1" max="120" value="12">
+                <div class="form-text">Conta a partir da data de criação do card em pós-venda.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="pvTabPanelNotas" role="tabpanel" aria-labelledby="pvTabNotas">
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label fw-semibold">Notas</label>
+                <textarea name="notes" id="pvNotes" class="form-control" rows="6" placeholder="Observações, histórico e ações pendentes."></textarea>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+      <div class="modal-footer py-3 px-4 border-top">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
         <button type="submit" class="btn btn-primary btn-sm" id="pvSaveBtn"><i class="fa fa-floppy-disk me-1"></i>Salvar</button>
       </div>
       </form>
@@ -2276,6 +2340,8 @@ include 'includes/header.php';
         setProposalInputFromValue(pv.plan_value || '');
         $('pvProjectKwh').value = pv.project_kwh || '';
         $('pvEquipment').value = pv.equipment || '';
+        $('pvKit').value = pv.kit || '';
+        $('pvMarca').value = pv.marca || '';
         populateClientTypeSelect(pv.client_type || '');
         populateClientStatusSelect(pv.client_status || 'Assinante');
         $('pvStage').value = pv.stage || '';
@@ -2741,6 +2807,8 @@ include 'includes/header.php';
         $('pvProposalValue').value = '';
         $('pvProjectKwh').value = '';
         $('pvEquipment').value = '';
+        $('pvKit').value = '';
+        $('pvMarca').value = '';
         populateClientTypeSelect();
         populateClientStatusSelect('Assinante');
         $('pvStage').value = '';
