@@ -1207,7 +1207,7 @@ include 'includes/header.php';
             <div class="col-12 col-md text-center mb-2 mb-md-0">
                 <div class="input-group input-group-sm pv-toolbar-search mx-auto" style="max-width:320px;">
                     <span class="input-group-text bg-white"><i class="fa fa-search text-muted"></i></span>
-                    <input type="text" id="pvSearchInput" class="form-control" placeholder="Buscar cliente ou estágio...">
+                    <input type="text" id="pvSearchInput" class="form-control" placeholder="Buscar por nome, número, CPF ou cidade...">
                 </div>
             </div>
             <div class="col-12 col-md-auto text-md-end">
@@ -1715,21 +1715,33 @@ include 'includes/header.php';
 
     function filteredPosVendas(){
         const term = normalize(currentSearch).trim();
+        const digitsTerm = String(currentSearch || '').replace(/\D/g, '');
         let base = posVendas;
         if (currentContractFilter === 'expired') {
             base = base.filter(isExpiredContract);
         }
-        if (!term) return base;
+        if (!term && !digitsTerm) return base;
         return base.filter(pv => {
             const haystack = [
                 pv.client_name,
+                pv.lead_name,
+                pv.lead_city,
                 pv.stage,
                 pv.client_status,
                 pv.client_type,
                 pv.proj_status,
                 pv.address
             ].map(normalize).join(' ');
-            return haystack.includes(term);
+            const phoneDigits = String(pv.phone || pv.lead_phone || '').replace(/\D/g, '');
+            const cpfDigits = String(pv.cpf || pv.lead_cpf || '').replace(/\D/g, '');
+
+            if (digitsTerm) {
+                if (phoneDigits.includes(digitsTerm) || cpfDigits.includes(digitsTerm)) {
+                    return true;
+                }
+            }
+
+            return term ? haystack.includes(term) : false;
         });
     }
 
