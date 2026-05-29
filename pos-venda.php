@@ -1261,6 +1261,16 @@ include 'includes/header.php';
             <h5 class="mb-3 pe-4" id="pvDetailsTitle">Detalhes do Cliente</h5>
             <div id="pvDetailsLoading" class="text-muted small">Carregando detalhes...</div>
             <div id="pvDetailsContent" class="d-none">
+                <div class="border rounded p-2 mb-3 bg-white">
+                    <div class="d-flex flex-wrap gap-2" id="pvDetailsActions">
+                        <button type="button" id="pvDetailsEditBtn" class="btn btn-sm btn-primary" title="Editar"><i class="fa fa-pen me-1"></i>Editar</button>
+                        <button type="button" id="pvDetailsScheduleBtn" class="btn btn-sm btn-outline-secondary" title="Agendar limpeza"><i class="fa fa-broom me-1"></i>Limpeza</button>
+                        <button type="button" id="pvDetailsLinkBtn" class="btn btn-sm btn-outline-primary" title="Link de indicação"><i class="fa fa-share-nodes me-1"></i>Link</button>
+                        <button type="button" id="pvDetailsHistoryBtn" class="btn btn-sm btn-outline-dark" title="Baixar histórico PDF"><i class="fa fa-download me-1"></i>Histórico</button>
+                        <button type="button" id="pvDetailsDeleteBtn" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa fa-trash me-1"></i>Excluir</button>
+                        <a id="pvDetailsWhatsappBtn" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success d-none" title="WhatsApp"><i class="fa-brands fa-whatsapp me-1"></i>WhatsApp</a>
+                    </div>
+                </div>
                 <div class="border rounded p-3 mb-3 bg-light">
                     <h6 class="mb-2">Dados do Pós-venda</h6>
                     <div class="small" id="pvPostSaleDetailsGrid"></div>
@@ -2049,11 +2059,8 @@ include 'includes/header.php';
                         ${warrantySection}
                     </div>
                     <div class="pv-card-footer">
-                        <button type="button" class="btn btn-sm btn-outline-danger pv-delete-btn" data-pv-id="${pv.id}" style="padding:.3rem .55rem;" title="Excluir"><i class="fa fa-trash"></i></button>
                         <button type="button" class="btn btn-sm btn-outline-primary pv-view-details-btn" data-pv-id="${pv.id}" style="padding:.3rem .55rem;" title="Ver Detalhes"><i class="fa fa-eye"></i></button>
-                        <button type="button" class="btn btn-sm btn-primary pv-edit-row" data-pv-id="${pv.id}" style="padding:.3rem .55rem;" title="Editar"><i class="fa fa-pen"></i></button>
                         ${waNum ? `<a href="https://wa.me/${waNum}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" style="padding:.3rem .55rem;" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>` : ''}
-                        <button type="button" class="btn btn-sm btn-outline-secondary pv-schedule-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" style="padding:.3rem .55rem;" title="Agendar Limpeza"><i class="fa fa-broom"></i></button>
                         <button type="button" class="btn btn-sm btn-outline-primary pv-link-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" data-pv-token="${escapeHtml(pv.referral_token || '')}" style="padding:.3rem .55rem;" title="Link de Indicação"><i class="fa fa-share-nodes"></i></button>
                         <button type="button" class="btn btn-sm btn-outline-dark pv-history-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" style="padding:.3rem .55rem;" title="Baixar Histórico PDF"><i class="fa fa-download"></i></button>
                     </div>
@@ -2147,8 +2154,25 @@ include 'includes/header.php';
     function renderPosVendaDetails(payload, pv){
         const details = payload?.details || {};
         const history = payload?.history || {};
+        const pvId = String(details.id || pv.id || '');
+        const clientName = String(details.client_name || pv.client_name || 'Cliente');
+        const referralToken = String(details.referral_token || pv.referral_token || '');
+        const phoneDigits = String(details.phone || pv.phone || details.lead_phone || pv.lead_phone || '').replace(/\D/g, '');
+        const waNum = phoneDigits.length >= 10 ? '55' + phoneDigits : '';
 
-        $('pvDetailsTitle').textContent = 'Detalhes: ' + (details.client_name || pv.client_name || 'Cliente');
+        $('pvDetailsTitle').textContent = 'Detalhes: ' + clientName;
+
+        $('pvDetailsEditBtn').dataset.pvId = pvId;
+        $('pvDetailsScheduleBtn').dataset.pvId = pvId;
+        $('pvDetailsScheduleBtn').dataset.pvClient = clientName;
+        $('pvDetailsLinkBtn').dataset.pvId = pvId;
+        $('pvDetailsLinkBtn').dataset.pvClient = clientName;
+        $('pvDetailsLinkBtn').dataset.pvToken = referralToken;
+        $('pvDetailsHistoryBtn').dataset.pvId = pvId;
+        $('pvDetailsHistoryBtn').dataset.pvClient = clientName;
+        $('pvDetailsDeleteBtn').dataset.pvId = pvId;
+        $('pvDetailsWhatsappBtn').classList.toggle('d-none', !waNum);
+        $('pvDetailsWhatsappBtn').href = waNum ? `https://wa.me/${waNum}` : '#';
 
         const projectId = Number(details.proj_id ?? details.proj_id_join ?? pv.proj_id ?? pv.project_id ?? 0);
         const hasProject = projectId > 0;
@@ -2837,6 +2861,11 @@ include 'includes/header.php';
     applyKanbanCompactState();
 
     $('pvDetailsCloseBtn').addEventListener('click', closeDetailsPanel);
+    $('pvDetailsEditBtn').addEventListener('click', (event) => onEditRowClick({ currentTarget: event.currentTarget }));
+    $('pvDetailsScheduleBtn').addEventListener('click', (event) => onScheduleBtnClick({ currentTarget: event.currentTarget }));
+    $('pvDetailsLinkBtn').addEventListener('click', async (event) => { await onLinkBtnClick({ currentTarget: event.currentTarget }); });
+    $('pvDetailsHistoryBtn').addEventListener('click', (event) => onHistoryBtnClick({ currentTarget: event.currentTarget }));
+    $('pvDetailsDeleteBtn').addEventListener('click', (event) => onDeleteBtnClick({ currentTarget: event.currentTarget }));
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             closeDetailsPanel();
