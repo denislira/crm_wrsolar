@@ -87,6 +87,61 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
 /* small helpers */
 .kpi-row .card{background:var(--card)}
 
+#kpiRow .card{
+    position:relative;
+    border:1px solid rgba(12,74,110,0.10);
+    border-radius:16px;
+    overflow:hidden;
+    background:linear-gradient(145deg,#ffffff 0%,#f4f8ff 100%);
+    box-shadow:0 12px 26px rgba(11,26,49,0.08);
+    transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
+}
+
+#kpiRow .card::before{
+    content:'';
+    position:absolute;
+    top:0;
+    left:0;
+    right:0;
+    height:4px;
+    background:linear-gradient(90deg,#0b6ac1 0%,#22b8cf 100%);
+}
+
+#kpiRow .card:hover{
+    transform:translateY(-2px);
+    box-shadow:0 16px 30px rgba(11,26,49,0.13);
+    border-color:rgba(11,106,193,0.25);
+}
+
+#kpiRow .small.text-muted{
+    color:#4f6b87 !important;
+    font-size:.74rem;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    font-weight:700;
+}
+
+#kpiRow .h4{
+    margin-bottom:0;
+    font-size:1.45rem;
+    line-height:1.1;
+    color:#0f2f52;
+    font-weight:800;
+}
+
+#kpiRow #trashedKpiCard::before{
+    background:linear-gradient(90deg,#c2410c 0%,#ea580c 100%);
+}
+
+#kpiRow #trashedKpiCard .small i{
+    color:#c2410c !important;
+}
+
+#kpiRow #kpiConv,
+#kpiRow #kpiHot{
+    color:#075985;
+}
+
 /* Specific KPI card tweaks for leads dashboard */
 @media (min-width: 768px) {
     /* Increase width and font of 'Valor no pipeline' (4th column in #kpiRow) */
@@ -157,6 +212,31 @@ body.theme-dark .lead-meta{color:#c3d5ea !important}
 body.theme-dark .lead-panel{background:#0b1220 !important;color:#e6eef8 !important;border-left:1px solid rgba(255,255,255,0.06) !important}
 body.theme-dark .lead-panel-inner{color:#e6eef8 !important}
 body.theme-dark .kpi-row .card{background:#0b1220 !important;color:#e6eef8 !important;border:1px solid rgba(255,255,255,0.06) !important}
+
+body.theme-dark #kpiRow .card{
+    background:linear-gradient(155deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%) !important;
+    border-color:rgba(255,255,255,0.10) !important;
+    box-shadow:0 14px 28px rgba(0,0,0,.34) !important;
+}
+
+body.theme-dark #kpiRow .card::before{
+    background:linear-gradient(90deg,#3b82f6 0%,#22d3ee 100%);
+}
+
+body.theme-dark #kpiRow .small.text-muted,
+body.theme-dark #kpiRow .h4,
+body.theme-dark #kpiRow #kpiConv,
+body.theme-dark #kpiRow #kpiHot{
+    color:#e6eef8 !important;
+}
+
+body.theme-dark #kpiRow #trashedKpiCard::before{
+    background:linear-gradient(90deg,#f97316 0%,#fb923c 100%);
+}
+
+body.theme-dark #kpiRow #trashedKpiCard .small i{
+    color:#fdba74 !important;
+}
 
 /* Ensure light theme has explicit colors */
 body.theme-light .kanban-column{background:#fff;color:#1f2937;border-color:rgba(11,26,49,0.06)}

@@ -60,18 +60,67 @@ include 'includes/header.php';
             }
             .top-kpi-col { flex: 0 0 auto; }
             .top-kpi-card {
-                min-width: 170px;
-                padding: 0.9rem !important;
+                min-width: 186px;
+                padding: 1rem !important;
+                border-radius: 16px;
+                border: 1px solid #dbe7f4;
+                background: linear-gradient(145deg, #ffffff 0%, #f3f8ff 100%);
+                box-shadow: 0 12px 28px rgba(15, 23, 42, 0.11);
+                position: relative;
+                overflow: hidden;
+                transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+            }
+            .top-kpi-card::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 4px;
+                background: linear-gradient(90deg, #2563eb 0%, #22c55e 100%);
             }
             .top-kpi-card .small {
-                font-size: 0.72rem;
+                font-size: 0.71rem;
+                text-transform: uppercase;
+                letter-spacing: .06em;
+                font-weight: 700;
+                color: #4f6480 !important;
             }
             .top-kpi-card .h4 {
-                font-size: 1.1rem;
+                font-size: 1.22rem;
+                font-weight: 800;
+                color: #10325a;
             }
             .top-kpi-card i {
-                font-size: 1.35rem !important;
-                margin-top: 0.35rem;
+                width: 44px;
+                height: 44px;
+                border-radius: 12px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1rem !important;
+                margin-top: 0.45rem;
+                background: rgba(37, 99, 235, 0.12);
+            }
+            .top-kpi-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
+                border-color: #b6d2f6;
+            }
+            .project-kpi-row > .top-kpi-col:nth-child(1) .top-kpi-card::before { background: linear-gradient(90deg, #2563eb 0%, #0ea5e9 100%); }
+            .project-kpi-row > .top-kpi-col:nth-child(2) .top-kpi-card::before { background: linear-gradient(90deg, #dc2626 0%, #f97316 100%); }
+            .project-kpi-row > .top-kpi-col:nth-child(3) .top-kpi-card::before { background: linear-gradient(90deg, #16a34a 0%, #22c55e 100%); }
+            .project-kpi-row > .top-kpi-col:nth-child(4) .top-kpi-card::before { background: linear-gradient(90deg, #0f766e 0%, #14b8a6 100%); }
+            .project-kpi-row > .top-kpi-col:nth-child(5) .top-kpi-card::before { background: linear-gradient(90deg, #d97706 0%, #f59e0b 100%); }
+            .project-kpi-row > .top-kpi-col:nth-child(2) i { background: rgba(220, 38, 38, 0.12); }
+            .project-kpi-row > .top-kpi-col:nth-child(3) i { background: rgba(22, 163, 74, 0.12); }
+            .project-kpi-row > .top-kpi-col:nth-child(4) i { background: rgba(20, 184, 166, 0.14); }
+            .project-kpi-row > .top-kpi-col:nth-child(5) i { background: rgba(245, 158, 11, 0.15); }
+            @media (max-width: 768px) {
+                .top-kpi-card {
+                    min-width: 160px;
+                    padding: 0.85rem !important;
+                }
             }
             .top-info-toggle {
                 width: 42px;
@@ -163,10 +212,17 @@ include 'includes/header.php';
                 border-color: #4ade80;
             }
             body.theme-dark .top-kpi-card {
-                background: rgba(255,255,255,0.04) !important;
+                background: linear-gradient(155deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%) !important;
                 color: #e6eef8 !important;
                 border-color: rgba(255,255,255,0.10) !important;
                 box-shadow: 0 10px 30px rgba(0,0,0,0.35) !important;
+            }
+            body.theme-dark .top-kpi-card .small,
+            body.theme-dark .top-kpi-card .h4 {
+                color: #e6eef8 !important;
+            }
+            body.theme-dark .top-kpi-card i {
+                background: rgba(255,255,255,0.14);
             }
             body.theme-dark .project-filter-btn,
             body.theme-dark .project-filter-btn-clear,
@@ -404,7 +460,7 @@ include 'includes/header.php';
             }, $projetos));
             $avg = $total ? ($proposalSum / $total) : 0;
             ?>
-            <div class="row g-2 mb-4 justify-content-center project-top-section">
+            <div class="row g-2 mb-4 justify-content-center project-top-section project-kpi-row">
                 <div class="col-auto top-kpi-col">
                     <div class="card top-kpi-card text-center shadow-sm">
                         <div class="small text-muted">Total de Projetos</div>

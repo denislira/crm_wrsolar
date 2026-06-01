@@ -977,6 +977,46 @@ include 'includes/header.php';
 /* ── Gestão de Receita Recorrente ───────────────────────── */
 .pv-kpi            { border-radius:14px; border:none; box-shadow:0 2px 10px rgba(0,0,0,.07); }
 .pv-kpi-icon       { width:46px;height:46px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.1rem; }
+.pv-kpi-row .pv-kpi {
+    position: relative;
+    border: 1px solid #dbe8f7;
+    border-radius: 16px;
+    overflow: hidden;
+    background: linear-gradient(145deg, #ffffff 0%, #f3f8ff 100%);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.pv-kpi-row .pv-kpi::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #2563eb 0%, #06b6d4 100%);
+}
+.pv-kpi-row .pv-kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 32px rgba(15, 23, 42, 0.14);
+    border-color: #bdd5f2;
+}
+.pv-kpi-row .pv-meta-label {
+    color: #4c6582;
+}
+.pv-kpi-row .fw-bold {
+    color: #10325a;
+}
+.pv-kpi-row > div:nth-child(1) .pv-kpi::before { background: linear-gradient(90deg, #0ea5e9 0%, #22d3ee 100%); }
+.pv-kpi-row > div:nth-child(2) .pv-kpi::before { background: linear-gradient(90deg, #16a34a 0%, #22c55e 100%); }
+.pv-kpi-row > div:nth-child(3) .pv-kpi::before { background: linear-gradient(90deg, #f59e0b 0%, #f97316 100%); }
+.pv-kpi-row > div:nth-child(4) .pv-kpi::before { background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%); }
+.pv-kpi-row .pv-kpi.pv-kpi-retention {
+    background: linear-gradient(135deg, var(--bs-primary), var(--bs-secondary));
+    border-color: transparent;
+}
+.pv-kpi-row .pv-kpi.pv-kpi-retention::before {
+    background: linear-gradient(90deg, rgba(255,255,255,.45) 0%, rgba(255,255,255,.12) 100%);
+}
 .pv-card           { border-radius:14px;box-shadow:0 3px 14px rgba(0,0,0,.08);transition:box-shadow .2s; }
 .pv-card:hover     { box-shadow:0 7px 22px rgba(0,0,0,.13); }
 .pv-badge          { font-size:.7rem;font-weight:700;letter-spacing:.05em;padding:3px 10px;border-radius:20px;white-space:nowrap; }
@@ -1114,6 +1154,19 @@ body.theme-dark .pv-progress-bar,
 body.theme-dark .pv-health-bar {
     background: rgba(255,255,255,.08) !important;
 }
+body.theme-dark .pv-kpi-row .pv-kpi {
+    background: linear-gradient(155deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%) !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: 0 14px 30px rgba(0,0,0,.36) !important;
+}
+body.theme-dark .pv-kpi-row .pv-kpi.pv-kpi-retention {
+    background: linear-gradient(135deg, var(--bs-primary), var(--bs-secondary)) !important;
+    border-color: transparent !important;
+}
+body.theme-dark .pv-kpi-row .pv-meta-label,
+body.theme-dark .pv-kpi-row .fw-bold {
+    color: #e6eef8 !important;
+}
 #pvModal .form-control,
 #pvModal .form-select,
 #pvModal textarea {
@@ -1236,7 +1289,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
         </div>
 
         <!-- KPIs NOVOS -->
-        <div class="row g-3 mb-4">
+        <div class="row g-3 mb-4 pv-kpi-row">
             <div class="col-6 col-md-2">
                 <div class="card pv-kpi p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center">

@@ -44,7 +44,7 @@ include 'includes/header.php';
             </div>
 
             <!-- KPIs -->
-            <div class="row g-3 mb-3" id="kpiRow">
+            <div class="row g-3 mb-3 kpi-row" id="kpiRow">
                 <div class="col-md-2">
                     <div class="card p-3">
                         <div class="small text-muted">Leads Anúncios</div>
