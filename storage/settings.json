@@ -3,5 +3,6 @@
     "primary_dark": "#073b6b",
     "green": "#4bbf4b",
     "yellow": "#ffd24a",
-    "logo_collapsed": "uploads\/custom_logo_collapsed.png"
+    "logo_collapsed": "uploads\/custom_logo_collapsed.png",
+    "login_background": "uploads\/custom_login_background.jpg"
 }

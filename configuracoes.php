@@ -801,6 +801,21 @@ body.theme-dark .edit-user-modal .avatar-box {
                                         </div>
                                     </div>
                                 </div>
+
+                                <div class="mt-3">
+                                    <h6>Fundo da tela de login</h6>
+                                    <div class="border rounded p-2 mb-2" style="background:#d0d0d0;">
+                                        <img id="currentLoginBackground" src="assets/img/fundoplaca2.jpg" alt="Fundo login" style="width:100%; max-height:150px; object-fit:cover; border-radius:8px; display:block;" />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label">Trocar fundo do login (papel de parede)</label>
+                                        <input id="appearance_login_background" type="file" accept="image/*" class="form-control form-control-sm" />
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="removeLoginBackgroundChk" />
+                                        <label class="form-check-label" for="removeLoginBackgroundChk">Remover fundo personalizado do login</label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -1555,8 +1570,11 @@ document.addEventListener('DOMContentLoaded', function(){
         const currentLogoCollapsed = document.getElementById('currentLogoCollapsed');
         const logoInput = document.getElementById('appearance_logo');
         const logoCollapsedInput = document.getElementById('appearance_logo_collapsed');
+        const loginBgInput = document.getElementById('appearance_login_background');
         const removeChk = document.getElementById('removeLogoChk');
         const removeCollapsedChk = document.getElementById('removeLogoCollapsedChk');
+        const removeLoginBgChk = document.getElementById('removeLoginBackgroundChk');
+        const currentLoginBackground = document.getElementById('currentLoginBackground');
         const primaryInput = document.getElementById('primary_color');
         const primaryDarkInput = document.getElementById('primary_dark');
         const greenInput = document.getElementById('green_color');
@@ -1573,6 +1591,9 @@ document.addEventListener('DOMContentLoaded', function(){
                 }
                 if (s.logo_collapsed) {
                     currentLogoCollapsed.src = s.logo_collapsed;
+                }
+                if (s.login_background && currentLoginBackground) {
+                    currentLoginBackground.src = s.login_background;
                 }
                 if (s.primary_color) primaryInput.value = s.primary_color;
                 if (s.primary_dark) primaryDarkInput.value = s.primary_dark;
@@ -1606,12 +1627,22 @@ document.addEventListener('DOMContentLoaded', function(){
         greenInput.addEventListener('input', applyPreviewColors);
         yellowInput.addEventListener('input', applyPreviewColors);
 
+        if (loginBgInput && currentLoginBackground) {
+            loginBgInput.addEventListener('change', function(){
+                const f = this.files && this.files[0];
+                if (!f) return;
+                currentLoginBackground.src = URL.createObjectURL(f);
+            });
+        }
+
         document.getElementById('btn_save_appearance').addEventListener('click', async function(){
             const fd = new FormData();
             if (logoInput.files && logoInput.files[0]) fd.append('logo', logoInput.files[0]);
             if (logoCollapsedInput.files && logoCollapsedInput.files[0]) fd.append('logo_collapsed', logoCollapsedInput.files[0]);
+            if (loginBgInput && loginBgInput.files && loginBgInput.files[0]) fd.append('login_background', loginBgInput.files[0]);
             if (removeChk.checked) fd.append('remove_logo', '1');
             if (removeCollapsedChk && removeCollapsedChk.checked) fd.append('remove_logo_collapsed', '1');
+            if (removeLoginBgChk && removeLoginBgChk.checked) fd.append('remove_login_background', '1');
             fd.append('primary_color', primaryInput.value || '');
             fd.append('primary_dark', primaryDarkInput.value || '');
             fd.append('green', greenInput.value || '');
@@ -1624,6 +1655,10 @@ document.addEventListener('DOMContentLoaded', function(){
                 if (data.success) {
                     if (data.appearance && data.appearance.logo) currentLogo.src = data.appearance.logo + '?v=' + Date.now();
                     if (data.appearance && data.appearance.logo_collapsed) currentLogoCollapsed.src = data.appearance.logo_collapsed + '?v=' + Date.now();
+                    if (currentLoginBackground) {
+                        if (data.appearance && data.appearance.login_background) currentLoginBackground.src = data.appearance.login_background + '?v=' + Date.now();
+                        else currentLoginBackground.src = 'assets/img/fundoplaca2.jpg';
+                    }
                 }
             }catch(e){ alert('Erro ao salvar aparência'); console.error(e); }
             this.disabled = false;
@@ -1633,6 +1668,7 @@ document.addEventListener('DOMContentLoaded', function(){
             if (!confirm('Restaurar aparência para o padrão?')) return;
             const fd = new FormData();
             fd.append('remove_logo', '1');
+            fd.append('remove_login_background', '1');
             fd.append('primary_color', '#0b6ac1');
             fd.append('primary_dark', '#073b6b');
             fd.append('green', '#4bbf4b');

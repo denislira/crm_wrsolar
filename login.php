@@ -25,6 +25,20 @@ if (isset($_SESSION['user_id'])) {
 // On the login page we don't want the global navbar to appear
 $noNavbar = true;
 
+$loginBackground = 'assets/img/fundoplaca2.jpg';
+$settingsPath = __DIR__ . '/storage/settings.json';
+if (file_exists($settingsPath)) {
+    $rawAppearance = @file_get_contents($settingsPath);
+    $appearanceSettings = $rawAppearance ? json_decode($rawAppearance, true) : [];
+    if (!empty($appearanceSettings['login_background'])) {
+        $candidate = ltrim((string)$appearanceSettings['login_background'], '/\\');
+        $fullPath = __DIR__ . '/' . $candidate;
+        if (file_exists($fullPath)) {
+            $loginBackground = $candidate;
+        }
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'];
     $password = $_POST['password'];
@@ -79,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             width: 100vw;
             background: 
                 linear-gradient(135deg, rgba(7, 59, 107, 0.7) 0%, rgba(11, 106, 193, 0.6) 50%, rgba(75, 191, 75, 0.5) 100%),
-                url('assets/img/fundoplaca2.jpg');
+                url('<?php echo htmlspecialchars($loginBackground, ENT_QUOTES, 'UTF-8'); ?>');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -93,14 +107,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         .login-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(24px) saturate(150%);
+            border-radius: 28px;
+            box-shadow: 0 28px 68px rgba(8, 35, 75, 0.18);
             padding: 3rem;
             width: 420px;
             max-width: 90vw;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.32);
+            position: relative;
+            overflow: hidden;
+            background-clip: padding-box;
+        }
+
+        .login-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top left, rgba(11, 106, 193, 0.12), transparent 35%),
+                        radial-gradient(circle at bottom right, rgba(75, 191, 75, 0.1), transparent 28%);
+            pointer-events: none;
+        }
+
+        .login-card > * {
+            position: relative;
+            z-index: 1;
         }
         
         .logo-section {

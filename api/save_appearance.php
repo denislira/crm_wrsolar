@@ -42,6 +42,38 @@ if ($primaryDark && preg_match('/^#[0-9A-Fa-f]{6}$/', $primaryDark)) $appearance
 if ($green && preg_match('/^#[0-9A-Fa-f]{6}$/', $green)) $appearance['green'] = $green;
 if ($yellow && preg_match('/^#[0-9A-Fa-f]{6}$/', $yellow)) $appearance['yellow'] = $yellow;
 
+// Handle login background upload (wallpaper)
+if (!empty($_FILES['login_background']) && $_FILES['login_background']['error'] === UPLOAD_ERR_OK) {
+    $f = $_FILES['login_background'];
+    $allowed = [
+        'image/png' => '.png',
+        'image/jpeg' => '.jpg',
+        'image/jpg' => '.jpg',
+        'image/webp' => '.webp'
+    ];
+    $mime = mime_content_type($f['tmp_name']);
+    if (!array_key_exists($mime, $allowed)) {
+        echo json_encode(['success' => false, 'message' => 'Tipo de arquivo de fundo não suportado. Use PNG/JPG/WEBP.']);
+        exit;
+    }
+    $ext = $allowed[$mime];
+    $targetName = 'uploads/custom_login_background' . $ext;
+    $targetPath = __DIR__ . '/../' . $targetName;
+
+    // Remove previous background file if extension changed
+    if (!empty($appearance['login_background']) && $appearance['login_background'] !== $targetName) {
+        $oldPath = __DIR__ . '/../' . $appearance['login_background'];
+        if (file_exists($oldPath)) @unlink($oldPath);
+    }
+
+    if (move_uploaded_file($f['tmp_name'], $targetPath)) {
+        $appearance['login_background'] = $targetName;
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Falha ao salvar imagem de fundo da tela de login.']);
+        exit;
+    }
+}
+
 // Handle logo upload
 if (!empty($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
     $f = $_FILES['logo'];
@@ -97,6 +129,15 @@ if (isset($_POST['remove_logo_collapsed']) && $_POST['remove_logo_collapsed'] ==
         $p = __DIR__ . '/../' . $appearance['logo_collapsed'];
         if (file_exists($p)) @unlink($p);
         unset($appearance['logo_collapsed']);
+    }
+}
+
+// Remove login background
+if (isset($_POST['remove_login_background']) && $_POST['remove_login_background'] === '1') {
+    if (!empty($appearance['login_background'])) {
+        $p = __DIR__ . '/../' . $appearance['login_background'];
+        if (file_exists($p)) @unlink($p);
+        unset($appearance['login_background']);
     }
 }
 
