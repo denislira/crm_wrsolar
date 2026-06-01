@@ -117,14 +117,6 @@ body.sidebar-collapsed .brand .brand-logo-collapsed { display: block !important;
                 </a>
             </li>
             <?php endif; ?>
-            <?php if (function_exists('hasPermission') ? (hasPermission('consultoria_externa') || hasPermission('dashboard')) : true): ?>
-            <li class="nav-item">
-                <a href="consultoria_externa.php" class="nav-link <?php echo $current=='consultoria_externa.php' ? 'active':''; ?>" data-tooltip="Consultoria Externa">
-                    <span class="icon"><i class="fa-solid fa-user-group"></i></span>
-                    <span class="label">Consultoria Externa</span>
-                </a>
-            </li>
-            <?php endif; ?>
             <?php if (function_exists('hasPermission') ? hasPermission('pos-venda') : true): ?>
             <li class="nav-item">
                 <a href="pos-venda.php" class="nav-link <?php echo $current=='pos-venda.php' ? 'active':''; ?>" data-tooltip="Pós-venda">

@@ -3,7 +3,24 @@ if (session_status() === PHP_SESSION_NONE) {
   session_start();
 }
 include 'includes/config.php';
-if (isset($_SESSION['user_id'])) { header('Location: index.php'); exit; }
+
+function isConsultorRoleFromSessionOrUser($roleId) {
+    if ((int)$roleId === 4) {
+        return true;
+    }
+
+    return false;
+}
+
+if (isset($_SESSION['user_id'])) {
+    $alreadyRoleId = $_SESSION['role_id'] ?? null;
+    if (isConsultorRoleFromSessionOrUser($alreadyRoleId)) {
+        header('Location: consultoria_externa.php');
+        exit;
+    }
+    header('Location: index.php');
+    exit;
+}
 
 // On the login page we don't want the global navbar to appear
 $noNavbar = true;
@@ -23,7 +40,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt_perm = $pdo->prepare('SELECT screen FROM role_permissions WHERE role_id = ? AND allowed = 1');
         $stmt_perm->execute([$user['role_id']]);
         $_SESSION['permissions'] = $stmt_perm->fetchAll(PDO::FETCH_COLUMN);
-        
+
+        if (isConsultorRoleFromSessionOrUser($user['role_id'])) {
+            header('Location: consultoria_externa.php');
+            exit;
+        }
+
         header('Location: index.php'); exit;
     } else { $error = 'Usuário ou senha incorretos!'; }
 }

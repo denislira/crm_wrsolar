@@ -98,16 +98,431 @@ body.theme-dark .small,
 body.theme-dark .text-muted {
     color: #c3d5ea !important;
 }
+
+.settings-page {
+    background:
+        radial-gradient(1100px 500px at -10% -25%, rgba(11, 137, 218, 0.18), transparent 62%),
+        radial-gradient(950px 450px at 115% 0%, rgba(255, 140, 66, 0.14), transparent 60%),
+        linear-gradient(180deg, #f5fbff 0%, #f2f6fb 42%, #f6f9fc 100%);
+    min-height: 100vh;
+}
+
+.settings-page .settings-shell {
+    max-width: 1320px;
+    margin: 0 auto;
+}
+
+.settings-page .settings-title {
+    margin-bottom: 1.2rem;
+    padding: 1.15rem 1.25rem;
+    border-radius: 16px;
+    color: #fff;
+    letter-spacing: 0.2px;
+    background: linear-gradient(130deg, #0a58ca 0%, #0b8ada 48%, #27b09e 100%);
+    box-shadow: 0 18px 38px rgba(13, 88, 182, 0.24);
+}
+
+.settings-page .settings-tabs {
+    border: 0;
+    gap: 0.5rem;
+    padding: 0.3rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 10px 26px rgba(24, 60, 105, 0.12);
+    backdrop-filter: blur(4px);
+}
+
+.settings-page .settings-tabs .nav-link {
+    border: 0;
+    border-radius: 10px;
+    color: #516b89;
+    font-weight: 600;
+    padding: 0.58rem 0.95rem;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.settings-page .settings-tabs .nav-link:hover {
+    color: #21476f;
+    background: rgba(13, 110, 253, 0.08);
+    transform: translateY(-1px);
+}
+
+.settings-page .settings-tabs .nav-link.active {
+    color: #fff;
+    background: linear-gradient(120deg, #0d6efd 0%, #1da6ff 100%);
+    box-shadow: 0 8px 20px rgba(13, 110, 253, 0.35);
+}
+
+.settings-page .settings-tab-content {
+    margin-top: 1rem;
+}
+
+.settings-page .card.card-shadow {
+    border: 1px solid #e2ecf8;
+    border-radius: 16px;
+    padding: 1.2rem !important;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 12px 28px rgba(18, 52, 94, 0.1);
+}
+
+.settings-page .table-responsive {
+    border: 1px solid #e5edf8;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.settings-page .table {
+    --bs-table-bg: transparent;
+    margin-bottom: 0;
+}
+
+.settings-page .table thead th {
+    background: #edf4fc;
+    color: #274562;
+    font-weight: 700;
+    font-size: 0.83rem;
+    letter-spacing: 0.2px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #d9e6f5;
+}
+
+.settings-page .table tbody td {
+    vertical-align: middle;
+    border-color: #ecf2f9;
+}
+
+.settings-page .table-hover tbody tr:hover,
+.settings-page .table-striped tbody tr:hover {
+    background: #f5faff;
+}
+
+.settings-page .btn {
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.settings-page .btn-primary {
+    background: linear-gradient(120deg, #0d6efd 0%, #1296ff 100%);
+    border: 0;
+    box-shadow: 0 10px 20px rgba(13, 110, 253, 0.25);
+}
+
+.settings-page .btn-primary:hover {
+    transform: translateY(-1px);
+}
+
+.settings-page .btn-outline-secondary,
+.settings-page .btn-outline-primary,
+.settings-page .btn-outline-warning,
+.settings-page .btn-outline-danger,
+.settings-page .btn-outline-info {
+    border-width: 1px;
+}
+
+.settings-page .form-control,
+.settings-page .form-select {
+    border-radius: 10px;
+    border-color: #d5e2f3;
+}
+
+.settings-page .form-control:focus,
+.settings-page .form-select:focus {
+    border-color: #84b4f8;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
+}
+
+.settings-page #waStatusCard,
+.settings-page #waHelpCard {
+    border: 1px solid #e1ebf7;
+    border-radius: 14px !important;
+    box-shadow: 0 10px 24px rgba(16, 52, 93, 0.1);
+}
+
+.settings-page #waQrImage {
+    border-radius: 12px;
+}
+
+.settings-page .alert-info {
+    border-color: #b7e1ff;
+    background: linear-gradient(160deg, #eaf6ff 0%, #f4fbff 100%);
+    color: #2d567b;
+}
+
+.settings-page .tab-pane > .d-flex .h5 {
+    color: #1f4266;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.settings-page #appearance .border.rounded {
+    border-color: #dbe8f7 !important;
+    background: linear-gradient(145deg, #f3f8ff 0%, #eaf2fd 100%) !important;
+}
+
+.settings-page #appearance #appearancePreview {
+    background: linear-gradient(155deg, #fdfefe 0%, #edf6ff 100%) !important;
+    border-color: #d8e8fb !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 10px 22px rgba(18, 61, 108, 0.08);
+}
+
+body.theme-dark .settings-page {
+    background:
+        radial-gradient(1000px 440px at -10% -20%, rgba(44, 120, 255, 0.22), transparent 62%),
+        radial-gradient(900px 380px at 110% 0%, rgba(16, 170, 124, 0.16), transparent 64%),
+        #0f1826;
+}
+
+body.theme-dark .settings-page .settings-title {
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
+}
+
+body.theme-dark .settings-page .settings-tabs {
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
+}
+
+body.theme-dark .settings-page .settings-tabs .nav-link {
+    color: #c8dbef !important;
+}
+
+body.theme-dark .settings-page .settings-tabs .nav-link:hover {
+    color: #f5fbff !important;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+body.theme-dark .settings-page .settings-tabs .nav-link.active {
+    color: #fff !important;
+    background: linear-gradient(120deg, #0c7de0 0%, #18a2ff 100%);
+}
+
+body.theme-dark .settings-page .card.card-shadow {
+    background: rgba(255, 255, 255, 0.03) !important;
+    border-color: rgba(255, 255, 255, 0.11) !important;
+}
+
+body.theme-dark .settings-page .table-responsive {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.theme-dark .settings-page .table thead th {
+    background: rgba(255, 255, 255, 0.08);
+    color: #deebf8;
+    border-color: rgba(255, 255, 255, 0.11);
+}
+
+body.theme-dark .settings-page .table tbody td {
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+body.theme-dark .settings-page .table-hover tbody tr:hover,
+body.theme-dark .settings-page .table-striped tbody tr:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+body.theme-dark .settings-page .form-control,
+body.theme-dark .settings-page .form-select {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #e6eef8;
+}
+
+body.theme-dark .settings-page .alert-info {
+    border-color: rgba(129, 207, 255, 0.35);
+    background: rgba(76, 167, 226, 0.1);
+    color: #bfe4ff;
+}
+
+body.theme-dark .settings-page .tab-pane > .d-flex .h5 {
+    color: #dce9f6;
+}
+
+body.theme-dark .settings-page #appearance .border.rounded {
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.03) 100%) !important;
+}
+
+body.theme-dark .settings-page #appearance #appearancePreview {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    background: linear-gradient(155deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.03) 100%) !important;
+    box-shadow: none;
+}
+
+@media (max-width: 991px) {
+    .settings-page .settings-tabs {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        white-space: nowrap;
+        scrollbar-width: thin;
+    }
+
+    .settings-page .settings-tabs .nav-item {
+        flex: 0 0 auto;
+    }
+}
+
+@media (max-width: 576px) {
+    .settings-page {
+        padding-top: 0.15rem;
+    }
+
+    .settings-page .settings-title {
+        font-size: 1.18rem;
+        padding: 0.95rem 1rem;
+    }
+
+    .settings-page .card.card-shadow {
+        padding: 0.95rem !important;
+    }
+}
+
+.edit-user-modal .modal-dialog {
+    max-width: 680px;
+}
+
+.edit-user-modal .modal-content {
+    border: 0;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(11, 41, 80, 0.18);
+}
+
+.edit-user-modal .modal-header {
+    border-bottom: 0;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(120deg, #0d6efd 0%, #0b8ad9 50%, #1fa2ff 100%);
+    color: #fff;
+}
+
+.edit-user-modal .modal-title {
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+.edit-user-modal .modal-header .btn-close {
+    filter: invert(1) grayscale(100%);
+    opacity: 0.9;
+}
+
+.edit-user-modal .modal-body {
+    padding: 1.25rem;
+    background: #f7fbff;
+}
+
+.edit-user-modal .user-edit-section {
+    background: #ffffff;
+    border: 1px solid #e7eef8;
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+.edit-user-modal .form-label {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #36516f;
+    margin-bottom: 0.35rem;
+}
+
+.edit-user-modal .form-control,
+.edit-user-modal .form-select {
+    border-radius: 10px;
+    border-color: #d9e6f6;
+    min-height: 42px;
+}
+
+.edit-user-modal .form-control:focus,
+.edit-user-modal .form-select:focus {
+    border-color: #7eb4ff;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+.edit-user-modal .avatar-box {
+    display: flex;
+    align-items: center;
+    gap: 0.95rem;
+    padding: 0.8rem;
+    border-radius: 12px;
+    background: #f6faff;
+    border: 1px solid #dbe9fc;
+}
+
+.edit-user-modal .avatar-thumb {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 14px;
+    border: 1px solid #c7d9f1;
+    box-shadow: 0 6px 16px rgba(32, 86, 156, 0.18);
+    flex-shrink: 0;
+}
+
+.edit-user-modal .modal-footer {
+    border-top: 1px solid #e6edf8;
+    padding: 0.85rem 1.25rem 1.1rem;
+    background: #fff;
+}
+
+.edit-user-modal .btn {
+    border-radius: 10px;
+    min-width: 108px;
+}
+
+body.theme-dark .edit-user-modal .modal-content {
+    background: #142338 !important;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45) !important;
+}
+
+body.theme-dark .edit-user-modal .modal-body,
+body.theme-dark .edit-user-modal .modal-footer {
+    background: #142338 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.theme-dark .edit-user-modal .user-edit-section {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.theme-dark .edit-user-modal .form-label {
+    color: #d3e2f2;
+}
+
+body.theme-dark .edit-user-modal .form-control,
+body.theme-dark .edit-user-modal .form-select {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #e6eef8;
+}
+
+body.theme-dark .edit-user-modal .avatar-box {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 576px) {
+    .edit-user-modal .modal-body {
+        padding: 1rem;
+    }
+
+    .edit-user-modal .avatar-box {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .edit-user-modal .avatar-thumb {
+        margin: 0 auto;
+    }
+}
 </style>
 
 <div class="d-flex">
     <?php include 'includes/sidebar.php'; ?>
-    <main class="flex-grow-1 p-4">
-        <div class="container-fluid">
-            <h1 class="h4 mb-3">Configurações</h1>
+    <main class="flex-grow-1 p-4 settings-page">
+        <div class="container-fluid settings-shell">
+            <h1 class="h4 settings-title">Configurações</h1>
             
             <!-- Nav tabs -->
-            <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+            <ul class="nav nav-tabs settings-tabs" id="settingsTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab" aria-controls="users" aria-selected="true">Gerenciar Usuários</button>
                 </li>
@@ -129,7 +544,7 @@ body.theme-dark .text-muted {
                 <!-- Adicionar mais abas aqui no futuro -->
             </ul>
             
-            <div class="tab-content mt-3" id="settingsTabsContent">
+            <div class="tab-content mt-3 settings-tab-content" id="settingsTabsContent">
                 <!-- Aba Gerenciar Usuários -->
                 <div class="tab-pane fade show active" id="users" role="tabpanel" aria-labelledby="users-tab">
                     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -616,8 +1031,8 @@ body.theme-dark .text-muted {
 </div>
 
 <!-- Modal Editar Usuário -->
-<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+<div class="modal fade edit-user-modal" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="editUserModalLabel">Editar Usuário</h5>
@@ -626,32 +1041,40 @@ body.theme-dark .text-muted {
             <form id="editUserForm">
                 <input type="hidden" id="edit_user_id" name="id">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="edit_username" class="form-label">Usuário</label>
-                        <input type="text" class="form-control" id="edit_username" name="username" required>
+                    <div class="user-edit-section mb-3">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="edit_username" class="form-label">Usuário</label>
+                                <input type="text" class="form-control" id="edit_username" name="username" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit_email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="edit_email" name="email">
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="edit_email" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="edit_email" name="email">
+                    <div class="user-edit-section mb-3">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="edit_role_id" class="form-label">Papel</label>
+                                <select class="form-select" id="edit_role_id" name="role_id" required>
+                                    <?php foreach ($roles as $role): ?>
+                                        <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit_team_id" class="form-label">Equipe</label>
+                                <select class="form-select" id="edit_team_id" name="team_id">
+                                    <option value="">(Nenhuma)</option>
+                                    <?php foreach ($teams as $t): ?>
+                                        <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="edit_role_id" class="form-label">Papel</label>
-                        <select class="form-select" id="edit_role_id" name="role_id" required>
-                            <?php foreach ($roles as $role): ?>
-                                <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="edit_team_id" class="form-label">Equipe</label>
-                        <select class="form-select" id="edit_team_id" name="team_id">
-                            <option value="">(Nenhuma)</option>
-                            <?php foreach ($teams as $t): ?>
-                                <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="mb-3">
+                    <div class="user-edit-section mb-3">
                         <label for="edit_role_level" class="form-label">Nível (role_level)</label>
                         <select class="form-select" id="edit_role_level" name="role_level">
                             <option value="0">0 - Usuário</option>
@@ -659,11 +1082,11 @@ body.theme-dark .text-muted {
                             <option value="2">2 - Administrador</option>
                         </select>
                     </div>
-                    <div class="mb-3">
+                    <div class="user-edit-section">
                         <label class="form-label">Avatar atual</label>
-                        <div class="d-flex align-items-center gap-3">
-                            <img id="edit_user_avatar_preview" src="assets/img/avatar-placeholder.png" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #e6e6e6;" alt="Avatar" />
-                            <div style="flex:1;">
+                        <div class="avatar-box">
+                            <img id="edit_user_avatar_preview" class="avatar-thumb" src="assets/img/avatar-placeholder.png" alt="Avatar" />
+                            <div class="flex-grow-1">
                                 <label for="edit_user_avatar" class="form-label small">Substituir avatar</label>
                                 <input type="file" class="form-control form-control-sm" id="edit_user_avatar" name="avatar" accept="image/*" />
                             </div>
