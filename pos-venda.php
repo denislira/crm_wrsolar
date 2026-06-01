@@ -982,6 +982,15 @@ include 'includes/header.php';
 .pv-badge          { font-size:.7rem;font-weight:700;letter-spacing:.05em;padding:3px 10px;border-radius:20px;white-space:nowrap; }
 .pv-meta-label     { font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#999;font-weight:700;margin-bottom:2px; }
 .pv-meta-val       { font-size:.85rem;color:#444; }
+.pv-kpi-retention  { background: linear-gradient(135deg, var(--bs-primary), var(--bs-secondary)); color: #fff; }
+.pv-kpi-retention .pv-meta-label,
+.pv-kpi-retention .fw-bold,
+.pv-kpi-retention .pv-kpi-icon {
+    color: #fff !important;
+}
+.pv-kpi-retention .pv-kpi-icon {
+    background: rgba(255,255,255,.18);
+}
 .pv-sla-alert      { background:#fff3cd;border-radius:7px;padding:5px 10px;font-size:.78rem;font-weight:700;color:#856404; }
 .pv-blocked        { font-size:.85rem;color:#aaa;font-style:italic; }
 .progress          { height:8px;border-radius:4px; }
@@ -1308,13 +1317,13 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="card pv-kpi p-3 h-100">
+                <div class="card pv-kpi p-3 h-100 pv-kpi-retention">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <div class="pv-meta-label">Meta de Retenção</div>
                             <div class="fw-bold" style="font-size:1.5rem;line-height:1.1">95%</div>
                         </div>
-                        <div class="pv-kpi-icon bg-secondary bg-opacity-10 text-secondary"><i class="fa fa-bullseye"></i></div>
+                        <div class="pv-kpi-icon"><i class="fa fa-bullseye"></i></div>
                     </div>
                 </div>
             </div>
