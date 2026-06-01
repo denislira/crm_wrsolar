@@ -963,7 +963,7 @@ $total = count($posVendas);
 $conversaoRecorrencia = $total > 0 ? round(($assinantesAtivos / $total) * 100) : 0;
 
 // Fetch all eligible projects for the "Add" modal select
-$projStmt = $pdo->prepare("SELECT p.id, p.client_name, p.projeto, p.address AS proj_address, l.id AS lead_id, l.phone AS lead_phone, l.email AS lead_email, l.cpf_cnpj AS lead_cpf
+$projStmt = $pdo->prepare("SELECT p.id, p.client_name, p.projeto, p.proposal_value, p.address AS proj_address, l.id AS lead_id, l.phone AS lead_phone, l.email AS lead_email, l.cpf_cnpj AS lead_cpf
     FROM projetos p
     LEFT JOIN leads l ON l.id = p.lead_id
     WHERE p.user_id=? AND p.status IN ('Fechado','Finalizado','Homologado','Concluído','Concluido')
@@ -1501,7 +1501,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
                 <select class="form-select" id="pvProjectSelect">
                   <option value="">— Selecione o projeto —</option>
                   <?php foreach ($projetosDisponiveis as $prj): ?>
-                    <option value="<?= $prj['id'] ?>" data-lead-id="<?= htmlspecialchars((string)($prj['lead_id'] ?? ''), ENT_QUOTES) ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>" data-phone="<?= htmlspecialchars((string)($prj['lead_phone'] ?? ''), ENT_QUOTES) ?>" data-email="<?= htmlspecialchars((string)($prj['lead_email'] ?? ''), ENT_QUOTES) ?>" data-cpf="<?= htmlspecialchars((string)($prj['lead_cpf'] ?? ''), ENT_QUOTES) ?>" data-address="<?= htmlspecialchars((string)($prj['proj_address'] ?? ''), ENT_QUOTES) ?>">
+                                        <option value="<?= $prj['id'] ?>" data-lead-id="<?= htmlspecialchars((string)($prj['lead_id'] ?? ''), ENT_QUOTES) ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>" data-proposal="<?= htmlspecialchars((string)($prj['proposal_value'] ?? ''), ENT_QUOTES) ?>" data-phone="<?= htmlspecialchars((string)($prj['lead_phone'] ?? ''), ENT_QUOTES) ?>" data-email="<?= htmlspecialchars((string)($prj['lead_email'] ?? ''), ENT_QUOTES) ?>" data-cpf="<?= htmlspecialchars((string)($prj['lead_cpf'] ?? ''), ENT_QUOTES) ?>" data-address="<?= htmlspecialchars((string)($prj['proj_address'] ?? ''), ENT_QUOTES) ?>">
                       <?= htmlspecialchars($prj['client_name']) ?>
                     </option>
                   <?php endforeach; ?>
@@ -1512,13 +1512,13 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
                 <input type="date" name="installation_date" id="pvInstDate" class="form-control">
               </div>
               <div class="col-md-6">
-                <label class="form-label fw-semibold">Valor do Plano</label>
-                <input type="text" name="plan_value" id="pvProposalValue" class="form-control" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off">
-              </div>
-              <div class="col-md-6">
                 <label class="form-label fw-semibold">kWh do Projeto</label>
                 <input type="text" name="project_kwh" id="pvProjectKwh" class="form-control" inputmode="decimal" placeholder="Ex: 4500">
               </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Valor Proposta (Projeto)</label>
+                                <input type="text" id="pvProjectProposalValue" class="form-control" placeholder="R$ 0,00" readonly>
+                            </div>
               <div class="col-md-6">
                 <label class="form-label fw-semibold">Equipamento</label>
                 <input type="text" name="equipment" id="pvEquipment" class="form-control" placeholder="Digite o equipamento">
@@ -1579,6 +1579,10 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
                   <option value="">— Selecione o status de acesso —</option>
                 </select>
               </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Valor do Plano</label>
+                                <input type="text" name="plan_value" id="pvProposalValue" class="form-control" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off">
+                            </div>
               <div class="col-md-6">
                 <label class="form-label fw-semibold">Performance (%)</label>
                 <input type="number" name="performance_pct" id="pvPerf" class="form-control" min="0" max="999" step="0.1" placeholder="ex: 98.5">
@@ -2082,6 +2086,17 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
         input.value = Number(decimal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
 
+    function setProjectProposalInputFromValue(value){
+        const input = $('pvProjectProposalValue');
+        if (!input) return;
+        const decimal = toDecimalStringFromCurrency(value);
+        if (!decimal) {
+            input.value = '';
+            return;
+        }
+        input.value = Number(decimal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
     function getPlanLabel(pv){
         return String(pv.payment_type || pv.contract || '').trim() || 'Nenhum';
     }
@@ -2208,8 +2223,8 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
                             <span class="v">${escapeHtml(formatCurrencyBRL(pv.plan_value))}</span>
                             <span class="k pv-kv-hide-compact">kWh</span>
                             <span class="v pv-kv-hide-compact">${escapeHtml(String(pv.project_kwh || '—'))}</span>
-                            <span class="k pv-kv-hide-compact">Equipamento</span>
-                            <span class="v pv-kv-hide-compact">${escapeHtml(String(pv.equipment || '—'))}</span>
+                            <span class="k pv-kv-hide-compact">Marca</span>
+                            <span class="v pv-kv-hide-compact">${escapeHtml(String(pv.marca || '—'))}</span>
                             <span class="k pv-kv-hide-compact">Plano</span>
                             <span class="v pv-kv-hide-compact">${escapeHtml(getPlanLabel(pv))}</span>
                             <span class="k pv-kv-hide-compact">Telefone</span>
@@ -2581,6 +2596,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
         $('pvPerf').value = pv.performance_pct != null ? pv.performance_pct : '';
         setProposalInputFromValue(pv.plan_value || '');
         $('pvProjectKwh').value = pv.project_kwh || '';
+        setProjectProposalInputFromValue(pv.proposal_value || '');
         $('pvEquipment').value = pv.equipment || '';
         $('pvKit').value = pv.kit || '';
         $('pvMarca').value = pv.marca || '';
@@ -3203,6 +3219,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
         $('pvWarrantyMonths').value = 12;
         $('pvProposalValue').value = '';
         $('pvProjectKwh').value = '';
+        $('pvProjectProposalValue').value = '';
         $('pvEquipment').value = '';
         $('pvKit').value = '';
         $('pvMarca').value = '';
@@ -3220,6 +3237,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
         $('pvLeadId').value = opt?.dataset?.leadId || '';
         $('pvClientName').value = opt?.dataset?.name || '';
         $('pvProjectKwh').value = opt?.dataset?.kwh || '';
+        setProjectProposalInputFromValue(opt?.dataset?.proposal || '');
         if (!$('pvCpf').value && opt?.dataset?.cpf) {
             $('pvCpf').value = opt.dataset.cpf;
         }
