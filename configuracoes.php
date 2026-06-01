@@ -99,6 +99,38 @@ body.theme-dark .text-muted {
     color: #c3d5ea !important;
 }
 
+.settings-page .logo-preview-panel {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.settings-page .logo-preview-panel .preview-box {
+    flex: 1;
+    min-height: 120px;
+    border-radius: 0.75rem;
+    background: #d0d0d0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+    transition: background 0.2s ease;
+}
+
+.settings-page .logo-preview-panel.dark .preview-box {
+    background: #111;
+}
+
+.settings-page .logo-preview-panel .preview-box img {
+    max-width: 160px;
+    max-height: 80px;
+}
+
+.settings-page .logo-preview-toggle {
+    margin-bottom: 1rem;
+}
+
 .settings-page {
     background:
         radial-gradient(1100px 500px at -10% -25%, rgba(11, 137, 218, 0.18), transparent 62%),
@@ -127,9 +159,12 @@ body.theme-dark .text-muted {
     gap: 0.5rem;
     padding: 0.3rem;
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.88);
+    background: rgba(255, 255, 255, 0.95);
     box-shadow: 0 10px 26px rgba(24, 60, 105, 0.12);
     backdrop-filter: blur(4px);
+    position: sticky;
+    top: 56px;
+    z-index: 1050;
 }
 
 .settings-page .settings-tabs .nav-link {
@@ -734,16 +769,17 @@ body.theme-dark .edit-user-modal .avatar-box {
                         <div class="row">
                             <div class="col-md-5">
                                 <h6>Logos</h6>
-                                <div class="d-flex gap-3 mb-3">
-                                    <div class="flex-fill text-center border p-2 rounded" style="background:#d0d0d0; min-height:120px; display:flex; align-items:center; justify-content:center;">
+                                <button type="button" id="toggleLogoPreviewBg" class="btn btn-outline-secondary btn-sm logo-preview-toggle">Fundo escuro</button>
+                                <div class="logo-preview-panel mb-3">
+                                    <div class="preview-box text-center">
                                         <div>
                                             <div class="small text-muted mb-2">Logo padrão</div>
-                                            <img id="currentLogo" src="assets/img/logo150-b.png" alt="Logo" style="max-width:160px; max-height:80px; object-fit:contain; display:block; margin:0 auto;" />
+                                            <img id="currentLogo" src="assets/img/logo150-b.png" alt="Logo" />
                                         </div>
                                     </div>
-                                    <div style="width:120px; text-align:center;">
+                                    <div class="preview-box" style="width:120px; text-align:center;">
                                         <div class="small text-muted">Logo encolhido</div>
-                                        <div class="border p-2 rounded mt-2" style="background:#d0d0d0; display:inline-block;">
+                                        <div class="p-2 rounded mt-2 compact-logo-wrapper" style="background:transparent; display:inline-block; border:none;">
                                             <img id="currentLogoCollapsed" src="assets/img/logo.png" alt="Logo encolhido" style="width:48px; height:48px; object-fit:contain; display:block;" />
                                         </div>
                                     </div>
@@ -1580,6 +1616,25 @@ document.addEventListener('DOMContentLoaded', function(){
         const greenInput = document.getElementById('green_color');
         const yellowInput = document.getElementById('yellow_color');
         const preview = document.getElementById('appearancePreview');
+        const toggleLogoPreviewBg = document.getElementById('toggleLogoPreviewBg');
+        const logoPreviewPanel = document.querySelector('.logo-preview-panel');
+
+        function updateLogoPreviewToggle(){
+            if (!toggleLogoPreviewBg || !logoPreviewPanel) return;
+            if (logoPreviewPanel.classList.contains('dark')) {
+                toggleLogoPreviewBg.textContent = 'Fundo claro';
+            } else {
+                toggleLogoPreviewBg.textContent = 'Fundo escuro';
+            }
+        }
+
+        if (toggleLogoPreviewBg && logoPreviewPanel) {
+            toggleLogoPreviewBg.addEventListener('click', function(){
+                logoPreviewPanel.classList.toggle('dark');
+                updateLogoPreviewToggle();
+            });
+            updateLogoPreviewToggle();
+        }
 
         async function loadAppearance(){
             try{
@@ -1780,5 +1835,29 @@ document.addEventListener('DOMContentLoaded', function(){
 
         // initial load when opening tab
         loadSmtp();
+    });
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        const tabStorageKey = 'configuracoes-active-tab';
+        const tabButtons = document.querySelectorAll('#settingsTabs button[data-bs-toggle="tab"]');
+        const savedTab = localStorage.getItem(tabStorageKey);
+
+        if (savedTab) {
+            const targetButton = document.querySelector(`#settingsTabs button[data-bs-target="${savedTab}"]`);
+            if (targetButton) {
+                const tabInstance = new bootstrap.Tab(targetButton);
+                tabInstance.show();
+            }
+        }
+
+        tabButtons.forEach(function(button){
+            button.addEventListener('shown.bs.tab', function(event){
+                const target = event.target.getAttribute('data-bs-target');
+                if (target) {
+                    localStorage.setItem(tabStorageKey, target);
+                }
+            });
+        });
     });
     </script>
