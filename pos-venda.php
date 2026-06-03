@@ -38,6 +38,8 @@ try {
             indicator_email VARCHAR(255) DEFAULT NULL,
             notes TEXT DEFAULT NULL,
             transferred_to_kanban TINYINT(1) NOT NULL DEFAULT 0,
+            was_sale TINYINT(1) NOT NULL DEFAULT 0,
+            points_awarded INT NOT NULL DEFAULT 0,
             promoted_at DATETIME DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -53,6 +55,12 @@ try {
         }
         if (!in_array('promoted_at', $refCols, true)) {
             $pdo->exec("ALTER TABLE pos_venda_referrals ADD COLUMN promoted_at DATETIME DEFAULT NULL");
+        }
+        if (!in_array('was_sale', $refCols, true)) {
+            $pdo->exec("ALTER TABLE pos_venda_referrals ADD COLUMN was_sale TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        if (!in_array('points_awarded', $refCols, true)) {
+            $pdo->exec("ALTER TABLE pos_venda_referrals ADD COLUMN points_awarded INT NOT NULL DEFAULT 0");
         }
     }
 } catch (Exception $e) { /* ignore */ }
@@ -474,16 +482,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'list_referrals') {
-        $stmt = $pdo->prepare(
-            'SELECT r.id, r.pos_venda_id, r.indicator_name, r.indicator_phone, r.indicator_email, r.notes, r.created_at, pv.client_name AS pv_client_name
-             FROM pos_venda_referrals r
-             LEFT JOIN pos_venda pv ON pv.id = r.pos_venda_id
-             ORDER BY r.created_at DESC'
-        );
-        $stmt->execute([]);
+        $pvId = isset($_POST['pv_id']) ? intval($_POST['pv_id']) : 0;
+        if ($pvId > 0) {
+            $stmt = $pdo->prepare(
+                'SELECT r.id, r.pos_venda_id, r.indicator_name, r.indicator_phone, r.indicator_email, r.notes, r.created_at, r.points_awarded, r.was_sale, pv.client_name AS pv_client_name
+                 FROM pos_venda_referrals r
+                 LEFT JOIN pos_venda pv ON pv.id = r.pos_venda_id
+                 WHERE r.pos_venda_id = ?
+                 ORDER BY r.created_at DESC'
+            );
+            $stmt->execute([$pvId]);
+        } else {
+            $stmt = $pdo->prepare(
+                'SELECT r.id, r.pos_venda_id, r.indicator_name, r.indicator_phone, r.indicator_email, r.notes, r.created_at, r.points_awarded, r.was_sale, pv.client_name AS pv_client_name
+                 FROM pos_venda_referrals r
+                 LEFT JOIN pos_venda pv ON pv.id = r.pos_venda_id
+                 ORDER BY r.created_at DESC'
+            );
+            $stmt->execute([]);
+        }
         $referrals = $stmt->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode(['success' => true, 'referrals' => $referrals]);
         exit;
+    }
+
+    if ($action === 'add_referral') {
+        $pvId = isset($_POST['pv_id']) ? intval($_POST['pv_id']) : 0;
+        $name = trim((string)($_POST['indicator_name'] ?? ''));
+        $phone = trim((string)($_POST['indicator_phone'] ?? ''));
+        $email = trim((string)($_POST['indicator_email'] ?? ''));
+        $notes = trim((string)($_POST['notes'] ?? ''));
+        if ($pvId <= 0 || $name === '') {
+            echo json_encode(['success' => false, 'message' => 'Dados inválidos']); exit;
+        }
+        try {
+            $token = bin2hex(random_bytes(12));
+            $referralPoints = 10; // default points for receiving an indicação
+            $ins = $pdo->prepare('INSERT INTO pos_venda_referrals (pos_venda_id, user_id, referral_token, indicator_name, indicator_phone, indicator_email, notes, points_awarded, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+            $ins->execute([$pvId, $_SESSION['user_id'], $token, $name, $phone ?: null, $email ?: null, $notes ?: null, $referralPoints]);
+            // update total points on pos_venda
+            $upd = $pdo->prepare('UPDATE pos_venda SET points_total = COALESCE(points_total,0) + ? WHERE id = ?');
+            $upd->execute([$referralPoints, $pvId]);
+            echo json_encode(['success' => true]); exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]); exit;
+        }
+    }
+
+    if ($action === 'award_referral') {
+        $refId = isset($_POST['ref_id']) ? intval($_POST['ref_id']) : 0;
+        if ($refId <= 0) { echo json_encode(['success' => false, 'message' => 'ID inválido']); exit; }
+        $salePoints = 25; // default points for a referral that resulted in sale (configured)
+        try {
+            $stmt = $pdo->prepare('SELECT pos_venda_id, was_sale FROM pos_venda_referrals WHERE id = ? LIMIT 1');
+            $stmt->execute([$refId]); $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) { echo json_encode(['success' => false, 'message' => 'Indicação não encontrada']); exit; }
+            if (intval($row['was_sale']) === 1) { echo json_encode(['success' => false, 'message' => 'Venda já registrada para esta indicação']); exit; }
+            $pdo->beginTransaction();
+            $pdo->prepare('UPDATE pos_venda_referrals SET was_sale = 1, points_awarded = COALESCE(points_awarded,0) + ? WHERE id = ?')->execute([$salePoints, $refId]);
+            $pdo->prepare('UPDATE pos_venda SET points_total = COALESCE(points_total,0) + ? WHERE id = ?')->execute([$salePoints, $row['pos_venda_id']]);
+            $pdo->commit();
+            echo json_encode(['success' => true]); exit;
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]); exit;
+        }
     }
 
     if ($action === 'get_pv_details') {
@@ -815,6 +878,31 @@ $createAutoTask = function ($token, $title, $description, $dueDate, $team = 'Adm
         ]);
     } catch (Exception $e) { /* ignore */ }
 };
+
+// ensure pos_venda has points_total
+try {
+    $cols = $pdo->query("SHOW COLUMNS FROM pos_venda")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('points_total', $cols)) {
+        $pdo->exec("ALTER TABLE pos_venda ADD COLUMN points_total INT NOT NULL DEFAULT 0");
+    }
+} catch (Exception $e) { /* ignore */ }
+
+// One-time data migration: populate existing referrals' points and recompute pos_venda.points_total
+try {
+    $cnt = $pdo->query("SELECT COUNT(*) FROM pos_venda_referrals WHERE points_awarded IS NULL OR points_awarded = 0")->fetchColumn();
+    if (intval($cnt) > 0) {
+        $pdo->beginTransaction();
+        // Was sale -> 25 points; otherwise non-sale referrals -> 10 points
+        $pdo->exec("UPDATE pos_venda_referrals SET points_awarded = 25 WHERE (points_awarded IS NULL OR points_awarded = 0) AND was_sale = 1");
+        $pdo->exec("UPDATE pos_venda_referrals SET points_awarded = 10 WHERE (points_awarded IS NULL OR points_awarded = 0) AND (was_sale = 0 OR was_sale IS NULL)");
+        // Recompute aggregated totals per pos_venda
+        $pdo->exec("UPDATE pos_venda p SET points_total = (SELECT COALESCE(SUM(points_awarded),0) FROM pos_venda_referrals r WHERE r.pos_venda_id = p.id)");
+        $pdo->commit();
+    }
+} catch (Exception $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    // do not break page load on migration failure
+}
 
 // ── KPIs + card enrichment ─────────────────────────────────
 $now = new DateTime();
@@ -1508,6 +1596,9 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="pvTabNotas" data-bs-toggle="pill" data-bs-target="#pvTabPanelNotas" type="button" role="tab">Notas</button>
           </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="pvTabIndicacoes" data-bs-toggle="pill" data-bs-target="#pvTabPanelIndicacoes" type="button" role="tab">Indicações</button>
+                    </li>
         </ul>
       </div>
       <form id="pvForm">
@@ -1664,6 +1755,29 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
               </div>
             </div>
           </div>
+                    <div class="tab-pane fade" id="pvTabPanelIndicacoes" role="tabpanel" aria-labelledby="pvTabIndicacoes">
+                        <div class="row g-2">
+                            <div class="col-12 mb-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="small text-muted">Pontos acumulados por indicações</div>
+                                        <div id="pvPointsTotal" class="fw-bold fs-5">0</div>
+                                    </div>
+                                    <div>
+                                        <button type="button" id="pvGenReferralBtn" class="btn btn-outline-primary btn-sm">Gerar link</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover align-middle mb-0">
+                                        <thead class="table-light"><tr><th>Indicador</th><th>Contato</th><th>Data</th><th>Pontos</th><th>Ações</th></tr></thead>
+                                        <tbody id="pvIndicacoesTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
         </div>
       </div>
       <div class="modal-footer py-3 px-4 border-top">
@@ -2664,6 +2778,8 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
                 const leadId = payload.details.lead_id || payload.details.lead_id_join || pv.lead_id || '';
                 $('pvLeadId').value = String(leadId);
                 renderPvEditAttachments(payload);
+                // load indicações for this pos-venda into the Indicações tab
+                loadReferralsForPv(pv.id);
             }
         } catch (err) {
             console.warn('Falha ao carregar anexos para edição:', err);
@@ -2791,6 +2907,77 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
         bsModal('pvReferralsModal').show();
         loadReferrals();
     }
+
+    // load referrals for a specific pos_venda and render inside Edit modal tab
+    async function loadReferralsForPv(pvId){
+        const body = $('pvIndicacoesTableBody');
+        const totalEl = $('pvPointsTotal');
+        body.innerHTML = '';
+        try {
+            const fd = new FormData(); fd.append('action', 'list_referrals'); fd.append('pv_id', String(pvId));
+            const res = await fetch('pos-venda.php', { method:'POST', body: fd });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.message || 'Falha ao carregar indicações');
+            const rows = Array.isArray(data.referrals) ? data.referrals : [];
+            // compute total points for this PV
+            let total = 0;
+            rows.forEach(r => { total += Number(r.points_awarded || 0); });
+            if (totalEl) totalEl.textContent = String(total);
+            if (!rows.length) {
+                body.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhuma indicação encontrada.</td></tr>';
+            } else {
+                body.innerHTML = rows.map(r => `
+                    <tr data-ref-id="${escapeHtml(String(r.id || ''))}">
+                        <td>${escapeHtml(r.indicator_name || '—')}</td>
+                        <td>${escapeHtml((r.indicator_phone || '') + (r.indicator_email ? (' / ' + r.indicator_email) : ''))}</td>
+                        <td>${escapeHtml(formatDateTimeBR(r.created_at || ''))}</td>
+                        <td>${escapeHtml(String(r.points_awarded || 0))}</td>
+                        <td>${r.was_sale ? '<span class="badge bg-success">Venda</span>' : `<button class="btn btn-sm btn-outline-success pv-mark-sale" data-ref-id="${escapeHtml(String(r.id || ''))}">Marcar Venda</button>`}</td>
+                    </tr>
+                `).join('');
+            }
+        } catch (err) {
+            body.innerHTML = `<tr><td colspan="6" class="text-danger">Erro: ${escapeHtml(err.message || '')}</td></tr>`;
+        }
+    }
+
+    // handle add referral form submit inside edit modal
+    
+
+    // generate referral link from within edit modal
+    const pvGenReferralBtn = $('pvGenReferralBtn');
+    if (pvGenReferralBtn) {
+        pvGenReferralBtn.addEventListener('click', async () => {
+            const pvId = $('pvId').value || '';
+            if (!pvId) { alert('Abra um registro de pós-venda primeiro.'); return; }
+            const fd = new FormData(); fd.append('action','gen_referral'); fd.append('pv_id', pvId);
+            try {
+                const r = await fetch('pos-venda.php', { method:'POST', body: fd });
+                const d = await r.json();
+                if (!d.success) throw new Error(d.message || 'Falha ao gerar link');
+                // show link in small prompt
+                const link = d.link || (window.location.origin + '/indicacao.php?token=' + encodeURIComponent(d.token || ''));
+                prompt('Link de indicação (copie e compartilhe):', link);
+            } catch (err) { alert('Erro: ' + (err.message || '')); }
+        });
+    }
+
+    // delegate click to mark sale buttons in the indicacoes table
+    document.addEventListener('click', async (ev) => {
+        const btn = ev.target.closest && ev.target.closest('.pv-mark-sale');
+        if (!btn) return;
+        const refId = btn.dataset.refId;
+        if (!refId) return;
+        if (!confirm('Confirmar marcar esta indicação como venda realizada? Isso adicionará pontos adicionais.')) return;
+        try {
+            const fd = new FormData(); fd.append('action','award_referral'); fd.append('ref_id', String(refId));
+            const r = await fetch('pos-venda.php', { method:'POST', body: fd });
+            const d = await r.json();
+            if (!d.success) throw new Error(d.message || 'Falha ao registrar venda');
+            const pvId = $('pvId').value || '';
+            if (pvId) loadReferralsForPv(pvId);
+        } catch (err) { alert('Erro: ' + (err.message || '')); }
+    });
 
     function setupKanbanDragAndDrop(){
         const cards = document.querySelectorAll('.pv-kanban-card');

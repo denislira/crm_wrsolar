@@ -36,21 +36,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
     } elseif ($indicatorPhone === '') {
         $error = 'Por favor, informe o telefone do indicador.';
     } else {
-        $duplicateStmt = $pdo->prepare('SELECT id FROM pos_venda_referrals WHERE referral_token = ? LIMIT 1');
+            $duplicateStmt = $pdo->prepare('SELECT id FROM pos_venda_referrals WHERE referral_token = ? LIMIT 1');
         $duplicateStmt->execute([$token]);
         if ($duplicateStmt->fetch()) {
             $error = 'Esta indicação já foi enviada anteriormente.';
         } else {
-            $insert = $pdo->prepare('INSERT INTO pos_venda_referrals (pos_venda_id, user_id, referral_token, indicator_name, indicator_phone, indicator_email, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
-            $insert->execute([
-                $posVendaId,
-                $userId,
-                $token,
-                $indicatorName,
-                $indicatorPhone,
-                $indicatorEmail !== '' ? $indicatorEmail : null,
-                $notes !== '' ? $notes : null,
-            ]);
+                // award default referral points when an indicação is received
+                $referralPoints = 10;
+                $insert = $pdo->prepare('INSERT INTO pos_venda_referrals (pos_venda_id, user_id, referral_token, indicator_name, indicator_phone, indicator_email, notes, points_awarded, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+                $insert->execute([
+                    $posVendaId,
+                    $userId,
+                    $token,
+                    $indicatorName,
+                    $indicatorPhone,
+                    $indicatorEmail !== '' ? $indicatorEmail : null,
+                    $notes !== '' ? $notes : null,
+                    $referralPoints,
+                ]);
+                // update pos_venda total points
+                try {
+                    $upd = $pdo->prepare('UPDATE pos_venda SET points_total = COALESCE(points_total,0) + ? WHERE id = ?');
+                    $upd->execute([$referralPoints, $posVendaId]);
+                } catch (Exception $e) { /* ignore silently */ }
             $success = 'Sua indicação foi recebida com sucesso. Obrigado!';
             $submitted = true;
         }
