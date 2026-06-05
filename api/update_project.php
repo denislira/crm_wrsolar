@@ -254,6 +254,26 @@ try {
         }
     }
 
+    // If the project contract/observations were updated, mirror them to the linked pos_venda notes (if any).
+    if (isset($_POST['contract'])) {
+        try {
+            $pvStmt = $pdo->prepare('SELECT id FROM pos_venda WHERE project_id = ? LIMIT 1');
+            $pvStmt->execute([$id]);
+            $pvId = $pvStmt->fetchColumn();
+            if ($pvId) {
+                $newNotes = ($_POST['contract'] === '' ? null : $_POST['contract']);
+                $upd = $pdo->prepare('UPDATE pos_venda SET project_notes = ?, updated_at = NOW() WHERE id = ? AND user_id = ?');
+                $upd->execute([$newNotes, $pvId, (int)$_SESSION['user_id']]);
+                // Log movement for pos_venda
+                if (function_exists('log_pos_venda_movement')) {
+                    log_pos_venda_movement($pdo, (int)$pvId, (int)$id, (int)$_SESSION['user_id'], 'notes_synchronized', null, null, 'Notas sincronizadas do projeto.');
+                }
+            }
+        } catch (Exception $e) {
+            // ignore sync errors
+        }
+    }
+
     // Re-run stage-based post-sale automation after updates (including drag/drop status moves).
     // This keeps migration timing consistent without relying on a page reload.
     $automationUserId = (int)($prevProject['user_id'] ?? $_SESSION['user_id']);

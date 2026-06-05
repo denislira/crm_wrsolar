@@ -120,6 +120,15 @@ try {
         $pdo->exec("ALTER TABLE pos_venda ADD COLUMN marca VARCHAR(255) DEFAULT NULL");
         $hasMarca = true;
     }
+    $projectNotesCol = $pdo->query("SHOW COLUMNS FROM pos_venda LIKE 'project_notes'")->fetchAll();
+    if (empty($projectNotesCol)) {
+        $pdo->exec("ALTER TABLE pos_venda ADD COLUMN project_notes TEXT DEFAULT NULL");
+    }
+} catch (Exception $e) { /* ignore */ }
+
+// Backfill project_notes from projetos.contract for existing records
+try {
+    $pdo->exec("UPDATE pos_venda pv JOIN projetos p ON pv.project_id = p.id SET pv.project_notes = p.contract WHERE pv.project_notes IS NULL AND p.contract IS NOT NULL");
 } catch (Exception $e) { /* ignore */ }
 
 // ── AJAX / POST handler ────────────────────────────────────
@@ -143,6 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $equipment     = trim((string)($_POST['equipment'] ?? ''));
             $planValueRaw  = trim((string)($_POST['plan_value'] ?? ''));
             $warrantyMonths= isset($_POST['warranty_months']) && trim($_POST['warranty_months']) !== '' ? max(1, intval($_POST['warranty_months'])) : 12;
+            $project_notes = trim($_POST['project_notes'] ?? '');
             $notes         = trim($_POST['notes']            ?? '');
             $perf          = (isset($_POST['performance_pct']) && $_POST['performance_pct'] !== '') ? floatval($_POST['performance_pct']) : null;
             $kit           = trim($_POST['kit']              ?? '');
@@ -235,8 +245,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $warranty = date('Y-m-d', strtotime('+' . $warrantyMonths . ' months', strtotime($warrantyStart)));
 
         if ($id) {
-            $updateFields = ['client_name=?','installation_date=?','next_maintenance=?','warranty_end=?','notes=?','phone=?','email=?','cpf=?','birth_date=?','address=?'];
-            $updateParams = [$clientName,$instDate,$nextMaint,$warranty,$notes,$clientPhone ?: null,$clientEmail ?: null,$cpf ?: null,$birthDate,$clientAddress ?: null];
+            $updateFields = ['client_name=?','installation_date=?','next_maintenance=?','warranty_end=?','project_notes=?','notes=?','phone=?','email=?','cpf=?','birth_date=?','address=?'];
+            $updateParams = [$clientName,$instDate,$nextMaint,$warranty,$project_notes,$notes,$clientPhone ?: null,$clientEmail ?: null,$cpf ?: null,$birthDate,$clientAddress ?: null];
             if ($hasPerformancePct) {
                 $updateFields[] = 'performance_pct=?';
                 $updateParams[] = $perf;
@@ -334,9 +344,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $r = $pdo->prepare('SELECT client_name FROM projetos WHERE id=? LIMIT 1');
                 $r->execute([$projId]); $clientName = $r->fetchColumn() ?: '';
             }
-            $cols = ['user_id','project_id','client_name','installation_date','next_maintenance','warranty_end','notes','phone','email','cpf','birth_date','address'];
-            $holders = ['?','?','?','?','?','?','?','?','?','?','?','?'];
-            $params = [$_SESSION['user_id'],$projId ?: null,$clientName,$instDate,$nextMaint,$warranty,$notes,$clientPhone ?: null,$clientEmail ?: null,$cpf ?: null,$birthDate,$clientAddress ?: null];
+            $cols = ['user_id','project_id','client_name','installation_date','next_maintenance','warranty_end','project_notes','notes','phone','email','cpf','birth_date','address'];
+            $holders = ['?','?','?','?','?','?','?','?','?','?','?','?','?'];
+            $params = [$_SESSION['user_id'],$projId ?: null,$clientName,$instDate,$nextMaint,$warranty,$project_notes,$notes,$clientPhone ?: null,$clientEmail ?: null,$cpf ?: null,$birthDate,$clientAddress ?: null];
             if ($hasPerformancePct) {
                 $cols[] = 'performance_pct'; $holders[] = '?'; $params[] = $perf;
             }
@@ -1645,7 +1655,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
                 <select class="form-select" id="pvProjectSelect">
                   <option value="">— Selecione o projeto —</option>
                   <?php foreach ($projetosDisponiveis as $prj): ?>
-                                        <option value="<?= $prj['id'] ?>" data-lead-id="<?= htmlspecialchars((string)($prj['lead_id'] ?? ''), ENT_QUOTES) ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>" data-proposal="<?= htmlspecialchars((string)($prj['proposal_value'] ?? ''), ENT_QUOTES) ?>" data-phone="<?= htmlspecialchars((string)($prj['lead_phone'] ?? ''), ENT_QUOTES) ?>" data-email="<?= htmlspecialchars((string)($prj['lead_email'] ?? ''), ENT_QUOTES) ?>" data-cpf="<?= htmlspecialchars((string)($prj['lead_cpf'] ?? ''), ENT_QUOTES) ?>" data-address="<?= htmlspecialchars((string)($prj['proj_address'] ?? ''), ENT_QUOTES) ?>">
+                                        <option value="<?= $prj['id'] ?>" data-lead-id="<?= htmlspecialchars((string)($prj['lead_id'] ?? ''), ENT_QUOTES) ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>" data-proposal="<?= htmlspecialchars((string)($prj['proposal_value'] ?? ''), ENT_QUOTES) ?>" data-phone="<?= htmlspecialchars((string)($prj['lead_phone'] ?? ''), ENT_QUOTES) ?>" data-email="<?= htmlspecialchars((string)($prj['lead_email'] ?? ''), ENT_QUOTES) ?>" data-cpf="<?= htmlspecialchars((string)($prj['lead_cpf'] ?? ''), ENT_QUOTES) ?>" data-address="<?= htmlspecialchars((string)($prj['proj_address'] ?? ''), ENT_QUOTES) ?>" data-contract="<?= htmlspecialchars((string)($prj['contract'] ?? ''), ENT_QUOTES) ?>">
                       <?= htmlspecialchars($prj['client_name']) ?>
                     </option>
                   <?php endforeach; ?>
@@ -1747,14 +1757,18 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
             </div>
           </div>
 
-          <div class="tab-pane fade" id="pvTabPanelNotas" role="tabpanel" aria-labelledby="pvTabNotas">
-            <div class="row g-2">
-              <div class="col-12">
-                <label class="form-label fw-semibold">Notas</label>
-                <textarea name="notes" id="pvNotes" class="form-control" rows="6" placeholder="Observações, histórico e ações pendentes."></textarea>
-              </div>
-            </div>
-          </div>
+                    <div class="tab-pane fade" id="pvTabPanelNotas" role="tabpanel" aria-labelledby="pvTabNotas">
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Observações do Projeto</label>
+                                <textarea name="project_notes" id="pvProjectNotes" class="form-control" rows="4" placeholder="Observações trazidas do projeto (somente leitura)" readonly></textarea>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Notas do Pós-venda</label>
+                                <textarea name="notes" id="pvNotes" class="form-control" rows="6" placeholder="Observações, histórico e ações pendentes."></textarea>
+                            </div>
+                        </div>
+                    </div>
                     <div class="tab-pane fade" id="pvTabPanelIndicacoes" role="tabpanel" aria-labelledby="pvTabIndicacoes">
                         <div class="row g-2">
                             <div class="col-12 mb-2">
@@ -2778,6 +2792,8 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
                 const leadId = payload.details.lead_id || payload.details.lead_id_join || pv.lead_id || '';
                 $('pvLeadId').value = String(leadId);
                 renderPvEditAttachments(payload);
+                // populate project_notes from payload (server-side joined field)
+                $('pvProjectNotes').value = payload.details.project_notes || pv.project_notes || '';
                 // load indicações for this pos-venda into the Indicações tab
                 loadReferralsForPv(pv.id);
             }
@@ -3478,6 +3494,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
         $('pvClientName').value = opt?.dataset?.name || '';
         $('pvProjectKwh').value = opt?.dataset?.kwh || '';
         setProjectProposalInputFromValue(opt?.dataset?.proposal || '');
+        $('pvProjectNotes').value = opt?.dataset?.contract || '';
         if (!$('pvCpf').value && opt?.dataset?.cpf) {
             $('pvCpf').value = opt.dataset.cpf;
         }

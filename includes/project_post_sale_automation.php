@@ -63,7 +63,7 @@ if (!function_exists('runProjectPostSaleAutomation')) {
         }
 
         $stmt = $pdo->prepare(
-                      "SELECT p.id, p.client_name, p.status, p.status_changed_at, p.closed_date, p.created_at, p.updated_at, p.due_days,
+                          "SELECT p.id, p.client_name, p.status, p.status_changed_at, p.closed_date, p.created_at, p.updated_at, p.due_days, p.contract,
                           ps.post_sale_enabled,
                           ps.post_sale_target_stage_id,
                           pvst.name AS post_sale_target_stage_name
@@ -93,7 +93,7 @@ if (!function_exists('runProjectPostSaleAutomation')) {
         }
 
         $insert = $pdo->prepare(
-            'INSERT INTO pos_venda (user_id, project_id, client_name, installation_date, notes, stage, created_at, updated_at)
+            'INSERT INTO pos_venda (user_id, project_id, client_name, installation_date, project_notes, stage, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())'
         );
         $markMoved = $pdo->prepare('UPDATE projetos SET moved_to_post_sale = 1, updated_at = NOW() WHERE id = ? AND user_id = ?');
@@ -122,10 +122,17 @@ if (!function_exists('runProjectPostSaleAutomation')) {
             }
 
             $installationDate = $baseDate->format('Y-m-d');
-            $notes = sprintf(
+            $migrationNote = sprintf(
                 'Migrado automaticamente de Projetos para Pós-venda após %d dias (prazo do card).',
                 $daysThreshold
             );
+
+            $projectContract = isset($project['contract']) && trim((string)$project['contract']) !== '' ? trim((string)$project['contract']) : null;
+            if ($projectContract !== null) {
+                $notes = $projectContract . "\n\n" . $migrationNote;
+            } else {
+                $notes = $migrationNote;
+            }
 
             try {
                 $insert->execute([
@@ -133,7 +140,7 @@ if (!function_exists('runProjectPostSaleAutomation')) {
                     (int) $project['id'],
                     (string) ($project['client_name'] ?? ''),
                     $installationDate,
-                    $notes,
+                    ($projectContract !== null ? $projectContract : $migrationNote),
                     $project['post_sale_target_stage_name'] ?: null,
                 ]);
                 $newPvId = (int) $pdo->lastInsertId();
