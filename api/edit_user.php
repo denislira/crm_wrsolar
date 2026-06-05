@@ -24,6 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $id = $_POST['id'] ?? '';
 $username = $_POST['username'] ?? '';
 $email = $_POST['email'] ?? '';
+$nome_completo = $_POST['nome_completo'] ?? null;
+$biografia = $_POST['biografia'] ?? null;
 $role_id = $_POST['role_id'] ?? '';
 $team_id = $_POST['team_id'] ?? null;
 $role_level = isset($_POST['role_level']) ? intval($_POST['role_level']) : 0;
@@ -34,8 +36,8 @@ if (empty($id) || empty($username) || empty($role_id)) {
 }
 
 try {
-    $stmt = $pdo->prepare('UPDATE users SET username = ?, email = ?, role_id = ?, team_id = ?, role_level = ? WHERE id = ?');
-    $stmt->execute([$username, $email, $role_id, $team_id ?: null, $role_level, $id]);
+    $stmt = $pdo->prepare('UPDATE users SET username = ?, email = ?, nome_completo = ?, biografia = ?, role_id = ?, team_id = ?, role_level = ? WHERE id = ?');
+    $stmt->execute([$username, $email, $nome_completo, $biografia, $role_id, $team_id ?: null, $role_level, $id]);
     // handle avatar upload if provided
     if (!empty($_FILES['avatar']) && isset($_FILES['avatar']['tmp_name']) && file_exists($_FILES['avatar']['tmp_name'])) {
         $file = $_FILES['avatar'];

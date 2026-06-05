@@ -9,9 +9,12 @@ $user_id = (int) $_SESSION['user_id'];
 // fetch user info (best-effort)
 $user = null;
 try {
-        $stmt = $pdo->prepare('SELECT id, username, email, name FROM users WHERE id = ? LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, username, email, name, nome_completo, biografia, avatar FROM users WHERE id = ? LIMIT 1');
         $stmt->execute([$user_id]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($user) {
+            if (empty($user['name']) && !empty($user['nome_completo'])) $user['name'] = $user['nome_completo'];
+        }
 } catch (Exception $e) {
         // ignore - we'll show basic info from session
 }
@@ -51,7 +54,7 @@ try {
 // Build usersMap for avatar display
 $usersMap = [];
 try {
-    $usersStmt = $pdo->query('SELECT id, username, name, email, avatar FROM users ORDER BY id');
+    $usersStmt = $pdo->query('SELECT id, username, nome_completo AS name, nome_completo, biografia, email, avatar FROM users ORDER BY id');
     $allUsers = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($allUsers as $u) {
         $usersMap[$u['id']] = $u;
@@ -451,8 +454,13 @@ include __DIR__ . '/includes/sidebar.php';
                 <div>
                     <h2 class="mb-2" style="font-weight: 700;">Meu Perfil</h2>
                     <p class="mb-0 opacity-75">Gerencie suas informações e acompanhe suas atividades</p>
+                    <div class="mt-2">
+                        <div id="profile_name_display" style="font-weight:700"><?php echo htmlspecialchars($user['nome_completo'] ?? $user['username'] ?? ''); ?></div>
+                        <div id="profile_email_display" class="small text-white-50"><?php echo htmlspecialchars($user['email'] ?? ''); ?></div>
+                        <div id="profile_bio_display" class="small text-white-50 mt-1"><?php echo nl2br(htmlspecialchars($user['biografia'] ?? '')); ?></div>
+                    </div>
                 </div>
-                <div>
+                <div class="d-flex gap-2">
                     <a href="logout.php" class="btn btn-outline-light btn-modern">
                         <i class="fas fa-sign-out-alt me-2"></i>Sair
                     </a>
@@ -460,7 +468,10 @@ include __DIR__ . '/includes/sidebar.php';
             </div>
         </div>
 
-        <div id="profileDebug" class="mb-3"></div>
+        <div id="profileDebug" class="mb-3">
+            <small class="text-muted">Debug (user data):</small>
+            <pre style="font-size:0.85rem; background:#f8f9fa; padding:8px; border-radius:6px;"><?php echo htmlspecialchars(print_r($user, true)); ?></pre>
+        </div>
 
         <!-- Abas: Meu Perfil / Fluxo de Atendimento -->
         <ul class="nav nav-pills mb-4" id="perfilTabs" role="tablist">
@@ -518,7 +529,10 @@ include __DIR__ . '/includes/sidebar.php';
 
                     <!-- Informações Pessoais -->
                     <hr class="my-4">
-                    <h6 class="fw-bold mb-3 text-secondary">Informações Pessoais</h6>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <h6 class="fw-bold mb-3 text-secondary">Informações Pessoais</h6>
+                        <button id="btnInlineEditProfile" class="btn btn-sm btn-success" title="Editar informações"><i class="fas fa-pen"></i></button>
+                    </div>
                     <div>
                         <div class="profile-info-item">
                             <div class="profile-info-label">
@@ -532,17 +546,32 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                             <div class="profile-info-value"><?php echo htmlspecialchars($user['username'] ?? ($_SESSION['username'] ?? '')); ?></div>
                         </div>
-                        <div class="profile-info-item">
+                        <div class="profile-info-item" data-field="nome_completo">
                             <div class="profile-info-label">
                                 <i class="fas fa-id-card me-2"></i>Nome Completo
                             </div>
-                            <div class="profile-info-value"><?php echo htmlspecialchars($user['name'] ?? ''); ?></div>
+                            <div class="profile-info-value view-mode"><?php echo htmlspecialchars($user['nome_completo'] ?? ''); ?></div>
+                            <div class="edit-mode d-none">
+                                <input type="text" class="form-control form-control-sm" name="nome_completo" value="<?php echo htmlspecialchars($user['nome_completo'] ?? ''); ?>" />
+                            </div>
                         </div>
-                        <div class="profile-info-item">
+                        <div class="profile-info-item" data-field="email">
                             <div class="profile-info-label">
                                 <i class="fas fa-envelope me-2"></i>E-mail
                             </div>
-                            <div class="profile-info-value"><?php echo htmlspecialchars($user['email'] ?? ''); ?></div>
+                            <div class="profile-info-value view-mode"><?php echo htmlspecialchars($user['email'] ?? ''); ?></div>
+                            <div class="edit-mode d-none">
+                                <input type="email" class="form-control form-control-sm" name="email" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" />
+                            </div>
+                        </div>
+                        <div class="profile-info-item" data-field="biografia">
+                            <div class="profile-info-label">
+                                <i class="fas fa-user-edit me-2"></i>Biografia
+                            </div>
+                            <div class="profile-info-value view-mode small"><?php echo nl2br(htmlspecialchars($user['biografia'] ?? '')); ?></div>
+                            <div class="edit-mode d-none">
+                                <textarea class="form-control form-control-sm" name="biografia" rows="3"><?php echo htmlspecialchars($user['biografia'] ?? ''); ?></textarea>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -550,6 +579,9 @@ include __DIR__ . '/includes/sidebar.php';
 
             <!-- Coluna Direita - Tarefas -->
             <div class="col-lg-8">
+                <!-- Edit profile form -->
+                <!-- inline edit handled inside Informações Pessoais -->
+
                 <div class="profile-card">
                     <h5 class="profile-section-title">Minhas Tarefas</h5>
                     <div id="profileTasksList" class="scrollable-list" style="min-height:350px;">
@@ -1160,9 +1192,73 @@ include __DIR__ . '/includes/sidebar.php';
             btnRemove.disabled = false;
         });
 
-        
+        // profile update form submission
+        const updateForm = document.getElementById('updateProfileForm');
+        if (updateForm) updateForm.addEventListener('submit', async function(e){
+            e.preventDefault();
+            const btn = document.getElementById('btnSaveProfile');
+            if (btn) btn.disabled = true;
+            const fd = new FormData(this);
+            const avatarEl = document.getElementById('pf_avatar');
+            if (avatarEl && avatarEl.files && avatarEl.files[0]) fd.append('avatar', avatarEl.files[0]);
+            try {
+                const res = await fetch('api/update_profile.php', { method: 'POST', body: fd, credentials: 'same-origin' });
+                const data = await res.json();
+                if (data.success) {
+                    const name = document.getElementById('pf_nome_completo') ? document.getElementById('pf_nome_completo').value : '';
+                    if (document.getElementById('profile_name_display')) document.getElementById('profile_name_display').textContent = name || '<?php echo htmlspecialchars($user['username'] ?? ''); ?>';
+                    if (document.getElementById('profile_email_display')) document.getElementById('profile_email_display').textContent = document.getElementById('pf_email').value;
+                    if (document.getElementById('profile_bio_display')) document.getElementById('profile_bio_display').innerHTML = (document.getElementById('pf_biografia').value || '').replace(/\n/g,'<br>');
+                    if (data.avatar) {
+                        document.getElementById('profileAvatar').src = data.avatar + '?v=' + Date.now();
+                    }
+                    alert('Perfil atualizado com sucesso');
+                    const collapseEl = document.getElementById('editProfilePane');
+                    if (collapseEl) { const bs = bootstrap.Collapse.getInstance(collapseEl); if (bs) bs.hide(); }
+                } else {
+                    alert('Erro: ' + (data.message || ''));
+                }
+            } catch(err) { console.error(err); alert('Erro ao atualizar perfil'); }
+            if (btn) btn.disabled = false;
+        });
+
     });
 
+
+    // Inline edit handlers for Informações Pessoais
+    document.addEventListener('DOMContentLoaded', ()=>{
+        const btnInline = document.getElementById('btnInlineEditProfile');
+        if (!btnInline) return;
+        let editing = false;
+        btnInline.addEventListener('click', async ()=>{
+            const items = document.querySelectorAll('.profile-info-item');
+            if (!editing) {
+                // enter edit mode
+                items.forEach(it=>{ it.querySelector('.view-mode')?.classList.add('d-none'); it.querySelector('.edit-mode')?.classList.remove('d-none'); });
+                btnInline.innerHTML = '<i class="fas fa-check"></i>';
+                const cancelBtn = document.createElement('button'); cancelBtn.type='button'; cancelBtn.className='btn btn-sm btn-outline-secondary ms-2'; cancelBtn.id='btnInlineCancel'; cancelBtn.innerHTML='<i class="fas fa-times"></i>';
+                btnInline.insertAdjacentElement('afterend', cancelBtn);
+                cancelBtn.addEventListener('click', ()=>{ location.reload(); });
+                editing = true;
+            } else {
+                // collect values and send
+                const data = {};
+                document.querySelectorAll('.profile-info-item').forEach(it=>{
+                    const name = it.getAttribute('data-field');
+                    const input = it.querySelector('.edit-mode input, .edit-mode textarea');
+                    if (input) data[name] = input.value;
+                });
+                try {
+                    const fd = new FormData(); for (const k in data) fd.append(k, data[k]);
+                    const res = await fetch('api/update_profile.php', { method: 'POST', body: fd, credentials: 'same-origin' });
+                    const json = await res.json();
+                    if (json.success) {
+                        location.reload();
+                    } else { alert('Erro: ' + (json.message||'')); }
+                } catch(e){ console.error(e); alert('Erro ao salvar'); }
+            }
+        });
+    });
     async function loadProfileData(){
         const base = 'api/get_user_activity.php?id=' + encodeURIComponent(PROFILE_USER_ID);
         try{

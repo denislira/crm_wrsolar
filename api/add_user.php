@@ -23,6 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $username = $_POST['username'] ?? '';
 $email = $_POST['email'] ?? '';
+$nome_completo = $_POST['nome_completo'] ?? null;
+$biografia = $_POST['biografia'] ?? null;
 $password = $_POST['password'] ?? '';
 $role_id = $_POST['role_id'] ?? '';
 $team_id = $_POST['team_id'] ?? null;
@@ -36,8 +38,8 @@ if (empty($username) || empty($password) || empty($role_id)) {
 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
 try {
-    $stmt = $pdo->prepare('INSERT INTO users (username, password, email, role_id, team_id, role_level) VALUES (?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$username, $hashed_password, $email, $role_id, $team_id ?: null, $role_level]);
+    $stmt = $pdo->prepare('INSERT INTO users (username, password, email, nome_completo, biografia, role_id, team_id, role_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$username, $hashed_password, $email, $nome_completo, $biografia, $role_id, $team_id ?: null, $role_level]);
     $newId = $pdo->lastInsertId();
 
     // handle avatar upload if provided

@@ -11,8 +11,17 @@ if (empty($_SESSION['user_id'])) {
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/permissions.php';
 
-if (!hasPermission('consultoria_externa') && !hasPermission('dashboard')) {
-    echo 'Acesso negado.';
+// Ensure only users with role 'consultor_externo' can access this page.
+$roleName = $_SESSION['role_name'] ?? null;
+if (!$roleName && !empty($_SESSION['role_id'])) {
+    $stmt = $pdo->prepare('SELECT name FROM roles WHERE id = ?');
+    $stmt->execute([$_SESSION['role_id']]);
+    $roleName = $stmt->fetchColumn();
+}
+
+if (strtolower((string)$roleName) !== 'consultor_externo') {
+    // Redirect non-external-consultants to dashboard
+    header('Location: index.php');
     exit;
 }
 

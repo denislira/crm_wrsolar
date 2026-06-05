@@ -5,11 +5,22 @@ if (session_status() === PHP_SESSION_NONE) {
 include 'includes/config.php';
 
 function isConsultorRoleFromSessionOrUser($roleId) {
-    if ((int)$roleId === 4) {
-        return true;
+    // Only treat as external consultant when role is 'consultor_externo'
+    global $pdo;
+    if ($roleId === null) return false;
+
+    $roleName = null;
+    if (is_numeric($roleId)) {
+        $stmt = $pdo->prepare('SELECT name FROM roles WHERE id = ?');
+        $stmt->execute([(int)$roleId]);
+        $roleName = $stmt->fetchColumn();
+    } else {
+        $roleName = (string)$roleId;
     }
 
-    return false;
+    if (!$roleName) return false;
+
+    return strtolower($roleName) === 'consultor_externo';
 }
 
 if (isset($_SESSION['user_id'])) {
@@ -49,6 +60,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
         $_SESSION['role_id'] = $user['role_id'];
+        // store role name for easier checks in the session
+        $stmt_role = $pdo->prepare('SELECT name FROM roles WHERE id = ?');
+        $stmt_role->execute([$user['role_id']]);
+        $_SESSION['role_name'] = $stmt_role->fetchColumn();
         
         // Load permissions
         $stmt_perm = $pdo->prepare('SELECT screen FROM role_permissions WHERE role_id = ? AND allowed = 1');

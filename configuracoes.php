@@ -559,7 +559,7 @@ body.theme-dark .edit-user-modal .avatar-box {
             <!-- Nav tabs -->
             <ul class="nav nav-tabs settings-tabs" id="settingsTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab" aria-controls="users" aria-selected="true">Gerenciar Usuários</button>
+                    <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab" aria-controls="users" aria-selected="true">Usuários</button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="teams-tab" data-bs-toggle="tab" data-bs-target="#teams" type="button" role="tab" aria-controls="teams" aria-selected="false">Equipes</button>
@@ -613,7 +613,7 @@ body.theme-dark .edit-user-modal .avatar-box {
                                                 <td><?php echo isset($user['role_level']) ? intval($user['role_level']) : ''; ?></td>
                                                 <td><?php echo htmlspecialchars($user['role_name'] ?? 'N/A'); ?></td>
                                                 <td>
-                                                    <button class="btn btn-sm btn-outline-warning me-1" onclick="editUser(<?php echo $user['id']; ?>)" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                                                    <button class="btn btn-sm btn-outline-warning me-1 edit-user-btn" onclick="editUser(<?php echo $user['id']; ?>, this)" title="Editar"><i class="fa-solid fa-pen"></i></button>
                                                     <button class="btn btn-sm btn-outline-danger me-1" onclick="deleteUser(<?php echo $user['id']; ?>)" title="Excluir"><i class="fa-solid fa-trash"></i></button>
                                                     <button class="btn btn-sm btn-outline-info" onclick="changePassword(<?php echo $user['id']; ?>)" title="Alterar senha"><i class="fa-solid fa-key"></i></button>
                                                 </td>
@@ -695,8 +695,8 @@ body.theme-dark .edit-user-modal .avatar-box {
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h2 class="h5 mb-0">Permissões por Papel</h2>
                         <div class="d-flex gap-2 align-items-center">
-                            <label class="mb-0 me-2">Papel:</label>
-                            <select id="perm_role_select" class="form-select form-select-sm">
+                            <label class="mb-0 me-2 fw-bold text-primary" style="font-size:1rem;">Papel:</label>
+                            <select id="perm_role_select" class="form-select form-select-sm border border-2 border-primary text-primary fw-semibold" style="min-width:220px; font-size:1rem;">
                                 <?php foreach ($roles as $role): ?>
                                     <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name']); ?></option>
                                 <?php endforeach; ?>
@@ -1039,6 +1039,10 @@ body.theme-dark .edit-user-modal .avatar-box {
                         <input type="email" class="form-control" id="email" name="email">
                     </div>
                     <div class="mb-3">
+                        <label for="nome_completo" class="form-label">Nome completo</label>
+                        <input type="text" class="form-control" id="nome_completo" name="nome_completo">
+                    </div>
+                    <div class="mb-3">
                         <label for="password" class="form-label">Senha</label>
                         <input type="password" class="form-control" id="password" name="password" required>
                     </div>
@@ -1071,6 +1075,10 @@ body.theme-dark .edit-user-modal .avatar-box {
                             <option value="2">2 - Administrador</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label for="biografia" class="form-label">Biografia</label>
+                        <textarea class="form-control" id="biografia" name="biografia" rows="3"></textarea>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -1083,7 +1091,7 @@ body.theme-dark .edit-user-modal .avatar-box {
 
 <!-- Modal Editar Usuário -->
 <div class="modal fade edit-user-modal" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="editUserModalLabel">Editar Usuário</h5>
@@ -1092,54 +1100,71 @@ body.theme-dark .edit-user-modal .avatar-box {
             <form id="editUserForm">
                 <input type="hidden" id="edit_user_id" name="id">
                 <div class="modal-body">
-                    <div class="user-edit-section mb-3">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="edit_username" class="form-label">Usuário</label>
-                                <input type="text" class="form-control" id="edit_username" name="username" required>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="user-edit-section mb-3">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="edit_username" class="form-label">Usuário</label>
+                                        <input type="text" class="form-control" id="edit_username" name="username" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="edit_email" class="form-label">Email</label>
+                                        <input type="email" class="form-control" id="edit_email" name="email">
+                                    </div>
+                                    <div class="col-md-12">
+                                        <label for="edit_nome_completo" class="form-label">Nome completo</label>
+                                        <input type="text" class="form-control" id="edit_nome_completo" name="nome_completo">
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-md-6">
-                                <label for="edit_email" class="form-label">Email</label>
-                                <input type="email" class="form-control" id="edit_email" name="email">
+                            <div class="user-edit-section mb-3">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="edit_role_id" class="form-label">Papel</label>
+                                        <select class="form-select" id="edit_role_id" name="role_id" required>
+                                            <?php foreach ($roles as $role): ?>
+                                                <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name']); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="edit_team_id" class="form-label">Equipe</label>
+                                        <select class="form-select" id="edit_team_id" name="team_id">
+                                            <option value="">(Nenhuma)</option>
+                                            <?php foreach ($teams as $t): ?>
+                                                <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        </div>
+                                        <div class="row g-3 mt-2">
+                                            <div class="col-12">
+                                                <label for="edit_biografia" class="form-label">Biografia</label>
+                                                <textarea class="form-control" id="edit_biografia" name="biografia" rows="4"></textarea>
+                                            </div>
+                                        </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="user-edit-section mb-3">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="edit_role_id" class="form-label">Papel</label>
-                                <select class="form-select" id="edit_role_id" name="role_id" required>
-                                    <?php foreach ($roles as $role): ?>
-                                        <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name']); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+
+                        <div class="col-md-4">
+                            <div class="user-edit-section mb-3 text-center">
+                                <label class="form-label">Avatar atual</label>
+                                <div class="avatar-box justify-content-center">
+                                    <img id="edit_user_avatar_preview" class="avatar-thumb" src="assets/img/avatar-placeholder.png" alt="Avatar" />
+                                </div>
+                                <div class="mt-2">
+                                    <label for="edit_user_avatar" class="form-label small">Substituir avatar</label>
+                                    <input type="file" class="form-control form-control-sm" id="edit_user_avatar" name="avatar" accept="image/*" />
+                                </div>
                             </div>
-                            <div class="col-md-6">
-                                <label for="edit_team_id" class="form-label">Equipe</label>
-                                <select class="form-select" id="edit_team_id" name="team_id">
-                                    <option value="">(Nenhuma)</option>
-                                    <?php foreach ($teams as $t): ?>
-                                        <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
-                                    <?php endforeach; ?>
+                            <div class="user-edit-section mb-3">
+                                <label for="edit_role_level" class="form-label">Nível (role_level)</label>
+                                <select class="form-select" id="edit_role_level" name="role_level">
+                                    <option value="0">0 - Usuário</option>
+                                    <option value="1">1 - Gerente</option>
+                                    <option value="2">2 - Administrador</option>
                                 </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="user-edit-section mb-3">
-                        <label for="edit_role_level" class="form-label">Nível (role_level)</label>
-                        <select class="form-select" id="edit_role_level" name="role_level">
-                            <option value="0">0 - Usuário</option>
-                            <option value="1">1 - Gerente</option>
-                            <option value="2">2 - Administrador</option>
-                        </select>
-                    </div>
-                    <div class="user-edit-section">
-                        <label class="form-label">Avatar atual</label>
-                        <div class="avatar-box">
-                            <img id="edit_user_avatar_preview" class="avatar-thumb" src="assets/img/avatar-placeholder.png" alt="Avatar" />
-                            <div class="flex-grow-1">
-                                <label for="edit_user_avatar" class="form-label small">Substituir avatar</label>
-                                <input type="file" class="form-control form-control-sm" id="edit_user_avatar" name="avatar" accept="image/*" />
                             </div>
                         </div>
                     </div>
@@ -1238,6 +1263,13 @@ body.theme-dark .edit-user-modal .avatar-box {
 <script>
 function editUser(id) {
     // Fetch user data
+    // if button passed, show preload
+    var btn = null; if (arguments.length > 1) btn = arguments[1];
+    if (btn) {
+        btn.dataset.orig = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+        btn.disabled = true;
+    }
     fetch('api/get_user.php?id=' + id)
     .then(response => response.json())
     .then(data => {
@@ -1257,8 +1289,10 @@ function editUser(id) {
                     }
                 }catch(e){}
                 new bootstrap.Modal(document.getElementById('editUserModal')).show();
+                if (btn) { btn.innerHTML = btn.dataset.orig; btn.disabled = false; }
         } else {
             alert('Erro: ' + data.message);
+            if (btn) { btn.innerHTML = btn.dataset.orig; btn.disabled = false; }
         }
     });
 }
