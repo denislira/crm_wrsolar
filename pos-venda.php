@@ -533,28 +533,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // update total points on pos_venda
             $upd = $pdo->prepare('UPDATE pos_venda SET points_total = COALESCE(points_total,0) + ? WHERE id = ?');
             $upd->execute([$referralPoints, $pvId]);
-            // Notify team integrations only for referrals (indicações)
-            try {
-                $activityDetails = json_encode([
-                    'referral_token' => $token,
-                    'indicator_name' => $name,
-                    'indicator_phone' => $phone ?: null,
-                    'indicator_email' => $email ?: null,
-                    'pos_venda_id' => $pvId,
-                ], JSON_UNESCAPED_UNICODE);
-                $actStmt = $pdo->prepare("INSERT INTO team_tasks_activities (task_id, action, user_id, username, details, equipe, titulo, responsavel) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)");
-                $actStmt->execute([
-                    'referral_created',
-                    $_SESSION['user_id'],
-                    $_SESSION['username'] ?? null,
-                    $activityDetails,
-                    'Pós-venda',
-                    'Nova indicação: ' . $name,
-                    null,
-                ]);
-            } catch (Exception $e) {
-                // best-effort: ignore integration failures
-            }
+            // referral saved (integration notification only via public indicacao.php)
             echo json_encode(['success' => true]); exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]); exit;

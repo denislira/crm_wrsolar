@@ -240,7 +240,8 @@ switch ($action) {
         // 1) read explicit activities from team_tasks_activities (if present)
         try {
             ensureActivityTableExists($pdo);
-            $stmt = $pdo->prepare("SELECT task_id, action, user_id, username, details, equipe, titulo, responsavel, created_at FROM team_tasks_activities WHERE (user_id = ? OR username = ?) AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY created_at DESC LIMIT 50");
+            // Include activities for the current user OR public pós-venda referrals so all integration viewers can see them
+            $stmt = $pdo->prepare("SELECT task_id, action, user_id, username, details, equipe, titulo, responsavel, created_at FROM team_tasks_activities WHERE ((user_id = ? OR username = ?) OR equipe = 'Pós-venda' OR action = 'referral_created') AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY created_at DESC LIMIT 50");
             $stmt->execute([$userId, $username]);
             $acts = $stmt->fetchAll(PDO::FETCH_ASSOC);
             if ($acts) {

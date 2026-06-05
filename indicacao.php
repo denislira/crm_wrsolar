@@ -59,6 +59,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
                     $upd = $pdo->prepare('UPDATE pos_venda SET points_total = COALESCE(points_total,0) + ? WHERE id = ?');
                     $upd->execute([$referralPoints, $posVendaId]);
                 } catch (Exception $e) { /* ignore silently */ }
+                // Notify team integrations about this referral (visible to integration viewers)
+                try {
+                    $activityDetails = json_encode([
+                        'referral_token' => $token,
+                        'indicator_name' => $indicatorName,
+                        'indicator_phone' => $indicatorPhone,
+                        'indicator_email' => $indicatorEmail !== '' ? $indicatorEmail : null,
+                        'pos_venda_id' => $posVendaId,
+                    ], JSON_UNESCAPED_UNICODE);
+                    $actStmt = $pdo->prepare("INSERT INTO team_tasks_activities (task_id, action, user_id, username, details, equipe, titulo, responsavel) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)");
+                    $actStmt->execute([
+                        'referral_created',
+                        $userId ?: null,
+                        null,
+                        $activityDetails,
+                        'Pós-venda',
+                        'Nova indicação: ' . $indicatorName,
+                        null,
+                    ]);
+                } catch (Exception $e) {
+                    // ignore best-effort
+                }
             $success = 'Sua indicação foi recebida com sucesso. Obrigado!';
             $submitted = true;
         }
