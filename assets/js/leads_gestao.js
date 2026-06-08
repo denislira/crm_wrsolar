@@ -958,7 +958,17 @@
 
     function leadHasProject(lead){
         const raw = lead?.has_project;
-        return raw === true || raw === 1 || raw === '1' || Number(raw) === 1;
+        if (!(raw === true || raw === 1 || raw === '1' || Number(raw) === 1)) return false;
+        // if project exists, check creation time: only lock if project created more than 24 hours ago
+        try {
+            const ts = lead?.project_created_at || lead?.project_created || null;
+            if (!ts) return true; // project exists but no timestamp available -> be conservative and lock
+            const pDate = new Date(String(ts).replace(' ', 'T'));
+            const ageMs = Date.now() - pDate.getTime();
+            return ageMs >= (24 * 60 * 60 * 1000);
+        } catch (e) {
+            return true;
+        }
     }
 
     function setLeadModalEditLocked(locked){
