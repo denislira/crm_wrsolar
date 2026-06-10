@@ -80,6 +80,8 @@ try {
 
     $where = "{$dateCol} >= ? AND {$dateCol} < ?";
     if ($hasDeleted) $where .= " AND deleted = 0";
+    // Exclude leads that are already closed/lost to count only active leads
+    $where .= " AND (COALESCE(status,'') NOT LIKE '%fechado%' AND COALESCE(status,'') NOT LIKE '%ganho%' AND COALESCE(status,'') NOT LIKE '%perdido%')";
 
     $cntStmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE {$where}");
     $cntStmt->execute([$start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')]);
