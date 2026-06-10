@@ -577,6 +577,32 @@ try {
         $usersTasks = []; 
 }
 
+// Movements per user (lead_movements) and date-update heuristics from activity_log
+$movementsByUser = [];
+$dateUpdatesByUser = [];
+try {
+    $mvStmt = $pdo->prepare("SELECT COALESCE(u.username, '(desconhecido)') AS username, COUNT(*) AS cnt
+        FROM lead_movements lm
+        LEFT JOIN users u ON u.id = lm.user_id
+        WHERE lm.created_at >= ? AND lm.created_at <= ?
+        GROUP BY lm.user_id ORDER BY cnt DESC LIMIT 20");
+    $mvStmt->execute([$fStartStr, $fEndStr]);
+    $movementsByUser = $mvStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Heuristic: count activity_log messages that likely indicate a date update
+    $duStmt = $pdo->prepare("SELECT COALESCE(u.username, '(desconhecido)') AS username, COUNT(*) AS cnt
+        FROM activity_log a
+        LEFT JOIN users u ON u.id = a.user_id
+        WHERE a.created_at >= ? AND a.created_at <= ? AND (
+            a.message LIKE ? OR a.message LIKE ?
+        ) GROUP BY a.user_id ORDER BY cnt DESC LIMIT 20");
+    $duStmt->execute([$fStartStr, $fEndStr, '%data%', '%atualiz%']);
+    $dateUpdatesByUser = $duStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $movementsByUser = [];
+    $dateUpdatesByUser = [];
+}
+
 // --- Filtered status counts and last-24h summary ---
 try {
     $leadColsStmt2 = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
@@ -1187,6 +1213,47 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(59,130
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top movers (lead movements) -->
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <div class="report-card">
+                        <div class="report-card-title"><i class="fa fa-exchange-alt"></i> Top movimentações por consultor (período)</div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Consultor</th>
+                                        <th style="width:140px;">Movimentações</th>
+                                        <th style="width:140px;">Data Retomadas</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                        $maxRows = max(count($movementsByUser), count($dateUpdatesByUser));
+                                        if ($maxRows === 0) {
+                                            echo '<tr><td colspan="3" class="text-center text-muted py-4">Nenhuma movimentação registrada no período.</td></tr>';
+                                        } else {
+                                            for ($i=0;$i<$maxRows;$i++) {
+                                                $mv = $movementsByUser[$i] ?? null;
+                                                $du = $dateUpdatesByUser[$i] ?? null;
+                                                $name = $mv['username'] ?? $du['username'] ?? '(desconhecido)';
+                                                $mvCnt = isset($mv['cnt']) ? (int)$mv['cnt'] : 0;
+                                                $duCnt = isset($du['cnt']) ? (int)$du['cnt'] : 0;
+                                                echo '<tr>';
+                                                echo '<td>' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</td>';
+                                                echo '<td>' . $mvCnt . '</td>';
+                                                echo '<td>' . $duCnt . '</td>';
+                                                echo '</tr>';
+                                            }
+                                        }
+                                    ?>
                                 </tbody>
                             </table>
                         </div>
