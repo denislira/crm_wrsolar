@@ -72,8 +72,8 @@ try {
     $leadColsStmtDaily = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
     $leadColsDaily = $leadColsStmtDaily->fetchAll(PDO::FETCH_COLUMN);
     $hasDeleted = in_array('deleted', $leadColsDaily, true);
-    $hasCreatedAt = in_array('created_at', $leadColsDaily, true);
-    $dateCol = $hasCreatedAt ? 'created_at' : (in_array('data_inicio', $leadColsDaily, true) ? 'data_inicio' : 'created_at');
+    // prefer data_inicio as the canonical lead entry date; fallback to created_at if missing
+    $dateCol = in_array('data_inicio', $leadColsDaily, true) ? 'data_inicio' : (in_array('created_at', $leadColsDaily, true) ? 'created_at' : 'data_inicio');
 
     $start = new DateTime($dailyDate . ' 00:00:00');
     $end = (clone $start)->modify('+1 day');
@@ -88,7 +88,8 @@ try {
     $dailyCount = (int)$cntStmt->fetchColumn();
 
     $listCols = ['id'];
-    foreach (['name','source','status','created_at'] as $c) if (in_array($c, $leadColsDaily, true)) $listCols[] = $c;
+    // use data_inicio as the created date column in lists
+    foreach (['name','source','status','data_inicio'] as $c) if (in_array($c, $leadColsDaily, true)) $listCols[] = $c;
     $selectCols = implode(', ', array_unique($listCols));
     $listStmt = $pdo->prepare("SELECT {$selectCols} FROM leads WHERE {$where} ORDER BY {$dateCol} DESC LIMIT 500");
     $listStmt->execute([$start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')]);
@@ -609,7 +610,7 @@ try {
 try {
     $leadColsStmt2 = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
     $leadCols2 = $leadColsStmt2->fetchAll(PDO::FETCH_COLUMN);
-    $dateCol2 = in_array('created_at', $leadCols2, true) ? 'created_at' : (in_array('data_inicio', $leadCols2, true) ? 'data_inicio' : 'created_at');
+    $dateCol2 = in_array('data_inicio', $leadCols2, true) ? 'data_inicio' : (in_array('created_at', $leadCols2, true) ? 'created_at' : 'data_inicio');
     $hasDeleted2 = in_array('deleted', $leadCols2, true);
 
     $where = "{$dateCol2} >= ? AND {$dateCol2} <= ?";
@@ -667,7 +668,7 @@ try {
     $hasOrcamento = in_array('orcamento_value', $qLeadCols, true);
 
     $qualDelBase = $hasDeleted2 ? " AND deleted = 0" : "";
-    $qualDateBase = $hasCreatedAt ? "created_at" : (in_array('data_inicio', $qLeadCols, true) ? 'data_inicio' : 'created_at');
+    $qualDateBase = in_array('data_inicio', $qLeadCols, true) ? 'data_inicio' : (in_array('created_at', $qLeadCols, true) ? 'created_at' : 'data_inicio');
     $qualSrcCond = $srcCond; // reuse source condition built earlier
     $qualBaseWhere = "{$qualDateBase} >= ? AND {$qualDateBase} <= ?{$qualDelBase}{$qualSrcCond}";
     $qualBaseParams = array_merge([$fStartStr, $fEndStr], $srcParams);
@@ -766,7 +767,7 @@ try {
     $slaLeadCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'")->fetchAll(PDO::FETCH_COLUMN);
     $hasFirstContact = in_array('first_contact_at', $slaLeadCols, true);
     $hasUltimoCtato  = in_array('ultimo_contato', $slaLeadCols, true);
-    $slaDateCol      = in_array('created_at', $slaLeadCols, true) ? 'created_at' : (in_array('data_inicio', $slaLeadCols, true) ? 'data_inicio' : 'created_at');
+    $slaDateCol      = in_array('data_inicio', $slaLeadCols, true) ? 'data_inicio' : (in_array('created_at', $slaLeadCols, true) ? 'created_at' : 'data_inicio');
     $slaDelBase      = in_array('deleted', $slaLeadCols, true) ? " AND deleted = 0" : "";
 
     // Speed-to-Lead average (hours)
@@ -827,7 +828,7 @@ $consultorComparison = [];
 
 try {
     $ccLeadCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'")->fetchAll(PDO::FETCH_COLUMN);
-    $ccDateCol  = in_array('created_at', $ccLeadCols, true) ? 'created_at' : 'created_at';
+    $ccDateCol  = in_array('data_inicio', $ccLeadCols, true) ? 'data_inicio' : (in_array('created_at', $ccLeadCols, true) ? 'created_at' : 'data_inicio');
     $ccDelBase  = in_array('deleted', $ccLeadCols, true) ? " AND l.deleted = 0" : "";
     $ccHasLost  = in_array('lost_reason', $ccLeadCols, true);
     $ccHasOrc   = in_array('orcamento_value', $ccLeadCols, true);
