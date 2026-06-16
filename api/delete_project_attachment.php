@@ -53,7 +53,8 @@ if (!isset($attachments[$index])) {
 }
 
 $attachment = $attachments[$index];
-$path = $attachment['path'] ?? null;
+$path = $attachment['path'] ?? ($attachment['file_path'] ?? null);
+$name = $attachment['name'] ?? ($attachment['filename'] ?? null);
 unset($attachments[$index]);
 $attachments = array_values($attachments);
 
@@ -65,6 +66,19 @@ if ($path) {
     $filePath = realpath(__DIR__ . '/../' . $path);
     if ($filePath && $expectedRoot && str_starts_with($filePath, $expectedRoot)) {
         @unlink($filePath);
+    }
+} elseif ($name) {
+    $projectFolder = realpath(__DIR__ . '/../uploads/project_docs/' . $projectId);
+    if ($projectFolder !== false) {
+        $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename((string)$name));
+        $matches = glob($projectFolder . DIRECTORY_SEPARATOR . '*_' . $safeName);
+        if (is_array($matches)) {
+            foreach ($matches as $candidate) {
+                if (is_file($candidate)) {
+                    @unlink($candidate);
+                }
+            }
+        }
     }
 }
 

@@ -954,22 +954,6 @@ foreach ($posVendas as &$pv) {
     $pv['payment_ok'] = ($payStatus === 'pago');
     $ct   = $pv['client_type'] ?? 'Degustação';
 
-    // Amigo Solar trigger after 90 days from installation.
-    $daysElapsed = $instDt ? (int)$instDt->diff($now)->format('%a') : 0;
-    $pv['amigo_eligible'] = (!$isEx && $daysElapsed >= 90);
-
-    if ($pv['amigo_eligible'] && empty($pv['referral_token']) && $instDt) {
-        $amigoDate = (clone $instDt)->modify('+90 days')->format('Y-m-d');
-        $amigoToken = 'AUTO_AMIGO90_' . (int)$pv['id'];
-        $createAutoTask(
-            $amigoToken,
-            'Contato Amigo Solar: ' . $pv['client_name'],
-            'Cliente elegivel para programa de indicacoes (90 dias de funcionamento). Oferecer brinde/desconto por indicacao.',
-            $amigoDate,
-            'Comercial'
-        );
-    }
-
     // Preventive maintenance trigger every 6 months from last check-up (or installation when absent).
     $checkBase = null;
     if (!empty($pv['last_checkup']) && $pv['last_checkup'] !== '0000-00-00') {
