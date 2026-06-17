@@ -19,6 +19,9 @@
     let KANBAN_COLUMN_CACHE = {};
     let KANBAN_COLUMN_RENDERED = {};
     let CURRENT_EDIT_LEAD_LOCKED = false;
+    let CITY_DATA_CACHE = null;
+    let CITY_DATA_LOADING = null;
+    let CITY_SUGGESTION_TIMER = null;
 
     function getFilteredLeads(){
         let filtered = allLeads.slice(); // copy
@@ -327,6 +330,104 @@
         setCaretByDigitIndex(el, formatted, digitsBefore);
     }
 
+    function normalizeText(value){
+        return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim();
+    }
+
+    function splitCityUf(value){
+        const raw = String(value || '').trim();
+        if (!raw) return { city: '', uf: '', state: '' };
+        const parts = raw.split(/\s*-\s*/);
+        if (parts.length >= 2) {
+            const city = parts.slice(0, -1).join(' - ').trim();
+            const uf = parts[parts.length - 1].trim().toUpperCase();
+            return { city, uf, state: '' };
+        }
+        return { city: raw, uf: '', state: '' };
+    }
+
+    async function loadCityData(){
+        if (Array.isArray(CITY_DATA_CACHE)) return CITY_DATA_CACHE;
+        if (CITY_DATA_LOADING) return CITY_DATA_LOADING;
+        CITY_DATA_LOADING = fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios')
+            .then(r => {
+                if (!r.ok) throw new Error('Falha ao carregar municípios');
+                return r.json();
+            })
+            .then(rows => {
+                CITY_DATA_CACHE = (rows || []).map(row => ({
+                    name: row?.nome || '',
+                    uf: row?.microrregiao?.mesorregiao?.UF?.sigla || '',
+                    state: row?.microrregiao?.mesorregiao?.UF?.nome || ''
+                })).filter(item => item.name && item.uf);
+                return CITY_DATA_CACHE;
+            })
+            .catch(err => {
+                console.warn('loadCityData failed', err);
+                CITY_DATA_CACHE = [];
+                return CITY_DATA_CACHE;
+            })
+            .finally(() => { CITY_DATA_LOADING = null; });
+        return CITY_DATA_LOADING;
+    }
+
+    function hideCitySuggestions(){
+        const box = document.getElementById('lead-city-suggestions');
+        if (box) {
+            box.innerHTML = '';
+            box.classList.add('d-none');
+        }
+    }
+
+    function setCityStateBadge(uf, stateName){
+        const badge = document.getElementById('lead-city-state');
+        if (!badge) return;
+        badge.textContent = uf ? `${uf}${stateName ? ' - ' + stateName : ''}` : 'UF';
+    }
+
+    function renderCitySuggestions(items){
+        const box = document.getElementById('lead-city-suggestions');
+        if (!box) return;
+        box.innerHTML = '';
+        if (!items.length) {
+            box.classList.add('d-none');
+            return;
+        }
+        items.slice(0, 8).forEach(item => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action';
+            btn.innerHTML = `<strong>${item.name}</strong><span class="text-muted ms-2">${item.uf}</span>`;
+            btn.addEventListener('click', () => {
+                const cityEl = document.getElementById('lead-city');
+                if (cityEl) cityEl.value = `${item.name} - ${item.uf}`;
+                setCityStateBadge(item.uf, item.state);
+                hideCitySuggestions();
+            });
+            box.appendChild(btn);
+        });
+        box.classList.remove('d-none');
+    }
+
+    async function suggestCities(query){
+        const normalizedQuery = normalizeText(query);
+        if (normalizedQuery.length < 2) {
+            hideCitySuggestions();
+            setCityStateBadge('');
+            return;
+        }
+        const cities = await loadCityData();
+        const matches = cities
+            .filter(item => normalizeText(item.name).includes(normalizedQuery))
+            .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+            .map(item => ({ ...item }));
+        renderCitySuggestions(matches);
+    }
+
     function attachMaskHandlers(){
         const phoneEls = Array.from(document.querySelectorAll('#lead-phone, #leadPhone'));
         const cpfEls = Array.from(document.querySelectorAll('#lead-cpf-cnpj, #leadCpf'));
@@ -343,17 +444,43 @@
         });
         // Capitalize first letter of city on blur
         cityEls.forEach(el=>{
+            el.setAttribute('autocomplete', 'off');
             el.addEventListener('blur', (e)=>{
                 try{
                     const v = (el.value || '').trim();
                     if (!v) return;
-                    el.value = v.charAt(0).toUpperCase() + v.slice(1);
+                    const parsed = splitCityUf(v);
+                    const baseCity = parsed.city || v;
+                    const match = Array.isArray(CITY_DATA_CACHE)
+                        ? CITY_DATA_CACHE.find(item => normalizeText(item.name) === normalizeText(baseCity))
+                        : null;
+                    const uf = match?.uf || parsed.uf || '';
+                    const stateName = match?.state || '';
+                    el.value = uf ? `${baseCity} - ${uf}` : baseCity.charAt(0).toUpperCase() + baseCity.slice(1);
+                    setCityStateBadge(uf, stateName);
                 }catch(e){}
+            });
+            el.addEventListener('input', () => {
+                clearTimeout(CITY_SUGGESTION_TIMER);
+                CITY_SUGGESTION_TIMER = setTimeout(() => suggestCities(el.value), 220);
+            });
+            el.addEventListener('focus', () => {
+                if ((el.value || '').trim().length >= 2) suggestCities(el.value);
+            });
+            el.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') hideCitySuggestions();
             });
         });
         // Email placeholder and inputmode
         emailEls.forEach(el=>{
             try { el.placeholder = 'seunome@exemplo.com'; el.setAttribute('inputmode','email'); } catch(e){}
+        });
+        document.addEventListener('click', (e) => {
+            const cityInput = document.getElementById('lead-city');
+            const box = document.getElementById('lead-city-suggestions');
+            if (!cityInput || !box) return;
+            if (cityInput.contains(e.target) || box.contains(e.target)) return;
+            hideCitySuggestions();
         });
     }
 
@@ -2464,6 +2591,21 @@
         const emailEl = F('leadEmail') || $('#leadEmail'); if (emailEl) emailEl.value = lead.email || '';
         const cpfEl = F('leadCpf') || $('#leadCpf'); if (cpfEl) cpfEl.value = lead.cpf_cnpj || lead.cpf || '';
         const cityEl = F('leadCity') || $('#leadCity') || $('#lead-city'); if (cityEl) cityEl.value = lead.cidade || lead.city || '';
+        try {
+            const city = (lead.cidade || lead.city || '').trim();
+            if (city) {
+                loadCityData().then(() => {
+                    const parsed = splitCityUf(city);
+                    const lookupCity = parsed.city || city;
+                    const match = Array.isArray(CITY_DATA_CACHE)
+                        ? CITY_DATA_CACHE.find(item => normalizeText(item.name) === normalizeText(lookupCity))
+                        : null;
+                    setCityStateBadge(match?.uf || parsed.uf || '', match?.state || '');
+                });
+            } else {
+                setCityStateBadge('');
+            }
+        } catch (e) {}
         const statusEl = F('leadStatus') || $('#leadStatus');
         if (statusEl) {
             if (statusEl.tagName === 'SELECT') {
@@ -3069,7 +3211,20 @@
             const nameValue = (F('leadName')||$('#lead-name')).value || '';
             const emailValue = (F('leadEmail')||$('#lead-email')).value || '';
             const phoneValue = (F('leadPhone')||$('#lead-phone')).value || '';
-            const cityValue = (F('leadCity')||$('#lead-city')||$('#leadCity')) ? (F('leadCity')||$('#lead-city')||$('#leadCity')).value : '';
+            const cityEl = (F('leadCity')||$('#lead-city')||$('#leadCity'));
+            let cityValue = cityEl ? cityEl.value : '';
+            const parsedCity = splitCityUf(cityValue);
+            const cityLookup = parsedCity.city || cityValue;
+            let cityUf = parsedCity.uf || '';
+            try {
+                if (!cityUf && cityLookup) {
+                    const match = Array.isArray(CITY_DATA_CACHE)
+                        ? CITY_DATA_CACHE.find(item => normalizeText(item.name) === normalizeText(cityLookup))
+                        : null;
+                    cityUf = match?.uf || '';
+                }
+            } catch(e){}
+            cityValue = cityLookup ? (cityUf ? `${cityLookup} - ${cityUf}` : cityLookup) : '';
             const cpfValue = (F('leadCpf')||$('#lead-cpf-cnpj')) ? (F('leadCpf')||$('#lead-cpf-cnpj')).value : '';
             const sourceValue = (F('leadSource')||$('#lead-source')) ? (F('leadSource')||$('#lead-source')).value : 'web';
             const statusEl = (F('leadStatus')||$('#lead-status'));

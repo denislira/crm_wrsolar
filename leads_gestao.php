@@ -279,7 +279,14 @@ include 'includes/header.php';
                                                 </div>
                                                 <div class="col-md-6 mb-3">
                                                     <label class="form-label">Cidade</label>
-                                                    <input id="lead-city" class="form-control" placeholder="Cidade">
+                                                    <div class="position-relative">
+                                                        <input id="lead-city" class="form-control" placeholder="Cidade">
+                                                        <div id="lead-city-suggestions" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index:1080; max-height: 240px; overflow-y: auto;"></div>
+                                                    </div>
+                                                    <div class="form-text d-flex justify-content-between align-items-center">
+                                                        <span>Digite a cidade para ver sugestões com UF.</span>
+                                                        <span id="lead-city-state" class="badge bg-light text-dark border">UF</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div class="mb-3">
