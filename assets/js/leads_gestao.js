@@ -183,6 +183,22 @@
         return brightness > 125 ? '#000' : '#fff';
     }
 
+    function lightenHexColor(hex, amount = 0.82){
+        const rgb = hexToRgb(hex);
+        if (!rgb) return hex || '';
+        const mix = (channel) => Math.round(channel + (255 - channel) * amount);
+        const toHex = (n) => n.toString(16).padStart(2, '0');
+        return '#' + toHex(mix(rgb.r)) + toHex(mix(rgb.g)) + toHex(mix(rgb.b));
+    }
+
+    function applyKanbanHeaderColor(headerEl, columnColor){
+        if (!headerEl || !columnColor) return;
+        const bg = lightenHexColor(columnColor, 0.84);
+        headerEl.style.background = bg;
+        headerEl.style.borderBottomColor = columnColor;
+        headerEl.style.color = readableTextColor(bg) || '#1f2937';
+    }
+
     function computeScore(lead){
         // heuristic score 0-100
         let score = 0;
@@ -988,6 +1004,7 @@
                 const ssTitle = document.createElement('span'); ssTitle.className = 'kanban-title'; ssTitle.textContent = 'Sem Status';
                 const ssCount = document.createElement('span'); ssCount.className = 'badge bg-light text-muted ms-2'; ssCount.id = 'count-sem_status'; ssCount.textContent = '0';
                 ssHeader.appendChild(ssTitle); ssHeader.appendChild(ssCount);
+                applyKanbanHeaderColor(ssHeader, ssWrap.dataset.color);
                 const ssContent = document.createElement('div'); ssContent.className = 'column-content'; ssContent.id = 'col-sem_status';
                 ssWrap.appendChild(ssHeader); ssWrap.appendChild(ssContent);
                 wrap.appendChild(ssWrap);
@@ -1002,6 +1019,7 @@
                 const anTitle = document.createElement('span'); anTitle.className = 'kanban-title'; anTitle.textContent = 'Anúncios';
                 const anCount = document.createElement('span'); anCount.className = 'badge bg-light text-muted ms-2'; anCount.id = 'count-anuncios'; anCount.textContent = '0';
                 anHeader.appendChild(anTitle); anHeader.appendChild(anCount);
+                applyKanbanHeaderColor(anHeader, anWrap.dataset.color);
                 const anContent = document.createElement('div'); anContent.className = 'column-content'; anContent.id = 'col-anuncios';
                 anWrap.appendChild(anHeader); anWrap.appendChild(anContent);
                 wrap.appendChild(anWrap);
@@ -1016,6 +1034,7 @@
                 const indTitle = document.createElement('span'); indTitle.className = 'kanban-title'; indTitle.textContent = 'Indicações';
                 const indCount = document.createElement('span'); indCount.className = 'badge bg-light text-muted ms-2'; indCount.id = 'count-indicados'; indCount.textContent = '0';
                 indHeader.appendChild(indTitle); indHeader.appendChild(indCount);
+                applyKanbanHeaderColor(indHeader, indWrap.dataset.color);
                 const indContent = document.createElement('div'); indContent.className = 'column-content'; indContent.id = 'col-indicados';
                 indWrap.appendChild(indHeader); indWrap.appendChild(indContent);
                 wrap.appendChild(indWrap);
@@ -1041,6 +1060,7 @@
                 ind.title = 'Cria tarefa ao entrar';
                 header.appendChild(ind);
             }
+            applyKanbanHeaderColor(header, s.color);
             // apply a thin colored stripe on top of the column for better cross-theme visibility
             if (s.color) {
                 const stripe = document.createElement('div');
