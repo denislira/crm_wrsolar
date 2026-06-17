@@ -28,9 +28,10 @@ include 'includes/header.php';
                 <h1 class="h4 mb-0">Gestão de Leads</h1>
                 <div class="d-flex gap-2 align-items-center">
                     <input id="searchInput" class="form-control form-control-sm" placeholder="Buscar por nome, empresa ou telefone..." style="min-width:280px">
-                    <select id="filterCidade" class="form-select form-select-sm">
-                        <option value="">Todas cidades</option>
-                    </select>
+                    <div class="position-relative" style="min-width:240px;">
+                        <input id="filterCidade" class="form-control form-control-sm" list="filterCidadeList" placeholder="Todas cidades">
+                        <datalist id="filterCidadeList"></datalist>
+                    </div>
                     <select id="filterScore" class="form-select form-select-sm">
                         <option value="">Todos scores</option>
                         <option value="hot">🔥 Quente (80+)</option>
