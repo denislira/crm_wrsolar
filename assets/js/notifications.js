@@ -1,6 +1,7 @@
 (function(){
     const POLL_INTERVAL = 30000; // 30s
     const notified = new Set();
+    let noticeTimer = null;
 
     function $(sel){ return document.querySelector(sel); }
 
@@ -14,6 +15,84 @@
             document.body.appendChild(c);
         }
         return c;
+    }
+
+    function noticeContainer(){
+        let c = document.getElementById('globalNoticeContainer');
+        if (!c) {
+            c = document.createElement('div');
+            c.id = 'globalNoticeContainer';
+            c.style.cssText = [
+                'position:fixed',
+                'top:72px',
+                'left:50%',
+                'transform:translateX(-50%)',
+                'width:min(720px,calc(100vw - 24px))',
+                'z-index:1070',
+                'pointer-events:none'
+            ].join(';');
+            document.body.appendChild(c);
+        }
+        return c;
+    }
+
+    function showGlobalNotice(message, type = 'info', timeout = 3200){
+        const container = noticeContainer();
+        container.innerHTML = '';
+        const notice = document.createElement('div');
+        const palette = {
+            success: { border: '#86efac', bg: '#f0fdf4', fg: '#166534', icon: 'fa-circle-check' },
+            danger: { border: '#fca5a5', bg: '#fef2f2', fg: '#991b1b', icon: 'fa-triangle-exclamation' },
+            warning: { border: '#fcd34d', bg: '#fffbeb', fg: '#92400e', icon: 'fa-triangle-exclamation' },
+            info: { border: '#93c5fd', bg: '#eff6ff', fg: '#1d4ed8', icon: 'fa-circle-info' }
+        };
+        const tone = palette[type] || palette.info;
+        notice.className = 'shadow-sm';
+        notice.style.cssText = [
+            'pointer-events:auto',
+            'display:flex',
+            'align-items:flex-start',
+            'gap:.75rem',
+            'padding:.9rem 1rem',
+            'border-radius:1rem',
+            'border:1px solid ' + tone.border,
+            'background:' + tone.bg,
+            'color:' + tone.fg,
+            'box-shadow:0 18px 40px rgba(15,23,42,.12)',
+            'font-weight:600',
+            'line-height:1.35'
+        ].join(';');
+        notice.innerHTML = `
+            <div style="flex:0 0 auto;margin-top:.1rem;"><i class="fa-solid ${tone.icon}"></i></div>
+            <div style="flex:1 1 auto;">${escapeHtml(String(message || ''))}</div>
+            <button type="button" class="btn-close ms-2" aria-label="Fechar"></button>
+        `;
+        container.appendChild(notice);
+        const closeBtn = notice.querySelector('button');
+        const close = () => {
+            if (noticeTimer) {
+                clearTimeout(noticeTimer);
+                noticeTimer = null;
+            }
+            try { notice.remove(); } catch (e) {}
+            if (container.childElementCount === 0) container.innerHTML = '';
+        };
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        if (timeout !== 0) {
+            noticeTimer = setTimeout(close, timeout);
+        }
+        return notice;
+    }
+
+    function flashGlobalNotice(message, type = 'info', timeout = 3200){
+        try {
+            sessionStorage.setItem('globalNoticeFlash', JSON.stringify({
+                message: String(message || ''),
+                type: type || 'info',
+                timeout: timeout
+            }));
+        } catch (e) {}
+        return showGlobalNotice(message, type, timeout);
     }
 
     function showToast(rem){
@@ -41,6 +120,22 @@
     }
 
     function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    window.showGlobalNotice = showGlobalNotice;
+    window.showAppNotice = showGlobalNotice;
+    window.flashGlobalNotice = flashGlobalNotice;
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+        try {
+            const raw = sessionStorage.getItem('globalNoticeFlash');
+            if (!raw) return;
+            sessionStorage.removeItem('globalNoticeFlash');
+            const data = JSON.parse(raw);
+            if (data && data.message) {
+                setTimeout(()=>showGlobalNotice(data.message, data.type || 'info', data.timeout ?? 3200), 50);
+            }
+        } catch (e) {}
+    });
 
     async function markSent(id){
         try{

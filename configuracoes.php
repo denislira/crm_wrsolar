@@ -412,7 +412,7 @@ body.theme-dark .settings-page #appearance #appearancePreview {
 }
 
 .edit-user-modal .modal-dialog {
-    max-width: 680px;
+    max-width: 760px;
 }
 
 .edit-user-modal .modal-content {
@@ -1367,7 +1367,13 @@ document.getElementById('editUserForm').addEventListener('submit', function(e) {
     })
     .then(response => response.json())
     .then(data => {
-        alert(data.message);
+        if (window.flashGlobalNotice) {
+            window.flashGlobalNotice(data.message, data.success ? 'success' : 'danger');
+        } else if (window.showGlobalNotice) {
+            window.showGlobalNotice(data.message, data.success ? 'success' : 'danger');
+        } else {
+            alert(data.message);
+        }
         if (data.success) {
             location.reload();
         }
