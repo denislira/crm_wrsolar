@@ -343,7 +343,7 @@
         if (!raw) return { city: '', uf: '', state: '' };
         const parts = raw.split(/\s*-\s*/);
         if (parts.length >= 2) {
-            const city = parts.slice(0, -1).join(' - ').trim();
+            const city = parts.slice(0, -1).join('-').trim();
             const uf = parts[parts.length - 1].trim().toUpperCase();
             return { city, uf, state: '' };
         }
@@ -404,7 +404,7 @@
             btn.innerHTML = `<strong>${item.name}</strong><span class="text-muted ms-2">${item.uf}</span>`;
             btn.addEventListener('click', () => {
                 const cityEl = document.getElementById('lead-city');
-                if (cityEl) cityEl.value = `${item.name} - ${item.uf}`;
+                if (cityEl) cityEl.value = `${item.name}-${item.uf}`;
                 setCityStateBadge(item.uf, item.state);
                 hideCitySuggestions();
             });
@@ -456,7 +456,7 @@
                         : null;
                     const uf = match?.uf || parsed.uf || '';
                     const stateName = match?.state || '';
-                    el.value = uf ? `${baseCity} - ${uf}` : baseCity.charAt(0).toUpperCase() + baseCity.slice(1);
+                    el.value = uf ? `${baseCity}-${uf}` : baseCity.charAt(0).toUpperCase() + baseCity.slice(1);
                     setCityStateBadge(uf, stateName);
                 }catch(e){}
             });
@@ -3224,7 +3224,7 @@
                     cityUf = match?.uf || '';
                 }
             } catch(e){}
-            cityValue = cityLookup ? (cityUf ? `${cityLookup} - ${cityUf}` : cityLookup) : '';
+            cityValue = cityLookup ? (cityUf ? `${cityLookup}-${cityUf}` : cityLookup) : '';
             const cpfValue = (F('leadCpf')||$('#lead-cpf-cnpj')) ? (F('leadCpf')||$('#lead-cpf-cnpj')).value : '';
             const sourceValue = (F('leadSource')||$('#lead-source')) ? (F('leadSource')||$('#lead-source')).value : 'web';
             const statusEl = (F('leadStatus')||$('#lead-status'));
