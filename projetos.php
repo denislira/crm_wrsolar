@@ -1181,10 +1181,33 @@ include 'includes/header.php';
             const btn = e.target.closest('.btn-delete-attachment');
             if (!btn) return;
             const index = parseInt(btn.dataset.attachmentIndex, 10);
+            const projectId = document.getElementById('proj_id').value;
             const attachments = attachmentsInput.value ? JSON.parse(attachmentsInput.value) : [];
             if (Number.isNaN(index) || index < 0 || index >= attachments.length) return;
-            attachments.splice(index, 1);
-            renderAttachmentsList(attachments);
+            if (!projectId) {
+                attachments.splice(index, 1);
+                renderAttachmentsList(attachments);
+                return;
+            }
+
+            btn.disabled = true;
+            try {
+                const formData = new FormData();
+                formData.append('project_id', projectId);
+                formData.append('attachment_index', index);
+
+                const res = await fetch('api/delete_project_attachment.php', { method: 'POST', body: formData });
+                const j = await res.json();
+                if (!j.success) {
+                    throw new Error(j.message || 'Erro ao excluir anexo');
+                }
+
+                renderAttachmentsList(j.attachments || []);
+            } catch (err) {
+                alert(err.message || 'Erro ao excluir anexo');
+            } finally {
+                btn.disabled = false;
+            }
         });
 
         const projDropzone = document.getElementById('proj_doc_dropzone');
