@@ -27,8 +27,8 @@ if ($projectId <= 0) {
     exit;
 }
 
-$stmt = $pdo->prepare('SELECT id FROM projetos WHERE id = ? AND user_id = ?');
-$stmt->execute([$projectId, $_SESSION['user_id']]);
+$stmt = $pdo->prepare('SELECT id FROM projetos WHERE id = ?');
+$stmt->execute([$projectId]);
 if (!$stmt->fetch()) {
     echo json_encode(['success' => false, 'message' => 'Projeto não encontrado']);
     exit;
@@ -60,8 +60,8 @@ if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
 }
 
 // atualizar lista de anexos em JSON
-$stmt = $pdo->prepare('SELECT doc_attachments FROM projetos WHERE id = ? AND user_id = ?');
-$stmt->execute([$projectId, $_SESSION['user_id']]);
+$stmt = $pdo->prepare('SELECT doc_attachments FROM projetos WHERE id = ?');
+$stmt->execute([$projectId]);
 $current = $stmt->fetchColumn();
 $attachments = [];
 if ($current) {
@@ -76,7 +76,7 @@ $attachments[] = [
     'uploaded_at' => date('Y-m-d H:i:s')
 ];
 
-$update = $pdo->prepare('UPDATE projetos SET doc_attachments = ? WHERE id = ? AND user_id = ?');
-$update->execute([json_encode($attachments), $projectId, $_SESSION['user_id']]);
+$update = $pdo->prepare('UPDATE projetos SET doc_attachments = ? WHERE id = ?');
+$update->execute([json_encode($attachments), $projectId]);
 
 echo json_encode(['success' => true, 'message' => 'Arquivo enviado', 'attachment' => end($attachments)]);

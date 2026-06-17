@@ -29,8 +29,8 @@ if ($projectId <= 0 || $index < 0) {
     exit;
 }
 
-$stmt = $pdo->prepare('SELECT doc_attachments FROM projetos WHERE id = ? AND user_id = ? LIMIT 1');
-$stmt->execute([$projectId, $_SESSION['user_id']]);
+$stmt = $pdo->prepare('SELECT doc_attachments FROM projetos WHERE id = ? LIMIT 1');
+$stmt->execute([$projectId]);
 $current = $stmt->fetchColumn();
 if ($current === false) {
     http_response_code(404);
@@ -58,8 +58,8 @@ $name = $attachment['name'] ?? ($attachment['filename'] ?? null);
 unset($attachments[$index]);
 $attachments = array_values($attachments);
 
-$update = $pdo->prepare('UPDATE projetos SET doc_attachments = ? WHERE id = ? AND user_id = ?');
-$update->execute([json_encode($attachments), $projectId, $_SESSION['user_id']]);
+$update = $pdo->prepare('UPDATE projetos SET doc_attachments = ? WHERE id = ?');
+$update->execute([json_encode($attachments), $projectId]);
 
 if ($path) {
     $expectedRoot = realpath(__DIR__ . '/../uploads/project_docs/' . $projectId);
