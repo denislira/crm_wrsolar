@@ -13,6 +13,8 @@
     let CURRENT_SCORE_FILTER = '';
     let CURRENT_CIDADE_FILTER = '';
     let CURRENT_STALLED_ONLY = false;
+    let CURRENT_DATE_FROM = '';
+    let CURRENT_DATE_TO = '';
     const KANBAN_BATCH_SIZE = 10;
     let KANBAN_COLUMN_CACHE = {};
     let KANBAN_COLUMN_RENDERED = {};
@@ -20,6 +22,7 @@
 
     function getFilteredLeads(){
         let filtered = allLeads.slice(); // copy
+        const getLeadDate = (lead) => String(lead?.data_inicio || lead?.created_at || lead?.createdAt || lead?.created || '').slice(0, 10);
         // apply search
         if (CURRENT_SEARCH) {
             const v = CURRENT_SEARCH.toLowerCase();
@@ -49,6 +52,18 @@
         if (CURRENT_STALLED_ONLY) {
             const thresh = Number(localStorage.getItem('stalledDays')||STALLED_DAYS_DEFAULT);
             filtered = filtered.filter(l => leadUpdatedDaysAgo(l) >= thresh);
+        }
+        if (CURRENT_DATE_FROM) {
+            filtered = filtered.filter(l => {
+                const dt = getLeadDate(l);
+                return dt && dt >= CURRENT_DATE_FROM;
+            });
+        }
+        if (CURRENT_DATE_TO) {
+            filtered = filtered.filter(l => {
+                const dt = getLeadDate(l);
+                return dt && dt <= CURRENT_DATE_TO;
+            });
         }
         return filtered;
     }
@@ -3254,6 +3269,28 @@
         $('#searchInput').addEventListener('input', (e)=>{
             CURRENT_SEARCH = e.target.value.toLowerCase();
             renderAll();
+        });
+
+        const applyDateFilter = () => {
+            CURRENT_DATE_FROM = ($('#filterDateStart')?.value || '').trim();
+            CURRENT_DATE_TO = ($('#filterDateEnd')?.value || '').trim();
+            renderAll();
+        };
+
+        const applyDateFilterBtn = $('#applyDateFilterBtn');
+        if (applyDateFilterBtn) {
+            applyDateFilterBtn.addEventListener('click', applyDateFilter);
+        }
+
+        ['#filterDateStart', '#filterDateEnd'].forEach(sel => {
+            const el = $(sel);
+            if (!el) return;
+            el.addEventListener('keydown', (e)=>{
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applyDateFilter();
+                }
+            });
         });
 
         $('#filterScore').addEventListener('change', (e)=>{

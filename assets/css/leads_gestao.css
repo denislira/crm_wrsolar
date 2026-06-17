@@ -29,6 +29,16 @@ body.sidebar-collapsed .leads-preloader {
 .kanban-top-scrollbar::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:6px}
 .kanban-top-scrollbar::-webkit-scrollbar-thumb:hover{background:#94a3b8}
 #topScrollbarContent{height:1px}
+.date-filter-input{
+  border:1px solid #0d6efd !important;
+  color:#0f172a;
+  background:#fff;
+  box-shadow:0 0 0 0.15rem rgba(13,110,253,.08);
+}
+.date-filter-input:focus{
+  border-color:#0d6efd !important;
+  box-shadow:0 0 0 0.2rem rgba(13,110,253,.18) !important;
+}
 .kanban-wrap{display:flex;gap:16px;overflow:auto;padding:8px 2px}
 .kanban-wrap.panel-open{margin-right:420px}
 .kanban-wrap.panel-open.panel-expanded{margin-right:820px}

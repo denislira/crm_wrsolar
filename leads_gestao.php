@@ -73,7 +73,14 @@ include 'includes/header.php';
                 <div class="d-flex gap-2 align-items-center flex-wrap w-100 justify-content-end">
                     <button id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger d-none" title="Excluir selecionados"><i class="fa fa-trash"></i></button>
                     <button id="bulkUncheckBtn" class="btn btn-sm btn-outline-secondary d-none" title="Desmarcar todos"><i class="fa fa-times"></i></button>
-                    <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="d-flex align-items-center gap-1">
+                            <input id="filterDateStart" type="date" class="form-control form-control-sm date-filter-input" style="width: 145px;" title="Data início">
+                            <input id="filterDateEnd" type="date" class="form-control form-control-sm date-filter-input" style="width: 145px;" title="Data fim">
+                            <button id="applyDateFilterBtn" class="btn btn-sm btn-outline-primary" title="Aplicar filtro de data">OK</button>
+                        </div>
+                        <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
+                    </div>
                     <button id="toggleSemStatusBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Sem Status">Sem Status</button>
                     <button id="toggleAnunciosBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Anúncios">Anúncios</button>
                     <button id="toggleIndicadosBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Indicações">Indicações</button>
