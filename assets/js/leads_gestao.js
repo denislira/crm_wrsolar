@@ -27,7 +27,7 @@
 
     function getFilteredLeads(){
         let filtered = allLeads.slice(); // copy
-        const getLeadDate = (lead) => String(lead?.data_inicio || lead?.created_at || lead?.createdAt || lead?.created || '').slice(0, 10);
+        const getLeadDate = (lead) => String(lead?.data_inicio || '').slice(0, 10);
         // apply search
         if (CURRENT_SEARCH) {
             const v = CURRENT_SEARCH.toLowerCase();
