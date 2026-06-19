@@ -9,15 +9,21 @@ $user_id = (int) $_SESSION['user_id'];
 // fetch user info (best-effort)
 $user = null;
 try {
-        $stmt = $pdo->prepare('SELECT id, username, email, name, nome_completo, biografia, avatar FROM users WHERE id = ? LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, username, email, nome_completo, biografia, avatar FROM users WHERE id = ? LIMIT 1');
         $stmt->execute([$user_id]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($user) {
-            if (empty($user['name']) && !empty($user['nome_completo'])) $user['name'] = $user['nome_completo'];
+            $user['name'] = $user['nome_completo'] ?? '';
         }
 } catch (Exception $e) {
         // ignore - we'll show basic info from session
 }
+
+$profileNomeCompleto = trim((string)($user['nome_completo'] ?? ''));
+if ($profileNomeCompleto === '') $profileNomeCompleto = trim((string)($_SESSION['name'] ?? ''));
+$profileEmail = trim((string)($user['email'] ?? ''));
+if ($profileEmail === '') $profileEmail = trim((string)($_SESSION['email'] ?? ''));
+$profileBiografia = (string)($user['biografia'] ?? '');
 
 // Server-side fetch of profile-related data as a reliable fallback
 $profile_leads = [];
@@ -155,6 +161,58 @@ include __DIR__ . '/includes/sidebar.php';
         transform: translateY(-4px);
         box-shadow: 0 8px 24px rgba(0,0,0,0.12);
     }
+    .profile-card.profile-modern-panel {
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 18px;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+        overflow: hidden;
+        padding: 0;
+    }
+    .profile-card.profile-modern-panel:hover {
+        transform: none;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.09);
+    }
+    .profile-panel-header {
+        align-items: center;
+        border-bottom: 1px solid #eef2f7;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.85rem 1rem;
+    }
+    .profile-panel-title {
+        align-items: center;
+        color: #0f172a;
+        display: flex;
+        font-size: 0.95rem;
+        font-weight: 800;
+        gap: 0.6rem;
+        margin: 0;
+    }
+    .profile-panel-icon {
+        align-items: center;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        color: <?php echo htmlspecialchars($primary_color); ?>;
+        display: inline-flex;
+        height: 32px;
+        justify-content: center;
+        width: 32px;
+    }
+    .profile-panel-count {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 999px;
+        color: #475569;
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 0.35rem 0.7rem;
+        white-space: nowrap;
+    }
+    .min-width-0 {
+        min-width: 0;
+    }
     .profile-avatar-large {
         width: 140px;
         height: 140px;
@@ -237,15 +295,248 @@ include __DIR__ . '/includes/sidebar.php';
     body.theme-dark .badge-custom.badge-andamento { background: rgba(219,234,254,0.18) !important; color: #93c5fd !important; border: 1px solid rgba(255,255,255,0.12) !important; }
     body.theme-dark .badge-custom.badge-concluida { background: rgba(209,250,229,0.18) !important; color: #34d399 !important; border: 1px solid rgba(255,255,255,0.12) !important; }
     .list-item {
-        padding: 1rem;
+        padding: 0.65rem 0.85rem;
         border-bottom: 1px solid #f0f0f0;
-        transition: background 0.2s ease;
+        transition: background 0.2s ease, border-color 0.2s ease;
     }
     .list-item:hover {
         background: #f8f9fa;
     }
     .list-item:last-child {
         border-bottom: none;
+    }
+    .profile-list-item {
+        background: #fff;
+    }
+    .profile-modern-panel .profile-list-item {
+        border-bottom-color: #eef2f7;
+    }
+    .profile-modern-panel .profile-list-item h6 {
+        color: #0f172a;
+        font-size: 0.9rem;
+        line-height: 1.2;
+        margin-bottom: 0.25rem !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .profile-modern-panel .profile-list-item p,
+    .profile-modern-panel .profile-list-item .small {
+        font-size: 0.78rem;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+    .profile-modern-panel .profile-list-item .badge {
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        line-height: 1;
+        padding: 0.34rem 0.55rem;
+        white-space: nowrap;
+    }
+    .profile-modern-panel .avatar-circle {
+        height: 28px !important;
+        width: 28px !important;
+    }
+    .movement-item {
+        padding: 0.75rem 0.95rem;
+    }
+    .movement-row {
+        align-items: center;
+        display: grid;
+        gap: 0.85rem;
+        grid-template-columns: minmax(170px, 0.9fr) minmax(260px, 1.4fr) minmax(140px, 0.7fr);
+    }
+    .movement-person {
+        align-items: center;
+        display: flex;
+        gap: 0.65rem;
+        min-width: 0;
+    }
+    .movement-avatar {
+        align-items: center;
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border: 1px solid #dbe3ef;
+        border-radius: 10px;
+        color: #334155;
+        display: inline-flex;
+        flex-shrink: 0;
+        font-size: 0.72rem;
+        font-weight: 800;
+        height: 34px;
+        justify-content: center;
+        width: 34px;
+    }
+    .movement-user {
+        color: #0f172a;
+        font-size: 0.88rem;
+        font-weight: 800;
+        line-height: 1.2;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .movement-time {
+        color: #64748b;
+        font-size: 0.74rem;
+        line-height: 1.2;
+        margin-top: 0.12rem;
+    }
+    .movement-flow {
+        min-width: 0;
+    }
+    .movement-row > .flex-grow-1 {
+        align-items: center;
+        display: grid;
+        gap: 0.85rem;
+        grid-column: span 2;
+        grid-template-columns: minmax(230px, 1fr) minmax(140px, 0.7fr);
+        min-width: 0;
+    }
+    .movement-row > .flex-grow-1 > .small:first-child {
+        display: none;
+    }
+    .movement-row > .flex-grow-1 > .small.text-muted {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.42rem;
+        margin: 0 !important;
+        min-width: 0;
+    }
+    .movement-row > .flex-grow-1 > .small.text-muted::before {
+        color: #64748b;
+        content: 'Lead';
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+    .movement-row > .flex-grow-1 > .small.text-muted .mx-2 {
+        display: none;
+    }
+    .movement-row > .flex-grow-1 > .small.text-muted .badge {
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        max-width: 170px;
+        overflow: hidden;
+        padding: 0.34rem 0.62rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .movement-row > .flex-grow-1 > .small.text-muted .fa-arrow-right {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 999px;
+        color: #64748b;
+        font-size: 0.68rem;
+        height: 24px;
+        line-height: 22px;
+        margin: 0 !important;
+        text-align: center;
+        width: 24px;
+    }
+    .movement-row > .flex-grow-1 > p {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        color: #475569;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        margin: 0 !important;
+        max-height: 2.8em;
+        overflow: hidden;
+        padding: 0.45rem 0.6rem;
+    }
+    .movement-row > .flex-grow-1:not(:has(> p))::after {
+        color: #94a3b8;
+        content: 'Sem observação';
+        font-size: 0.78rem;
+        font-style: italic;
+    }
+    .movement-lead {
+        color: #64748b;
+        font-size: 0.72rem;
+        font-weight: 700;
+        margin-bottom: 0.32rem;
+        text-transform: uppercase;
+    }
+    .movement-statuses {
+        align-items: center;
+        display: flex;
+        gap: 0.45rem;
+        min-width: 0;
+    }
+    .movement-status {
+        border-radius: 999px;
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 800;
+        max-width: 180px;
+        overflow: hidden;
+        padding: 0.34rem 0.62rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .movement-status.from {
+        background: #f1f5f9;
+        color: #475569;
+    }
+    .movement-status.to {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+    .movement-arrow {
+        align-items: center;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 999px;
+        color: #64748b;
+        display: inline-flex;
+        flex-shrink: 0;
+        height: 24px;
+        justify-content: center;
+        width: 24px;
+    }
+    .movement-note {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        color: #475569;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        margin: 0;
+        max-height: 2.8em;
+        overflow: hidden;
+        padding: 0.45rem 0.6rem;
+    }
+    .movement-note.empty {
+        background: transparent;
+        border-color: transparent;
+        color: #94a3b8;
+        font-style: italic;
+        padding-left: 0;
+    }
+    .profile-list-item.is-hidden {
+        display: none !important;
+    }
+    .profile-list-footer {
+        border-top: 1px solid #eef2f7;
+        padding: 0.65rem 1rem 0.8rem;
+        text-align: center;
+    }
+    .profile-load-more {
+        align-items: center;
+        border-radius: 8px;
+        display: inline-flex;
+        font-weight: 700;
+        gap: 0.45rem;
+        justify-content: center;
+        min-width: 145px;
+        padding: 0.35rem 0.8rem;
+    }
+    .profile-load-more.is-hidden {
+        display: none !important;
     }
     .btn-modern {
         border-radius: 8px;
@@ -258,9 +549,9 @@ include __DIR__ . '/includes/sidebar.php';
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     .scrollable-list {
-        max-height: 400px;
+        max-height: 360px;
         overflow-y: auto;
-        padding-right: 0.5rem;
+        padding-right: 0;
     }
     .scrollable-list::-webkit-scrollbar {
         width: 6px;
@@ -275,6 +566,157 @@ include __DIR__ . '/includes/sidebar.php';
     }
     .scrollable-list::-webkit-scrollbar-thumb:hover {
         background: #a0aec0;
+    }
+    .tasks-panel {
+        background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%);
+        border: 1px solid rgba(148,163,184,0.18);
+        border-radius: 18px;
+        padding: 1rem;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+    }
+    .tasks-panel-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    .tasks-panel-title {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .tasks-panel-subtitle {
+        margin: 0.25rem 0 0;
+        color: #64748b;
+        font-size: 0.82rem;
+    }
+    .tasks-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .task-summary-chip {
+        border-radius: 999px;
+        padding: 0.35rem 0.65rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+        font-size: 0.74rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        box-shadow: none;
+    }
+    .task-summary-chip .chip-value {
+        color: #0f172a;
+        font-size: 0.84rem;
+    }
+    .task-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+    }
+    .task-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fff;
+        padding: 0.7rem 0.75rem;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    .task-card:hover {
+        transform: translateY(-1px);
+        border-color: rgba(102, 126, 234, 0.35);
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+    .task-card::before {
+        content: '';
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 3px;
+        background: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 100%);
+    }
+    .task-card.is-pendente::before { background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%); }
+    .task-card.is-andamento::before { background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%); }
+    .task-card.is-concluida::before { background: linear-gradient(180deg, #10b981 0%, #059669 100%); }
+    .task-card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.6rem;
+        margin-bottom: 0.45rem;
+        padding-left: 0.25rem;
+    }
+    .task-card-title {
+        margin: 0;
+        font-size: 0.92rem;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+    .task-card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin-bottom: 0.45rem;
+        padding-left: 0.25rem;
+    }
+    .task-meta-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        border-radius: 999px;
+        padding: 0.24rem 0.5rem;
+        font-size: 0.68rem;
+        font-weight: 700;
+        background: #f8fafc;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+    }
+    .task-meta-pill.overdue {
+        background: #fef2f2;
+        color: #b91c1c;
+        border-color: #fecaca;
+    }
+    .task-meta-pill.due-soon {
+        background: #fff7ed;
+        color: #c2410c;
+        border-color: #fed7aa;
+    }
+    .task-description {
+        margin: 0;
+        color: #475569;
+        display: -webkit-box;
+        font-size: 0.8rem;
+        line-height: 1.32;
+        overflow: hidden;
+        padding-left: 0.25rem;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+    .task-card-actions {
+        display: flex;
+        gap: 0.35rem;
+        justify-content: flex-end;
+        margin-top: 0.55rem;
+        padding-left: 0.25rem;
+    }
+    .task-card-actions .btn {
+        border-radius: 8px;
+        min-width: 34px;
+        padding: 0.28rem 0.55rem;
+    }
+    .task-card .badge-custom {
+        border-radius: 999px;
+        font-size: 0.66rem;
+        letter-spacing: 0;
+        padding: 0.28rem 0.52rem;
+        white-space: nowrap;
     }
     /* Fluxo de Atendimento cards */
     .fluxo-card {
@@ -362,6 +804,10 @@ include __DIR__ . '/includes/sidebar.php';
     .modal-header.colorful { background:#0b5ed7; color:#fff; }
     body.theme-dark .profile-header-gradient,
     body.theme-dark .profile-card,
+    body.theme-dark .tasks-panel,
+    body.theme-dark .task-card,
+    body.theme-dark .task-summary-chip,
+    body.theme-dark .task-meta-pill,
     body.theme-dark .task-item,
     body.theme-dark .list-item,
     body.theme-dark .fluxo-card,
@@ -398,8 +844,12 @@ include __DIR__ . '/includes/sidebar.php';
     body.theme-dark .profile-header-gradient p,
     body.theme-dark .profile-header-gradient a,
     body.theme-dark .profile-section-title,
+    body.theme-dark .tasks-panel-title,
+    body.theme-dark .tasks-panel-subtitle,
     body.theme-dark .profile-info-label,
     body.theme-dark .profile-info-value,
+    body.theme-dark .task-card,
+    body.theme-dark .task-card *,
     body.theme-dark .task-item,
     body.theme-dark .task-item *,
     body.theme-dark .list-item,
@@ -444,6 +894,91 @@ include __DIR__ . '/includes/sidebar.php';
         border-color: rgba(255,255,255,0.12) !important;
         background: transparent !important;
     }
+    body.theme-dark .task-summary-chip,
+    body.theme-dark .task-meta-pill {
+        background: rgba(255,255,255,0.05) !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }
+    body.theme-dark .profile-panel-header,
+    body.theme-dark .profile-list-footer {
+        border-color: rgba(255,255,255,0.08) !important;
+    }
+    body.theme-dark .profile-panel-title,
+    body.theme-dark .profile-panel-count {
+        color: #e6eef8 !important;
+    }
+    body.theme-dark .profile-panel-icon,
+    body.theme-dark .profile-panel-count {
+        background: rgba(255,255,255,0.05) !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }
+    body.theme-dark .movement-avatar,
+    body.theme-dark .movement-arrow,
+    body.theme-dark .movement-row > .flex-grow-1 > .small.text-muted .fa-arrow-right,
+    body.theme-dark .movement-row > .flex-grow-1 > p {
+        background: rgba(255,255,255,0.05) !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }
+    body.theme-dark .movement-user,
+    body.theme-dark .movement-avatar {
+        color: #e6eef8 !important;
+    }
+    body.theme-dark .movement-time,
+    body.theme-dark .movement-lead,
+    body.theme-dark .movement-row > .flex-grow-1 > .small.text-muted::before {
+        color: #cbd5e1 !important;
+    }
+    body.theme-dark .movement-row > .flex-grow-1 > p {
+        color: #dbeafe !important;
+    }
+    body.theme-dark .movement-row > .flex-grow-1:not(:has(> p))::after {
+        color: #94a3b8 !important;
+    }
+    body.theme-dark .task-meta-pill.overdue {
+        background: rgba(254, 226, 226, 0.14) !important;
+        color: #fca5a5 !important;
+        border-color: rgba(248, 113, 113, 0.28) !important;
+    }
+    body.theme-dark .task-meta-pill.due-soon {
+        background: rgba(255, 237, 213, 0.14) !important;
+        color: #fdba74 !important;
+        border-color: rgba(251, 146, 60, 0.28) !important;
+    }
+    @media (max-width: 768px) {
+        .profile-panel-header,
+        .tasks-panel-header {
+            align-items: stretch;
+            flex-direction: column;
+        }
+        .tasks-summary {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+        .profile-panel-count,
+        .task-summary-chip {
+            justify-content: center;
+            width: 100%;
+        }
+        .task-card-header {
+            flex-direction: column;
+        }
+        .task-card-actions {
+            justify-content: stretch;
+        }
+        .task-card-actions .btn {
+            flex: 1;
+        }
+        .movement-row,
+        .movement-row > .flex-grow-1 {
+            grid-template-columns: 1fr;
+        }
+        .movement-row > .flex-grow-1 {
+            grid-column: auto;
+        }
+        .movement-row > .flex-grow-1 > .small.text-muted .badge {
+            max-width: 100%;
+        }
+    }
 </style>
 
 <main class="flex-grow-1 p-4 main-content-scroll">
@@ -455,9 +990,9 @@ include __DIR__ . '/includes/sidebar.php';
                     <h2 class="mb-2" style="font-weight: 700;">Meu Perfil</h2>
                     <p class="mb-0 opacity-75">Gerencie suas informações e acompanhe suas atividades</p>
                     <div class="mt-2">
-                        <div id="profile_name_display" style="font-weight:700"><?php echo htmlspecialchars($user['nome_completo'] ?? $user['username'] ?? ''); ?></div>
-                        <div id="profile_email_display" class="small text-white-50"><?php echo htmlspecialchars($user['email'] ?? ''); ?></div>
-                        <div id="profile_bio_display" class="small text-white-50 mt-1"><?php echo nl2br(htmlspecialchars($user['biografia'] ?? '')); ?></div>
+                        <div id="profile_name_display" style="font-weight:700"><?php echo htmlspecialchars($profileNomeCompleto ?: ($user['username'] ?? '')); ?></div>
+                        <div id="profile_email_display" class="small text-white-50"><?php echo htmlspecialchars($profileEmail); ?></div>
+                        <div id="profile_bio_display" class="small text-white-50 mt-1"><?php echo nl2br(htmlspecialchars($profileBiografia)); ?></div>
                     </div>
                 </div>
                 <div class="d-flex gap-2">
@@ -468,7 +1003,7 @@ include __DIR__ . '/includes/sidebar.php';
             </div>
         </div>
 
-        <div id="profileDebug" class="mb-3">
+        <div id="profileDebug" class="mb-3 d-none">
             <small class="text-muted">Debug (user data):</small>
             <pre style="font-size:0.85rem; background:#f8f9fa; padding:8px; border-radius:6px;"><?php echo htmlspecialchars(print_r($user, true)); ?></pre>
         </div>
@@ -531,7 +1066,7 @@ include __DIR__ . '/includes/sidebar.php';
                     <hr class="my-4">
                     <div class="d-flex align-items-center justify-content-between">
                         <h6 class="fw-bold mb-3 text-secondary">Informações Pessoais</h6>
-                        <button id="btnInlineEditProfile" class="btn btn-sm btn-success" title="Editar informações"><i class="fas fa-pen"></i></button>
+                        <button id="btnInlineEditProfile" type="button" class="btn btn-sm btn-success" title="Editar informações"><i class="fas fa-pen"></i></button>
                     </div>
                     <div>
                         <div class="profile-info-item">
@@ -550,27 +1085,27 @@ include __DIR__ . '/includes/sidebar.php';
                             <div class="profile-info-label">
                                 <i class="fas fa-id-card me-2"></i>Nome Completo
                             </div>
-                            <div class="profile-info-value view-mode"><?php echo htmlspecialchars($user['nome_completo'] ?? ''); ?></div>
+                            <div class="profile-info-value view-mode"><?php echo htmlspecialchars($profileNomeCompleto); ?></div>
                             <div class="edit-mode d-none">
-                                <input type="text" class="form-control form-control-sm" name="nome_completo" value="<?php echo htmlspecialchars($user['nome_completo'] ?? ''); ?>" />
+                                <input type="text" class="form-control form-control-sm" name="nome_completo" value="<?php echo htmlspecialchars($profileNomeCompleto); ?>" />
                             </div>
                         </div>
                         <div class="profile-info-item" data-field="email">
                             <div class="profile-info-label">
                                 <i class="fas fa-envelope me-2"></i>E-mail
                             </div>
-                            <div class="profile-info-value view-mode"><?php echo htmlspecialchars($user['email'] ?? ''); ?></div>
+                            <div class="profile-info-value view-mode"><?php echo htmlspecialchars($profileEmail); ?></div>
                             <div class="edit-mode d-none">
-                                <input type="email" class="form-control form-control-sm" name="email" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" />
+                                <input type="email" class="form-control form-control-sm" name="email" value="<?php echo htmlspecialchars($profileEmail); ?>" />
                             </div>
                         </div>
                         <div class="profile-info-item" data-field="biografia">
                             <div class="profile-info-label">
                                 <i class="fas fa-user-edit me-2"></i>Biografia
                             </div>
-                            <div class="profile-info-value view-mode small"><?php echo nl2br(htmlspecialchars($user['biografia'] ?? '')); ?></div>
+                            <div class="profile-info-value view-mode small"><?php echo nl2br(htmlspecialchars($profileBiografia)); ?></div>
                             <div class="edit-mode d-none">
-                                <textarea class="form-control form-control-sm" name="biografia" rows="3"><?php echo htmlspecialchars($user['biografia'] ?? ''); ?></textarea>
+                                <textarea class="form-control form-control-sm" name="biografia" rows="3"><?php echo htmlspecialchars($profileBiografia); ?></textarea>
                             </div>
                         </div>
                     </div>
@@ -582,35 +1117,82 @@ include __DIR__ . '/includes/sidebar.php';
                 <!-- Edit profile form -->
                 <!-- inline edit handled inside Informações Pessoais -->
 
-                <div class="profile-card">
-                    <h5 class="profile-section-title">Minhas Tarefas</h5>
-                    <div id="profileTasksList" class="scrollable-list" style="min-height:350px;">
+                <div class="tasks-panel">
+                    <div class="tasks-panel-header">
+                        <div>
+                            <h5 class="tasks-panel-title">Minhas Tarefas</h5>
+                            <p class="tasks-panel-subtitle">Visão rápida das suas pendências, prazos e itens concluídos.</p>
+                        </div>
+                        <div class="tasks-summary">
+                            <?php
+                                $taskCounts = ['Pendente' => 0, 'Em andamento' => 0, 'Concluída' => 0];
+                                foreach ($profile_tasks as $taskCountItem) {
+                                    $taskStatusKey = trim((string)($taskCountItem['status'] ?? ''));
+                                    if (isset($taskCounts[$taskStatusKey])) {
+                                        $taskCounts[$taskStatusKey]++;
+                                    }
+                                }
+                            ?>
+                            <span class="task-summary-chip"><i class="far fa-circle"></i> Pendentes <span class="chip-value"><?php echo (int) $taskCounts['Pendente']; ?></span></span>
+                            <span class="task-summary-chip"><i class="fas fa-spinner"></i> Em andamento <span class="chip-value"><?php echo (int) $taskCounts['Em andamento']; ?></span></span>
+                            <span class="task-summary-chip"><i class="fas fa-check"></i> Concluídas <span class="chip-value"><?php echo (int) $taskCounts['Concluída']; ?></span></span>
+                        </div>
+                    </div>
+                    <div id="profileTasksList" class="scrollable-list" data-page-size="5" style="min-height:350px;">
                         <?php if (!empty($profile_tasks)): ?>
-                            <?php foreach ($profile_tasks as $t): ?>
-                                <div class="task-item">
-                                    <div class="d-flex align-items-start gap-3">
-                                        <div class="position-relative" style="width: 52px; height: 38px; flex-shrink: 0;">
-                                            <!-- Avatares: criador à esquerda, responsável à direita -->
-                                        </div>
+                            <?php foreach ($profile_tasks as $taskIndex => $t): ?>
+                                <?php
+                                    $taskStatus = trim((string)($t['status'] ?? 'Pendente'));
+                                    $taskStatusSlug = 'is-pendente';
+                                    if ($taskStatus === 'Em andamento') {
+                                        $taskStatusSlug = 'is-andamento';
+                                    } elseif ($taskStatus === 'Concluída') {
+                                        $taskStatusSlug = 'is-concluida';
+                                    }
+                                    $dueRaw = trim((string)($t['data_vencimento'] ?? ''));
+                                    $dueLabel = 'Sem data';
+                                    $dueClass = '';
+                                    if ($dueRaw !== '') {
+                                        $dueDateObj = date_create($dueRaw);
+                                        if ($dueDateObj) {
+                                            $dueLabel = $dueDateObj->format('d/m/Y');
+                                            $today = new DateTime('today');
+                                            $diffDays = (int)$today->diff($dueDateObj)->format('%r%a');
+                                            if ($diffDays < 0 && $taskStatus !== 'Concluída') {
+                                                $dueClass = 'overdue';
+                                            } elseif ($diffDays <= 2 && $diffDays >= 0 && $taskStatus !== 'Concluída') {
+                                                $dueClass = 'due-soon';
+                                            }
+                                        } else {
+                                            $dueLabel = $dueRaw;
+                                        }
+                                    }
+                                ?>
+                                <div class="task-card profile-list-item <?php echo $taskIndex >= 5 ? 'is-hidden' : ''; ?> <?php echo htmlspecialchars($taskStatusSlug); ?>">
+                                    <div class="task-card-header">
                                         <div class="flex-grow-1">
-                                            <div class="d-flex align-items-center gap-2 mb-2">
-                                                <h6 class="mb-0 fw-bold"><?php echo htmlspecialchars($t['titulo'] ?? ''); ?></h6>
-                                                <span class="badge-custom badge-pendente"><?php echo htmlspecialchars($t['status'] ?? ''); ?></span>
-                                            </div>
-                                            <p class="text-muted small mb-2">
-                                                <i class="far fa-calendar me-1"></i>
-                                                <?php echo htmlspecialchars($t['data_vencimento'] ?? 'Sem data'); ?>
-                                            </p>
-                                            <p class="mb-0 text-secondary"><?php echo htmlspecialchars($t['descricao'] ?? ''); ?></p>
+                                            <h6 class="task-card-title"><?php echo htmlspecialchars($t['titulo'] ?? ''); ?></h6>
                                         </div>
-                                        <div class="d-flex flex-column gap-2">
-                                            <button class="btn btn-sm btn-outline-primary btn-modern" data-task-id="<?php echo $t['id']; ?>" onclick="openEditTaskModal(<?php echo $t['id']; ?>)">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-danger btn-modern" data-task-id="<?php echo $t['id']; ?>" onclick="deleteTaskConfirm(this)">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </div>
+                                        <span class="badge-custom <?php echo $taskStatus === 'Concluída' ? 'badge-concluida' : ($taskStatus === 'Em andamento' ? 'badge-andamento' : 'badge-pendente'); ?>">
+                                            <?php echo htmlspecialchars($taskStatus); ?>
+                                        </span>
+                                    </div>
+                                    <div class="task-card-meta">
+                                        <span class="task-meta-pill <?php echo $dueClass; ?>">
+                                            <i class="far fa-calendar-alt"></i> <?php echo htmlspecialchars($dueLabel); ?>
+                                        </span>
+                                        <?php if ($taskStatus === 'Concluída'): ?>
+                                            <span class="task-meta-pill"><i class="fas fa-check-circle"></i> Finalizada</span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <p class="task-description"><?php echo htmlspecialchars($t['descricao'] ?? ''); ?></p>
+                                    <div class="task-card-actions">
+                                        <button class="btn btn-sm btn-outline-primary btn-modern" title="Editar tarefa" data-task-id="<?php echo $t['id']; ?>" onclick="openEditTaskModal(<?php echo $t['id']; ?>)">
+                                            <i class="fas fa-pen"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger btn-modern" title="Excluir tarefa" data-task-id="<?php echo $t['id']; ?>" onclick="deleteTaskConfirm(this)">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -621,6 +1203,13 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         <?php endif; ?>
                     </div>
+                    <?php if (count($profile_tasks) > 5): ?>
+                        <div class="profile-list-footer">
+                            <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileTasksList">
+                                <i class="fas fa-plus"></i> Carregar mais
+                            </button>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Modal Editar Tarefa -->
@@ -702,14 +1291,17 @@ include __DIR__ . '/includes/sidebar.php';
         <!-- Seções de Leads, Projetos, Movimentações e Lembretes -->
         <div class="row g-4 mt-2">
             <div class="col-lg-6">
-                <div class="profile-card">
-                    <h5 class="profile-section-title">📊 Meus Leads</h5>
-                    <div id="profileLeadsList" class="scrollable-list" style="min-height:200px;">
+                <div class="profile-card profile-modern-panel">
+                    <div class="profile-panel-header">
+                        <h5 class="profile-panel-title"><span class="profile-panel-icon"><i class="fas fa-user-tie"></i></span>Meus Leads</h5>
+                        <span class="profile-panel-count"><?php echo count($profile_leads); ?> registros</span>
+                    </div>
+                    <div id="profileLeadsList" class="scrollable-list" data-page-size="5" style="min-height:200px;">
                         <?php if (!empty($profile_leads)): ?>
-                            <?php foreach (array_slice($profile_leads,0,50) as $l): ?>
-                                <div class="list-item">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div>
+                            <?php foreach ($profile_leads as $leadIndex => $l): ?>
+                                <div class="list-item profile-list-item <?php echo $leadIndex >= 5 ? 'is-hidden' : ''; ?>">
+                                    <div class="d-flex justify-content-between align-items-start gap-3">
+                                        <div class="min-width-0">
                                             <h6 class="mb-1 fw-semibold"><?php echo htmlspecialchars($l['name']); ?></h6>
                                             <p class="mb-0 small text-muted">
                                                 <i class="fas fa-envelope me-1"></i><?php echo htmlspecialchars($l['email'] ?? ''); ?>
@@ -728,18 +1320,28 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         <?php endif; ?>
                     </div>
+                    <?php if (count($profile_leads) > 5): ?>
+                        <div class="profile-list-footer">
+                            <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileLeadsList">
+                                <i class="fas fa-plus"></i> Carregar mais
+                            </button>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
             <div class="col-lg-6">
-                <div class="profile-card">
-                    <h5 class="profile-section-title">💼 Meus Projetos</h5>
-                    <div id="profileProjectsList" class="scrollable-list" style="min-height:200px;">
+                <div class="profile-card profile-modern-panel">
+                    <div class="profile-panel-header">
+                        <h5 class="profile-panel-title"><span class="profile-panel-icon"><i class="fas fa-briefcase"></i></span>Meus Projetos</h5>
+                        <span class="profile-panel-count"><?php echo count($profile_projects); ?> registros</span>
+                    </div>
+                    <div id="profileProjectsList" class="scrollable-list" data-page-size="5" style="min-height:200px;">
                         <?php if (!empty($profile_projects)): ?>
-                            <?php foreach (array_slice($profile_projects,0,50) as $p): ?>
-                                <div class="list-item">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div>
+                            <?php foreach ($profile_projects as $projectIndex => $p): ?>
+                                <div class="list-item profile-list-item <?php echo $projectIndex >= 5 ? 'is-hidden' : ''; ?>">
+                                    <div class="d-flex justify-content-between align-items-start gap-3">
+                                        <div class="min-width-0">
                                             <h6 class="mb-1 fw-semibold"><?php echo htmlspecialchars($p['client_name'] ?? 'Projeto'); ?></h6>
                                             <p class="mb-0 small">
                                                 <span class="text-success fw-bold">
@@ -747,7 +1349,7 @@ include __DIR__ . '/includes/sidebar.php';
                                                 </span>
                                             </p>
                                         </div>
-                                        <span class="badge bg-success"><?php echo htmlspecialchars($p['status'] ?? ''); ?></span>
+                                        <span class="badge bg-success flex-shrink-0"><?php echo htmlspecialchars($p['status'] ?? ''); ?></span>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -758,19 +1360,35 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         <?php endif; ?>
                     </div>
+                    <?php if (count($profile_projects) > 5): ?>
+                        <div class="profile-list-footer">
+                            <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileProjectsList">
+                                <i class="fas fa-plus"></i> Carregar mais
+                            </button>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
             <div class="col-12">
-                <div class="profile-card">
-                    <h5 class="profile-section-title">📈 Histórico de Movimentações</h5>
-                    <div id="profileMovementsList" class="scrollable-list" style="min-height:200px;">
+                <div class="profile-card profile-modern-panel">
+                    <div class="profile-panel-header">
+                        <h5 class="profile-panel-title"><span class="profile-panel-icon"><i class="fas fa-chart-line"></i></span>Histórico de Movimentações</h5>
+                        <span class="profile-panel-count"><?php echo count($profile_movements); ?> registros</span>
+                    </div>
+                    <div id="profileMovementsList" class="scrollable-list" data-page-size="5" style="min-height:200px;">
                         <?php if (!empty($profile_movements)): ?>
-                            <?php foreach (array_slice($profile_movements,0,200) as $m): ?>
-                                <div class="list-item">
-                                    <div class="d-flex align-items-start gap-3">
-                                        <div class="avatar-circle" style="width:32px;height:32px;font-size:0.75rem;">
+                            <?php foreach ($profile_movements as $movementIndex => $m): ?>
+                                <div class="list-item profile-list-item movement-item <?php echo $movementIndex >= 5 ? 'is-hidden' : ''; ?>">
+                                    <div class="movement-row">
+                                        <div class="movement-person">
+                                            <div class="movement-avatar">
                                             <?php echo strtoupper(substr(trim($m['changed_by'] ?: $m['user_id']),0,2)); ?>
+                                            </div>
+                                            <div class="min-width-0">
+                                                <div class="movement-user"><?php echo htmlspecialchars($m['changed_by'] ?: $m['user_id']); ?></div>
+                                                <div class="movement-time"><i class="far fa-clock me-1"></i><?php echo htmlspecialchars($m['created_at']); ?></div>
+                                            </div>
                                         </div>
                                         <div class="flex-grow-1">
                                             <div class="small mb-1">
@@ -781,7 +1399,7 @@ include __DIR__ . '/includes/sidebar.php';
                                                 </span>
                                             </div>
                                             <div class="small text-muted mb-1">
-                                                Lead #<?php echo htmlspecialchars($m['lead_id']); ?>
+                                                #<?php echo htmlspecialchars($m['lead_id']); ?>
                                                 <span class="mx-2">→</span>
                                                 <span class="badge bg-secondary"><?php echo htmlspecialchars($m['from_status'] ?? ''); ?></span>
                                                 <i class="fas fa-arrow-right mx-1"></i>
@@ -801,16 +1419,26 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         <?php endif; ?>
                     </div>
+                    <?php if (count($profile_movements) > 5): ?>
+                        <div class="profile-list-footer">
+                            <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileMovementsList">
+                                <i class="fas fa-plus"></i> Carregar mais
+                            </button>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
             <div class="col-12">
-                <div class="profile-card">
-                    <h5 class="profile-section-title">🔔 Lembretes Criados</h5>
-                    <div id="profileRemindersList" class="scrollable-list" style="min-height:200px;">
+                <div class="profile-card profile-modern-panel">
+                    <div class="profile-panel-header">
+                        <h5 class="profile-panel-title"><span class="profile-panel-icon"><i class="far fa-bell"></i></span>Lembretes Criados</h5>
+                        <span class="profile-panel-count"><?php echo count($profile_reminders); ?> registros</span>
+                    </div>
+                    <div id="profileRemindersList" class="scrollable-list" data-page-size="5" style="min-height:200px;">
                         <?php if (!empty($profile_reminders)): ?>
-                            <?php foreach (array_slice($profile_reminders,0,200) as $r): ?>
-                                <div class="list-item">
+                            <?php foreach ($profile_reminders as $reminderIndex => $r): ?>
+                                <div class="list-item profile-list-item <?php echo $reminderIndex >= 5 ? 'is-hidden' : ''; ?>">
                                     <div class="d-flex align-items-start gap-3">
                                         <div style="color:#667eea;font-size:1.5rem;">
                                             <i class="far fa-bell"></i>
@@ -833,6 +1461,13 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         <?php endif; ?>
                     </div>
+                    <?php if (count($profile_reminders) > 5): ?>
+                        <div class="profile-list-footer">
+                            <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileRemindersList">
+                                <i class="fas fa-plus"></i> Carregar mais
+                            </button>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -1027,8 +1662,108 @@ include __DIR__ . '/includes/sidebar.php';
     }
 
     function escapeHtml(str){ if(!str) return ''; return String(str).replace(/[&<>'"]/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":"&#39;",'"':'&quot;'})[s]); }
+    function applyInlineProfileData(profile = {}) {
+        const fullName = Object.prototype.hasOwnProperty.call(profile, 'nome_completo') ? (profile.nome_completo || '') : null;
+        const email = Object.prototype.hasOwnProperty.call(profile, 'email') ? (profile.email || '') : null;
+        const bio = Object.prototype.hasOwnProperty.call(profile, 'biografia') ? (profile.biografia || '') : null;
+
+        document.querySelectorAll('.profile-info-item[data-field]').forEach(it => {
+            const field = it.getAttribute('data-field');
+            const view = it.querySelector('.view-mode');
+            const input = it.querySelector('.edit-mode input, .edit-mode textarea');
+            if (input && Object.prototype.hasOwnProperty.call(profile, field)) {
+                input.value = profile[field] || '';
+            }
+            if (!view) return;
+            if (field === 'biografia' && bio !== null) {
+                view.innerHTML = escapeHtml(bio).replace(/\n/g, '<br>');
+            } else if (field === 'nome_completo' && fullName !== null) {
+                view.textContent = fullName;
+            } else if (field === 'email' && email !== null) {
+                view.textContent = email;
+            }
+        });
+
+        if (fullName !== null && document.getElementById('profile_name_display')) {
+            document.getElementById('profile_name_display').textContent = fullName || profile.username || '<?php echo htmlspecialchars($user['username'] ?? ''); ?>';
+        }
+        if (email !== null && document.getElementById('profile_email_display')) {
+            document.getElementById('profile_email_display').textContent = email;
+        }
+        if (bio !== null && document.getElementById('profile_bio_display')) {
+            document.getElementById('profile_bio_display').innerHTML = escapeHtml(bio).replace(/\n/g, '<br>');
+        }
+    }
+    function syncInlineProfileInputsFromView() {
+        document.querySelectorAll('.profile-info-item[data-field]').forEach(it => {
+            const field = it.getAttribute('data-field');
+            const view = it.querySelector('.view-mode');
+            const input = it.querySelector('.edit-mode input, .edit-mode textarea');
+            if (!field || !view || !input) return;
+            if (field === 'biografia') {
+                input.value = (view.innerHTML || '').replace(/<br\s*\/?>/gi, '\n').replace(/&nbsp;/g, ' ').trim();
+            } else {
+                input.value = (view.textContent || '').trim();
+            }
+        });
+    }
+    function hydrateInlineProfileViewFromHeader() {
+        const headerName = (document.getElementById('profile_name_display')?.textContent || '').trim();
+        const headerEmail = (document.getElementById('profile_email_display')?.textContent || '').trim();
+        const headerBio = (document.getElementById('profile_bio_display')?.innerHTML || '').trim();
+
+        document.querySelectorAll('.profile-info-item[data-field]').forEach(it => {
+            const field = it.getAttribute('data-field');
+            const view = it.querySelector('.view-mode');
+            const input = it.querySelector('.edit-mode input, .edit-mode textarea');
+            if (!field || !view) return;
+
+            const currentText = (view.textContent || '').trim();
+            if (currentText !== '') return;
+
+            if (field === 'nome_completo' && headerName) {
+                view.textContent = headerName;
+                if (input) input.value = headerName;
+            }
+            if (field === 'email' && headerEmail) {
+                view.textContent = headerEmail;
+                if (input) input.value = headerEmail;
+            }
+            if (field === 'biografia' && headerBio) {
+                view.innerHTML = headerBio;
+                if (input) input.value = headerBio.replace(/<br\s*\/?>/gi, '\n').replace(/&nbsp;/g, ' ').trim();
+            }
+        });
+    }
+    function exitInlineProfileEdit(btnInline) {
+        document.querySelectorAll('.profile-info-item').forEach(it => {
+            it.querySelector('.view-mode')?.classList.remove('d-none');
+            it.querySelector('.edit-mode')?.classList.add('d-none');
+        });
+        btnInline.innerHTML = '<i class="fas fa-pen"></i>';
+        btnInline.disabled = false;
+        const cancelBtn = document.getElementById('btnInlineCancel');
+        if (cancelBtn) cancelBtn.remove();
+    }
+    function bindLoadMoreLists(scope = document) {
+        scope.querySelectorAll('[data-load-more]').forEach(button => {
+            if (button.dataset.bound === '1') return;
+            button.dataset.bound = '1';
+            button.addEventListener('click', () => {
+                const list = document.querySelector(button.dataset.loadMore);
+                if (!list) return;
+                const pageSize = Number(list.dataset.pageSize || 5);
+                const hiddenItems = Array.from(list.querySelectorAll('.profile-list-item.is-hidden'));
+                hiddenItems.slice(0, pageSize).forEach(item => item.classList.remove('is-hidden'));
+                if (list.querySelectorAll('.profile-list-item.is-hidden').length === 0) {
+                    button.classList.add('is-hidden');
+                }
+            });
+        });
+    }
 
     document.addEventListener('DOMContentLoaded', ()=>{
+        bindLoadMoreLists();
         // Avatar upload handlers
         const avatarInput = document.getElementById('avatarInput');
         const btnUpload = document.getElementById('btnUploadAvatar');
@@ -1227,6 +1962,7 @@ include __DIR__ . '/includes/sidebar.php';
 
     // Inline edit handlers for Informações Pessoais
     document.addEventListener('DOMContentLoaded', ()=>{
+        hydrateInlineProfileViewFromHeader();
         const btnInline = document.getElementById('btnInlineEditProfile');
         if (!btnInline) return;
         let editing = false;
@@ -1234,6 +1970,7 @@ include __DIR__ . '/includes/sidebar.php';
             const items = document.querySelectorAll('.profile-info-item');
             if (!editing) {
                 // enter edit mode
+                syncInlineProfileInputsFromView();
                 items.forEach(it=>{ it.querySelector('.view-mode')?.classList.add('d-none'); it.querySelector('.edit-mode')?.classList.remove('d-none'); });
                 btnInline.innerHTML = '<i class="fas fa-check"></i>';
                 const cancelBtn = document.createElement('button'); cancelBtn.type='button'; cancelBtn.className='btn btn-sm btn-outline-secondary ms-2'; cancelBtn.id='btnInlineCancel'; cancelBtn.innerHTML='<i class="fas fa-times"></i>';
@@ -1241,21 +1978,34 @@ include __DIR__ . '/includes/sidebar.php';
                 cancelBtn.addEventListener('click', ()=>{ location.reload(); });
                 editing = true;
             } else {
-                // collect values and send
-                const data = {};
-                document.querySelectorAll('.profile-info-item').forEach(it=>{
+                const fd = new FormData();
+                document.querySelectorAll('.profile-info-item[data-field]').forEach(it=>{
                     const name = it.getAttribute('data-field');
                     const input = it.querySelector('.edit-mode input, .edit-mode textarea');
-                    if (input) data[name] = input.value;
+                    if (name && input) fd.append(name, input.value);
                 });
+
+                btnInline.disabled = true;
                 try {
-                    const fd = new FormData(); for (const k in data) fd.append(k, data[k]);
                     const res = await fetch('api/update_profile.php', { method: 'POST', body: fd, credentials: 'same-origin' });
-                    const json = await res.json();
-                    if (json.success) {
-                        location.reload();
-                    } else { alert('Erro: ' + (json.message||'')); }
-                } catch(e){ console.error(e); alert('Erro ao salvar'); }
+                    const text = await res.text();
+                    let json = null;
+                    try {
+                        json = JSON.parse(text);
+                    } catch(parseErr) {
+                        throw new Error('Resposta inválida do servidor: ' + text.slice(0, 180));
+                    }
+                    if (!res.ok || !json.success) {
+                        throw new Error(json.message || 'Não foi possível salvar o perfil.');
+                    }
+                    applyInlineProfileData(json.profile || {});
+                    exitInlineProfileEdit(btnInline);
+                    editing = false;
+                } catch(e){
+                    console.error(e);
+                    alert('Erro ao salvar perfil: ' + e.message);
+                    btnInline.disabled = false;
+                }
             }
         });
     });
@@ -1330,13 +2080,17 @@ include __DIR__ . '/includes/sidebar.php';
                 movWrap.innerHTML = '';
                 data.movements.slice(0,200).forEach(m=>{
                     const el = document.createElement('div'); 
-                    el.className='list-item';
+                    el.className='list-item profile-list-item movement-item';
                     const initials = (m.changed_by||m.user_id||'?').split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase();
                     const note = m.note ? `<p class="mb-0 small">${escapeHtml(m.note)}</p>` : '';
                     el.innerHTML = `
-                        <div class="d-flex align-items-start gap-3">
-                            <div class="avatar-circle" style="width:32px;height:32px;font-size:0.75rem;">
-                                ${initials}
+                        <div class="movement-row">
+                            <div class="movement-person">
+                                <div class="movement-avatar">${initials}</div>
+                                <div class="min-width-0">
+                                    <div class="movement-user">${escapeHtml(m.changed_by||m.user_id||'')}</div>
+                                    <div class="movement-time"><i class="far fa-clock me-1"></i>${escapeHtml(m.created_at||'')}</div>
+                                </div>
                             </div>
                             <div class="flex-grow-1">
                                 <div class="small mb-1">
@@ -1347,7 +2101,7 @@ include __DIR__ . '/includes/sidebar.php';
                                     </span>
                                 </div>
                                 <div class="small text-muted mb-1">
-                                    Lead #${escapeHtml(m.lead_id||'')}
+                                    #${escapeHtml(m.lead_id||'')}
                                     <span class="mx-2">→</span>
                                     <span class="badge bg-secondary">${escapeHtml(m.from_status||'')}</span>
                                     <i class="fas fa-arrow-right mx-1"></i>

@@ -235,14 +235,13 @@ switch ($action) {
         }
         break;
     case 'recent_activities':
-        $username = $_SESSION['username'] ?? '';
         $combined = [];
         // 1) read explicit activities from team_tasks_activities (if present)
         try {
             ensureActivityTableExists($pdo);
-            // Include activities for the current user OR public pós-venda referrals so all integration viewers can see them
-            $stmt = $pdo->prepare("SELECT task_id, action, user_id, username, details, equipe, titulo, responsavel, created_at FROM team_tasks_activities WHERE ((user_id = ? OR username = ?) OR equipe = 'Pós-venda' OR action = 'referral_created') AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY created_at DESC LIMIT 50");
-            $stmt->execute([$userId, $username]);
+            // Include activities from all users so the team timeline is shared.
+            $stmt = $pdo->prepare("SELECT task_id, action, user_id, username, details, equipe, titulo, responsavel, created_at FROM team_tasks_activities WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY created_at DESC LIMIT 50");
+            $stmt->execute();
             $acts = $stmt->fetchAll(PDO::FETCH_ASSOC);
             if ($acts) {
                 foreach ($acts as $a) {
@@ -260,9 +259,9 @@ switch ($action) {
             // ignore and fall back to tasks-only
         }
         // 2) also include inferred activities from team_tasks (preserve old behavior)
-        $sql = "SELECT id, equipe, titulo, responsavel, criado_em, atualizado_em FROM team_tasks WHERE (user_id = ? OR responsavel = ?) AND (criado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY) OR atualizado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)) ORDER BY GREATEST(criado_em, atualizado_em) DESC LIMIT 50";
+        $sql = "SELECT id, equipe, titulo, responsavel, criado_em, atualizado_em FROM team_tasks WHERE (criado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY) OR atualizado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)) ORDER BY GREATEST(criado_em, atualizado_em) DESC LIMIT 50";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$userId, $username]);
+        $stmt->execute();
         $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($tasks as $t) {
             $isNew = $t['criado_em'] == $t['atualizado_em'];

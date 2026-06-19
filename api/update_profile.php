@@ -20,6 +20,7 @@ $biografia = $_POST['biografia'] ?? null;
 $email = $_POST['email'] ?? null;
 
 try {
+    $latest = null;
     $fields = [];
     $params = [];
     if (!is_null($nome_completo)) { $fields[] = 'nome_completo = ?'; $params[] = $nome_completo; }
@@ -34,7 +35,7 @@ try {
 
         // Refresh session values so frontend header/sidebar reflects changes
         try {
-            $r = $pdo->prepare('SELECT username, email, nome_completo FROM users WHERE id = ? LIMIT 1');
+            $r = $pdo->prepare('SELECT username, email, nome_completo, biografia FROM users WHERE id = ? LIMIT 1');
             $r->execute([$user_id]);
             $latest = $r->fetch(PDO::FETCH_ASSOC);
             if ($latest) {
@@ -65,13 +66,33 @@ try {
                 @chmod($targetPath, 0644);
                 $u = $pdo->prepare('UPDATE users SET avatar = ? WHERE id = ?');
                 $u->execute([$targetName, $user_id]);
-                echo json_encode(['success'=>true,'message'=>'Perfil atualizado','avatar'=>$targetName]);
+                if (!$latest) {
+                    $r = $pdo->prepare('SELECT username, email, nome_completo, biografia FROM users WHERE id = ? LIMIT 1');
+                    $r->execute([$user_id]);
+                    $latest = $r->fetch(PDO::FETCH_ASSOC);
+                }
+                echo json_encode([
+                    'success'=>true,
+                    'message'=>'Perfil atualizado',
+                    'avatar'=>$targetName,
+                    'profile'=>$latest
+                ]);
                 exit;
             }
         }
     }
 
-    echo json_encode(['success'=>true,'message'=>'Perfil atualizado']);
+    if (!$latest) {
+        $r = $pdo->prepare('SELECT username, email, nome_completo, biografia FROM users WHERE id = ? LIMIT 1');
+        $r->execute([$user_id]);
+        $latest = $r->fetch(PDO::FETCH_ASSOC);
+    }
+
+    echo json_encode([
+        'success'=>true,
+        'message'=>'Perfil atualizado',
+        'profile'=>$latest
+    ]);
 } catch (Exception $e) {
     echo json_encode(['success'=>false,'message'=>'Erro: '.$e->getMessage()]);
 }
