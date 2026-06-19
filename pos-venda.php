@@ -2744,38 +2744,130 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
 
     async function onCreateTaskBtnClick(event){
         const btn = event.currentTarget;
-        const pvId = btn.dataset.pvId;
-        const clientName = btn.dataset.pvClient || 'Cliente';
-        if (!pvId) return;
+        const pv = getPosVendaById(btn.dataset.pvId);
+        if (!pv) return;
 
-        const originalHtml = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Criando...';
+        const clientName = pv.client_name || btn.dataset.pvClient || 'Cliente';
+        const existing = document.getElementById('pvAddTaskModal');
+        if (existing) existing.remove();
 
+        let users = [];
         try {
-            const response = await fetch('includes/team_tasks_api.php?action=add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    equipe: 'Pós-venda',
-                    titulo: `Acompanhar pós-venda: ${clientName}`,
-                    descricao: `Tarefa criada a partir do card de pós-venda.\nCliente: ${clientName}\nID do pós-venda: ${pvId}`,
-                    status: 'Pendente'
-                })
-            });
+            const res = await fetch('includes/leads_api.php?action=get_users');
+            if (res.ok) users = await res.json();
+        } catch (err) {
+            console.warn('Erro ao obter usuários para tarefa:', err);
+        }
 
-            const result = await response.json();
-            if (!response.ok || !result.success) {
-                throw new Error(result.error || 'Não foi possível criar a tarefa.');
+        const options = users.map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.username)}</option>`).join('');
+        const dueDefault = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = 'pvAddTaskModal';
+        modal.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header" style="background-color:#0b6ac1;color:#fff;">
+                        <h5 class="modal-title">Adicionar Tarefa para Pós-venda</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="pvAddTaskForm">
+                            <div class="mb-3">
+                                <label for="pvTaskTitle" class="form-label">Título</label>
+                                <input type="text" class="form-control" id="pvTaskTitle" value="${escapeHtml(`Acompanhar pós-venda: ${clientName}`)}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="pvTaskDescription" class="form-label">Descrição</label>
+                                <textarea class="form-control" id="pvTaskDescription" rows="4">Cliente: ${escapeHtml(clientName)}
+ID do pós-venda: ${escapeHtml(String(pv.id))}
+Estágio: ${escapeHtml(pv.stage || 'Sem estágio')}
+Telefone: ${escapeHtml(pv.phone || pv.lead_phone || 'Não informado')}
+Valor: ${escapeHtml(formatCurrencyBRL(pv.plan_value))}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="pvTaskResponsavel" class="form-label">Responsável</label>
+                                <select class="form-select" id="pvTaskResponsavel">
+                                    <option value="">Selecione...</option>
+                                    ${options}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="pvTaskDueDate" class="form-label">Data de Vencimento</label>
+                                <input type="date" class="form-control" id="pvTaskDueDate" value="${dueDefault}" required>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" id="pvSaveTaskBtn">Salvar Tarefa</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        const bs = new bootstrap.Modal(modal);
+        bs.show();
+
+        modal.addEventListener('hidden.bs.modal', () => modal.remove());
+
+        const leadId = pv.lead_id || pv.leadId || '';
+        if (leadId) {
+            // preserve context for team_tasks_api if schema supports lead_id
+            modal.dataset.leadId = String(leadId);
+        }
+
+        const saveBtn = document.getElementById('pvSaveTaskBtn');
+        saveBtn.addEventListener('click', async () => {
+            const title = document.getElementById('pvTaskTitle').value.trim();
+            const description = document.getElementById('pvTaskDescription').value.trim();
+            const responsavelId = document.getElementById('pvTaskResponsavel').value;
+            const dueDate = document.getElementById('pvTaskDueDate').value;
+            if (!title || !dueDate) {
+                alert('Preencha título e data de vencimento.');
+                return;
+            }
+            if (!responsavelId) {
+                alert('Selecione um responsável.');
+                return;
             }
 
-            alert('Tarefa criada com sucesso.');
-        } catch (err) {
-            alert(err.message || 'Falha ao criar tarefa.');
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = originalHtml;
-        }
+            const original = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Salvando...';
+            try {
+                const selectedUser = users.find(u => String(u.id) === String(responsavelId));
+                const payload = {
+                    equipe: 'Pós-venda',
+                    titulo: title,
+                    descricao: description,
+                    status: 'Pendente',
+                    responsavel_id: responsavelId,
+                    responsavel: selectedUser?.username || '',
+                    data_vencimento: dueDate,
+                    lead_id: modal.dataset.leadId || null
+                };
+
+                const response = await fetch('includes/team_tasks_api.php?action=add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Não foi possível criar a tarefa.');
+                }
+
+                bs.hide();
+                alert('Tarefa criada com sucesso.');
+            } catch (err) {
+                alert(err.message || 'Falha ao criar tarefa.');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = original;
+            }
+        });
     }
 
     async function onEditRowClick(event){

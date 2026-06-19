@@ -1171,9 +1171,6 @@ function showNotification(msg, tipo='success') {
   setTimeout(()=>{el.textContent='';el.className='';}, 3000);
 }
 
-// Carregar tarefas iniciais
-atualizarTarefas();
-
 // Estado dos filtros de atividades
 let activityFilters = {
     type: 'all',
@@ -1422,11 +1419,17 @@ const tarefasArea = document.getElementById('tarefasArea');
 const minhasArea = document.getElementById('minhasArea');
 const minhasIntegracoesArea = document.getElementById('minhasIntegracoesArea');
 const lembretesArea = document.getElementById('lembretesArea');
+const TEAM_INTEGRATION_ACTIVE_TAB_KEY = 'integracaoEquipesActiveTab';
 
 // Note: tab click listeners are attached after DOMContentLoaded to avoid duplicates
 
 function showTab(name) {
     console.log('showTab called with:', name);
+    const validTabs = ['tarefas', 'lembretes', 'integracoes'];
+    if (!validTabs.includes(name)) name = 'tarefas';
+    try {
+        localStorage.setItem(TEAM_INTEGRATION_ACTIVE_TAB_KEY, name);
+    } catch (e) {}
     // reset all
     if (tabTarefas) { tabTarefas.classList.remove('btn-outline-primary', 'btn-primary', 'active'); tabTarefas.classList.add('btn-outline-primary'); }
     if (tabLembretesBtn) { tabLembretesBtn.classList.remove('btn-outline-primary', 'btn-primary', 'active'); tabLembretesBtn.classList.add('btn-outline-primary'); }
@@ -1981,6 +1984,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tabTarefas) tabTarefas.addEventListener('click', () => { showTab('tarefas'); });
     if (tabLembretesBtn) tabLembretesBtn.addEventListener('click', () => { showTab('lembretes'); });
     if (tabMinhasIntegracoes) tabMinhasIntegracoes.addEventListener('click', () => { showTab('integracoes'); });
+
+    let savedTab = 'tarefas';
+    try {
+        savedTab = localStorage.getItem(TEAM_INTEGRATION_ACTIVE_TAB_KEY) || 'tarefas';
+    } catch (e) {}
+    showTab(savedTab);
 });
 
 // --- Reminders: edit/delete helpers and modal handling ---
