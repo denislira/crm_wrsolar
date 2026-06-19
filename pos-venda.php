@@ -2406,6 +2406,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
                         ${waNum ? `<a href="https://wa.me/${waNum}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" style="padding:.3rem .55rem;" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>` : ''}
                         <button type="button" class="btn btn-sm btn-outline-primary pv-link-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" data-pv-token="${escapeHtml(pv.referral_token || '')}" style="padding:.3rem .55rem;" title="Link de Indicação"><i class="fa fa-share-nodes"></i></button>
                         <button type="button" class="btn btn-sm btn-outline-dark pv-history-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" style="padding:.3rem .55rem;" title="Baixar Histórico PDF"><i class="fa fa-download"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-dark pv-create-task-btn" data-pv-id="${pv.id}" data-pv-client="${escapeHtml(pv.client_name)}" style="padding:.3rem .55rem;" title="Criar tarefa para a equipe"><i class="fa fa-tasks"></i></button>
                     </div>
                 `;
                 body.appendChild(card);
@@ -2462,6 +2463,10 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
         document.querySelectorAll('.pv-history-btn').forEach(btn => {
             btn.removeEventListener('click', onHistoryBtnClick);
             btn.addEventListener('click', onHistoryBtnClick);
+        });
+        document.querySelectorAll('.pv-create-task-btn').forEach(btn => {
+            btn.removeEventListener('click', onCreateTaskBtnClick);
+            btn.addEventListener('click', onCreateTaskBtnClick);
         });
         document.querySelectorAll('.pv-delete-btn').forEach(btn => {
             btn.removeEventListener('click', onDeleteBtnClick);
@@ -2623,7 +2628,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
     }
 
     async function onKanbanCardClick(event){
-        const blocked = event.target.closest('.pv-card-footer, button, a, .pv-edit-row, .pv-link-btn, .pv-schedule-btn, .pv-history-btn, .pv-delete-btn');
+        const blocked = event.target.closest('.pv-card-footer, button, a, .pv-edit-row, .pv-link-btn, .pv-schedule-btn, .pv-history-btn, .pv-create-task-btn, .pv-delete-btn');
         if (blocked) return;
 
         const card = event.currentTarget;
@@ -2734,6 +2739,42 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
         if (!win) {
             overlay.style.display = 'none';
             alert('Permita pop-ups para este site para baixar o relatório PDF.');
+        }
+    }
+
+    async function onCreateTaskBtnClick(event){
+        const btn = event.currentTarget;
+        const pvId = btn.dataset.pvId;
+        const clientName = btn.dataset.pvClient || 'Cliente';
+        if (!pvId) return;
+
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Criando...';
+
+        try {
+            const response = await fetch('includes/team_tasks_api.php?action=add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    equipe: 'Pós-venda',
+                    titulo: `Acompanhar pós-venda: ${clientName}`,
+                    descricao: `Tarefa criada a partir do card de pós-venda.\nCliente: ${clientName}\nID do pós-venda: ${pvId}`,
+                    status: 'Pendente'
+                })
+            });
+
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Não foi possível criar a tarefa.');
+            }
+
+            alert('Tarefa criada com sucesso.');
+        } catch (err) {
+            alert(err.message || 'Falha ao criar tarefa.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
         }
     }
 
