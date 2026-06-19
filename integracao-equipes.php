@@ -96,9 +96,106 @@ try {
 .section-left-border.success { border-left-color: #198754 !important; }
 
 /* Estilos modernos para filtros */
-#filtroMinhas:hover {
-    background: #f1f5f9 !important;
-    border-color: #94a3b8 !important;
+.integration-filters-panel {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+}
+.integration-filter-chip {
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    height:34px;
+    padding:0 0.85rem;
+    border-radius:6px;
+    border:1px solid #cbd5e1;
+    background:#fff;
+    color:#475569;
+    font-size:0.8rem;
+    font-weight:600;
+    transition: all .18s ease;
+}
+.integration-filter-chip:hover {
+    border-color:#94a3b8;
+    color:#0f172a;
+    background:#f1f5f9;
+}
+.integration-filter-chip.is-active {
+    background:#3b82f6;
+    border-color:#3b82f6;
+    color:#fff;
+}
+.integration-filter-chip.is-active i {
+    color:#fff;
+}
+.integration-filter-chip i {
+    font-size:0.78rem;
+    color:#3b82f6;
+}
+.integration-select {
+    width:auto;
+    min-width: 138px;
+    min-height:36px;
+    line-height:1.25 !important;
+    font-size:0.8rem;
+    padding:0.48rem 2rem 0.48rem 0.75rem !important;
+    border:1px solid #cbd5e1 !important;
+    border-radius:6px !important;
+    background-color:#fff !important;
+    color:#334155 !important;
+    transition: all .18s ease;
+}
+.integration-select:hover {
+    border-color:#94a3b8 !important;
+}
+.integration-select:focus {
+    border-color:#3b82f6 !important;
+    box-shadow: 0 0 0 .18rem rgba(59,130,246,0.12) !important;
+}
+.integration-search-wrap {
+    position:relative;
+}
+.integration-search-wrap i {
+    position:absolute;
+    left:12px;
+    top:50%;
+    transform:translateY(-50%);
+    color:#94a3b8;
+    font-size:0.9rem;
+}
+.integration-search {
+    padding-left:36px !important;
+    height:36px;
+    font-size:0.85rem;
+    border:1px solid #cbd5e1 !important;
+    border-radius:6px !important;
+}
+.tasks-list-shell {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+#modalNovaTarefa .form-control,
+#modalNovaTarefa .form-select {
+    border-color:#64748b !important;
+}
+#modalNovaTarefa .form-control:hover,
+#modalNovaTarefa .form-select:hover {
+    border-color:#475569 !important;
+}
+#modalNovaTarefa .form-control:focus,
+#modalNovaTarefa .form-select:focus {
+    border-color:#475569 !important;
+    box-shadow: 0 0 0 .15rem rgba(71,85,105,0.14) !important;
+}
+#formNovaTarefa .form-control,
+#formNovaTarefa .form-select {
+    border:1.5px solid #64748b !important;
+}
+#formNovaTarefa .form-control:hover,
+#formNovaTarefa .form-select:hover,
+#formNovaTarefa .form-control:focus,
+#formNovaTarefa .form-select:focus {
+    border-color:#475569 !important;
+    box-shadow: 0 0 0 .15rem rgba(71,85,105,0.14) !important;
 }
 
 .form-select:focus, .form-control:focus {
@@ -137,7 +234,56 @@ try {
 .integration-avatar-img { width:48px; height:48px; object-fit:cover; border-radius:50%; border:2px solid var(--blue-700); }
 .integration-avatar-fallback { display:flex; align-items:center; justify-content:center; }
 .integration-tasks-list { display:flex; flex-direction:column; gap:8px; }
-.integration-task-item { padding:8px; border-radius:8px; border:1px solid transparent; display:flex; flex-direction:column; }
+.integration-task-item { padding:8px; border-radius:8px; border:1px solid transparent; display:flex; flex-direction:column; position:relative; }
+.integration-task-item--featured {
+    padding:12px 12px 10px;
+    border-color: rgba(11,106,193,0.30);
+    box-shadow: 0 10px 24px rgba(11,26,50,0.08);
+    background:
+        linear-gradient(180deg, rgba(13,110,253,0.10), rgba(13,110,253,0.04)),
+        #fff;
+}
+.integration-task-badge {
+    display:inline-flex;
+    align-items:center;
+    align-self:flex-start;
+    gap:6px;
+    margin-bottom:8px;
+    padding:3px 8px;
+    border-radius:999px;
+    font-size:0.68rem;
+    font-weight:800;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    color:#0b6ac1;
+    background: rgba(13,110,253,0.12);
+}
+.task-card--featured {
+    border-color: #0d6efd !important;
+    box-shadow: 0 10px 24px rgba(13,110,253,0.12) !important;
+    background: linear-gradient(180deg, rgba(13,110,253,0.05), rgba(255,255,255,1)) !important;
+}
+.task-card-ribbon {
+    position:absolute;
+    top:-10px;
+    left:18px;
+    padding:4px 10px;
+    border-radius:999px;
+    background:#0d6efd;
+    color:#fff;
+    font-size:0.68rem;
+    font-weight:800;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    box-shadow:0 6px 14px rgba(13,110,253,0.22);
+}
+.task-card-ribbon i {
+    font-size: 0.7rem;
+}
+.task-card--featured h6 {
+    font-size:1.02rem !important;
+}
+.integration-task-item--featured .task-title { font-size:1rem; }
 .integration-task-item .task-title { font-weight:600; color:#0f172a; font-size:0.92rem; }
 .integration-task-item .task-meta { font-size:0.78rem; color:#475569; }
 .status-Pendente { background: linear-gradient(180deg, rgba(249,115,22,0.06), rgba(249,115,22,0.03)); border-color: rgba(249,115,22,0.12); }
@@ -186,6 +332,35 @@ body.theme-dark .integration-filters-panel {
 body.theme-dark .integration-task-item {
     background: rgba(255,255,255,0.03) !important;
     border-color: rgba(255,255,255,0.08) !important;
+}
+body.theme-dark .integration-filters-panel {
+    background: linear-gradient(180deg, rgba(15,23,42,0.92), rgba(15,23,42,0.85)) !important;
+    border-color: rgba(255,255,255,0.08) !important;
+}
+body.theme-dark .integration-filter-chip,
+body.theme-dark .integration-select,
+body.theme-dark .integration-search {
+    background: rgba(255,255,255,0.04) !important;
+    color: #e6eef8 !important;
+    border-color: rgba(255,255,255,0.10) !important;
+}
+body.theme-dark .integration-task-item--featured {
+    background: linear-gradient(180deg, rgba(13,110,253,0.16), rgba(255,255,255,0.05)) !important;
+    border-color: rgba(59,130,246,0.22) !important;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.28) !important;
+}
+body.theme-dark .integration-task-badge {
+    color: #93c5fd !important;
+    background: rgba(59,130,246,0.16) !important;
+}
+body.theme-dark .task-card--featured {
+    background: linear-gradient(180deg, rgba(13,110,253,0.18), rgba(255,255,255,0.04)) !important;
+    border-color: rgba(59,130,246,0.28) !important;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.32) !important;
+}
+body.theme-dark .task-card-ribbon {
+    background: #2563eb !important;
+    color: #fff !important;
 }
 body.theme-dark .integration-task-item .task-title,
 body.theme-dark .integration-task-item .task-meta,
@@ -318,53 +493,45 @@ body.theme-dark .status-Concluida {
                         </div>
                         <div class="card-body px-4 py-3">
                             <!-- Filtros Modernos e Compactos -->
-                            <div class="integration-filters-panel bg-light rounded-3 p-3 mb-3 border" style="border-color: #e2e8f0;">
+                            <div class="integration-filters-panel bg-light rounded-3 p-3 mb-3 border">
                                 <div class="row g-2 align-items-center">
-                                    <!-- Linha 1: Filtros principais -->
                                     <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
-                                        <button id="filtroMinhas" class="btn btn-sm" style="font-size: 0.8rem; padding: 0.35rem 0.85rem; border: 1px solid #cbd5e1; background: white; color: #64748b; border-radius: 6px; transition: all 0.2s;">
-                                            <i class="fa fa-user me-1" style="font-size: 0.75rem;"></i>
+                                        <button id="filtroMinhas" class="integration-filter-chip" type="button">
+                                            <i class="fa fa-user-check"></i>
                                             <span>Minhas</span>
                                         </button>
-                                        
                                         <div class="vr" style="opacity: 0.2;"></div>
-                                        
                                         <div class="d-flex align-items-center gap-2 flex-grow-1 flex-wrap">
-                                            <select id="filtroEquipe" class="form-select form-select-sm" style="width: auto; min-width: 140px; font-size: 0.8rem; padding: 0.35rem 2rem 0.35rem 0.75rem; border-color: #cbd5e1; border-radius: 6px; display:none;">
-                                                <option value="">🏛️ Todas equipes</option>
+                                            <select id="filtroEquipe" class="form-select integration-select" style="display:none;">
+                                                <option value="">Equipe</option>
                                                 <?php foreach ($equipes as $eq): ?><option value="<?php echo $eq; ?>"><?php echo $eq; ?></option><?php endforeach; ?>
                                             </select>
-                                            
-                                            <select id="filtroResp" class="form-select form-select-sm" style="width: auto; min-width: 160px; font-size: 0.8rem; padding: 0.35rem 2rem 0.35rem 0.75rem; border-color: #cbd5e1; border-radius: 6px;">
-                                                <option value="">👥 Todos responsáveis</option>
+                                            <select id="filtroResp" class="form-select integration-select">
+                                                <option value="">Respons&aacute;vel</option>
                                                 <?php foreach ($responsaveis as $r): ?><option value="<?php echo htmlspecialchars($r); ?>"><?php echo htmlspecialchars($r); ?></option><?php endforeach; ?>
                                             </select>
-                                            
-                                            <select id="filtroStatus" class="form-select form-select-sm" style="width: auto; min-width: 130px; font-size: 0.8rem; padding: 0.35rem 2rem 0.35rem 0.75rem; border-color: #cbd5e1; border-radius: 6px;">
-                                                <option value="">🎯 Todos status</option>
-                                                <option value="Pendente">⏳ Pendente</option>
-                                                <option value="Em andamento">▶️ Em andamento</option>
-                                                <option value="Concluída">✅ Concluída</option>
+                                            <select id="filtroStatus" class="form-select integration-select" style="min-width: 138px;">
+                                                <option value="">Status</option>
+                                                <option value="Pendente">Pendente</option>
+                                                <option value="Em andamento">Em andamento</option>
+                                                <option value="Conclu&iacute;da">Conclu&iacute;da</option>
                                             </select>
-                                            
-                                            <select id="filtroOrdem" class="form-select form-select-sm" style="width: auto; min-width: 135px; font-size: 0.8rem; padding: 0.35rem 2rem 0.35rem 0.75rem; border-color: #cbd5e1; border-radius: 6px;">
-                                                <option value="desc">🔽 Mais recentes</option>
-                                                <option value="asc">🔼 Mais antigas</option>
+                                            <select id="filtroOrdem" class="form-select integration-select" style="min-width: 148px;">
+                                                <option value="desc">Mais recentes</option>
+                                                <option value="asc">Mais antigas</option>
                                             </select>
                                         </div>
                                     </div>
-                                    
-                                    <!-- Linha 2: Busca -->
                                     <div class="col-12">
-                                        <div class="position-relative">
-                                            <i class="fa fa-search position-absolute" style="left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.85rem;"></i>
-                                            <input type="search" id="filtroBusca" class="form-control form-control-sm" style="padding-left: 36px; font-size: 0.85rem; border-color: #cbd5e1; border-radius: 6px; padding-top: 0.45rem; padding-bottom: 0.45rem;" placeholder="Buscar por título, descrição, responsável...">
+                                        <div class="integration-search-wrap">
+                                            <i class="fa fa-magnifying-glass"></i>
+                                            <input type="search" id="filtroBusca" class="form-control form-control-sm integration-search" placeholder="Buscar por t&iacute;tulo, descri&ccedil;&atilde;o, respons&aacute;vel...">
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="card-body px-4 py-2">
+                        <div class="tasks-list-shell px-4 py-2">
                             <div id="tasksList"></div>
                         </div>
                         <!-- Modal Nova Tarefa -->
@@ -817,10 +984,21 @@ async function atualizarTarefas() {
     if (!tarefas.length) {
         list.innerHTML = '<div class="text-muted text-center py-4" style="font-size: 0.9rem;">Nenhuma tarefa encontrada.</div>';
     } else {
-        tarefas.forEach(t => {
+        const featuredIndex = ordem === 'asc' ? tarefas.length - 1 : 0;
+        tarefas.forEach((t, index) => {
             const card = document.createElement('div');
             card.className = 'mb-3 p-3 rounded-3 d-flex align-items-start gap-3 bg-white position-relative';
-            card.style.cssText = 'border: 1px solid #e8ecf1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.3s ease; cursor: pointer;';
+            card.style.cssText = 'border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.3s ease; cursor: pointer;';
+            if (index === featuredIndex) {
+                card.classList.add('task-card--featured');
+                card.style.paddingTop = '22px';
+                card.style.borderTopWidth = '3px';
+                card.style.borderTopColor = '#0d6efd';
+                const ribbon = document.createElement('div');
+                ribbon.className = 'task-card-ribbon';
+                ribbon.innerHTML = '<i class="fa fa-star me-1"></i> Mais recente';
+                card.appendChild(ribbon);
+            }
             card.addEventListener('mouseenter', () => {
                 card.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
                 card.style.transform = 'translateY(-2px)';
@@ -829,7 +1007,7 @@ async function atualizarTarefas() {
             card.addEventListener('mouseleave', () => {
                 card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
                 card.style.transform = 'translateY(0)';
-                try { card.style.border = '1px solid #e8ecf1'; } catch(e){}
+                try { card.style.border = '1px solid #cbd5e1'; } catch(e){}
             });
             // clicar no card abre o modal de edição
             card.addEventListener('click', () => { openEditModal(t); });
@@ -1313,11 +1491,13 @@ function renderIntegrations(list) {
     list.forEach(ui => {
         const col = document.createElement('div'); col.className = 'col-md-4 col-sm-6 mb-3';
                 const avatarHtml = ui.avatar ? (`<img src="${escapeHtmlGlobal(ui.avatar)}" class="integration-avatar-img rounded-circle" style="width:48px;height:48px;object-fit:cover;">`) : (`<div class="integration-avatar-fallback" style="width:48px;height:48px;background:#cbd5e1;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;border-radius:50%;">${escapeHtmlGlobal((ui.username||'U').charAt(0).toUpperCase())}</div>`);
-                const tasksHtml = (ui.tasks && ui.tasks.length) ? ui.tasks.map(t => {
+                const tasksHtml = (ui.tasks && ui.tasks.length) ? ui.tasks.map((t, index) => {
                     const statusCls = 'status-' + String((t.status||'').replace(/\s+/g, '-'));
                     const titulo = escapeHtmlGlobal(t.titulo||'(sem título)');
                     const meta = escapeHtmlGlobal(t.status||'') + (t.data_vencimento? ' • '+escapeHtmlGlobal(t.data_vencimento):'');
-                    return `<div class="integration-task-item ${statusCls}"><div class="task-title">${titulo}</div><div class="task-meta">${meta}</div></div>`;
+                    const featuredClass = index === 0 ? ' integration-task-item--featured' : '';
+                    const badge = index === 0 ? '<div class="integration-task-badge"><i class="fa fa-star"></i> Mais recente</div>' : '';
+                    return `<div class="integration-task-item ${statusCls}${featuredClass}">${badge}<div class="task-title">${titulo}</div><div class="task-meta">${meta}</div></div>`;
                 }).join('') : '<div class="text-muted small">Nenhuma atividade encontrada.</div>';
                 col.innerHTML = `
                 <div class="p-3 bg-white rounded-3 integration-card" style="border:1px solid var(--blue-700); box-shadow: 0 6px 20px rgba(11,26,50,0.04);">
@@ -1478,13 +1658,9 @@ document.addEventListener('DOMContentLoaded', () => {
         btnFiltroMinhas.addEventListener('click', function() {
             filtroMinhasAtivo = !filtroMinhasAtivo;
             if (filtroMinhasAtivo) {
-                this.style.background = '#3b82f6';
-                this.style.color = 'white';
-                this.style.borderColor = '#3b82f6';
+                this.classList.add('is-active');
             } else {
-                this.style.background = 'white';
-                this.style.color = '#64748b';
-                this.style.borderColor = '#cbd5e1';
+                this.classList.remove('is-active');
             }
             atualizarTarefas();
         });
