@@ -15,6 +15,7 @@ try {
 } catch (Exception $e) { $leadCols = []; }
 $hasDeleted       = in_array('deleted', $leadCols, true);
 $hasCreatedAt     = in_array('created_at', $leadCols, true);
+$hasDataInicio    = in_array('data_inicio', $leadCols, true);
 $hasSource        = in_array('source', $leadCols, true);
 $hasStageId       = in_array('stage_id', $leadCols, true);
 $hasOrcamento     = in_array('orcamento_value', $leadCols, true);
@@ -26,7 +27,7 @@ $hasKwp           = in_array('kwp', $leadCols, true) ? 'kwp' : (in_array('estima
 $hasPayType       = in_array('payment_type', $leadCols, true) ? 'payment_type' : (in_array('forma_pagamento', $leadCols, true) ? 'forma_pagamento' : null);
 
 $delWhere  = $hasDeleted ? "deleted = 0" : "1=1";
-$dateCol   = $hasCreatedAt ? 'created_at' : (in_array('data_inicio', $leadCols, true) ? 'data_inicio' : 'created_at');
+$dateCol   = $hasDataInicio ? 'data_inicio' : ($hasCreatedAt ? 'created_at' : 'data_inicio');
 
 // By default the lead owner is the user who last edited it (user_id_update). If missing, fall back to the creator (user_id).
 $leadOwnerJoinExpr = in_array('user_id_update', $leadCols, true) ? 'COALESCE(l.user_id_update, l.user_id)' : 'l.user_id';

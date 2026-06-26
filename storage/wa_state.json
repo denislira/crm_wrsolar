@@ -1,5 +1,9 @@
 {
-    "connected": false,
-    "qr_generated_at": "2026-02-02T02:57:24+01:00",
-    "info": "QR de teste removido. Inicie o wa-service para gerar um QR real."
+  "connected": false,
+  "info": "servico encerrado",
+  "qr_data": null,
+  "last_action": "renew_qr",
+  "service_running": true,
+  "service_pid": 24724,
+  "service_heartbeat_at": "2026-06-26T20:53:31.244Z"
 }

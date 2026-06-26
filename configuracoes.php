@@ -564,6 +564,26 @@ body.theme-dark .edit-user-modal .avatar-box {
         margin: 0 auto;
     }
 }
+.permission-role-list {
+    display: grid;
+    gap: .5rem;
+}
+.permission-role-item {
+    border-radius: 10px !important;
+    border: 1px solid #e5edf7 !important;
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    gap: .75rem;
+}
+.permission-role-item.active {
+    background: #0b6ac1 !important;
+    border-color: #0b6ac1 !important;
+    color: #fff !important;
+}
+.permission-role-item.active small {
+    color: rgba(255,255,255,.72) !important;
+}
 </style>
 
 <div class="d-flex">
@@ -687,21 +707,20 @@ body.theme-dark .edit-user-modal .avatar-box {
                                     <img id="waQrImage" src="" alt="QR Code" style="width:260px; height:260px; object-fit:contain; border:1px solid #eee; padding:8px; background:#fafafa;"/>
                                 </div>
                                 <div class="d-flex gap-2">
-                                    <button id="btnGenerateQr" class="btn btn-primary btn-sm">Obter QR real</button>
-                                    <button id="btnRefreshWa" class="btn btn-outline-secondary btn-sm">Atualizar</button>
+                                    <button id="btnGenerateQr" class="btn btn-primary btn-sm">Obter QR Code</button>
+                                    <button id="btnRefreshWa" class="btn btn-outline-secondary btn-sm">Atualizar/Renovar</button>
                                     <button id="btnDisconnectWa" class="btn btn-danger btn-sm d-none">Desconectar</button>
-                                    <button id="btnManualQr" class="btn btn-outline-primary btn-sm">Inserir QR</button>
                                 </div>
-                                <small class="d-block text-muted mt-2">O QR precisa ser gerado pelo serviço Node em <code>wa-service</code>. QR de teste não conecta ao WhatsApp.</small>
+                                <small class="d-block text-muted mt-2">O QR é gerado automaticamente pelo Baileys ao clicar em Obter QR Code ou Atualizar/Renovar.</small>
                             </div>
                             <div id="waHelpCard" class="p-3 rounded shadow-sm" style="min-width:320px; max-width:520px; background:#fff;">
                                 <h6 class="mb-2">Instruções rápidas</h6>
                                 <ol class="small mb-2">
-                                    <li>Abra um terminal em <code>wa-service</code> e rode <code>npm start</code>.</li>
-                                    <li>Quando o Baileys gerar o QR real, ele será salvo em <code>storage/wa_state.json</code> e exibido aqui.</li>
+                                    <li>Clique em Obter QR Code para solicitar uma nova sessão ao Baileys.</li>
+                                    <li>Quando o Baileys gerar o QR real, ele será salvo e exibido aqui automaticamente.</li>
                                     <li>Após ler o QR no WhatsApp, o serviço marca a sessão como conectada automaticamente.</li>
                                 </ol>
-                                <p class="small text-muted mb-0">Se o QR não aparecer, confirme que o processo Node está rodando e sem sessão antiga travada.</p>
+                                <p class="small text-muted mb-0">Se o servidor permitir executar Node pelo PHP, o serviço será iniciado automaticamente.</p>
                             </div>
                         </div>
                     </div>
@@ -714,7 +733,7 @@ body.theme-dark .edit-user-modal .avatar-box {
                             <label class="mb-0 me-2 fw-bold text-primary" style="font-size:1rem;">Papel:</label>
                             <select id="perm_role_select" class="form-select form-select-sm border border-2 border-primary text-primary fw-semibold" style="min-width:220px; font-size:1rem;">
                                 <?php foreach ($roles as $role): ?>
-                                    <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name']); ?></option>
+                                    <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name'] === 'consultor_externo' ? 'Consultoria Externa' : $role['name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -1449,34 +1468,6 @@ document.getElementById('changePasswordForm').addEventListener('submit', functio
     })();
 </script>
 
-<!-- Modal Inserir QR Manual -->
-<div class="modal fade" id="manualQrModal" tabindex="-1" aria-labelledby="manualQrModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="manualQrModalLabel">Inserir QR manualmente</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form id="manualQrForm">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Texto do QR real gerado pelo Baileys</label>
-                        <textarea id="manualQrText" class="form-control" rows="4" placeholder="Cole aqui o texto do QR real"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Ou cole a URL de uma imagem QR</label>
-                        <input id="manualQrUrl" class="form-control" placeholder="https://.../qr.png" />
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Salvar QR</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 <?php include 'includes/footer.php'; ?>
 
 <script>
@@ -1485,6 +1476,7 @@ document.addEventListener('DOMContentLoaded', function(){
     const permTbody = document.getElementById('permissions_tbody');
     const actionsTbody = document.getElementById('actions_tbody');
     const filterInput = document.getElementById('filter_permission');
+    let roleButtons = [];
 
     // List of action permissions (these go in the separate section)
     const actionPermissions = ['delete_leads_permanent'];
@@ -1492,6 +1484,7 @@ document.addEventListener('DOMContentLoaded', function(){
     // Permission descriptions for better UI
     const permDescriptions = {
         'dashboard': 'Acessar Dashboard',
+        'consultoria_externa': 'Consultoria Externa',
         'projetos': 'Acessar Projetos',
         'pos-venda': 'Acessar Pós-venda',
         'relatorios': 'Acessar Relatórios',
@@ -1506,6 +1499,84 @@ document.addEventListener('DOMContentLoaded', function(){
     const actionDescriptions = {
         'delete_leads_permanent': 'Excluir leads permanentemente da lixeira'
     };
+
+    function roleDisplayName(name) {
+        return String(name || '').trim() === 'consultor_externo' ? 'Consultoria Externa' : String(name || '');
+    }
+
+    function buildPermissionsLayout() {
+        const pane = document.getElementById('permissions');
+        if (!pane || !roleSelect || document.getElementById('permissions_roles_column')) return;
+
+        const header = pane.querySelector('.d-flex.justify-content-between.align-items-center.mb-3');
+        const cards = Array.from(pane.querySelectorAll(':scope > .card.card-shadow'));
+        if (cards.length === 0) return;
+
+        const selectWrap = roleSelect.closest('.d-flex.gap-2.align-items-center');
+        if (selectWrap) selectWrap.classList.add('d-none');
+
+        const layout = document.createElement('div');
+        layout.className = 'row g-3';
+        layout.id = 'permissions_two_column_layout';
+
+        const left = document.createElement('div');
+        left.className = 'col-lg-4';
+        left.innerHTML = `
+            <div class="card card-shadow p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0 text-muted">Papel</h6>
+                    <span class="badge bg-light text-primary border">${roleSelect.options.length}</span>
+                </div>
+                <div id="permissions_roles_column" class="list-group permission-role-list"></div>
+            </div>
+        `;
+
+        const right = document.createElement('div');
+        right.className = 'col-lg-8';
+
+        layout.appendChild(left);
+        layout.appendChild(right);
+        if (header) {
+            header.insertAdjacentElement('afterend', layout);
+        } else {
+            pane.prepend(layout);
+        }
+
+        const roleList = left.querySelector('#permissions_roles_column');
+        Array.from(roleSelect.options).forEach((option) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'list-group-item list-group-item-action permission-role-item';
+            button.dataset.roleId = option.value;
+            button.innerHTML = `<span class="fw-semibold">${escapeHtml(roleDisplayName(option.textContent))}</span><small class="text-muted">ID #${escapeHtml(option.value)}</small>`;
+            button.addEventListener('click', () => {
+                roleSelect.value = option.value;
+                setActiveRoleButton(option.value);
+                loadRolePermissions(option.value);
+            });
+            roleList.appendChild(button);
+        });
+
+        cards.forEach((card) => {
+            card.classList.remove('mb-4');
+            card.classList.add('mb-3');
+            right.appendChild(card);
+        });
+
+        roleButtons = Array.from(roleList.querySelectorAll('[data-role-id]'));
+        setActiveRoleButton(roleSelect.value);
+    }
+
+    function setActiveRoleButton(roleId) {
+        roleButtons.forEach((button) => {
+            button.classList.toggle('active', String(button.dataset.roleId) === String(roleId));
+        });
+        const selectedLabel = document.getElementById('selected_role_label');
+        const selectedOption = roleSelect ? roleSelect.options[roleSelect.selectedIndex] : null;
+        if (selectedLabel && selectedOption) {
+            selectedLabel.textContent = roleDisplayName(selectedOption.textContent);
+        }
+    }
 
     async function loadScreens() {
         const res = await fetch('api/get_all_screens.php');
@@ -1583,8 +1654,16 @@ document.addEventListener('DOMContentLoaded', function(){
         return div.innerHTML;
     }
 
-    roleSelect.addEventListener('change', ()=> loadRolePermissions(roleSelect.value));
-    document.getElementById('btn_reload_permissions').addEventListener('click', ()=> loadRolePermissions(roleSelect.value));
+    buildPermissionsLayout();
+
+    roleSelect.addEventListener('change', ()=> {
+        setActiveRoleButton(roleSelect.value);
+        loadRolePermissions(roleSelect.value);
+    });
+    document.getElementById('btn_reload_permissions').addEventListener('click', ()=> {
+        setActiveRoleButton(roleSelect.value);
+        loadRolePermissions(roleSelect.value);
+    });
 
     filterInput.addEventListener('input', function(){
         const q = this.value.trim().toLowerCase();

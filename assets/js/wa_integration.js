@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnGenerate = document.getElementById('btnGenerateQr');
     const btnRefresh = document.getElementById('btnRefreshWa');
     const btnDisconnect = document.getElementById('btnDisconnectWa');
+    let lastStatus = { connected: false };
 
     const baseRoot = '/' + (window.location.pathname.split('/')[1] || '');
     const apiPath = (p) => baseRoot + '/api/' + p;
@@ -36,6 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const res = await fetch(apiPath('wa_status.php'));
             const data = await res.json();
+            lastStatus = data;
             console.log('wa_status:', data);
             if (data.connected) {
                 statusEl.innerText = 'Conectado - ' + (data.info || 'online');
@@ -63,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             hint.className = 'small text-muted mt-2';
                             document.getElementById('waStatusCard').appendChild(hint);
                         }
-                        hint.textContent = 'QR não disponível. Inicie o wa-service e clique em Atualizar.';
+                        hint.textContent = 'QR não disponível. Clique em Obter QR Code para gerar um novo.';
                     }
                 } else if (data.qr) {
                     const success = await fetchAndSetImage(data.qr);
@@ -101,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 await loadStatus();
                 return;
             }
-            statusEl.innerText = data.message || 'QR encontrado. Aguarde a leitura no WhatsApp.';
+            statusEl.innerText = data.message || 'Gerando QR real pelo Baileys...';
             await loadStatus();
         } catch (e) {
             alert('Erro ao obter o QRCODE');
@@ -109,6 +111,14 @@ document.addEventListener('DOMContentLoaded', function() {
         } finally {
             btnGenerate.disabled = false;
         }
+    }
+
+    async function refreshWa() {
+        if (lastStatus && lastStatus.connected) {
+            await loadStatus();
+            return;
+        }
+        await generateQr();
     }
 
     async function disconnect() {
@@ -128,34 +138,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     btnGenerate.addEventListener('click', generateQr);
-    btnRefresh.addEventListener('click', loadStatus);
+    btnRefresh.addEventListener('click', refreshWa);
     btnDisconnect.addEventListener('click', disconnect);
-    // manual QR modal
-    const btnManualQr = document.getElementById('btnManualQr');
-    if (btnManualQr) btnManualQr.addEventListener('click', () => {
-        const m = new bootstrap.Modal(document.getElementById('manualQrModal'));
-        m.show();
-    });
-
-    document.getElementById('manualQrForm')?.addEventListener('submit', async function(e){
-        e.preventDefault();
-        const text = document.getElementById('manualQrText').value.trim();
-        const url = document.getElementById('manualQrUrl').value.trim();
-        if (!text && !url) { alert('Cole o texto do QR ou a URL da imagem.'); return; }
-        try {
-            const fd = new FormData();
-            if (text) fd.append('qr_text', text);
-            if (url) fd.append('qr_url', url);
-            const res = await fetch(apiPath('wa_save_qr.php'), { method: 'POST', body: fd });
-            const data = await res.json();
-            alert(data.message || 'Salvo');
-            if (data.success) {
-                // close modal and refresh
-                bootstrap.Modal.getInstance(document.getElementById('manualQrModal'))?.hide();
-                await loadStatus();
-            }
-        } catch (e) { console.error(e); alert('Erro ao salvar QR'); }
-    });
 
     // Poll status every 5s while the tab is visible
     let polling = null;

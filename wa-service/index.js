@@ -2,121 +2,261 @@ const fs = require('fs');
 const path = require('path');
 const pino = require('pino');
 const baileys = require('@adiwajshing/baileys');
-const makeWASocket = (baileys && baileys.default) ? baileys.default : baileys;
-const DisconnectReason = baileys.DisconnectReason || null;
 
+const makeWASocket = baileys && baileys.default ? baileys.default : baileys;
+const initAuthCreds = baileys.initAuthCreds;
+const BufferJSON = baileys.BufferJSON || {
+  replacer: (_key, value) => value,
+  reviver: (_key, value) => value
+};
 let useSingleFileAuthState = baileys.useSingleFileAuthState;
-// fallback: create a minimal compatible wrapper if the installed baileys doesn't provide it
 if (!useSingleFileAuthState) {
-  useSingleFileAuthState = function(file) {
-      let state = { creds: {}, keys: {} };
-      try {
-        if (fs.existsSync(file)) {
-          const s = JSON.parse(fs.readFileSync(file, 'utf8')) || {};
-          state.creds = s.creds || {};
-          state.keys = s.keys || {};
+  useSingleFileAuthState = function authStateFallback(file) {
+    let saved = {};
+    try {
+      if (fs.existsSync(file)) {
+        saved = JSON.parse(fs.readFileSync(file, 'utf8'), BufferJSON.reviver) || {};
+      }
+    } catch (err) {
+      logger.warn({ err, authFile: file }, 'Auth invalido, criando uma nova sessao');
+      saved = {};
+    }
+
+    const hasValidCreds = saved.creds
+      && saved.creds.noiseKey
+      && saved.creds.noiseKey.public
+      && saved.creds.noiseKey.private
+      && saved.creds.signedIdentityKey
+      && saved.creds.signedIdentityKey.public
+      && saved.creds.signedIdentityKey.private;
+
+    const state = {
+      creds: hasValidCreds ? saved.creds : initAuthCreds(),
+      keys: saved.keys || {}
+    };
+
+    const persist = () => {
+      ensureDir(file);
+      fs.writeFileSync(file, JSON.stringify({ creds: state.creds, keys: state.keys }, BufferJSON.replacer, 2), 'utf8');
+    };
+
+    const saveCreds = async (creds) => {
+      if (creds) state.creds = { ...state.creds, ...creds };
+      persist();
+    };
+
+    return {
+      state: {
+        creds: state.creds,
+        keys: {
+          get: async (type, ids) => {
+            const data = {};
+            for (const id of ids) {
+              data[id] = state.keys[type] ? state.keys[type][id] : undefined;
+            }
+            return data;
+          },
+          set: async (data) => {
+            for (const category of Object.keys(data || {})) {
+              state.keys[category] = state.keys[category] || {};
+              for (const id of Object.keys(data[category] || {})) {
+                const value = data[category][id];
+                if (value) state.keys[category][id] = value;
+                else delete state.keys[category][id];
+              }
+            }
+            persist();
+          }
         }
-      } catch (e) { /* ignore */ }
-      const saveCreds = async (creds) => {
-        try {
-          const out = { creds: creds || {}, keys: state.keys || {} };
-          fs.writeFileSync(file, JSON.stringify(out, null, 2), 'utf8');
-        } catch (err) {
-          // ignore write errors
-        }
-      };
-      return { state, saveCreds };
+      },
+      saveCreds
+    };
   };
 }
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
-const logger = pino({ level: 'info' });
-
-// Config: path to the WRCRM storage file where the PHP UI reads state
 const defaultStoragePath = path.join(__dirname, '..', 'storage', 'wa_state.json');
 const STORAGE_PATH = process.env.STORAGE_PATH || defaultStoragePath;
-const AUTH_FILE = path.join(__dirname, 'auth_info.json');
+const COMMAND_PATH = process.env.COMMAND_PATH || path.join(path.dirname(STORAGE_PATH), 'wa_command.json');
+const AUTH_FILE = process.env.AUTH_FILE || path.join(__dirname, 'auth_info.json');
 
-function writeState(obj) {
-  try {
-    const dir = path.dirname(STORAGE_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(STORAGE_PATH, JSON.stringify(obj, null, 2), 'utf8');
-    logger.info({ path: STORAGE_PATH }, 'Wrote state');
-  } catch (e) {
-    logger.error({ err: e }, 'Error writing state file');
-  }
+let sock = null;
+let saveCredsHandler = null;
+let lastCommandId = null;
+let restarting = false;
+let currentState = { connected: false, info: 'iniciando servico Baileys' };
+
+function ensureDir(filePath) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-async function start() {
-  logger.info({ authFile: AUTH_FILE }, 'Starting WA service');
-
+function readJson(filePath, fallback = {}) {
   try {
-    const { state, saveCreds } = useSingleFileAuthState(AUTH_FILE);
-
-    const sock = makeWASocket({ auth: state, logger });
-
-    sock.ev.on('creds.update', saveCreds);
-
-    sock.ev.on('connection.update', update => {
-    const { connection, lastDisconnect, qr } = update;
-    if (qr) {
-      logger.info('QR received');
-      // Save QR text into WRCRM storage so PHP UI can show QR
-      writeState({ connected: false, qr_data: qr, qr_generated_at: new Date().toISOString() });
-    }
-
-    if (connection === 'open') {
-      logger.info('Connection opened');
-      // Clear QR and mark connected
-      writeState({ connected: true, info: 'connected via Baileys - ' + (sock.user && sock.user.id) });
-    }
-
-    if (connection === 'close') {
-      const reason = (lastDisconnect && lastDisconnect.error && lastDisconnect.error.output) ? lastDisconnect.error.output.statusCode : null;
-      logger.info({ reason }, 'Connection closed');
-      writeState({ connected: false, info: 'disconnected' });
-    }
-  });
-
-    // Optional: simple CLI to send a message manually
-  process.stdin.setEncoding('utf8');
-  logger.info('Type: phoneNumber|message and press Enter to send (ex: 5511999999999|Oi)');
-  process.stdin.on('data', async (chunk) => {
-    const line = chunk.toString().trim();
-    if (!line) return;
-    const [to, ...rest] = line.split('|');
-    const text = rest.join('|');
-    if (!to || !text) { logger.info('Formato inválido. Use phone|message'); return; }
-    try {
-      const jid = (to.includes('@')) ? to : (to + '@s.whatsapp.net');
-      await sock.sendMessage(jid, { text });
-      logger.info({ to }, 'Mensagem enviada');
-    } catch (e) {
-      logger.error({ err: e }, 'Erro ao enviar mensagem');
-    }
-  });
+    if (!fs.existsSync(filePath)) return fallback;
+    return JSON.parse(fs.readFileSync(filePath, 'utf8')) || fallback;
   } catch (err) {
-    logger.error({ err }, 'Failed to start WA service, will retry in 5s');
-    // write failure to state so UI shows message
-    try {
-      writeState({ connected: false, info: 'service error: ' + (err && err.message ? err.message : String(err)) });
-    } catch (e) { /* ignore */ }
-    setTimeout(() => start(), 5000);
+    logger.warn({ err, filePath }, 'Falha ao ler JSON');
+    return fallback;
   }
 }
 
-// keep process alive on uncaught errors and attempt restart
+function writeJson(filePath, data) {
+  ensureDir(filePath);
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function writeState(partial) {
+  currentState = {
+    ...currentState,
+    ...partial,
+    service_running: true,
+    service_pid: process.pid,
+    service_heartbeat_at: new Date().toISOString()
+  };
+  writeJson(STORAGE_PATH, currentState);
+}
+
+function removeAuth() {
+  try {
+    if (fs.existsSync(AUTH_FILE)) fs.unlinkSync(AUTH_FILE);
+  } catch (err) {
+    logger.warn({ err, authFile: AUTH_FILE }, 'Nao foi possivel remover auth');
+  }
+}
+
+function closeSocket() {
+  if (!sock) return;
+  try {
+    if (sock.ev && saveCredsHandler) sock.ev.off('creds.update', saveCredsHandler);
+  } catch (err) {
+    logger.debug({ err }, 'Falha ao remover listener creds.update');
+  }
+  try {
+    if (typeof sock.end === 'function') sock.end();
+  } catch (err) {
+    logger.debug({ err }, 'Falha ao encerrar socket');
+  }
+  sock = null;
+  saveCredsHandler = null;
+}
+
+async function startSocket({ fresh = false, reason = 'start' } = {}) {
+  if (restarting) return;
+  restarting = true;
+
+  try {
+    closeSocket();
+    if (fresh) removeAuth();
+
+    writeState({
+      connected: false,
+      qr_data: fresh ? null : currentState.qr_data,
+      info: fresh ? 'gerando novo QR pelo Baileys' : 'conectando ao Baileys',
+      last_action: reason
+    });
+
+    const { state, saveCreds } = useSingleFileAuthState(AUTH_FILE);
+    saveCredsHandler = saveCreds;
+    sock = makeWASocket({ auth: state, logger, printQRInTerminal: false });
+    sock.ev.on('creds.update', saveCredsHandler);
+
+    sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect, qr } = update;
+
+      if (qr) {
+        logger.info('QR real recebido do Baileys');
+        writeState({
+          connected: false,
+          qr_data: qr,
+          qr_generated_at: new Date().toISOString(),
+          info: 'QR real gerado pelo Baileys. Escaneie no WhatsApp.'
+        });
+      }
+
+      if (connection === 'open') {
+        logger.info('WhatsApp conectado');
+        writeState({
+          connected: true,
+          qr_data: null,
+          info: 'connected via Baileys - ' + (sock.user && sock.user.id ? sock.user.id : 'online'),
+          connected_at: new Date().toISOString()
+        });
+      }
+
+      if (connection === 'close') {
+        const reasonCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
+          ? lastDisconnect.error.output.statusCode
+          : null;
+        logger.info({ reasonCode }, 'Conexao fechada');
+        writeState({
+          connected: false,
+          qr_data: null,
+          info: 'desconectado do Baileys'
+        });
+      }
+    });
+  } catch (err) {
+    logger.error({ err }, 'Falha ao iniciar Baileys');
+    writeState({
+      connected: false,
+      qr_data: null,
+      info: 'erro no servico Baileys: ' + (err && err.message ? err.message : String(err))
+    });
+  } finally {
+    restarting = false;
+  }
+}
+
+async function handleCommand(command) {
+  if (!command || !command.id || command.id === lastCommandId) return;
+  lastCommandId = command.id;
+
+  if (command.action === 'renew_qr') {
+    logger.info({ command }, 'Comando renew_qr recebido');
+    await startSocket({ fresh: true, reason: 'renew_qr' });
+  }
+
+  if (command.action === 'disconnect') {
+    logger.info({ command }, 'Comando disconnect recebido');
+    try {
+      if (sock && typeof sock.logout === 'function') await sock.logout();
+    } catch (err) {
+      logger.warn({ err }, 'Falha ao executar logout');
+    }
+    closeSocket();
+    removeAuth();
+    writeState({
+      connected: false,
+      qr_data: null,
+      info: 'desconectado manualmente'
+    });
+  }
+}
+
+function pollCommand() {
+  const command = readJson(COMMAND_PATH, null);
+  handleCommand(command).catch((err) => logger.error({ err }, 'Erro ao processar comando'));
+}
+
+setInterval(() => writeState({}), 10000);
+setInterval(pollCommand, 1500);
+
+process.on('SIGINT', () => {
+  closeSocket();
+  writeState({ service_running: false, info: 'servico encerrado' });
+  process.exit(0);
+});
+
 process.on('uncaughtException', (err) => {
   logger.error({ err }, 'uncaughtException');
-  try { writeState({ connected: false, info: 'uncaughtException: ' + (err && err.message) }); } catch (e) {}
-  // attempt restart
-  setTimeout(() => start(), 5000);
+  writeState({ connected: false, info: 'uncaughtException: ' + (err && err.message ? err.message : String(err)) });
 });
 
 process.on('unhandledRejection', (reason) => {
   logger.error({ reason }, 'unhandledRejection');
-  try { writeState({ connected: false, info: 'unhandledRejection' }); } catch (e) {}
-  setTimeout(() => start(), 5000);
+  writeState({ connected: false, info: 'unhandledRejection: ' + String(reason) });
 });
 
-start();
+logger.info({ storage: STORAGE_PATH, command: COMMAND_PATH, auth: AUTH_FILE }, 'Iniciando wa-service');
+startSocket({ fresh: false, reason: 'service_start' });
