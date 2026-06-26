@@ -12,10 +12,9 @@ if (empty($_SESSION['user_id']) || !hasPermission('configuracoes')) {
 try {
     $stmt = $pdo->query('SELECT DISTINCT screen FROM role_permissions ORDER BY screen');
     $screens = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    if (empty($screens)) {
-        // sensible defaults when DB has no entries yet
-        $screens = ['consultoria_externa','dashboard','projetos','pos-venda','relatorios','leads_gestao','integracao-equipes','fila_demandas','funil_config','configuracoes'];
-    }
+    $defaultScreens = ['consultoria_externa','dashboard','projetos','pos-venda','relatorios','leads_gestao','integracao-equipes','fila_demandas','funil_config','configuracoes'];
+    $screens = array_values(array_unique(array_merge($screens ?: [], $defaultScreens)));
+    sort($screens);
     echo json_encode(['success' => true, 'screens' => $screens]);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Erro ao buscar screens.']);

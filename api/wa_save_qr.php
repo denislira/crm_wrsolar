@@ -1,15 +1,17 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) session_start();
 header('Content-Type: application/json');
-// require login? allow for local testing
-//$user_ok = isset($_SESSION['user_id']);
-//if (!$user_ok) { echo json_encode(['success'=>false,'message'=>'Unauthorized']); exit; }
+if (!isset($_SESSION['user_id'])) { echo json_encode(['success'=>false,'message'=>'Unauthorized']); exit; }
 $storage_dir = __DIR__ . '/../storage';
 if (!is_dir($storage_dir)) mkdir($storage_dir, 0755, true);
 $state_file = $storage_dir . '/wa_state.json';
 $qr_text = $_POST['qr_text'] ?? null;
 $qr_url = $_POST['qr_url'] ?? null;
 if (!$qr_text && !$qr_url) { echo json_encode(['success'=>false,'message'=>'Missing qr_text or qr_url']); exit; }
+if ($qr_text && strpos((string)$qr_text, 'whatsapp-qr:') === 0) {
+    echo json_encode(['success'=>false,'message'=>'Este QR e um token de teste antigo, nao um QR real do WhatsApp.']);
+    exit;
+}
 $state = ['connected' => false];
 if (file_exists($state_file)) {
     $raw = @file_get_contents($state_file);

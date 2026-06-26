@@ -38,11 +38,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await res.json();
             console.log('wa_status:', data);
             if (data.connected) {
-                statusEl.innerText = 'Conectado — ' + (data.info || 'online');
+                statusEl.innerText = 'Conectado - ' + (data.info || 'online');
                 qrContainer.classList.add('d-none');
                 btnDisconnect.classList.remove('d-none');
             } else {
-                statusEl.innerText = 'Não conectado';
+                statusEl.innerText = data.info ? 'Não conectado - ' + data.info : 'Não conectado';
                 btnDisconnect.classList.add('d-none');
                 // remove any previous hint
                 const prevHint = document.getElementById('waQrHint');
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             hint.className = 'small text-muted mt-2';
                             document.getElementById('waStatusCard').appendChild(hint);
                         }
-                        hint.textContent = 'QR não disponível — clique em Gerar ou cole o QR manualmente.';
+                        hint.textContent = 'QR não disponível. Inicie o wa-service e clique em Atualizar.';
                     }
                 } else if (data.qr) {
                     const success = await fetchAndSetImage(data.qr);
@@ -97,16 +97,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const res = await fetch(apiPath('wa_generate_qr.php'), { method: 'POST' });
             const data = await res.json();
             if (!data.success) {
-                alert(data.message || 'Não foi possível gerar o QRCODE');
+                alert(data.message || 'Não foi possível obter o QRCODE');
+                await loadStatus();
                 return;
             }
-            // Inform the user in Portuguese and refresh status so the server-side
-            // proxy or data-uri is used (avoids CORS to external chart.googleapis)
-            statusEl.innerText = 'QR gerado — aguarde a leitura no cliente';
-            // reload status (will populate qr_data_uri or qr_image_url)
+            statusEl.innerText = data.message || 'QR encontrado. Aguarde a leitura no WhatsApp.';
             await loadStatus();
         } catch (e) {
-            alert('Erro ao gerar o QRCODE');
+            alert('Erro ao obter o QRCODE');
             console.error(e);
         } finally {
             btnGenerate.disabled = false;
@@ -117,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!confirm('Desconectar WhatsApp?')) return;
         btnDisconnect.disabled = true;
         try {
-            const res = await fetch('api/wa_disconnect.php', { method: 'POST' });
+            const res = await fetch(apiPath('wa_disconnect.php'), { method: 'POST' });
             const data = await res.json();
             alert(data.message || 'Desconectado');
             await loadStatus();
@@ -148,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const fd = new FormData();
             if (text) fd.append('qr_text', text);
             if (url) fd.append('qr_url', url);
-            const res = await fetch('/WRCRM/api/wa_save_qr.php', { method: 'POST', body: fd });
+            const res = await fetch(apiPath('wa_save_qr.php'), { method: 'POST', body: fd });
             const data = await res.json();
             alert(data.message || 'Salvo');
             if (data.success) {

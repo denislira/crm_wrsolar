@@ -8,6 +8,22 @@ include 'includes/permissions.php';
 
 checkAccessOrRedirect('configuracoes');
 
+try {
+    $pdo->exec("
+        INSERT INTO role_permissions (role_id, screen, allowed)
+        SELECT r.id, 'fila_demandas', 0
+        FROM roles r
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM role_permissions rp
+            WHERE rp.role_id = r.id
+              AND rp.screen = 'fila_demandas'
+        )
+    ");
+} catch (Exception $e) {
+    // Keep settings available even if a legacy permissions schema rejects the insert.
+}
+
 // Buscar todos os usuários (inclui team_id e role_level)
 $stmt = $pdo->query('SELECT u.id, u.username, u.email, r.name as role_name, u.team_id, u.role_level, t.name as team_name FROM users u LEFT JOIN roles r ON u.role_id = r.id LEFT JOIN teams t ON u.team_id = t.id');
 $users = $stmt->fetchAll();
@@ -662,7 +678,7 @@ body.theme-dark .edit-user-modal .avatar-box {
                         <h2 class="h5 mb-0">Integrações</h2>
                     </div>
                     <div class="card card-shadow p-3">
-                        <p class="mb-2">Integrações externas — conecte seu WhatsApp (Whaileys) para envio de mensagens a leads e usuários.</p>
+                        <p class="mb-2">Integrações externas — conecte seu WhatsApp (Baileys) para envio de mensagens a leads e usuários.</p>
                         <div id="waIntegrationApp" class="d-flex gap-3 flex-wrap align-items-start">
                             <div id="waStatusCard" class="p-3 rounded shadow-sm" style="min-width:320px; max-width:420px; background:#fff;">
                                 <h5 class="mb-2">WhatsApp</h5>
@@ -671,21 +687,21 @@ body.theme-dark .edit-user-modal .avatar-box {
                                     <img id="waQrImage" src="" alt="QR Code" style="width:260px; height:260px; object-fit:contain; border:1px solid #eee; padding:8px; background:#fafafa;"/>
                                 </div>
                                 <div class="d-flex gap-2">
-                                    <button id="btnGenerateQr" class="btn btn-primary btn-sm">Gerar QrCode</button>
+                                    <button id="btnGenerateQr" class="btn btn-primary btn-sm">Obter QR real</button>
                                     <button id="btnRefreshWa" class="btn btn-outline-secondary btn-sm">Atualizar</button>
                                     <button id="btnDisconnectWa" class="btn btn-danger btn-sm d-none">Desconectar</button>
                                     <button id="btnManualQr" class="btn btn-outline-primary btn-sm">Inserir QR</button>
                                 </div>
-                                <small class="d-block text-muted mt-2">Use o QR para autenticar seu cliente Whaileys (Node). Consulte a documentação da integração para detalhes.</small>
+                                <small class="d-block text-muted mt-2">O QR precisa ser gerado pelo serviço Node em <code>wa-service</code>. QR de teste não conecta ao WhatsApp.</small>
                             </div>
                             <div id="waHelpCard" class="p-3 rounded shadow-sm" style="min-width:320px; max-width:520px; background:#fff;">
                                 <h6 class="mb-2">Instruções rápidas</h6>
                                 <ol class="small mb-2">
-                                    <li>Inicie seu serviço Whaileys (Node) separado que consome o QR e autentica a sessão.</li>
-                                    <li>No momento, este painel fornece QR temporário e controla estado local.</li>
-                                    <li>Após autenticar no cliente, o serviço Whaileys deve chamar o endpoint de confirmação para marcar conectado (implemente no seu serviço Node).</li>
+                                    <li>Abra um terminal em <code>wa-service</code> e rode <code>npm start</code>.</li>
+                                    <li>Quando o Baileys gerar o QR real, ele será salvo em <code>storage/wa_state.json</code> e exibido aqui.</li>
+                                    <li>Após ler o QR no WhatsApp, o serviço marca a sessão como conectada automaticamente.</li>
                                 </ol>
-                                <p class="small text-muted mb-0">Quer que eu gere também um exemplo de serviço Node + Whaileys para receber o QR e confirmar a conexão? Peça que eu crie.</p>
+                                <p class="small text-muted mb-0">Se o QR não aparecer, confirme que o processo Node está rodando e sem sessão antiga travada.</p>
                             </div>
                         </div>
                     </div>
@@ -1444,8 +1460,8 @@ document.getElementById('changePasswordForm').addEventListener('submit', functio
             <form id="manualQrForm">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Texto do QR (ex: whatsapp-qr:...)</label>
-                        <textarea id="manualQrText" class="form-control" rows="4" placeholder="Cole aqui o texto do QR"></textarea>
+                        <label class="form-label">Texto do QR real gerado pelo Baileys</label>
+                        <textarea id="manualQrText" class="form-control" rows="4" placeholder="Cole aqui o texto do QR real"></textarea>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Ou cole a URL de uma imagem QR</label>
@@ -1481,6 +1497,7 @@ document.addEventListener('DOMContentLoaded', function(){
         'relatorios': 'Acessar Relatórios',
         'leads_gestao': 'Acessar Gestão de Leads',
         'integracao-equipes': 'Acessar Equipes & Tarefas',
+        'fila_demandas': 'Fila Demandas',
         'funil_config': 'Personalizar Funil de Vendas',
         'configuracoes': 'Acessar Configurações',
         'delete_leads_permanent': 'Excluir leads permanentemente da lixeira'

@@ -21,6 +21,12 @@ $result = [
     'connected' => !empty($state['connected']),
     'info' => $state['info'] ?? null
 ];
+if (empty($state['connected']) && !empty($state['qr_data']) && strpos((string)$state['qr_data'], 'whatsapp-qr:') === 0) {
+    unset($state['qr_data']);
+    $state['info'] = 'QR de teste removido. Inicie o wa-service para gerar um QR real.';
+    @file_put_contents($state_file, json_encode($state, JSON_PRETTY_PRINT));
+    $result['info'] = $state['info'];
+}
 if (empty($state['connected']) && !empty($state['qr_data'])) {
     $qr_text = $state['qr_data'];
     $chart = 'https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=' . urlencode($qr_text) . '&chld=L|1';
@@ -94,6 +100,8 @@ if (empty($state['connected']) && !empty($state['qr_data'])) {
     } catch (Exception $e) { /* ignore logging errors */ }
 }
 
-// provide same-origin URL to fetch QR image (server-side proxy)
-$result['qr_image_url'] = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/wa_qr_image.php';
+if (empty($state['connected']) && !empty($state['qr_data'])) {
+    // provide same-origin URL to fetch QR image (server-side proxy)
+    $result['qr_image_url'] = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/wa_qr_image.php';
+}
 echo json_encode($result);

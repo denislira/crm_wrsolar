@@ -17,13 +17,16 @@ $raw = file_get_contents($state_file);
 $s = json_decode($raw, true);
 $qr_text = '';
 if (!empty($s['qr_data'])) $qr_text = $s['qr_data'];
+if (!empty($qr_text) && strpos((string)$qr_text, 'whatsapp-qr:') === 0) {
+    $qr_text = '';
+}
 if (empty($qr_text)) {
     // return a friendly SVG explaining there's no QR yet
     header('Content-Type: image/svg+xml');
     echo "<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'>";
     echo "<rect width='100%' height='100%' fill='#fff3cd'/>";
     echo "<text x='50%' y='45%' dominant-baseline='middle' text-anchor='middle' fill='#856404' font-family='Arial,Helvetica,sans-serif' font-size='14'>Nenhum QRCODE</text>";
-    echo "<text x='50%' y='60%' dominant-baseline='middle' text-anchor='middle' fill='#856404' font-family='Arial,Helvetica,sans-serif' font-size='12'>Clique em Gerar ou cole o QR manualmente</text>";
+    echo "<text x='50%' y='60%' dominant-baseline='middle' text-anchor='middle' fill='#856404' font-family='Arial,Helvetica,sans-serif' font-size='12'>Inicie o wa-service para gerar</text>";
     echo "</svg>";
     exit;
 }
