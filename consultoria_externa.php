@@ -10,6 +10,7 @@ if (empty($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/permissions.php';
+require_once __DIR__ . '/includes/consultoria_externa_stages.php';
 
 // Ensure only users with role 'consultor_externo' can access this page.
 $roleName = $_SESSION['role_name'] ?? null;
@@ -58,28 +59,6 @@ function ce_normalize($value) {
     return strtolower(strtr($value, $map));
 }
 
-function ce_stage_from_status($type, $status) {
-    $normalized = ce_normalize($status);
-
-    if ($normalized === '') {
-        return 'captacao_tecnica';
-    }
-
-    if (preg_match('/(fechad|contrat|assin|finaliz|ganho|aprovad)/', $normalized)) {
-        return 'contrato_gerado';
-    }
-
-    if (preg_match('/(financ|banc|credito|credito|analise de credito|analise)/', $normalized)) {
-        return 'processo_bancario';
-    }
-
-    if (preg_match('/(orcamento|proposta|propost|negoci)/', $normalized)) {
-        return 'aguardando_orcamento';
-    }
-
-    return 'captacao_tecnica';
-}
-
 function ce_money($value) {
     return 'R$ ' . number_format((float) $value, 2, ',', '.');
 }
@@ -99,100 +78,81 @@ function ce_date($value) {
 
 $userId = (int) $_SESSION['user_id'];
 $displayName = trim((string) ($_SESSION['username'] ?? 'Consultor Externo'));
+$apiBase = 'includes/consultoria_externa_api.php';
+$stagesApiBase = 'includes/consultoria_externa_stages_api.php';
+
+ce_ensure_stage_tables($pdo);
+$stageRows = ce_list_stages($pdo, $userId);
 
 try {
-    $leadColumns = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'")->fetchAll(PDO::FETCH_COLUMN);
+    $itemColumns = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'consultoria_externa_itens'")->fetchAll(PDO::FETCH_COLUMN);
 } catch (Exception $e) {
-    $leadColumns = [];
+    $itemColumns = [];
 }
 
-$hasLeadDeleted = in_array('deleted', $leadColumns, true);
-$leadWhere = $hasLeadDeleted ? 'l.deleted = 0' : '1 = 1';
+$hasItemDeleted = in_array('deleted', $itemColumns, true);
+$itemWhere = $hasItemDeleted ? 'c.deleted = 0' : '1 = 1';
 
-$leadRows = ce_safe_query_all(
+$consultorRows = ce_safe_query_all(
     $pdo,
     "SELECT
-        l.id,
-        l.name,
-        l.phone,
-        l.cidade,
-        l.source,
-        l.status,
-        l.orcamento_value,
-        l.created_at,
-        u.username
-     FROM leads l
-     LEFT JOIN users u ON u.id = l.user_id
-     WHERE l.user_id = ? AND {$leadWhere}
-     ORDER BY l.created_at DESC, l.id DESC",
+        c.id,
+        c.client_name,
+        c.phone,
+        c.cidade,
+        c.source,
+        c.status,
+        c.value,
+        c.notes,
+        c.stage_key,
+        c.stage_id,
+        c.exported_to_internal_queue,
+        c.created_at
+     FROM consultoria_externa_itens c
+     WHERE c.user_id = ? AND {$itemWhere}
+     ORDER BY c.created_at DESC, c.id DESC",
     [$userId]
 );
 
-$projectRows = ce_safe_query_all(
-    $pdo,
-    "SELECT
-        p.id,
-        p.client_name,
-        p.status,
-        p.proposal_value,
-        p.contract,
-        p.created_at,
-        p.closed_date,
-        u.username,
-        l.phone,
-        l.cidade,
-        l.source
-     FROM projetos p
-     LEFT JOIN users u ON u.id = p.user_id
-     LEFT JOIN leads l ON l.id = p.lead_id
-     WHERE p.user_id = ?
-     ORDER BY p.created_at DESC, p.id DESC",
-    [$userId]
-);
-
-$stageMeta = [
-    'captacao_tecnica' => ['label' => 'CAPTAÇÃO TÉCNICA', 'summary' => 'MINHAS VISITAS', 'icon' => 'fa-house-signal', 'accent' => '#3b82f6'],
-    'aguardando_orcamento' => ['label' => 'AGUARDANDO ORÇAMENTO', 'summary' => 'EM ORÇAMENTO', 'icon' => 'fa-file-invoice-dollar', 'accent' => '#f59e0b'],
-    'processo_bancario' => ['label' => 'PROCESSO BANCÁRIO', 'summary' => 'FINANCIAMENTO', 'icon' => 'fa-building-columns', 'accent' => '#8b5cf6'],
-    'contrato_gerado' => ['label' => 'CONTRATO GERADO', 'summary' => 'VENDAS FECHADAS', 'icon' => 'fa-file-signature', 'accent' => '#10b981'],
-];
+$stageMeta = [];
+foreach ($stageRows as $stage) {
+    $stageId = (int) $stage['id'];
+    $stageMeta[$stageId] = [
+        'id' => $stageId,
+        'label' => (string) $stage['name'],
+        'summary' => (string) $stage['name'],
+        'icon' => (string) ($stage['icon'] ?: 'fa-layer-group'),
+        'accent' => (string) ($stage['color'] ?: '#6c757d'),
+        'card_color' => (string) ($stage['card_color'] ?: '#ffffff'),
+        'is_initial' => (int) ($stage['is_initial'] ?? 0),
+        'export_to_internal_queue' => (int) ($stage['export_to_internal_queue'] ?? 0),
+    ];
+}
 
 $groupedCards = [];
 foreach (array_keys($stageMeta) as $stageKey) {
     $groupedCards[$stageKey] = [];
 }
 
-foreach ($leadRows as $lead) {
-    $stageKey = ce_stage_from_status('lead', $lead['status'] ?? '');
+foreach ($consultorRows as $item) {
+    $stageKey = ce_resolve_stage_id($pdo, $userId, $item['stage_id'] ?? null, $item['stage_key'] ?? null);
+    if (!$stageKey || !isset($groupedCards[$stageKey])) {
+        $stageKey = array_key_first($stageMeta);
+    }
     $groupedCards[$stageKey][] = [
-        'type' => 'lead',
-        'id' => (int) $lead['id'],
-        'title' => (string) ($lead['name'] ?? 'Lead sem nome'),
-        'status' => (string) ($lead['status'] ?? 'Sem status'),
-        'value' => (float) ($lead['orcamento_value'] ?? 0),
-        'phone' => (string) ($lead['phone'] ?? ''),
-        'cidade' => (string) ($lead['cidade'] ?? ''),
-        'source' => (string) ($lead['source'] ?? 'Lead'),
-        'created_at' => (string) ($lead['created_at'] ?? ''),
-        'owner' => (string) ($lead['username'] ?? $displayName),
-        'link' => 'leads_gestao.php',
-    ];
-}
-
-foreach ($projectRows as $project) {
-    $stageKey = ce_stage_from_status('project', $project['status'] ?? '');
-    $groupedCards[$stageKey][] = [
-        'type' => 'projeto',
-        'id' => (int) $project['id'],
-        'title' => (string) ($project['client_name'] ?? 'Projeto sem cliente'),
-        'status' => (string) ($project['status'] ?? 'Sem status'),
-        'value' => (float) ($project['proposal_value'] ?? 0),
-        'phone' => (string) ($project['phone'] ?? ''),
-        'cidade' => (string) ($project['cidade'] ?? ''),
-        'source' => (string) ($project['contract'] ? 'Contrato gerado' : ($project['source'] ?? 'Projeto')),
-        'created_at' => (string) ($project['closed_date'] ?: $project['created_at']),
-        'owner' => (string) ($project['username'] ?? $displayName),
-        'link' => 'projetos.php',
+        'type' => 'consultoria',
+        'id' => (int) $item['id'],
+        'title' => (string) ($item['client_name'] ?? 'Registro sem nome'),
+        'status' => (string) ($item['status'] ?? 'Sem status'),
+        'value' => (float) ($item['value'] ?? 0),
+        'phone' => (string) ($item['phone'] ?? ''),
+        'cidade' => (string) ($item['cidade'] ?? ''),
+        'source' => (string) ($item['source'] ?? 'Consultoria externa'),
+        'created_at' => (string) ($item['created_at'] ?? ''),
+        'owner' => $displayName,
+        'notes' => (string) ($item['notes'] ?? ''),
+        'exported' => (int) ($item['exported_to_internal_queue'] ?? 0),
+        'link' => '#',
     ];
 }
 
@@ -276,7 +236,7 @@ include 'includes/header.php';
             }
             .ce-kpis {
                 display: grid;
-                grid-template-columns: repeat(4, minmax(0, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
                 gap: 1rem;
                 margin-bottom: 1.5rem;
             }
@@ -302,7 +262,7 @@ include 'includes/header.php';
             }
             .ce-board {
                 display: grid;
-                grid-template-columns: repeat(4, minmax(260px, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
                 gap: 1rem;
                 align-items: start;
             }
@@ -356,6 +316,15 @@ include 'includes/header.php';
                 border: 1px solid #e2e8f0;
                 border-top: 3px solid var(--accent, #cbd5e1);
                 padding: 1rem;
+                cursor: grab;
+                transition: opacity .15s ease, transform .15s ease, box-shadow .15s ease;
+            }
+            .ce-card:active {
+                cursor: grabbing;
+            }
+            .ce-column.is-drop-target {
+                outline: 2px dashed var(--accent, #64748b);
+                outline-offset: -6px;
             }
             .ce-card-top {
                 display: flex;
@@ -429,6 +398,42 @@ include 'includes/header.php';
                 text-align: center;
                 font-size: .92rem;
             }
+            .ce-stage-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: .75rem;
+                padding: .75rem;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                background: #f8fafc;
+                margin-bottom: .65rem;
+            }
+            .ce-stage-row-main {
+                display: flex;
+                align-items: center;
+                gap: .65rem;
+                min-width: 0;
+            }
+            .ce-stage-dot {
+                width: 12px;
+                height: 12px;
+                border-radius: 999px;
+                flex-shrink: 0;
+            }
+            .ce-stage-name {
+                font-weight: 700;
+                color: #0f172a;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .ce-stage-badges {
+                display: flex;
+                gap: .35rem;
+                flex-wrap: wrap;
+                margin-top: .2rem;
+            }
             body.theme-dark .ce-shell {
                 background: linear-gradient(180deg, rgba(15,23,42,0.96) 0%, rgba(15,23,42,0.88) 100%);
             }
@@ -494,9 +499,12 @@ include 'includes/header.php';
                     <button id="ceToggleFilters" type="button" class="btn btn-light ce-filter-btn">
                         <i class="fa-solid fa-filter me-2"></i>Filtros
                     </button>
-                    <a href="leads_gestao.php" class="btn btn-primary ce-create-btn">
+                    <button id="ceOpenStagesModal" type="button" class="btn btn-light ce-filter-btn">
+                        <i class="fa-solid fa-sliders me-2"></i>Configurar colunas
+                    </button>
+                    <button id="ceOpenLeadModal" type="button" class="btn btn-primary ce-create-btn">
                         <i class="fa-solid fa-circle-plus me-2"></i>Cadastrar Visita / Lead
-                    </a>
+                    </button>
                 </div>
             </div>
 
@@ -545,7 +553,10 @@ include 'includes/header.php';
                             </div>
                             <span class="ce-column-count" data-count-for="<?php echo htmlspecialchars($stageKey, ENT_QUOTES, 'UTF-8'); ?>"><?php echo count($groupedCards[$stageKey]); ?></span>
                         </div>
-                        <div class="ce-card-list">
+                        <?php if (!empty($meta['export_to_internal_queue'])): ?>
+                            <div class="mb-2"><span class="badge bg-success">Exporta para fila interna</span></div>
+                        <?php endif; ?>
+                        <div class="ce-card-list" data-card-list="<?php echo htmlspecialchars($stageKey, ENT_QUOTES, 'UTF-8'); ?>">
                             <?php if (empty($groupedCards[$stageKey])): ?>
                                 <div class="ce-empty">Nenhum item nesta etapa.</div>
                             <?php else: ?>
@@ -563,29 +574,46 @@ include 'includes/header.php';
                                     <article
                                         class="ce-card"
                                         data-card
+                                        draggable="true"
+                                        data-id="<?php echo (int) $card['id']; ?>"
                                         data-stage="<?php echo htmlspecialchars($stageKey, ENT_QUOTES, 'UTF-8'); ?>"
                                         data-type="<?php echo htmlspecialchars($card['type'], ENT_QUOTES, 'UTF-8'); ?>"
                                         data-city="<?php echo htmlspecialchars(ce_normalize($card['cidade']), ENT_QUOTES, 'UTF-8'); ?>"
                                         data-search="<?php echo htmlspecialchars($searchBlob, ENT_QUOTES, 'UTF-8'); ?>"
-                                        style="--accent: <?php echo htmlspecialchars($meta['accent'], ENT_QUOTES, 'UTF-8'); ?>;"
+                                        style="--accent: <?php echo htmlspecialchars($meta['accent'], ENT_QUOTES, 'UTF-8'); ?>; background: <?php echo htmlspecialchars($meta['card_color'], ENT_QUOTES, 'UTF-8'); ?>;"
                                     >
                                         <div class="ce-card-top">
                                             <h2 class="ce-card-title"><?php echo htmlspecialchars($card['title'], ENT_QUOTES, 'UTF-8'); ?></h2>
-                                            <a class="ce-card-link" href="<?php echo htmlspecialchars($card['link'], ENT_QUOTES, 'UTF-8'); ?>" title="Abrir módulo relacionado">
-                                                <i class="fa-solid fa-ellipsis-vertical"></i>
-                                            </a>
+                                            <div class="d-flex gap-2 align-items-center">
+                                                <?php if ($card['type'] === 'consultoria'): ?>
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm btn-link p-0 ce-card-link"
+                                                        data-ce-edit-item="<?php echo (int) $card['id']; ?>"
+                                                        title="Editar registro"
+                                                    >
+                                                        <i class="fa-regular fa-pen-to-square"></i>
+                                                    </button>
+                                                <?php endif; ?>
+                                                <a class="ce-card-link" href="<?php echo htmlspecialchars($card['link'], ENT_QUOTES, 'UTF-8'); ?>" title="Abrir módulo relacionado">
+                                                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                                                </a>
+                                            </div>
                                         </div>
                                         <div class="ce-meta">
                                             <div class="ce-meta-row"><i class="fa-regular fa-clock"></i><span>Criado em: <?php echo htmlspecialchars(ce_date($card['created_at']), ENT_QUOTES, 'UTF-8'); ?></span></div>
                                             <?php if (!empty($card['phone'])): ?>
                                                 <div class="ce-meta-row"><i class="fa-solid fa-phone"></i><span><?php echo htmlspecialchars($card['phone'], ENT_QUOTES, 'UTF-8'); ?></span></div>
                                             <?php endif; ?>
-                                            <div class="ce-meta-row"><i class="fa-solid fa-user-tie"></i><span><?php echo $card['type'] === 'projeto' ? 'Orçamentista' : 'Consultor'; ?>: <?php echo htmlspecialchars($card['owner'], ENT_QUOTES, 'UTF-8'); ?></span></div>
+                                            <div class="ce-meta-row"><i class="fa-solid fa-user-tie"></i><span>Consultor: <?php echo htmlspecialchars($card['owner'], ENT_QUOTES, 'UTF-8'); ?></span></div>
                                         </div>
                                         <div class="ce-value"><?php echo ce_money($card['value']); ?></div>
                                         <div class="ce-card-footer">
-                                            <span class="ce-pill ce-pill-type"><?php echo htmlspecialchars($card['type'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <span class="ce-pill ce-pill-type">consultoria</span>
                                             <span class="ce-pill ce-pill-status"><?php echo htmlspecialchars($card['status'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <?php if (!empty($card['exported'])): ?>
+                                                <span class="badge bg-success">Enviado</span>
+                                            <?php endif; ?>
                                             <span class="small text-muted"><?php echo htmlspecialchars($card['source'], ENT_QUOTES, 'UTF-8'); ?></span>
                                         </div>
                                     </article>
@@ -597,8 +625,146 @@ include 'includes/header.php';
             </div>
         </div>
 
+        <div class="modal fade" id="ceLeadModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title mb-0" id="ceLeadModalTitle">Cadastrar Registro</h5>
+                            <div class="small text-muted">Registro rápido para o painel de consultores externos.</div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <form id="ceLeadForm">
+                        <input type="hidden" id="ceLeadId" name="id" value="">
+                        <div class="modal-body">
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label for="ceLeadName" class="form-label">Nome</label>
+                                    <input id="ceLeadName" name="name" type="text" class="form-control" placeholder="Nome do cliente ou empresa" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="ceLeadPhone" class="form-label">Telefone</label>
+                                    <input id="ceLeadPhone" name="phone" type="text" class="form-control" placeholder="(00) 00000-0000">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="ceLeadCity" class="form-label">Cidade</label>
+                                    <input id="ceLeadCity" name="cidade" type="text" class="form-control" placeholder="Cidade - UF">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="ceLeadSource" class="form-label">Origem</label>
+                                    <input id="ceLeadSource" name="source" type="text" class="form-control" placeholder="Ex: Visita, Indicação, WhatsApp">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="ceLeadStageId" class="form-label">Coluna do Kanban</label>
+                                    <select id="ceLeadStageId" name="stage_id" class="form-select">
+                                        <?php foreach ($stageMeta as $stageKey => $meta): ?>
+                                            <option value="<?php echo htmlspecialchars($stageKey, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="ceLeadStatus" class="form-label">Status</label>
+                                    <select id="ceLeadStatus" name="status" class="form-select">
+                                        <option value="">Sem status</option>
+                                        <option value="Em captação técnica">Em captação técnica</option>
+                                        <option value="Aguardando orçamento">Aguardando orçamento</option>
+                                        <option value="Processo bancário">Processo bancário</option>
+                                        <option value="Contrato gerado">Contrato gerado</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="ceLeadValue" class="form-label">Valor</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">R$</span>
+                                        <input id="ceLeadValue" name="orcamento_value" type="text" class="form-control" placeholder="0,00">
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <label for="ceLeadNotes" class="form-label">Observações</label>
+                                    <textarea id="ceLeadNotes" name="notes" class="form-control" rows="4" placeholder="Detalhes da visita, negociação ou próximos passos"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                            <button id="ceLeadSaveBtn" type="submit" class="btn btn-primary">Salvar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="ceStagesModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title mb-0">Configurar colunas</h5>
+                            <div class="small text-muted">Defina as etapas do Kanban e quais delas enviam para a futura fila interna.</div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-4">
+                            <div class="col-lg-5">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <strong>Colunas cadastradas</strong>
+                                    <button id="ceNewStageBtn" type="button" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus me-1"></i>Nova</button>
+                                </div>
+                                <div id="ceStagesList"></div>
+                            </div>
+                            <div class="col-lg-7">
+                                <form id="ceStageForm">
+                                    <input type="hidden" id="ceStageId" value="">
+                                    <div class="row g-3">
+                                        <div class="col-md-8">
+                                            <label for="ceStageName" class="form-label">Nome da coluna</label>
+                                            <input id="ceStageName" type="text" class="form-control" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="ceStageIcon" class="form-label">Icone FontAwesome</label>
+                                            <input id="ceStageIcon" type="text" class="form-control" placeholder="fa-layer-group">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="ceStageColor" class="form-label">Cor da coluna</label>
+                                            <input id="ceStageColor" type="color" class="form-control form-control-color w-100" value="#6c757d">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="ceStageCardColor" class="form-label">Cor dos cards</label>
+                                            <input id="ceStageCardColor" type="color" class="form-control form-control-color w-100" value="#ffffff">
+                                        </div>
+                                        <div class="col-12">
+                                            <div class="form-check form-switch mb-2">
+                                                <input id="ceStageInitial" class="form-check-input" type="checkbox">
+                                                <label for="ceStageInitial" class="form-check-label">Coluna inicial para novos registros</label>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input id="ceStageExport" class="form-check-input" type="checkbox">
+                                                <label for="ceStageExport" class="form-check-label">Enviar para Fila de Demandas Internas ao entrar nesta coluna</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-2 mt-4">
+                                        <button id="ceStageSaveBtn" type="submit" class="btn btn-primary">Salvar coluna</button>
+                                        <button id="ceStageDeleteBtn" type="button" class="btn btn-outline-danger">Excluir</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <script>
             (function () {
+                const apiBase = <?php echo json_encode($apiBase, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+                const stagesApiBase = <?php echo json_encode($stagesApiBase, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+                let stages = <?php echo json_encode(array_values($stageMeta), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
                 const searchInput = document.getElementById('ceSearchInput');
                 const typeFilter = document.getElementById('ceTypeFilter');
                 const stageFilter = document.getElementById('ceStageFilter');
@@ -608,6 +774,59 @@ include 'includes/header.php';
                 const cards = Array.from(document.querySelectorAll('[data-card]'));
                 const countBadges = Array.from(document.querySelectorAll('[data-count-for]'));
                 const summaryValues = Array.from(document.querySelectorAll('[data-summary-stage]'));
+                const openLeadModalBtn = document.getElementById('ceOpenLeadModal');
+                const openStagesModalBtn = document.getElementById('ceOpenStagesModal');
+                const leadModalEl = document.getElementById('ceLeadModal');
+                const stagesModalEl = document.getElementById('ceStagesModal');
+                const leadForm = document.getElementById('ceLeadForm');
+                const leadSaveBtn = document.getElementById('ceLeadSaveBtn');
+                const leadModalTitle = document.getElementById('ceLeadModalTitle');
+                const leadIdInput = document.getElementById('ceLeadId');
+                const leadNameInput = document.getElementById('ceLeadName');
+                const leadPhoneInput = document.getElementById('ceLeadPhone');
+                const leadCityInput = document.getElementById('ceLeadCity');
+                const leadSourceInput = document.getElementById('ceLeadSource');
+                const leadStageInput = document.getElementById('ceLeadStageId');
+                const leadStatusInput = document.getElementById('ceLeadStatus');
+                const leadValueInput = document.getElementById('ceLeadValue');
+                const leadNotesInput = document.getElementById('ceLeadNotes');
+                const stagesList = document.getElementById('ceStagesList');
+                const stageForm = document.getElementById('ceStageForm');
+                const stageIdInput = document.getElementById('ceStageId');
+                const stageNameInput = document.getElementById('ceStageName');
+                const stageIconInput = document.getElementById('ceStageIcon');
+                const stageColorInput = document.getElementById('ceStageColor');
+                const stageCardColorInput = document.getElementById('ceStageCardColor');
+                const stageInitialInput = document.getElementById('ceStageInitial');
+                const stageExportInput = document.getElementById('ceStageExport');
+                const stageDeleteBtn = document.getElementById('ceStageDeleteBtn');
+                const newStageBtn = document.getElementById('ceNewStageBtn');
+                function getModalInstance(modalEl) {
+                    if (!modalEl) return null;
+                    if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+                        return window.bootstrap.Modal.getOrCreateInstance
+                            ? window.bootstrap.Modal.getOrCreateInstance(modalEl)
+                            : new window.bootstrap.Modal(modalEl);
+                    }
+                    return {
+                        show() {
+                            modalEl.classList.add('show');
+                            modalEl.style.display = 'block';
+                            modalEl.removeAttribute('aria-hidden');
+                            document.body.classList.add('modal-open');
+                        },
+                        hide() {
+                            modalEl.classList.remove('show');
+                            modalEl.style.display = 'none';
+                            modalEl.setAttribute('aria-hidden', 'true');
+                            document.body.classList.remove('modal-open');
+                        }
+                    };
+                }
+
+                function getLeadModalInstance() {
+                    return getModalInstance(leadModalEl);
+                }
 
                 function normalize(value) {
                     return (value || '')
@@ -632,6 +851,315 @@ include 'includes/header.php';
                     });
                 }
 
+                function formatMoneyInput(value) {
+                    const digits = String(value || '').replace(/\D/g, '');
+                    if (!digits) return '';
+                    const number = (Number(digits) / 100).toFixed(2);
+                    const parts = number.split('.');
+                    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                    return parts.join(',');
+                }
+
+                function parseMoneyInput(value) {
+                    const normalized = String(value || '').replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+                    const parsed = parseFloat(normalized);
+                    return Number.isFinite(parsed) ? parsed : 0;
+                }
+
+                function resetLeadModal() {
+                    if (!leadForm) return;
+                    leadForm.reset();
+                    leadIdInput.value = '';
+                    leadModalTitle.textContent = 'Cadastrar Registro';
+                    leadSaveBtn.textContent = 'Salvar';
+                    const initialStage = stages.find((stage) => Number(stage.is_initial) === 1) || stages[0];
+                    if (leadStageInput && initialStage) {
+                        leadStageInput.value = String(initialStage.id);
+                    }
+                    leadStatusInput.value = '';
+                    leadValueInput.value = '';
+                }
+
+                function openLeadModal(card = null) {
+                    const leadModal = getLeadModalInstance();
+                    if (!leadModal) return;
+                    resetLeadModal();
+                    if (card) {
+                        leadModalTitle.textContent = 'Editar Registro';
+                        leadSaveBtn.textContent = 'Atualizar';
+                        leadIdInput.value = String(card.id || '');
+                        leadNameInput.value = card.name || card.client_name || '';
+                        leadPhoneInput.value = card.phone || '';
+                        leadCityInput.value = card.cidade || '';
+                        leadSourceInput.value = card.source || '';
+                        if (leadStageInput) leadStageInput.value = String(card.stage_id || '');
+                        leadStatusInput.value = card.status || '';
+                        leadValueInput.value = card.orcamento_value ? formatMoneyInput(card.orcamento_value) : '';
+                        leadNotesInput.value = card.notes || '';
+                    }
+                    leadModal.show();
+                }
+
+                async function loadLeadForEdit(id) {
+                    const res = await fetch(`${apiBase}?action=get&id=${encodeURIComponent(id)}`);
+                    if (!res.ok) {
+                        throw new Error('Não foi possível carregar o registro');
+                    }
+                    return await res.json();
+                }
+
+                async function saveLeadForm(event) {
+                    event.preventDefault();
+                    const id = String(leadIdInput.value || '').trim();
+                    const payload = new URLSearchParams();
+                    payload.set('name', leadNameInput.value.trim());
+                    payload.set('phone', leadPhoneInput.value.trim());
+                    payload.set('cidade', leadCityInput.value.trim());
+                    payload.set('source', leadSourceInput.value.trim());
+                    if (leadStageInput) payload.set('stage_id', leadStageInput.value.trim());
+                    payload.set('status', leadStatusInput.value.trim());
+                    payload.set('orcamento_value', String(parseMoneyInput(leadValueInput.value)));
+                    payload.set('notes', leadNotesInput.value.trim());
+                    if (id) {
+                        payload.set('id', id);
+                    }
+
+                    leadSaveBtn.disabled = true;
+                    const originalText = leadSaveBtn.textContent;
+                    leadSaveBtn.textContent = id ? 'Atualizando...' : 'Salvando...';
+                    try {
+                        const action = id ? 'update' : 'add';
+                        const res = await fetch(`${apiBase}?action=${action}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                            body: payload.toString()
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok || data.error) {
+                            throw new Error(data.error || 'Falha ao salvar registro');
+                        }
+                        const modalInstance = getLeadModalInstance();
+                        if (modalInstance && modalInstance.hide) {
+                            modalInstance.hide();
+                        }
+                        window.location.reload();
+                    } catch (error) {
+                        alert(error.message || 'Falha ao salvar registro');
+                    } finally {
+                        leadSaveBtn.disabled = false;
+                        leadSaveBtn.textContent = originalText;
+                    }
+                }
+
+                function resetStageForm() {
+                    if (!stageForm) return;
+                    stageForm.reset();
+                    stageIdInput.value = '';
+                    stageNameInput.value = '';
+                    stageIconInput.value = 'fa-layer-group';
+                    stageColorInput.value = '#6c757d';
+                    stageCardColorInput.value = '#ffffff';
+                    stageInitialInput.checked = !stages.length;
+                    stageExportInput.checked = false;
+                    if (stageDeleteBtn) stageDeleteBtn.style.display = 'none';
+                }
+
+                function selectStage(stageId) {
+                    const stage = stages.find((item) => String(item.id) === String(stageId));
+                    if (!stage) return;
+                    stageIdInput.value = String(stage.id);
+                    stageNameInput.value = stage.label || '';
+                    stageIconInput.value = stage.icon || 'fa-layer-group';
+                    stageColorInput.value = stage.accent || '#6c757d';
+                    stageCardColorInput.value = stage.card_color || '#ffffff';
+                    stageInitialInput.checked = Number(stage.is_initial) === 1;
+                    stageExportInput.checked = Number(stage.export_to_internal_queue) === 1;
+                    if (stageDeleteBtn) stageDeleteBtn.style.display = stages.length > 1 ? '' : 'none';
+                }
+
+                function renderStagesList() {
+                    if (!stagesList) return;
+                    stagesList.innerHTML = '';
+                    if (!stages.length) {
+                        stagesList.innerHTML = '<div class="ce-empty">Nenhuma coluna cadastrada.</div>';
+                        return;
+                    }
+
+                    stages.forEach((stage) => {
+                        const row = document.createElement('div');
+                        row.className = 'ce-stage-row';
+                        row.dataset.id = stage.id;
+                        row.draggable = true;
+                        row.innerHTML = `
+                            <div class="ce-stage-row-main">
+                                <span class="ce-stage-dot" style="background:${stage.accent || '#6c757d'}"></span>
+                                <div style="min-width:0;">
+                                    <div class="ce-stage-name">${stage.label || ''}</div>
+                                    <div class="ce-stage-badges">
+                                        <span class="badge bg-secondary">#${stage.position || '-'}</span>
+                                        ${Number(stage.is_initial) === 1 ? '<span class="badge bg-primary">Inicial</span>' : ''}
+                                        ${Number(stage.export_to_internal_queue) === 1 ? '<span class="badge bg-success">Exporta</span>' : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary">Editar</button>
+                        `;
+                        row.querySelector('button').addEventListener('click', () => selectStage(stage.id));
+                        row.addEventListener('dragstart', (event) => {
+                            event.dataTransfer.effectAllowed = 'move';
+                            event.dataTransfer.setData('text/plain', String(stage.id));
+                            row.classList.add('opacity-50');
+                        });
+                        row.addEventListener('dragend', () => row.classList.remove('opacity-50'));
+                        stagesList.appendChild(row);
+                    });
+                }
+
+                async function loadStages() {
+                    const res = await fetch(`${stagesApiBase}?action=list`);
+                    const data = await res.json().catch(() => []);
+                    if (!res.ok) {
+                        throw new Error(data.error || 'Falha ao carregar colunas');
+                    }
+                    stages = Array.isArray(data) ? data.map((stage) => ({
+                        id: stage.id,
+                        label: stage.name,
+                        summary: stage.name,
+                        icon: stage.icon || 'fa-layer-group',
+                        accent: stage.color || '#6c757d',
+                        card_color: stage.card_color || '#ffffff',
+                        position: stage.position,
+                        is_initial: stage.is_initial,
+                        export_to_internal_queue: stage.export_to_internal_queue
+                    })) : [];
+                    renderStagesList();
+                    if (stages.length) selectStage(stages[0].id);
+                }
+
+                async function saveStageForm(event) {
+                    event.preventDefault();
+                    const id = String(stageIdInput.value || '').trim();
+                    const payload = new URLSearchParams();
+                    payload.set('name', stageNameInput.value.trim());
+                    payload.set('icon', stageIconInput.value.trim() || 'fa-layer-group');
+                    payload.set('color', stageColorInput.value || '#6c757d');
+                    payload.set('card_color', stageCardColorInput.value || '#ffffff');
+                    payload.set('is_initial', stageInitialInput.checked ? '1' : '0');
+                    payload.set('export_to_internal_queue', stageExportInput.checked ? '1' : '0');
+                    if (id) payload.set('id', id);
+
+                    const action = id ? 'update' : 'add';
+                    const res = await fetch(`${stagesApiBase}?action=${action}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                        body: payload.toString()
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) {
+                        throw new Error(data.error || 'Falha ao salvar coluna');
+                    }
+                    await loadStages();
+                    window.location.reload();
+                }
+
+                async function deleteSelectedStage() {
+                    const id = String(stageIdInput.value || '').trim();
+                    if (!id || stages.length <= 1) return;
+                    if (!confirm('Excluir esta coluna? Os registros dela serao movidos para a coluna inicial.')) return;
+                    const payload = new URLSearchParams();
+                    payload.set('id', id);
+                    const res = await fetch(`${stagesApiBase}?action=delete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                        body: payload.toString()
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) {
+                        throw new Error(data.error || 'Falha ao excluir coluna');
+                    }
+                    window.location.reload();
+                }
+
+                async function reorderStages(dragId, targetId) {
+                    if (!dragId || !targetId || dragId === targetId) return;
+                    const current = stages.slice();
+                    const from = current.findIndex((stage) => String(stage.id) === String(dragId));
+                    const to = current.findIndex((stage) => String(stage.id) === String(targetId));
+                    if (from < 0 || to < 0) return;
+                    const [moved] = current.splice(from, 1);
+                    current.splice(to, 0, moved);
+                    const positions = current.map((stage, index) => ({ id: stage.id, position: index + 1 }));
+                    const res = await fetch(`${stagesApiBase}?action=reorder`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                        body: JSON.stringify({ positions })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) {
+                        throw new Error(data.error || 'Falha ao reordenar colunas');
+                    }
+                    window.location.reload();
+                }
+
+                function syncEmptyStates() {
+                    document.querySelectorAll('[data-card-list]').forEach((list) => {
+                        const hasVisibleCard = Array.from(list.querySelectorAll('[data-card]')).some((card) => card.style.display !== 'none');
+                        let empty = list.querySelector('.ce-empty');
+                        if (!hasVisibleCard && !empty) {
+                            empty = document.createElement('div');
+                            empty.className = 'ce-empty';
+                            empty.textContent = 'Nenhum item nesta etapa.';
+                            list.appendChild(empty);
+                        }
+                        if (hasVisibleCard && empty) {
+                            empty.remove();
+                        }
+                    });
+                }
+
+                async function moveCardToStage(card, targetColumn) {
+                    if (!card || !targetColumn) return;
+                    const cardId = card.dataset.id || '';
+                    const stageId = targetColumn.dataset.stageColumn || '';
+                    if (!cardId || !stageId || card.dataset.stage === stageId) return;
+
+                    const originalStage = card.dataset.stage || '';
+                    const originalList = card.closest('[data-card-list]');
+                    const targetList = targetColumn.querySelector('[data-card-list]');
+                    if (!targetList) return;
+
+                    card.dataset.stage = stageId;
+                    targetList.appendChild(card);
+                    syncEmptyStates();
+                    applyFilters();
+                    card.classList.add('opacity-50');
+
+                    const payload = new URLSearchParams();
+                    payload.set('id', cardId);
+                    payload.set('stage_id', stageId);
+                    try {
+                        const res = await fetch(`${apiBase}?action=move_stage`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                            body: payload.toString()
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok || data.error) {
+                            throw new Error(data.error || 'Falha ao mover card');
+                        }
+                    } catch (error) {
+                        card.dataset.stage = originalStage;
+                        if (originalList) {
+                            originalList.appendChild(card);
+                        }
+                        syncEmptyStates();
+                        applyFilters();
+                        throw error;
+                    } finally {
+                        card.classList.remove('opacity-50');
+                    }
+                }
+
                 function applyFilters() {
                     const search = normalize(searchInput ? searchInput.value : '');
                     const type = typeFilter ? typeFilter.value : '';
@@ -653,6 +1181,120 @@ include 'includes/header.php';
                     toggleFilters.addEventListener('click', function () {
                         filtersPanel.classList.toggle('is-open');
                     });
+                }
+
+                if (leadValueInput) {
+                    leadValueInput.addEventListener('input', function () {
+                        const digits = this.value.replace(/\D/g, '');
+                        this.value = digits ? formatMoneyInput(digits) : '';
+                    });
+                }
+
+                if (openLeadModalBtn) {
+                    openLeadModalBtn.addEventListener('click', function () {
+                        openLeadModal();
+                    });
+                }
+
+                if (openStagesModalBtn) {
+                    openStagesModalBtn.addEventListener('click', async function () {
+                        try {
+                            await loadStages();
+                            const modal = getModalInstance(stagesModalEl);
+                            if (modal) modal.show();
+                        } catch (error) {
+                            alert(error.message || 'Falha ao abrir configuracao de colunas');
+                        }
+                    });
+                }
+
+                if (newStageBtn) {
+                    newStageBtn.addEventListener('click', resetStageForm);
+                }
+
+                if (stageForm) {
+                    stageForm.addEventListener('submit', async function (event) {
+                        try {
+                            await saveStageForm(event);
+                        } catch (error) {
+                            alert(error.message || 'Falha ao salvar coluna');
+                        }
+                    });
+                }
+
+                if (stageDeleteBtn) {
+                    stageDeleteBtn.addEventListener('click', async function () {
+                        try {
+                            await deleteSelectedStage();
+                        } catch (error) {
+                            alert(error.message || 'Falha ao excluir coluna');
+                        }
+                    });
+                }
+
+                if (stagesList) {
+                    stagesList.addEventListener('dragover', (event) => event.preventDefault());
+                    stagesList.addEventListener('drop', async function (event) {
+                        event.preventDefault();
+                        const dragId = event.dataTransfer.getData('text/plain');
+                        const target = event.target.closest('.ce-stage-row');
+                        if (!target) return;
+                        try {
+                            await reorderStages(dragId, target.dataset.id);
+                        } catch (error) {
+                            alert(error.message || 'Falha ao reordenar colunas');
+                        }
+                    });
+                }
+
+                cards.forEach((card) => {
+                    card.addEventListener('dragstart', (event) => {
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData('text/plain', card.dataset.id || '');
+                        card.classList.add('opacity-50');
+                    });
+                    card.addEventListener('dragend', () => card.classList.remove('opacity-50'));
+                });
+
+                document.querySelectorAll('[data-stage-column]').forEach((column) => {
+                    column.addEventListener('dragover', (event) => {
+                        event.preventDefault();
+                        column.classList.add('is-drop-target');
+                    });
+                    column.addEventListener('dragleave', (event) => {
+                        if (!column.contains(event.relatedTarget)) {
+                            column.classList.remove('is-drop-target');
+                        }
+                    });
+                    column.addEventListener('drop', async function (event) {
+                        event.preventDefault();
+                        column.classList.remove('is-drop-target');
+                        const cardId = event.dataTransfer.getData('text/plain');
+                        const card = cards.find((item) => String(item.dataset.id || '') === String(cardId));
+                        if (!card) return;
+                        try {
+                            await moveCardToStage(card, column);
+                        } catch (error) {
+                            alert(error.message || 'Falha ao mover card');
+                        }
+                    });
+                });
+
+                document.querySelectorAll('[data-ce-edit-item]').forEach((button) => {
+                    button.addEventListener('click', async function () {
+                        const id = this.dataset.ceEditItem;
+                        if (!id) return;
+                        try {
+                            const item = await loadLeadForEdit(id);
+                            openLeadModal(item);
+                        } catch (error) {
+                            alert(error.message || 'Falha ao carregar o registro');
+                        }
+                    });
+                });
+
+                if (leadForm) {
+                    leadForm.addEventListener('submit', saveLeadForm);
                 }
 
                 [searchInput, typeFilter, stageFilter, cityFilter].forEach((element) => {

@@ -14,10 +14,9 @@ try {
     $stmt = $pdo->query('SELECT DISTINCT screen FROM role_permissions');
     $screens = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-    // if no screens found, try to populate a sensible default set
-    if (empty($screens)) {
-        $screens = ['dashboard','projetos','pos-venda','relatorios','leads_gestao','integracao-equipes','funil_config','configuracoes'];
-    }
+    // Merge known screens with a sensible default set, including new modules.
+    $defaultScreens = ['consultoria_externa','dashboard','projetos','pos-venda','relatorios','leads_gestao','integracao-equipes','fila_demandas','funil_config','configuracoes'];
+    $screens = array_values(array_unique(array_merge($screens ?: [], $defaultScreens)));
 
     // get roles
     $stmt = $pdo->query('SELECT id FROM roles');

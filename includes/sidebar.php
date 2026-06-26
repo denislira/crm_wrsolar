@@ -8,6 +8,18 @@ $includePerm = __DIR__ . '/permissions.php';
 if (file_exists($includePerm)) include_once $includePerm;
 
 $current = basename($_SERVER['PHP_SELF']);
+$roleName = $_SESSION['role_name'] ?? null;
+if (!$roleName && !empty($_SESSION['role_id'])) {
+    try {
+        require_once __DIR__ . '/config.php';
+        $roleStmt = $pdo->prepare('SELECT name FROM roles WHERE id = ? LIMIT 1');
+        $roleStmt->execute([$_SESSION['role_id']]);
+        $roleName = $roleStmt->fetchColumn();
+    } catch (Throwable $e) {
+        $roleName = null;
+    }
+}
+$isConsultorExterno = strtolower((string)$roleName) === 'consultor_externo';
 ?>
 
 <style>
@@ -85,6 +97,14 @@ body.sidebar-collapsed .brand .brand-logo-collapsed { display: block !important;
                     <span class="label">Meu Perfil</span>
                 </a>
             </li>
+            <?php if ($isConsultorExterno): ?>
+            <li class="nav-item">
+                <a href="consultoria_externa.php" class="nav-link <?php echo $current=='consultoria_externa.php' ? 'active':''; ?>" data-tooltip="Consultoria Externa">
+                    <span class="icon"><i class="fa-solid fa-user-tie"></i></span>
+                    <span class="label">Consultoria Externa</span>
+                </a>
+            </li>
+            <?php endif; ?>
             <!-- Leads menu hidden
             <li class="nav-item">
                 <a href="leads.php" class="nav-link <?php echo $current=='leads.php' ? 'active':''; ?>" data-tooltip="Leads">
@@ -114,6 +134,14 @@ body.sidebar-collapsed .brand .brand-logo-collapsed { display: block !important;
                 <a href="integracao-equipes.php" class="nav-link <?php echo $current=='integracao-equipes.php' ? 'active':''; ?>" data-tooltip="Integração de Equipes">
                     <span class="icon"><i class="fa-regular fa-address-book"></i></span>
                     <span class="label">Integração de Equipes</span>
+                </a>
+            </li>
+            <?php endif; ?>
+            <?php if (!$isConsultorExterno && ((function_exists('isDirector') && isDirector()) || (function_exists('hasPermission') ? hasPermission('fila_demandas') : true))): ?>
+            <li class="nav-item">
+                <a href="fila_demandas.php" class="nav-link <?php echo $current=='fila_demandas.php' ? 'active':''; ?>" data-tooltip="Fila de Demandas">
+                    <span class="icon"><i class="fa-solid fa-inbox"></i></span>
+                    <span class="label">Fila de Demandas</span>
                 </a>
             </li>
             <?php endif; ?>

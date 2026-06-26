@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS consultoria_externa_itens (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  client_name VARCHAR(255) NOT NULL,
+  phone VARCHAR(50) DEFAULT NULL,
+  cidade VARCHAR(255) DEFAULT NULL,
+  source VARCHAR(255) DEFAULT NULL,
+  status VARCHAR(100) DEFAULT NULL,
+  value DECIMAL(12,2) DEFAULT 0.00,
+  notes TEXT DEFAULT NULL,
+  stage_key VARCHAR(50) DEFAULT 'captacao_tecnica',
+  stage_id INT DEFAULT NULL,
+  exported_to_internal_queue TINYINT(1) NOT NULL DEFAULT 0,
+  exported_at DATETIME DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT(1) NOT NULL DEFAULT 0,
+  deleted_at DATETIME DEFAULT NULL,
+  INDEX idx_ce_user (user_id),
+  INDEX idx_ce_stage (stage_key),
+  INDEX idx_ce_stage_id (stage_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
