@@ -8,22 +8,6 @@ include 'includes/permissions.php';
 
 checkAccessOrRedirect('configuracoes');
 
-try {
-    $pdo->exec("
-        INSERT INTO role_permissions (role_id, screen, allowed)
-        SELECT r.id, 'fila_demandas', 0
-        FROM roles r
-        WHERE NOT EXISTS (
-            SELECT 1
-            FROM role_permissions rp
-            WHERE rp.role_id = r.id
-              AND rp.screen = 'fila_demandas'
-        )
-    ");
-} catch (Exception $e) {
-    // Keep settings available even if a legacy permissions schema rejects the insert.
-}
-
 // Buscar todos os usuários (inclui team_id e role_level)
 $stmt = $pdo->query('SELECT u.id, u.username, u.email, r.name as role_name, u.team_id, u.role_level, t.name as team_name FROM users u LEFT JOIN roles r ON u.role_id = r.id LEFT JOIN teams t ON u.team_id = t.id');
 $users = $stmt->fetchAll();
