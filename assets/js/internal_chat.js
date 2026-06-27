@@ -19,6 +19,7 @@
 
   function displayName(user){
     if (!user) return 'Usuario';
+    if (String(user.type || '') === 'global') return 'Sala geral';
     return user.other_nome_completo || user.nome_completo || user.other_username || user.username || 'Usuario';
   }
 
@@ -126,15 +127,32 @@
     const search = document.getElementById('internalChatSearch');
     const searching = search && search.value.trim() !== '';
     const rows = searching ? state.users : state.conversations;
+    const globalRow = !searching ? state.conversations.find(row => String(row.type || '') === 'global') : null;
+    const privateRows = !searching ? state.conversations.filter(row => String(row.type || '') !== 'global') : rows;
 
-    if (!rows.length) {
+    if (!searching && !rows.length) {
       list.innerHTML = `<div class="internal-chat-empty">${searching ? 'Nenhum usuario encontrado.' : 'Nenhuma conversa ainda.'}</div>`;
       return;
     }
+    if (searching && !rows.length) {
+      list.innerHTML = '<div class="internal-chat-empty">Nenhum usuario encontrado.</div>';
+      return;
+    }
 
-    list.innerHTML = rows.map(row => {
+    const globalHtml = globalRow ? `
+      <button type="button" class="internal-chat-person internal-chat-person-global${Number(globalRow.id) === Number(state.activeConversationId) ? ' active' : ''}" data-chat-target="conv-${escapeHtml(globalRow.id)}">
+        <span class="internal-chat-avatar internal-chat-avatar-global"><i class="fa-solid fa-bullhorn"></i></span>
+        <span class="internal-chat-person-main">
+          <strong>Sala geral</strong>
+          <span>Mensagens para todos</span>
+        </span>
+        ${Number(globalRow.unread_count || 0) > 0 ? `<span class="internal-chat-unread-dot">${Number(globalRow.unread_count)}</span>` : ''}
+      </button>
+    ` : '';
+
+    const privateHtml = (searching ? rows : privateRows).map(row => {
       const name = displayName(row);
-      const subtitle = searching ? (row.email || row.username || '') : (row.last_message || 'Conversa iniciada');
+      const subtitle = searching ? (row.email || row.username || '') : (String(row.type || '') === 'global' ? 'Mensagens para todos' : (row.last_message || 'Conversa iniciada'));
       const id = searching ? `user-${row.id}` : `conv-${row.id}`;
       const active = (!searching && Number(row.id) === Number(state.activeConversationId)) ? ' active' : '';
       const badge = !searching && Number(row.unread_count || 0) > 0 ? `<span class="internal-chat-unread-dot">${Number(row.unread_count)}</span>` : '';
@@ -150,6 +168,8 @@
         </button>
       `;
     }).join('');
+
+    list.innerHTML = searching ? privateHtml : `${globalHtml}${privateHtml}`;
 
     list.querySelectorAll('[data-chat-target]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -175,6 +195,10 @@
       state.conversations = json.conversations || [];
       renderUnread(json.unread_total || 0);
       renderPeople();
+      if (!state.activeConversationId) {
+        const globalConv = state.conversations.find(row => String(row.type || '') === 'global');
+        if (globalConv) openConversation(Number(globalConv.id));
+      }
     }).catch(() => {});
   }
 
@@ -248,9 +272,12 @@
     messages.forEach(message => {
       state.lastMessageId = Math.max(state.lastMessageId, Number(message.id));
       const mine = Number(message.sender_id) === Number(window.currentUserId || 0);
+      const senderName = String(message.username || '').trim();
+      const isGlobal = state.activeUser && String(state.activeUser.type || '') === 'global';
       const item = document.createElement('div');
       item.className = 'internal-chat-message' + (mine ? ' mine' : '');
       item.innerHTML = `
+        ${!mine && senderName && !isGlobal ? `<div class="internal-chat-time" style="margin-bottom:.15rem;">${escapeHtml(senderName)}</div>` : ''}
         <div class="internal-chat-bubble">${escapeHtml(message.body)}</div>
         <div class="internal-chat-time">${escapeHtml(formatTime(message.created_at))}</div>
       `;

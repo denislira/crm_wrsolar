@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS internal_chat_conversations (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  type ENUM('direct') NOT NULL DEFAULT 'direct',
+  type ENUM('global', 'direct') NOT NULL DEFAULT 'direct',
   created_by INT NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -28,3 +28,6 @@ CREATE TABLE IF NOT EXISTS internal_chat_messages (
   FOREIGN KEY (conversation_id) REFERENCES internal_chat_conversations(id) ON DELETE CASCADE,
   FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+ALTER TABLE internal_chat_conversations
+  MODIFY COLUMN type ENUM('global', 'direct') NOT NULL DEFAULT 'direct';

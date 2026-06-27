@@ -17,7 +17,7 @@ function chatEnsureTables(PDO $pdo): void {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS internal_chat_conversations (
           id INT AUTO_INCREMENT PRIMARY KEY,
-          type ENUM('direct') NOT NULL DEFAULT 'direct',
+          type ENUM('global', 'direct') NOT NULL DEFAULT 'direct',
           created_by INT NOT NULL,
           created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -37,6 +37,18 @@ function chatEnsureTables(PDO $pdo): void {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
     $pdo->exec("
+        CREATE TABLE IF NOT EXISTS internal_chat_reads (
+          conversation_id INT NOT NULL,
+          user_id INT NOT NULL,
+          last_read_message_id INT DEFAULT NULL,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (conversation_id, user_id),
+          INDEX idx_internal_chat_reads_user (user_id),
+          FOREIGN KEY (conversation_id) REFERENCES internal_chat_conversations(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+    $pdo->exec("
         CREATE TABLE IF NOT EXISTS internal_chat_messages (
           id INT AUTO_INCREMENT PRIMARY KEY,
           conversation_id INT NOT NULL,
@@ -48,6 +60,32 @@ function chatEnsureTables(PDO $pdo): void {
           FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+
+    try {
+        $stmt = $pdo->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'internal_chat_conversations' AND COLUMN_NAME = 'type' LIMIT 1");
+        $columnType = strtolower((string) $stmt->fetchColumn());
+        if ($columnType && strpos($columnType, 'global') === false) {
+            $pdo->exec("ALTER TABLE internal_chat_conversations MODIFY COLUMN type ENUM('global', 'direct') NOT NULL DEFAULT 'direct'");
+        }
+    } catch (Throwable $e) {}
+
+    $stmt = $pdo->prepare("SELECT id FROM internal_chat_conversations WHERE type = 'global' ORDER BY id ASC LIMIT 1");
+    $stmt->execute();
+    $globalId = (int) $stmt->fetchColumn();
+    if ($globalId <= 0) {
+        $creatorId = 1;
+        try {
+            $checkCreator = $pdo->query("SELECT id FROM users ORDER BY id ASC LIMIT 1");
+            $fallbackCreator = (int) $checkCreator->fetchColumn();
+            if ($fallbackCreator > 0) $creatorId = $fallbackCreator;
+        } catch (Throwable $e) {}
+
+        $pdo->prepare("INSERT INTO internal_chat_conversations (type, created_by) VALUES ('global', ?)")->execute([$creatorId]);
+        $globalId = (int) $pdo->lastInsertId();
+        try {
+            $pdo->prepare('INSERT INTO internal_chat_reads (conversation_id, user_id, last_read_message_id) SELECT ?, id, 0 FROM users')->execute([$globalId]);
+        } catch (Throwable $e) {}
+    }
 }
 
 function chatJson($payload): void {
@@ -88,6 +126,9 @@ function chatStringLength(string $value): int {
 }
 
 function chatConversationAccess(PDO $pdo, int $conversationId, int $userId): bool {
+    $stmt = $pdo->prepare("SELECT type FROM internal_chat_conversations WHERE id = ? LIMIT 1");
+    $stmt->execute([$conversationId]);
+    if (($stmt->fetchColumn() ?: '') === 'global') return true;
     $stmt = $pdo->prepare('SELECT 1 FROM internal_chat_participants WHERE conversation_id = ? AND user_id = ? LIMIT 1');
     $stmt->execute([$conversationId, $userId]);
     return (bool) $stmt->fetchColumn();
@@ -125,6 +166,9 @@ function chatDirectConversation(PDO $pdo, int $userId, int $otherUserId): int {
         $part = $pdo->prepare('INSERT INTO internal_chat_participants (conversation_id, user_id) VALUES (?, ?)');
         $part->execute([$conversationId, $userId]);
         $part->execute([$conversationId, $otherUserId]);
+        $read = $pdo->prepare('INSERT INTO internal_chat_reads (conversation_id, user_id, last_read_message_id) VALUES (?, ?, NULL)');
+        $read->execute([$conversationId, $userId]);
+        $read->execute([$conversationId, $otherUserId]);
 
         $pdo->commit();
         return $conversationId;
@@ -172,6 +216,7 @@ try {
         $stmt = $pdo->prepare("
             SELECT
                 c.id,
+                c.type,
                 c.updated_at,
                 ou.id AS other_user_id,
                 ou.username AS other_username,
@@ -183,9 +228,9 @@ try {
                 m.sender_id AS last_sender_id,
                 COALESCE(unread.total, 0) AS unread_count
             FROM internal_chat_conversations c
-            JOIN internal_chat_participants me ON me.conversation_id = c.id AND me.user_id = ?
-            JOIN internal_chat_participants op ON op.conversation_id = c.id AND op.user_id <> ?
-            JOIN users ou ON ou.id = op.user_id
+            LEFT JOIN internal_chat_participants me ON me.conversation_id = c.id AND me.user_id = ?
+            LEFT JOIN internal_chat_participants op ON op.conversation_id = c.id AND op.user_id <> ?
+            LEFT JOIN users ou ON ou.id = op.user_id
             LEFT JOIN internal_chat_messages m ON m.id = (
                 SELECT id FROM internal_chat_messages
                 WHERE conversation_id = c.id
@@ -193,17 +238,27 @@ try {
                 LIMIT 1
             )
             LEFT JOIN (
-                SELECT p.conversation_id, COUNT(msg.id) AS total
-                FROM internal_chat_participants p
-                JOIN internal_chat_messages msg ON msg.conversation_id = p.conversation_id
-                WHERE p.user_id = ? AND msg.sender_id <> ? AND msg.id > COALESCE(p.last_read_message_id, 0)
-                GROUP BY p.conversation_id
+                SELECT r.conversation_id, COUNT(msg.id) AS total
+                FROM internal_chat_reads r
+                JOIN internal_chat_messages msg ON msg.conversation_id = r.conversation_id
+                WHERE r.user_id = ? AND msg.sender_id <> ? AND msg.id > COALESCE(r.last_read_message_id, 0)
+                GROUP BY r.conversation_id
             ) unread ON unread.conversation_id = c.id
-            ORDER BY COALESCE(m.created_at, c.updated_at) DESC
+            WHERE c.type = 'global' OR me.user_id IS NOT NULL
+            ORDER BY CASE WHEN c.type = 'global' THEN 0 ELSE 1 END, COALESCE(m.created_at, c.updated_at) DESC
             LIMIT 30
         ");
         $stmt->execute([$userId, $userId, $userId, $userId]);
         $conversations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($conversations as &$row) {
+            if (($row['type'] ?? '') === 'global') {
+                $row['other_user_id'] = 0;
+                $row['other_username'] = 'Sala geral';
+                $row['other_nome_completo'] = 'Sala geral';
+                $row['other_avatar'] = '';
+            }
+        }
+        unset($row);
         $totalUnread = array_sum(array_map(fn($row) => (int) $row['unread_count'], $conversations));
         chatJson(['success' => true, 'conversations' => $conversations, 'unread_total' => $totalUnread]);
     }
@@ -236,8 +291,8 @@ try {
             $lastId = max($lastId, (int) $message['id']);
         }
         if ($lastId > 0) {
-            $mark = $pdo->prepare('UPDATE internal_chat_participants SET last_read_message_id = GREATEST(COALESCE(last_read_message_id, 0), ?) WHERE conversation_id = ? AND user_id = ?');
-            $mark->execute([$lastId, $conversationId, $userId]);
+            $mark = $pdo->prepare('INSERT INTO internal_chat_reads (conversation_id, user_id, last_read_message_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE last_read_message_id = GREATEST(COALESCE(last_read_message_id, 0), VALUES(last_read_message_id))');
+            $mark->execute([$conversationId, $userId, $lastId]);
         }
 
         chatJson(['success' => true, 'messages' => $messages]);
@@ -262,7 +317,7 @@ try {
         $stmt->execute([$conversationId, $userId, $body]);
         $messageId = (int) $pdo->lastInsertId();
         $pdo->prepare('UPDATE internal_chat_conversations SET updated_at = NOW() WHERE id = ?')->execute([$conversationId]);
-        $pdo->prepare('UPDATE internal_chat_participants SET last_read_message_id = ? WHERE conversation_id = ? AND user_id = ?')->execute([$messageId, $conversationId, $userId]);
+        $pdo->prepare('INSERT INTO internal_chat_reads (conversation_id, user_id, last_read_message_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE last_read_message_id = GREATEST(COALESCE(last_read_message_id, 0), VALUES(last_read_message_id))')->execute([$conversationId, $userId, $messageId]);
         chatJson(['success' => true, 'message_id' => $messageId]);
     }
 
