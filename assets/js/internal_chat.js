@@ -272,12 +272,12 @@
     messages.forEach(message => {
       state.lastMessageId = Math.max(state.lastMessageId, Number(message.id));
       const mine = Number(message.sender_id) === Number(window.currentUserId || 0);
-      const senderName = String(message.username || '').trim();
+      const senderName = String(message.nome_completo || '').trim() || String(message.username || '').trim();
       const isGlobal = state.activeUser && String(state.activeUser.type || '') === 'global';
       const item = document.createElement('div');
       item.className = 'internal-chat-message' + (mine ? ' mine' : '');
       item.innerHTML = `
-        ${!mine && senderName && !isGlobal ? `<div class="internal-chat-time" style="margin-bottom:.15rem;">${escapeHtml(senderName)}</div>` : ''}
+        ${senderName && (isGlobal || !mine) ? `<div class="internal-chat-sender">${escapeHtml(mine && isGlobal ? 'Voce' : senderName)}</div>` : ''}
         <div class="internal-chat-bubble">${escapeHtml(message.body)}</div>
         <div class="internal-chat-time">${escapeHtml(formatTime(message.created_at))}</div>
       `;

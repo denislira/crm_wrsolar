@@ -1296,6 +1296,8 @@ function editUser(id) {
             document.getElementById('edit_user_id').value = data.user.id;
             document.getElementById('edit_username').value = data.user.username;
             document.getElementById('edit_email').value = data.user.email;
+            document.getElementById('edit_nome_completo').value = data.user.nome_completo || '';
+            document.getElementById('edit_biografia').value = data.user.biografia || '';
             document.getElementById('edit_role_id').value = data.user.role_id;
             if (document.getElementById('edit_team_id')) document.getElementById('edit_team_id').value = data.user.team_id || '';
             if (document.getElementById('edit_role_level')) document.getElementById('edit_role_level').value = data.user.role_level || 0;

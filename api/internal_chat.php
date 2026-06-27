@@ -284,7 +284,7 @@ try {
         }
         $afterId = max(0, (int) ($_GET['after_id'] ?? 0));
         $sql = "
-            SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at, u.username, " . chatUserExpr($userColumns, 'u', 'avatar') . " AS avatar
+            SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at, u.username, COALESCE(NULLIF(TRIM(" . chatUserExpr($userColumns, 'u', 'nome_completo') . "), ''), u.username) AS nome_completo, " . chatUserExpr($userColumns, 'u', 'avatar') . " AS avatar
             FROM internal_chat_messages m
             JOIN users u ON u.id = m.sender_id
             WHERE m.conversation_id = ? AND m.created_at >= ?

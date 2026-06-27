@@ -262,6 +262,19 @@
   align-items: flex-end;
 }
 
+.internal-chat-sender {
+  margin: 0 0 .16rem .18rem;
+  color: #94a3b8;
+  font-size: .66rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.internal-chat-message.mine .internal-chat-sender {
+  margin-right: .18rem;
+  margin-left: 0;
+}
+
 .internal-chat-bubble {
   max-width: 88%;
   padding: .55rem .7rem;
