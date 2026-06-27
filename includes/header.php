@@ -17,6 +17,9 @@ include_once 'includes/permissions.php';
   <!-- Site theme (overrides and design system) -->
   <link rel="stylesheet" href="assets/css/theme.css">
   <link rel="stylesheet" href="assets/css/leads_gestao.css">
+  <?php if (empty($noNavbar) && !empty($_SESSION['user_id'])): ?>
+    <link rel="stylesheet" href="assets/css/internal_chat.css">
+  <?php endif; ?>
   <?php
     // Load appearance settings if available
     $settingsPath = __DIR__ . '/../storage/settings.json';
@@ -105,6 +108,11 @@ include_once 'includes/permissions.php';
   </style>
 </head>
 <body>
+  <?php if (empty($noNavbar) && !empty($_SESSION['user_id'])): ?>
+  <script>
+    window.currentUserId = <?php echo (int) $_SESSION['user_id']; ?>;
+  </script>
+  <?php endif; ?>
   <script>
     (function(){
       try {

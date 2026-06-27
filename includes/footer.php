@@ -122,5 +122,8 @@
   </script>
 
   <script src="assets/js/notifications.js"></script>
+  <?php if (empty($noNavbar) && !empty($_SESSION['user_id'])): ?>
+  <script src="assets/js/internal_chat.js"></script>
+  <?php endif; ?>
 </body>
 </html>
