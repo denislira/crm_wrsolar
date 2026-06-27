@@ -12,6 +12,7 @@ require_once dirname(__DIR__) . '/includes/config.php';
 
 $userId = (int) $_SESSION['user_id'];
 $action = $_GET['action'] ?? $_POST['action'] ?? 'summary';
+$chatCutoff = date('Y-m-d H:i:s', strtotime('-48 hours'));
 
 function chatEnsureTables(PDO $pdo): void {
     $pdo->exec("
@@ -213,12 +214,17 @@ try {
     }
 
     if ($action === 'summary') {
-        $stmt = $pdo->prepare("
+        $globalStmt = $pdo->prepare("SELECT id, type, updated_at FROM internal_chat_conversations WHERE type = 'global' ORDER BY id ASC LIMIT 1");
+        $globalStmt->execute();
+        $globalConversation = $globalStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        $conversations = [];
+        $privateStmt = $pdo->prepare("
             SELECT
                 c.id,
                 c.type,
                 c.updated_at,
-                ou.id AS other_user_id,
+                op.user_id AS other_user_id,
                 ou.username AS other_username,
                 " . chatUserExpr($userColumns, 'ou', 'nome_completo') . " AS other_nome_completo,
                 " . chatUserExpr($userColumns, 'ou', 'avatar') . " AS other_avatar,
@@ -228,12 +234,12 @@ try {
                 m.sender_id AS last_sender_id,
                 COALESCE(unread.total, 0) AS unread_count
             FROM internal_chat_conversations c
-            LEFT JOIN internal_chat_participants me ON me.conversation_id = c.id AND me.user_id = ?
-            LEFT JOIN internal_chat_participants op ON op.conversation_id = c.id AND op.user_id <> ?
-            LEFT JOIN users ou ON ou.id = op.user_id
+            JOIN internal_chat_participants me ON me.conversation_id = c.id AND me.user_id = ?
+            JOIN internal_chat_participants op ON op.conversation_id = c.id AND op.user_id <> ?
+            JOIN users ou ON ou.id = op.user_id
             LEFT JOIN internal_chat_messages m ON m.id = (
                 SELECT id FROM internal_chat_messages
-                WHERE conversation_id = c.id
+                WHERE conversation_id = c.id AND created_at >= ?
                 ORDER BY id DESC
                 LIMIT 1
             )
@@ -241,24 +247,31 @@ try {
                 SELECT r.conversation_id, COUNT(msg.id) AS total
                 FROM internal_chat_reads r
                 JOIN internal_chat_messages msg ON msg.conversation_id = r.conversation_id
-                WHERE r.user_id = ? AND msg.sender_id <> ? AND msg.id > COALESCE(r.last_read_message_id, 0)
+                WHERE r.user_id = ? AND msg.sender_id <> ? AND msg.id > COALESCE(r.last_read_message_id, 0) AND msg.created_at >= ?
                 GROUP BY r.conversation_id
             ) unread ON unread.conversation_id = c.id
-            WHERE c.type = 'global' OR me.user_id IS NOT NULL
-            ORDER BY CASE WHEN c.type = 'global' THEN 0 ELSE 1 END, COALESCE(m.created_at, c.updated_at) DESC
-            LIMIT 30
+            WHERE c.type = 'direct'
+            ORDER BY COALESCE(m.created_at, c.updated_at) DESC
+            LIMIT 29
         ");
-        $stmt->execute([$userId, $userId, $userId, $userId]);
-        $conversations = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($conversations as &$row) {
-            if (($row['type'] ?? '') === 'global') {
-                $row['other_user_id'] = 0;
-                $row['other_username'] = 'Sala geral';
-                $row['other_nome_completo'] = 'Sala geral';
-                $row['other_avatar'] = '';
-            }
+        $privateStmt->execute([$userId, $userId, $chatCutoff, $userId, $userId, $chatCutoff]);
+        $conversations = $privateStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!$globalConversation) {
+            $globalConversation = ['id' => 0, 'type' => 'global', 'updated_at' => date('Y-m-d H:i:s')];
+        } else {
+            $globalConversation['type'] = 'global';
+            $globalConversation['other_user_id'] = 0;
+            $globalConversation['other_username'] = 'Sala geral';
+            $globalConversation['other_nome_completo'] = 'Sala geral';
+            $globalConversation['other_avatar'] = '';
+            $globalConversation['last_message_id'] = null;
+            $globalConversation['last_message'] = null;
+            $globalConversation['last_message_at'] = null;
+            $globalConversation['last_sender_id'] = null;
+            $globalConversation['unread_count'] = 0;
         }
-        unset($row);
+        array_unshift($conversations, $globalConversation);
         $totalUnread = array_sum(array_map(fn($row) => (int) $row['unread_count'], $conversations));
         chatJson(['success' => true, 'conversations' => $conversations, 'unread_total' => $totalUnread]);
     }
@@ -274,9 +287,9 @@ try {
             SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at, u.username, " . chatUserExpr($userColumns, 'u', 'avatar') . " AS avatar
             FROM internal_chat_messages m
             JOIN users u ON u.id = m.sender_id
-            WHERE m.conversation_id = ?
+            WHERE m.conversation_id = ? AND m.created_at >= ?
         ";
-        $params = [$conversationId];
+        $params = [$conversationId, $chatCutoff];
         if ($afterId > 0) {
             $sql .= ' AND m.id > ?';
             $params[] = $afterId;
