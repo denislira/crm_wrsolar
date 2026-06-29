@@ -580,7 +580,7 @@ try {
         $usersTasks = []; 
 }
 
-// Movements per user (lead_movements) and date-update heuristics from activity_log
+// Movements per user (lead_movements) and leads updated in the period.
 $movementsByUser = [];
 $dateUpdatesByUser = [];
 try {
@@ -592,15 +592,33 @@ try {
     $mvStmt->execute([$fStartStr, $fEndStr]);
     $movementsByUser = $mvStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Heuristic: count activity_log messages that likely indicate a date update
-    $duStmt = $pdo->prepare("SELECT COALESCE(u.username, '(desconhecido)') AS username, COUNT(*) AS cnt
-        FROM activity_log a
-        LEFT JOIN users u ON u.id = a.user_id
-        WHERE a.created_at >= ? AND a.created_at <= ? AND (
-            a.message LIKE ? OR a.message LIKE ?
-        ) GROUP BY a.user_id ORDER BY cnt DESC LIMIT 20");
-    $duStmt->execute([$fStartStr, $fEndStr, '%data%', '%atualiz%']);
-    $dateUpdatesByUser = $duStmt->fetchAll(PDO::FETCH_ASSOC);
+    $hasLeadUpdateLogs = false;
+    try {
+        $logTableStmt = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lead_update_logs'");
+        $logTableStmt->execute();
+        $hasLeadUpdateLogs = (bool)$logTableStmt->fetchColumn();
+    } catch (Exception $e) { $hasLeadUpdateLogs = false; }
+
+    if ($hasLeadUpdateLogs) {
+        $duSrcCond = '';
+        $duParams = [$fStartStr, $fEndStr];
+        if (!empty($filterSources)) {
+            $duSrcCond = " AND COALESCE(NULLIF(l.source,''),'') IN (" . implode(',', array_fill(0, count($filterSources), '?')) . ")";
+            foreach ($filterSources as $s) $duParams[] = (string)$s;
+        }
+        $duDelCond = in_array('deleted', $leadCols, true) ? " AND COALESCE(l.deleted, 0) = 0" : "";
+        $duStmt = $pdo->prepare("SELECT COALESCE(u.username, '(desconhecido)') AS username, COUNT(*) AS cnt
+            FROM lead_update_logs lul
+            LEFT JOIN users u ON u.id = lul.user_id
+            LEFT JOIN leads l ON l.id = lul.lead_id
+            WHERE lul.created_at >= ? AND lul.created_at <= ?
+              AND lul.updated_field = 'ultimo_contato'
+              {$duDelCond}{$duSrcCond}
+            GROUP BY lul.user_id, u.username
+            ORDER BY cnt DESC LIMIT 20");
+        $duStmt->execute($duParams);
+        $dateUpdatesByUser = $duStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
     $movementsByUser = [];
     $dateUpdatesByUser = [];
@@ -1234,7 +1252,7 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(59,130
                                     <tr>
                                         <th>Consultor</th>
                                         <th style="width:140px;">Movimentações</th>
-                                        <th style="width:140px;">Data Retomadas</th>
+                                        <th style="width:140px;">Data Retomada</th>
                                     </tr>
                                 </thead>
                                 <tbody>

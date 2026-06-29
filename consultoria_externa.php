@@ -20,8 +20,8 @@ if (!$roleName && !empty($_SESSION['role_id'])) {
     $roleName = $stmt->fetchColumn();
 }
 
-if (strtolower((string)$roleName) !== 'consultor_externo') {
-    // Redirect non-external-consultants to dashboard
+if (strtolower((string)$roleName) !== 'consultor_externo' && !(function_exists('isDirector') && isDirector())) {
+    // Redirect users without access to dashboard
     header('Location: index.php');
     exit;
 }
@@ -76,8 +76,28 @@ function ce_date($value) {
     return date('d/m', $ts);
 }
 
-$userId = (int) $_SESSION['user_id'];
+$loggedUserId = (int) $_SESSION['user_id'];
+$requestedConsultorId = isset($_GET['consultor_id']) ? (int) $_GET['consultor_id'] : 0;
+$isDirector = function_exists('isDirector') && isDirector();
+$userId = $loggedUserId;
 $displayName = trim((string) ($_SESSION['username'] ?? 'Consultor Externo'));
+
+if ($isDirector && $requestedConsultorId > 0) {
+    $stmt = $pdo->prepare("
+        SELECT u.id, u.username
+          FROM users u
+          LEFT JOIN roles r ON r.id = u.role_id
+         WHERE u.id = ? AND LOWER(COALESCE(r.name, '')) = 'consultor_externo'
+         LIMIT 1
+    ");
+    $stmt->execute([$requestedConsultorId]);
+    $requestedConsultor = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($requestedConsultor) {
+        $userId = (int) $requestedConsultor['id'];
+        $displayName = trim((string) ($requestedConsultor['username'] ?? $displayName));
+    }
+}
+
 $apiBase = 'includes/consultoria_externa_api.php';
 $stagesApiBase = 'includes/consultoria_externa_stages_api.php';
 
@@ -492,7 +512,7 @@ include 'includes/header.php';
             <div class="ce-toolbar">
                 <div>
                     <h1>Painel de Consultores Externos</h1>
-                    <div class="ce-toolbar-subtitle">Visão rápida das visitas, orçamentos, financiamentos e contratos do consultor logado.</div>
+                    <div class="ce-toolbar-subtitle">Visão rápida das visitas, orçamentos, financiamentos e contratos de <?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?>.</div>
                 </div>
                 <div class="ce-actions">
                     <input id="ceSearchInput" type="search" class="form-control ce-search" placeholder="Buscar cliente...">

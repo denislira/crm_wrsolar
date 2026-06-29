@@ -26,6 +26,23 @@ if (strtolower((string)$roleName) === 'consultor_externo' || !$canAccessDemandQu
 }
 
 ce_ensure_stage_tables($pdo);
+$consultorRows = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT u.id, u.username, COUNT(c.id) AS total_items
+          FROM users u
+          LEFT JOIN roles r ON r.id = u.role_id
+          LEFT JOIN consultoria_externa_itens c
+            ON c.user_id = u.id AND COALESCE(c.deleted, 0) = 0
+         WHERE LOWER(COALESCE(r.name, '')) = 'consultor_externo'
+         GROUP BY u.id, u.username
+         ORDER BY u.username ASC
+    ");
+    $stmt->execute();
+    $consultorRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {
+    $consultorRows = [];
+}
 $pageTitle = 'Fila de Demandas';
 include 'includes/header.php';
 ?>
@@ -117,6 +134,7 @@ include 'includes/header.php';
                 display: flex;
                 gap: 1rem;
                 margin-bottom: 1.45rem;
+                flex-wrap: wrap;
             }
             .dm-tab {
                 border: 1px solid #dbe4ef;
@@ -135,6 +153,47 @@ include 'includes/header.php';
                 border-color: #ff6b18;
                 color: #fff;
                 box-shadow: 0 8px 18px rgba(255, 107, 24, .25);
+            }
+            .dm-consultor-list {
+                display: grid;
+                gap: .75rem;
+            }
+            .dm-consultor-card {
+                width: 100%;
+                border: 1px solid #edf1f6;
+                background: #fff;
+                border-radius: 12px;
+                padding: 1rem 1.1rem;
+                box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+                transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 1rem;
+                text-align: left;
+            }
+            .dm-consultor-card:hover {
+                border-color: #bfdbfe;
+                box-shadow: 0 12px 24px rgba(15, 23, 42, .08);
+                transform: translateY(-1px);
+            }
+            .dm-consultor-name {
+                font-weight: 900;
+                color: #06172d;
+                margin-bottom: .25rem;
+            }
+            .dm-consultor-meta {
+                color: #64748b;
+                font-size: .82rem;
+            }
+            .dm-consultor-badge {
+                border-radius: 999px;
+                padding: .35rem .6rem;
+                background: #eff6ff;
+                color: #1d4ed8;
+                font-size: .72rem;
+                font-weight: 900;
+                white-space: nowrap;
             }
             .dm-list {
                 display: grid;
@@ -332,6 +391,7 @@ include 'includes/header.php';
                 .dm-tab { min-width: 0; flex: 1; }
                 .dm-card-meta,
                 .dm-detail-grid { grid-template-columns: 1fr; }
+                .dm-consultor-card { align-items: flex-start; flex-direction: column; }
             }
         </style>
 
@@ -352,8 +412,9 @@ include 'includes/header.php';
             <section class="dm-layout">
                 <aside class="dm-left">
                     <div class="dm-tabs" role="group" aria-label="Filtrar demandas">
-                        <button id="dmPendingTab" class="dm-tab active" type="button" data-status="pending">Aguardando (0)</button>
-                        <button id="dmSentTab" class="dm-tab" type="button" data-status="sent">Enviados (0)</button>
+                        <button id="dmPendingTab" class="dm-tab active" type="button" data-view="pending">Aguardando (0)</button>
+                        <button id="dmSentTab" class="dm-tab" type="button" data-view="sent">Enviados (0)</button>
+                        <button id="dmConsultorTab" class="dm-tab" type="button" data-view="consultors">Consultores Externo</button>
                     </div>
                     <div id="dmList" class="dm-list">
                         <div class="dm-empty-list">Carregando demandas...</div>
@@ -376,9 +437,10 @@ include 'includes/header.php';
                 const detailEl = document.getElementById('dmDetailPane');
                 const queueCountEl = document.getElementById('dmQueueCount');
                 const bellCountEl = document.getElementById('dmBellCount');
-                const tabs = Array.from(document.querySelectorAll('.dm-tab[data-status]'));
+                const tabs = Array.from(document.querySelectorAll('.dm-tab[data-view]'));
                 let rows = [];
                 let currentTab = 'pending';
+                const consultantRows = <?php echo json_encode($consultorRows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
                 let selectedId = null;
 
                 function escapeHtml(value) {
@@ -412,6 +474,12 @@ include 'includes/header.php';
                     if (currentTab === 'pending') {
                         return rows.filter((row) => row.demand_status === 'pending');
                     }
+                    if (currentTab === 'sent') {
+                        return rows.filter((row) => row.demand_status !== 'pending');
+                    }
+                    if (currentTab === 'consultors') {
+                        return [];
+                    }
                     return rows.filter((row) => row.demand_status !== 'pending');
                 }
 
@@ -435,6 +503,19 @@ include 'includes/header.php';
                 }
 
                 function renderList() {
+                    if (currentTab === 'consultors') {
+                        listEl.innerHTML = consultantRows.length ? consultantRows.map((row) => `
+                            <a class="dm-consultor-card text-decoration-none" href="consultoria_externa.php?consultor_id=${encodeURIComponent(row.id)}">
+                                <div>
+                                    <div class="dm-consultor-name">${escapeHtml(row.username || 'Consultor externo')}</div>
+                                    <div class="dm-consultor-meta">${Number(row.total_items || 0)} registro(s) no kanban</div>
+                                </div>
+                                <span class="dm-consultor-badge">Abrir kanban</span>
+                            </a>
+                        `).join('') : '<div class="dm-empty-list">Nenhum consultor externo encontrado.</div>';
+                        return;
+                    }
+
                     const list = visibleRows();
                     updateTabs();
                     if (!list.length) {
@@ -451,12 +532,12 @@ include 'includes/header.php';
                             <div class="dm-card-top">
                                 <div>
                                     <div class="dm-id">ID #${escapeHtml(row.external_item_id)}</div>
-                                    <h2 class="dm-card-title">${escapeHtml(row.client_name || 'Registro sem nome')}</h2>
+                                    <h2 class="dm-card-title">${escapeHtml(row.external_consultor || 'Consultor externo')}</h2>
                                 </div>
                                 <span class="dm-priority ${priorityClass(row)}">${priorityLabel(row)}</span>
                             </div>
                             <div class="dm-card-meta">
-                                <span><i class="fa-solid fa-user-plus"></i>${escapeHtml(row.external_consultor || '-')}</span>
+                                <span><i class="fa-solid fa-user-plus"></i>${escapeHtml(row.client_name || 'Registro sem nome')}</span>
                                 <span><i class="fa-regular fa-clock"></i>${dateLabel(row.queued_at)}</span>
                                 <span><i class="fa-solid fa-chart-simple"></i><strong>${money(row.value)}</strong></span>
                                 <span><i class="fa-solid fa-layer-group"></i>${escapeHtml(row.stage_name || 'Sem coluna')}</span>
@@ -498,15 +579,15 @@ include 'includes/header.php';
                             <div class="dm-detail-head">
                                 <div>
                                     <div class="dm-detail-id">ID #${escapeHtml(row.external_item_id)}</div>
-                                    <h2 class="dm-detail-title">${escapeHtml(row.client_name || 'Registro sem nome')}</h2>
+                                    <h2 class="dm-detail-title">${escapeHtml(row.external_consultor || 'Consultor externo')}</h2>
                                 </div>
                                 <span class="dm-status ${escapeHtml(row.demand_status || 'pending')}">${statusLabel(row.demand_status)}</span>
                             </div>
 
                             <div class="dm-detail-grid">
                                 <div class="dm-field">
-                                    <div class="dm-field-label">Consultor externo</div>
-                                    <div class="dm-field-value">${escapeHtml(row.external_consultor || '-')}</div>
+                                    <div class="dm-field-label">Cliente</div>
+                                    <div class="dm-field-value">${escapeHtml(row.client_name || 'Registro sem nome')}</div>
                                 </div>
                                 <div class="dm-field">
                                     <div class="dm-field-label">Coluna de origem</div>
@@ -579,7 +660,7 @@ include 'includes/header.php';
                     tab.addEventListener('click', () => {
                         tabs.forEach((item) => item.classList.remove('active'));
                         tab.classList.add('active');
-                        currentTab = tab.dataset.status || 'pending';
+                        currentTab = tab.dataset.view || 'pending';
                         selectedId = null;
                         renderList();
                         renderEmptyDetail();

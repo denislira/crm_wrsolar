@@ -302,6 +302,15 @@ CREATE TABLE IF NOT EXISTS lead_movements (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS lead_update_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  lead_id INT NOT NULL,
+  user_id INT DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_lead_update_logs_created_user (created_at, user_id),
+  INDEX idx_lead_update_logs_lead (lead_id)
+);
+
 CREATE TABLE IF NOT EXISTS leads_anuncios (
   id INT AUTO_INCREMENT PRIMARY KEY,
   lead_id INT NOT NULL,

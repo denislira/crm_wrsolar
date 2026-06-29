@@ -129,6 +129,15 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
     }
 }
 
+function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, $newValue = null) {
+    try {
+        $ins = $pdo->prepare('INSERT INTO lead_update_logs (lead_id, user_id, updated_field, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
+        $ins->execute([$leadId, $userId, $fieldName, $oldValue, $newValue]);
+    } catch (Exception $e) {
+        _leads_api_log('lead_update_logs insert failed: ' . $e->getMessage());
+    }
+}
+
 
     if ($action === 'search') {
         $query = $_GET['q'] ?? '';
@@ -656,7 +665,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         } catch (Exception $e) {}
 
         // Fetch previous state to detect changes
-        $pre = $pdo->prepare('SELECT id, status, stage_id, notes FROM leads WHERE id = ? LIMIT 1');
+        $pre = $pdo->prepare('SELECT id, status, stage_id, notes, ultimo_contato FROM leads WHERE id = ? LIMIT 1');
         $pre->execute([$data['id']]);
         $prev = $pre->fetch(PDO::FETCH_ASSOC);
         $fromStatus = $prev['status'] ?? null;
@@ -740,6 +749,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
             elseif (strpos($u, 'T') !== false) { $u = str_replace('T', ' ', $u); if (strlen($u) == 16) $u .= ':00'; }
             $ultimoContato = $u;
         }
+        $oldUltimoContato = $prev['ultimo_contato'] ?? null;
 
         $dataInicio = null;
         if (!empty($data['data_inicio'])) {
@@ -820,6 +830,9 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         $stmt = $pdo->prepare('UPDATE leads SET name=?, cidade=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, orcamento_value=?, envio_proposta=?, ultimo_contato=?, forma_pagamento=?, data_inicio=?, user_id_update=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=?');
         try {
             $stmt->execute($params);
+            if ((string)$oldUltimoContato !== (string)$ultimoContato) {
+                _log_lead_update($pdo, (int)$data['id'], $userId, 'ultimo_contato', $oldUltimoContato, $ultimoContato);
+            }
         } catch (Exception $e) {
             _leads_api_log('update:leads failed: ' . $e->getMessage());
             http_response_code(500);
@@ -947,6 +960,7 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         $stmt = $pdo->prepare('UPDATE leads SET status=?, stage_id=?, updated_at=NOW() WHERE id=?');
         $p0 = is_string($data['status']) ? ensure_utf8_local($data['status']) : $data['status'];
         $stmt->execute([$p0, $resolvedStageId, $data['id']]);
+        _log_lead_update($pdo, (int)$data['id'], $userId);
 
         // Log immutable movement for audit & metrics (best-effort)
         try {
