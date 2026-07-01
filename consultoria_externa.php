@@ -20,8 +20,10 @@ if (!$roleName && !empty($_SESSION['role_id'])) {
     $roleName = $stmt->fetchColumn();
 }
 
-if (strtolower((string)$roleName) !== 'consultor_externo' && !(function_exists('isDirector') && isDirector())) {
-    // Redirect users without access to dashboard
+$isConsultorExterno = strtolower((string)$roleName) === 'consultor_externo';
+$isDirector = function_exists('isDirector') && isDirector();
+$canOpenConsultoriaExterna = $isConsultorExterno || $isDirector || hasPermission('consultoria_externa');
+if (!$canOpenConsultoriaExterna) {
     header('Location: index.php');
     exit;
 }
@@ -78,7 +80,6 @@ function ce_date($value) {
 
 $loggedUserId = (int) $_SESSION['user_id'];
 $requestedConsultorId = isset($_GET['consultor_id']) ? (int) $_GET['consultor_id'] : 0;
-$isDirector = function_exists('isDirector') && isDirector();
 $userId = $loggedUserId;
 $displayName = trim((string) ($_SESSION['username'] ?? 'Consultor Externo'));
 
