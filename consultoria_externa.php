@@ -281,12 +281,31 @@ include 'includes/header.php';
                 line-height: 1;
             }
             .ce-board {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+                display: flex;
                 gap: 1rem;
-                align-items: start;
+                align-items: flex-start;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: .25rem 0 .75rem;
+                scrollbar-gutter: stable;
+            }
+            .ce-board::-webkit-scrollbar {
+                height: 12px;
+            }
+            .ce-board::-webkit-scrollbar-track {
+                background: #e9eef5;
+                border-radius: 999px;
+            }
+            .ce-board::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 999px;
+            }
+            .ce-board::-webkit-scrollbar-thumb:hover {
+                background: #94a3b8;
             }
             .ce-column {
+                flex: 0 0 320px;
+                min-width: 320px;
                 background: rgba(226, 232, 240, 0.45);
                 border-radius: 18px;
                 padding: .9rem;
@@ -360,7 +379,7 @@ include 'includes/header.php';
                 margin: 0;
             }
             .ce-card-link {
-                color: #94a3b8;
+                color: #64748b;
                 text-decoration: none;
             }
             .ce-card-link:hover {
@@ -497,6 +516,14 @@ include 'includes/header.php';
                 .ce-board {
                     grid-template-columns: 1fr;
                 }
+                .ce-board {
+                    display: flex;
+                    overflow-x: auto;
+                }
+                .ce-column {
+                    flex-basis: 280px;
+                    min-width: 280px;
+                }
                 .ce-actions {
                     width: 100%;
                 }
@@ -563,7 +590,7 @@ include 'includes/header.php';
                 <?php endforeach; ?>
             </div>
 
-            <div class="ce-board">
+            <div class="ce-board" id="ceBoard">
                 <?php foreach ($stageMeta as $stageKey => $meta): ?>
                     <section class="ce-column" style="--accent: <?php echo htmlspecialchars($meta['accent'], ENT_QUOTES, 'UTF-8'); ?>;" data-stage-column="<?php echo htmlspecialchars($stageKey, ENT_QUOTES, 'UTF-8'); ?>">
                         <div class="ce-column-header">
@@ -794,6 +821,7 @@ include 'includes/header.php';
                 const cards = Array.from(document.querySelectorAll('[data-card]'));
                 const countBadges = Array.from(document.querySelectorAll('[data-count-for]'));
                 const summaryValues = Array.from(document.querySelectorAll('[data-summary-stage]'));
+                const board = document.getElementById('ceBoard');
                 const openLeadModalBtn = document.getElementById('ceOpenLeadModal');
                 const openStagesModalBtn = document.getElementById('ceOpenStagesModal');
                 const leadModalEl = document.getElementById('ceLeadModal');
@@ -869,6 +897,15 @@ include 'includes/header.php';
                         const visibleCount = cards.filter((card) => card.dataset.stage === stage && card.style.display !== 'none').length;
                         summary.textContent = String(visibleCount).padStart(2, '0');
                     });
+                }
+
+                if (board) {
+                    board.addEventListener('wheel', (event) => {
+                        if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+                            board.scrollLeft += event.deltaY;
+                            event.preventDefault();
+                        }
+                    }, { passive: false });
                 }
 
                 function formatMoneyInput(value) {
