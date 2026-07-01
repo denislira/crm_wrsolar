@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // relatorios.php - Extended reports with multiple charts and a funnel
 if (session_status() == PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['username'])) { header('Location: login.php'); exit(); }
@@ -185,6 +185,8 @@ $timelineTypes = [];
 $avgDaysToClose = null;
 $avgTicket = null;
 $sources = [];
+$timeDistribution = array_fill(1, 7, 0);
+$trendSeries = [];
 
 try {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE {$filterWhere}");
@@ -210,9 +212,9 @@ try {
         }
 } catch (Exception $e) { $stages = []; $stageCounts = []; }
 
-// Monthly created (last 12 months) - always use calendar-aligned 12 months range
-$reportMonthsStart = (new DateTime('first day of this month'))->modify('-11 months')->setTime(0,0,0);
-$reportMonthsEnd = (new DateTime('last day of this month'))->setTime(23,59,59);
+// Monthly series follows the same selected filter range
+$reportMonthsStart = $fStart;
+$reportMonthsEnd = $fEnd;
 $reportMonthsWhere = "{$dateCol} >= ? AND {$dateCol} <= ?{$baseDelCond}{$srcCond}";
 $reportMonthsParams = array_merge([$reportMonthsStart->format('Y-m-d H:i:s'), $reportMonthsEnd->format('Y-m-d H:i:s')], $srcParams);
 
@@ -309,9 +311,39 @@ try {
 
         // sources
         if ($sourceCol) {
-                $sstmt = $pdo->query("SELECT COALESCE(NULLIF({$sourceCol},''),'Sem origem') AS source, COUNT(*) AS cnt FROM leads GROUP BY COALESCE(NULLIF({$sourceCol},''),'Sem origem') ORDER BY cnt DESC");
+                $sstmt = $pdo->prepare("SELECT COALESCE(NULLIF({$sourceCol},''),'Sem origem') AS source, COUNT(*) AS cnt FROM leads WHERE {$filterWhere} GROUP BY COALESCE(NULLIF({$sourceCol},''),'Sem origem') ORDER BY cnt DESC");
+                $sstmt->execute($filterParams);
                 $sources = $sstmt->fetchAll(PDO::FETCH_ASSOC);
         }
+
+        try {
+                $dowStmt = $pdo->prepare(
+                        "SELECT DAYOFWEEK({$dateCol}) AS dow, COUNT(*) AS cnt
+                         FROM leads
+                         WHERE {$filterWhere}
+                         GROUP BY dow
+                         ORDER BY dow ASC"
+                );
+                $dowStmt->execute($filterParams);
+                foreach ($dowStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                        $dow = (int)($row['dow'] ?? 0);
+                        if ($dow >= 1 && $dow <= 7) {
+                                $timeDistribution[$dow] = (int)($row['cnt'] ?? 0);
+                        }
+                }
+        } catch (Exception $e) { /* ignore */ }
+
+        try {
+                $trendStmt = $pdo->prepare(
+                        "SELECT DATE_FORMAT({$dateCol}, '%Y-%m') AS ym, COUNT(*) AS cnt
+                         FROM leads
+                         WHERE {$filterWhere}
+                         GROUP BY ym
+                         ORDER BY ym ASC"
+                );
+                $trendStmt->execute($filterParams);
+                $trendSeries = $trendStmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) { $trendSeries = []; }
 
 } catch (Exception $e) { /* ignore and continue */ }
 
@@ -324,7 +356,8 @@ try {
                         if (in_array($sc, $leadCols, true)) { $sourceCol = $sc; break; }
                 }
                 if ($sourceCol) {
-                        $sstmt = $pdo->query("SELECT COALESCE(NULLIF({$sourceCol},''),'Sem origem') AS source, COUNT(*) AS cnt FROM leads GROUP BY COALESCE(NULLIF({$sourceCol},''),'Sem origem') ORDER BY cnt DESC");
+                        $sstmt = $pdo->prepare("SELECT COALESCE(NULLIF({$sourceCol},''),'Sem origem') AS source, COUNT(*) AS cnt FROM leads WHERE {$filterWhere} GROUP BY COALESCE(NULLIF({$sourceCol},''),'Sem origem') ORDER BY cnt DESC");
+                        $sstmt->execute($filterParams);
                         $sources = $sstmt->fetchAll(PDO::FETCH_ASSOC);
                 }
         }
@@ -2022,6 +2055,8 @@ const REPORT_CONVERSION_RATE = <?php echo json_encode($conversionRate, JSON_HEX_
 const REPORT_AVG_DAYS_TO_CLOSE = <?php echo json_encode($avgDaysToClose, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_AVG_TICKET = <?php echo json_encode($avgTicket, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_SOURCES = <?php echo json_encode($sources, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_TIME_DISTRIBUTION = <?php echo json_encode($timeDistribution, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_TRENDS_SERIES = <?php echo json_encode($trendSeries, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_USERS_RANKING = <?php echo json_encode($usersRanking, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_USERS_TASKS = <?php echo json_encode($usersTasks, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 
@@ -2081,14 +2116,11 @@ function formatNumber(value) {
     return new Intl.NumberFormat('pt-BR').format(value || 0);
 }
 
-function buildLast12Months() {
-    const res = []; 
-    const now = new Date(); 
-    for (let i=11;i>=0;i--){ 
-        const d=new Date(now.getFullYear(), now.getMonth()-i,1); 
-        res.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')); 
-    } 
-    return res;
+function buildSeriesMonths(series) {
+    const rows = Array.isArray(series) ? series : [];
+    const labels = rows.map(r => r.ym || '');
+    const values = rows.map(r => Number(r.cnt) || 0);
+    return { labels, values };
 }
 
 function getMonthName(ym) {
@@ -2301,15 +2333,11 @@ function renderLeadsMonthlyChart() {
     if (!ctx) return;
     
     destroyChart('chartLeadsMonthly');
-    
-    const monthsMap = {}; 
-    REPORT_MONTHS.forEach(r => monthsMap[r.ym] = Number(r.cnt));
-    const monthsClosedMap = {}; 
-    REPORT_MONTHS_CLOSED.forEach(r => monthsClosedMap[r.ym] = Number(r.cnt));
-    const last12 = buildLast12Months();
-    const createdData = last12.map(m => monthsMap[m] || 0);
-    const closedData = last12.map(m => monthsClosedMap[m] || 0);
-    const labels = last12.map(getMonthName);
+    const createdSeries = buildSeriesMonths(REPORT_MONTHS);
+    const closedSeries = buildSeriesMonths(REPORT_MONTHS_CLOSED);
+    const labels = createdSeries.labels.length > 0 ? createdSeries.labels : closedSeries.labels;
+    const createdData = labels.map((m, i) => createdSeries.values[i] || 0);
+    const closedData = labels.map((m, i) => closedSeries.values[i] || 0);
     const maxValue = Math.max(...createdData, ...closedData, 1);
     const desiredLines = 12;
     const stepSize = Math.max(1, Math.ceil(maxValue / desiredLines));
@@ -2497,15 +2525,11 @@ function renderCreatedClosedChart() {
     if (!ctx) return;
     
     destroyChart('chartCreatedClosed');
-    
-    const monthsMap = {}; 
-    REPORT_MONTHS.forEach(r=>monthsMap[r.ym]=Number(r.cnt));
-    const monthsClosedMap = {}; 
-    REPORT_MONTHS_CLOSED.forEach(r=>monthsClosedMap[r.ym]=Number(r.cnt));
-    const last12 = buildLast12Months();
-    const createdData = last12.map(m=>monthsMap[m]||0);
-    const closedData = last12.map(m=>monthsClosedMap[m]||0);
-    const labels = last12.map(getMonthName);
+    const createdSeries = buildSeriesMonths(REPORT_MONTHS);
+    const closedSeries = buildSeriesMonths(REPORT_MONTHS_CLOSED);
+    const labels = createdSeries.labels.length > 0 ? createdSeries.labels : closedSeries.labels;
+    const createdData = labels.map((m, i) => createdSeries.values[i] || 0);
+    const closedData = labels.map((m, i) => closedSeries.values[i] || 0);
     
     chartInstances['chartCreatedClosed'] = new Chart(ctx, { 
         type:'bar', 
@@ -2544,17 +2568,15 @@ function renderTimeDistributionChart() {
     if (!ctx) return;
     
     destroyChart('chartTimeDistribution');
-    
-    // Simulate weekly distribution
-    const weeks = ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'];
-    const weekData = weeks.map(() => Math.floor(Math.random() * 50) + 10);
+    const labels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const weekData = labels.map((_, idx) => Number(REPORT_TIME_DISTRIBUTION[idx + 1] || 0));
     
     chartInstances['chartTimeDistribution'] = new Chart(ctx, { 
         type:'line', 
         data:{ 
-            labels: weeks, 
+            labels: labels, 
             datasets:[{ 
-                label:'Atividade Semanal', 
+                label:'Leads por dia da semana', 
                 data:weekData, 
                 borderColor:'#8b5cf6', 
                 backgroundColor:'rgba(139,92,246,0.1)', 
@@ -2579,21 +2601,19 @@ function renderTimeDistributionChart() {
 function renderTrendsChart() {
     const ctx = document.getElementById('chartTrends');
     if (!ctx) return;
-    
+
     destroyChart('chartTrends');
-    
-    const last12 = buildLast12Months();
-    const labels = last12.map(getMonthName);
-    
-    // Simulate trend data
-    const trendData = last12.map((_, i) => 20 + (i * 5) + Math.random() * 10);
-    
+
+    const rows = Array.isArray(REPORT_TRENDS_SERIES) ? REPORT_TRENDS_SERIES : [];
+    const labels = rows.map(r => r.ym || '');
+    const trendData = rows.map(r => Number(r.cnt) || 0);
+
     chartInstances['chartTrends'] = new Chart(ctx, { 
         type:'line', 
         data:{ 
             labels, 
             datasets:[{ 
-                label:'Tendência de Crescimento', 
+                label:'Leads no período', 
                 data:trendData, 
                 borderColor:'#f59e0b', 
                 backgroundColor:'rgba(245,158,11,0.1)', 
@@ -3303,12 +3323,11 @@ function renderFinanceiroCharts() {
     const revEl = document.getElementById('chartRevenueMonthly');
     if (revEl) {
         destroyChart('chartRevenueMonthly');
-        const monthsMap = {};
-        (REPORT_MONTHS || []).forEach(r => monthsMap[r.ym] = Number(r.cnt));
-        const last12 = buildLast12Months();
-        const labels = last12.map(getMonthName);
+        const months = Array.isArray(REPORT_MONTHS) ? REPORT_MONTHS : [];
+        const labels = months.map(r => r.ym || '');
+        const leadCounts = months.map(r => Number(r.cnt) || 0);
         const avgT = REPORT_AVG_TICKET || 0;
-        const revenueData = last12.map(m => (monthsMap[m] || 0) * avgT);
+        const revenueData = leadCounts.map(cnt => cnt * avgT);
         const hasRevenue = revenueData.some(v => v > 0);
 
         if (!hasRevenue) {
