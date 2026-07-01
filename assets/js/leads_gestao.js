@@ -191,12 +191,47 @@
         return '#' + toHex(mix(rgb.r)) + toHex(mix(rgb.g)) + toHex(mix(rgb.b));
     }
 
+    function darkenHexColor(hex, amount = 0.82){
+        const rgb = hexToRgb(hex);
+        if (!rgb) return hex || '';
+        const mix = (channel) => Math.round(channel * (1 - amount));
+        const toHex = (n) => n.toString(16).padStart(2, '0');
+        return '#' + toHex(mix(rgb.r)) + toHex(mix(rgb.g)) + toHex(mix(rgb.b));
+    }
+
+    function isDarkThemeActive(){
+        return document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
+    }
+
     function applyKanbanHeaderColor(headerEl, columnColor){
         if (!headerEl || !columnColor) return;
-        const bg = lightenHexColor(columnColor, 0.84);
+        const bg = isDarkThemeActive() ? darkenHexColor(columnColor, 0.55) : lightenHexColor(columnColor, 0.84);
         headerEl.style.background = bg;
         headerEl.style.borderBottomColor = columnColor;
         headerEl.style.color = readableTextColor(bg) || '#1f2937';
+    }
+
+    function refreshKanbanHeaderColors(){
+        document.querySelectorAll('#kanbanWrap .kanban-column').forEach((col) => {
+            const header = Array.from(col.children).find(child => child.classList && child.classList.contains('kanban-header'));
+            if (!header) return;
+            const color = col.dataset.color;
+            if (color) applyKanbanHeaderColor(header, color);
+        });
+    }
+
+    function syncLeadsTheme(){
+        const isDark = isDarkThemeActive();
+        const tableContainer = document.getElementById('leadsTableContainer');
+        if (tableContainer) tableContainer.classList.toggle('theme-dark', isDark);
+        refreshKanbanHeaderColors();
+    }
+
+    function setupLeadsThemeObserver(){
+        if (window.__leadsThemeObserverSetup) return;
+        const bodyObserver = new MutationObserver(syncLeadsTheme);
+        bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        window.__leadsThemeObserverSetup = true;
     }
 
     function computeScore(lead){
@@ -1081,6 +1116,7 @@
                 const ssTitle = document.createElement('span'); ssTitle.className = 'kanban-title'; ssTitle.textContent = 'Sem Status';
                 const ssCount = document.createElement('span'); ssCount.className = 'badge bg-light text-muted ms-2'; ssCount.id = 'count-sem_status'; ssCount.textContent = '0';
                 ssHeader.appendChild(ssTitle); ssHeader.appendChild(ssCount);
+                applyKanbanHeaderColor(ssHeader, ssWrap.dataset.color);
                 const ssContent = document.createElement('div'); ssContent.className = 'column-content'; ssContent.id = 'col-sem_status';
                 ssWrap.appendChild(ssHeader); ssWrap.appendChild(ssContent);
                 // append at the end (after stages)
@@ -1089,6 +1125,8 @@
         }
         // Set up top scrollbar synchronization
         syncTopScrollbar();
+        setupLeadsThemeObserver();
+        syncLeadsTheme();
     }
 
     function syncTopScrollbar() {
@@ -1933,18 +1971,8 @@
             nav.appendChild(ul); paginationDiv.appendChild(nav); container.appendChild(paginationDiv);
         }
         updateBulkDeleteVisibility();
-        // ensure the list container mirrors the global theme class so tables adopt dark styling
-        const prefersDark = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
-        container.classList.toggle('theme-dark', prefersDark);
-        // observe body class changes once so the container stays in sync
-        if (!window.__leadsThemeObserverSetup) {
-            const bodyObserver = new MutationObserver(()=>{
-                const isDark = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
-                const c = document.getElementById('leadsTableContainer'); if (c) c.classList.toggle('theme-dark', isDark);
-            });
-            bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-            window.__leadsThemeObserverSetup = true;
-        }
+        setupLeadsThemeObserver();
+        syncLeadsTheme();
     }
 
     function renderAll(){
@@ -3637,7 +3665,7 @@
 
         // dark mode
         const darkBtn = $('#darkToggle'); if (darkBtn) {
-            const apply = (on)=>{ document.body.classList.toggle('dark-mode', !!on); localStorage.setItem('darkMode', !!on ? '1' : '0'); darkBtn.textContent = !!on ? 'Modo Claro' : 'Modo Escuro'; };
+            const apply = (on)=>{ document.body.classList.toggle('dark-mode', !!on); localStorage.setItem('darkMode', !!on ? '1' : '0'); darkBtn.textContent = !!on ? 'Modo Claro' : 'Modo Escuro'; syncLeadsTheme(); };
             apply(localStorage.getItem('darkMode') === '1');
             darkBtn.addEventListener('click', ()=> apply(!(localStorage.getItem('darkMode') === '1')) );
         }

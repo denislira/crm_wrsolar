@@ -175,8 +175,7 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
 
 .stage-sum{font-size:.82rem;color:var(--muted);margin-left:8px}
 
-/* Prevent kanban header items from wrapping. Ensure title truncates and icons/badges stay on the right. */
-.kanban-header > .kanban-title{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px}
+/* Prevent kanban header items from wrapping. Ensure title stays flexible and icons/badges stay on the right. */
 .kanban-header > .kanban-title{flex:1 1 auto;min-width:0;white-space:normal;overflow:visible;text-overflow:clip;padding-right:8px}
 .kanban-header > .badge, .kanban-header > .stage-sum, .kanban-header > .stage-filter-icon{flex:0 0 auto;margin-left:6px}
 .kanban-header .stage-filter-icon{display:inline-flex;align-items:center;justify-content:center}
@@ -217,6 +216,8 @@ body.theme-dark .kanban-column{background:#0b1220 !important;color:#dbeafe !impo
 body.theme-dark .lead-card{background:#0f1724 !important;color:#e6eef8 !important;box-shadow:0 6px 18px rgba(0,0,0,0.4) !important;border:1px solid rgba(255,255,255,0.06) !important}
 body.theme-dark .lead-card .title{color:#e6eef8 !important}
 body.theme-dark .kanban-header{border-bottom:1px solid rgba(255,255,255,0.06) !important;color:#e6eef8 !important}
+body.theme-dark .kanban-header .kanban-title{color:#ffffff !important}
+body.theme-dark .kanban-header .stage-sum{color:#c3d5ea !important}
 body.theme-dark .column-content{color:#e6eef8 !important}
 body.theme-dark .lead-meta{color:#c3d5ea !important}
 body.theme-dark .lead-panel{background:#0b1220 !important;color:#e6eef8 !important;border-left:1px solid rgba(255,255,255,0.06) !important}
@@ -253,6 +254,7 @@ body.theme-light .kanban-column{background:#fff;color:#1f2937;border-color:rgba(
 body.theme-light .lead-card{background:#fff;color:#1f2937}
 body.theme-light .lead-card .title{color:#1f2937}
 body.theme-light .kanban-header{color:#1f2937}
+body.theme-light .kanban-header .kanban-title{color:#1f2937}
 body.theme-light .column-content{color:#1f2937}
 body.theme-light .lead-meta{color:#6b7280}
 body.theme-light .lead-panel{background:#fff;color:#1f2937}
@@ -263,8 +265,8 @@ body.theme-light .kpi-row .card{background:#fff;color:#1f2937}
 .column-content.drag-over{background:linear-gradient(90deg, rgba(11,106,193,0.03), rgba(75,191,75,0.02));border-radius:6px}
 
 /* Kanban header badge (card count) sits on a light background.
-    In dark theme keep badge background but ensure the text is dark
-    so it remains readable when the badge is white. */
+   In dark theme keep badge background but ensure the text is dark
+   so it remains readable when the badge is white. */
 body.theme-dark .kanban-header .badge { color: #0b1220 !important; }
 
 /* full-column drag overlay */
