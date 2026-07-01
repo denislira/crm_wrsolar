@@ -12,7 +12,8 @@ require_once dirname(__DIR__) . '/includes/config.php';
 
 $userId = (int) $_SESSION['user_id'];
 $action = $_GET['action'] ?? $_POST['action'] ?? 'summary';
-$chatCutoff = date('Y-m-d H:i:s', strtotime('-48 hours'));
+    $chatCutoff = date('Y-m-d H:i:s', strtotime('-48 hours'));
+    $todayDate = date('Y-m-d');
 
 function chatEnsureTables(PDO $pdo): void {
     $pdo->exec("
@@ -332,6 +333,35 @@ try {
         $pdo->prepare('UPDATE internal_chat_conversations SET updated_at = NOW() WHERE id = ?')->execute([$conversationId]);
         $pdo->prepare('INSERT INTO internal_chat_reads (conversation_id, user_id, last_read_message_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE last_read_message_id = GREATEST(COALESCE(last_read_message_id, 0), VALUES(last_read_message_id))')->execute([$conversationId, $userId, $messageId]);
         chatJson(['success' => true, 'message_id' => $messageId]);
+    }
+
+    if ($action === 'delete_message') {
+        $messageId = (int) ($_POST['message_id'] ?? $_GET['message_id'] ?? 0);
+        if ($messageId <= 0) {
+            http_response_code(422);
+            chatJson(['success' => false, 'message' => 'Mensagem invalida']);
+        }
+
+        $stmt = $pdo->prepare("
+            SELECT m.id, m.conversation_id, m.sender_id, m.created_at
+            FROM internal_chat_messages m
+            WHERE m.id = ? AND m.sender_id = ? AND DATE(m.created_at) = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$messageId, $userId, $todayDate]);
+        $message = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$message) {
+            http_response_code(403);
+            chatJson(['success' => false, 'message' => 'Apenas mensagens enviadas hoje podem ser excluidas']);
+        }
+        if (!chatConversationAccess($pdo, (int) $message['conversation_id'], $userId)) {
+            http_response_code(403);
+            chatJson(['success' => false, 'message' => 'Acesso negado']);
+        }
+
+        $pdo->prepare('DELETE FROM internal_chat_messages WHERE id = ? LIMIT 1')->execute([$messageId]);
+        $pdo->prepare('UPDATE internal_chat_conversations SET updated_at = NOW() WHERE id = ?')->execute([(int) $message['conversation_id']]);
+        chatJson(['success' => true]);
     }
 
     http_response_code(400);

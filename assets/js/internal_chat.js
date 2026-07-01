@@ -40,6 +40,17 @@
     return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
   }
 
+  function formatDateKey(value){
+    if (!value) return '';
+    return String(value).slice(0, 10);
+  }
+
+  function todayKey(){
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
   function request(action, options){
     const opts = options || {};
     const method = opts.method || 'GET';
@@ -274,16 +285,39 @@
       const mine = Number(message.sender_id) === Number(window.currentUserId || 0);
       const senderName = String(message.nome_completo || '').trim() || String(message.username || '').trim();
       const isGlobal = state.activeUser && String(state.activeUser.type || '') === 'global';
+      const canDelete = mine && formatDateKey(message.created_at) === todayKey();
       const item = document.createElement('div');
       item.className = 'internal-chat-message' + (mine ? ' mine' : '');
       item.innerHTML = `
-        ${senderName && (isGlobal || !mine) ? `<div class="internal-chat-sender">${escapeHtml(mine && isGlobal ? 'Voce' : senderName)}</div>` : ''}
-        <div class="internal-chat-bubble">${escapeHtml(message.body)}</div>
+        <div class="internal-chat-bubble-wrap">
+          ${senderName && (isGlobal || !mine) ? `<div class="internal-chat-sender">${escapeHtml(mine && isGlobal ? 'Voce' : senderName)}</div>` : ''}
+          <div class="internal-chat-bubble">${escapeHtml(message.body)}</div>
+          ${canDelete ? `<button type="button" class="internal-chat-delete-btn" data-chat-delete="${escapeHtml(message.id)}" title="Excluir mensagem" aria-label="Excluir mensagem"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+        </div>
         <div class="internal-chat-time">${escapeHtml(formatTime(message.created_at))}</div>
       `;
       box.appendChild(item);
     });
+    box.querySelectorAll('[data-chat-delete]').forEach(btn => {
+      btn.addEventListener('click', () => deleteMessage(Number(btn.getAttribute('data-chat-delete'))));
+    });
     box.scrollTop = box.scrollHeight;
+  }
+
+  function deleteMessage(messageId){
+    if (!messageId) return;
+    if (!window.confirm('Excluir esta mensagem?')) return;
+    const body = new URLSearchParams();
+    body.set('message_id', String(messageId));
+    request('delete_message', {method:'POST', body: body.toString()}).then(json => {
+      if (!json || !json.success) {
+        alert((json && json.message) || 'Falha ao excluir mensagem');
+        return;
+      }
+      loadMessages(false);
+    }).catch(() => {
+      alert('Falha ao excluir mensagem');
+    });
   }
 
   function sendActiveMessage(event){

@@ -256,10 +256,16 @@
   flex-direction: column;
   align-items: flex-start;
   margin-bottom: .7rem;
+  position: relative;
 }
 
 .internal-chat-message.mine {
   align-items: flex-end;
+}
+
+.internal-chat-bubble-wrap {
+  position: relative;
+  max-width: 88%;
 }
 
 .internal-chat-sender {
@@ -276,7 +282,6 @@
 }
 
 .internal-chat-bubble {
-  max-width: 88%;
   padding: .55rem .7rem;
   border-radius: 14px;
   background: #f1f5f9;
@@ -290,6 +295,40 @@
 .internal-chat-message.mine .internal-chat-bubble {
   background: var(--blue-700, #0b6ac1);
   color: #fff;
+}
+
+.internal-chat-delete-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .82);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s ease, transform .15s ease, background .15s ease;
+  transform: scale(.92);
+}
+
+.internal-chat-delete-btn i {
+  font-size: .6rem;
+}
+
+.internal-chat-message.mine:hover .internal-chat-delete-btn,
+.internal-chat-message.mine:focus-within .internal-chat-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+.internal-chat-delete-btn:hover {
+  background: #dc3545;
 }
 
 .internal-chat-time {
@@ -349,6 +388,11 @@ body.theme-dark .internal-chat-form {
 body.theme-dark .internal-chat-person,
 body.theme-dark .internal-chat-bubble {
   color: #e5eef8;
+}
+
+body.theme-dark .internal-chat-delete-btn {
+  background: rgba(255,255,255,.14);
+  color: #fff;
 }
 
 body.theme-dark .internal-chat-person:hover,

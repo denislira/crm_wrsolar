@@ -22,6 +22,20 @@ body.sidebar-collapsed .leads-preloader {
 }
 .leads-preloader.hidden{display:none}
 .leads-preloader-inner{background:var(--card);border:1px solid rgba(11,26,49,0.06);border-radius:12px;padding:16px 18px;box-shadow:0 10px 30px rgba(11,26,49,0.08);min-width:220px}
+body.theme-dark .leads-preloader,
+body.dark-mode .leads-preloader{
+  background:rgba(3,7,18,0.88);
+}
+body.theme-dark .leads-preloader-inner,
+body.dark-mode .leads-preloader-inner{
+  background:#0b1220;
+  border-color:rgba(255,255,255,0.08);
+  box-shadow:0 18px 46px rgba(0,0,0,0.42);
+}
+body.theme-dark #leadsPreloaderText,
+body.dark-mode #leadsPreloaderText{
+  color:#c3d5ea !important;
+}
 
 .kanban-top-scrollbar{overflow-x:auto;overflow-y:hidden;height:12px;margin:0 2px 4px 2px}
 .kanban-top-scrollbar::-webkit-scrollbar{height:12px}

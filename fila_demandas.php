@@ -378,11 +378,131 @@ include 'includes/header.php';
                 text-align: center;
                 font-weight: 700;
             }
+            body.theme-dark .dm-shell,
+            body.dark-mode .dm-shell {
+                background: #071427;
+            }
+            body.theme-dark .dm-header,
+            body.dark-mode .dm-header {
+                background: #0b1220;
+                border-bottom-color: rgba(255,255,255,0.06);
+            }
+            body.theme-dark .dm-title h1,
+            body.dark-mode .dm-title h1,
+            body.theme-dark .dm-detail-title,
+            body.dark-mode .dm-detail-title,
+            body.theme-dark .dm-card-title,
+            body.dark-mode .dm-card-title,
+            body.theme-dark .dm-consultor-name,
+            body.dark-mode .dm-consultor-name,
+            body.theme-dark .dm-field-value,
+            body.dark-mode .dm-field-value {
+                color: #e6eef8;
+            }
+            body.theme-dark .dm-count-pill,
+            body.dark-mode .dm-count-pill {
+                background: rgba(59,130,246,0.16);
+                color: #bfdbfe;
+            }
+            body.theme-dark .dm-bell,
+            body.dark-mode .dm-bell {
+                color: #c3d5ea;
+            }
+            body.theme-dark .dm-left,
+            body.dark-mode .dm-left {
+                border-right-color: rgba(255,255,255,0.06);
+            }
+            body.theme-dark .dm-tab,
+            body.dark-mode .dm-tab,
+            body.theme-dark .dm-card,
+            body.dark-mode .dm-card,
+            body.theme-dark .dm-consultor-card,
+            body.dark-mode .dm-consultor-card,
+            body.theme-dark .dm-field,
+            body.dark-mode .dm-field,
+            body.theme-dark .dm-notes,
+            body.dark-mode .dm-notes,
+            body.theme-dark .dm-empty-list,
+            body.dark-mode .dm-empty-list {
+                background: #0f1724;
+                border-color: rgba(255,255,255,0.06);
+                color: #c3d5ea;
+            }
+            body.theme-dark .dm-tab,
+            body.dark-mode .dm-tab {
+                box-shadow: none;
+            }
+            body.theme-dark .dm-tab,
+            body.dark-mode .dm-tab,
+            body.theme-dark .dm-consultor-meta,
+            body.dark-mode .dm-consultor-meta,
+            body.theme-dark .dm-id,
+            body.dark-mode .dm-id,
+            body.theme-dark .dm-detail-id,
+            body.dark-mode .dm-detail-id,
+            body.theme-dark .dm-field-label,
+            body.dark-mode .dm-field-label,
+            body.theme-dark .dm-empty-detail,
+            body.dark-mode .dm-empty-detail {
+                color: #94a3b8;
+            }
+            body.theme-dark .dm-tab.active,
+            body.dark-mode .dm-tab.active {
+                background: #ff6b18;
+                border-color: #ff6b18;
+                color: #fff;
+            }
+            body.theme-dark .dm-card:hover,
+            body.dark-mode .dm-card:hover,
+            body.theme-dark .dm-card.active,
+            body.dark-mode .dm-card.active,
+            body.theme-dark .dm-consultor-card:hover,
+            body.dark-mode .dm-consultor-card:hover {
+                border-color: rgba(191,219,254,0.36);
+                box-shadow: 0 12px 24px rgba(0,0,0,.28);
+            }
+            body.theme-dark .dm-right,
+            body.dark-mode .dm-right {
+                background: #0b1220;
+            }
+            body.theme-dark .dm-detail-head,
+            body.dark-mode .dm-detail-head {
+                border-bottom-color: rgba(255,255,255,0.08);
+            }
+            body.theme-dark .dm-empty-detail,
+            body.dark-mode .dm-empty-detail {
+                color: #8aa0bb;
+            }
+            body.theme-dark .dm-empty-detail i,
+            body.dark-mode .dm-empty-detail i {
+                border-color: rgba(255,255,255,0.12);
+                color: #c3d5ea;
+                background: rgba(255,255,255,0.02);
+            }
+            body.theme-dark .dm-status.pending,
+            body.dark-mode .dm-status.pending {
+                background: rgba(249,115,22,0.14);
+                color: #fdba74;
+            }
+            body.theme-dark .dm-status.accepted,
+            body.dark-mode .dm-status.accepted {
+                background: rgba(59,130,246,0.14);
+                color: #93c5fd;
+            }
+            body.theme-dark .dm-status.done,
+            body.dark-mode .dm-status.done {
+                background: rgba(16,185,129,0.14);
+                color: #6ee7b7;
+            }
             @media (max-width: 980px) {
                 .dm-shell { height: auto; min-height: calc(100vh - 56px); }
                 .dm-layout { grid-template-columns: 1fr; }
                 .dm-left { border-right: 0; border-bottom: 1px solid #dbe2ea; }
                 .dm-right { min-height: 460px; }
+            }
+            body.theme-dark .dm-left,
+            body.dark-mode .dm-left {
+                border-bottom-color: rgba(255,255,255,0.06);
             }
             @media (max-width: 560px) {
                 .dm-header { align-items: flex-start; padding: .9rem 1rem; }
