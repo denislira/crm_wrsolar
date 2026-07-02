@@ -17,6 +17,27 @@ include_once 'includes/permissions.php';
   <!-- Site theme (overrides and design system) -->
   <link rel="stylesheet" href="assets/css/theme.css">
   <link rel="stylesheet" href="assets/css/leads_gestao.css">
+  <script>
+    (function () {
+      try {
+        var darkMode = localStorage.getItem('theme.mode') === 'dark' || localStorage.getItem('darkMode') === '1';
+        if (!darkMode) return;
+        var style = document.createElement('style');
+        style.id = 'theme-preload-dark';
+        style.textContent = [
+          'html,body{background:#0b1220 !important;color:#e6eef8 !important;color-scheme:dark !important;}',
+          'body{background:#0b1220 !important;}',
+          '.navbar{background:#0b1220 !important;border-bottom:1px solid rgba(255,255,255,0.06) !important;}',
+          '.app-sidebar{background:linear-gradient(180deg,#071427 0%, #0b1220 100%) !important;color:#e6eef8 !important;}',
+          '.page-loading-overlay{background:rgba(7,10,16,0.94) !important;}',
+          '.btn-outline-secondary{background:transparent !important;border-color:rgba(255,255,255,0.12) !important;color:#e6eef8 !important;}'
+        ].join('');
+        document.head.appendChild(style);
+      } catch (e) {
+        // ignore storage access errors
+      }
+    })();
+  </script>
   <?php if (empty($noNavbar) && !empty($_SESSION['user_id'])): ?>
     <link rel="stylesheet" href="assets/css/internal_chat.css">
   <?php endif; ?>
@@ -211,6 +232,16 @@ include_once 'includes/permissions.php';
     .page-loading-overlay .loading-spinner .spinner-border {
       border-width: 0.3rem;
       color: var(--blue-900);
+    }
+    body.theme-dark .page-loading-overlay,
+    body.dark-mode .page-loading-overlay {
+      background: rgba(3,7,18,0.92);
+    }
+    body.theme-dark .page-loading-overlay .loading-spinner,
+    body.dark-mode .page-loading-overlay .loading-spinner,
+    body.theme-dark .page-loading-overlay .loading-spinner .spinner-border,
+    body.dark-mode .page-loading-overlay .loading-spinner .spinner-border {
+      color: #e6eef8;
     }
     
     .loading-spinner {

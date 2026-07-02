@@ -47,7 +47,10 @@
         document.body.classList.remove('theme-dark','theme-light');
         if(mode === 'dark') document.body.classList.add('theme-dark');
         else document.body.classList.add('theme-light');
-        try{ localStorage.setItem('theme.mode', mode); }catch(e){}
+        try{
+          localStorage.setItem('theme.mode', mode);
+          localStorage.setItem('darkMode', mode === 'dark' ? '1' : '0');
+        }catch(e){}
         // update reminder bell dropdown to match theme
         try{ updateReminderDropdownTheme(); }catch(e){}
       };
@@ -65,7 +68,7 @@
         }
       }
       // initialize from storage or prefers-color-scheme
-      let stored = null; try{ stored = localStorage.getItem('theme.mode'); }catch(e){}
+      let stored = null; try{ stored = localStorage.getItem('theme.mode') || (localStorage.getItem('darkMode') === '1' ? 'dark' : null); }catch(e){}
       if(stored) apply(stored);
       else {
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
