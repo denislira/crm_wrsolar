@@ -308,7 +308,7 @@ include 'includes/header.php';
             .ce-column {
                 flex: 0 0 320px;
                 min-width: 320px;
-                background: rgba(226, 232, 240, 0.45);
+                background: #d1d5db;
                 border-radius: 18px;
                 padding: .9rem;
                 min-height: 420px;
@@ -486,7 +486,7 @@ include 'includes/header.php';
                 color: #e2e8f0;
             }
             body.theme-dark .ce-column {
-                background: rgba(30, 41, 59, 0.58);
+                background: rgba(30, 41, 59, 0.68);
             }
             body.theme-dark .ce-toolbar h1,
             body.theme-dark .ce-card-title,
