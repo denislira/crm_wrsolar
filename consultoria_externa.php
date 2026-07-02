@@ -23,6 +23,7 @@ if (!$roleName && !empty($_SESSION['role_id'])) {
 $isConsultorExterno = strtolower((string)$roleName) === 'consultor_externo';
 $isDirector = function_exists('isDirector') && isDirector();
 $canOpenConsultoriaExterna = $isConsultorExterno || $isDirector || hasPermission('consultoria_externa');
+$canManageConsultoriaStages = $isDirector;
 if (!$canOpenConsultoriaExterna) {
     header('Location: index.php');
     exit;
@@ -547,9 +548,11 @@ include 'includes/header.php';
                     <button id="ceToggleFilters" type="button" class="btn btn-light ce-filter-btn">
                         <i class="fa-solid fa-filter me-2"></i>Filtros
                     </button>
-                    <button id="ceOpenStagesModal" type="button" class="btn btn-light ce-filter-btn">
-                        <i class="fa-solid fa-sliders me-2"></i>Configurar colunas
-                    </button>
+                    <?php if ($canManageConsultoriaStages): ?>
+                        <button id="ceOpenStagesModal" type="button" class="btn btn-light ce-filter-btn">
+                            <i class="fa-solid fa-sliders me-2"></i>Configurar colunas
+                        </button>
+                    <?php endif; ?>
                     <button id="ceOpenLeadModal" type="button" class="btn btn-primary ce-create-btn">
                         <i class="fa-solid fa-circle-plus me-2"></i>Cadastrar Visita / Lead
                     </button>

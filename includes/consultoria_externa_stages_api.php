@@ -11,10 +11,12 @@ if (empty($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/permissions.php';
 require_once __DIR__ . '/consultoria_externa_stages.php';
 
 $userId = (int) $_SESSION['user_id'];
 $action = $_REQUEST['action'] ?? 'list';
+$canManageStages = function_exists('isDirector') && isDirector();
 
 function ce_stage_bool($value): int {
     if (is_bool($value)) {
@@ -44,6 +46,12 @@ try {
 
     if ($action === 'list') {
         echo json_encode(ce_list_stages($pdo, $userId));
+        exit;
+    }
+
+    if (!$canManageStages) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Sem permissão para configurar colunas']);
         exit;
     }
 
