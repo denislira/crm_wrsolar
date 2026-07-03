@@ -15,6 +15,13 @@ require_once __DIR__ . '/consultoria_externa_stages.php';
 
 $action = $_REQUEST['action'] ?? 'list';
 $userId = (int) $_SESSION['user_id'];
+$requestedUserId = isset($_REQUEST['consultor_id']) ? (int) $_REQUEST['consultor_id'] : 0;
+if ($requestedUserId > 0) {
+    $isDirector = function_exists('isDirector') && isDirector();
+    if ($isDirector) {
+        $userId = $requestedUserId;
+    }
+}
 
 function ce_api_norm_stage($status): string {
     $s = strtolower(trim((string) $status));
@@ -43,7 +50,7 @@ try {
     ce_seed_default_stages($pdo, $userId);
 
     if ($action === 'list') {
-        $stmt = $pdo->prepare('SELECT id, client_name, phone, cidade, source, status, value, notes, stage_key, stage_id, exported_to_internal_queue, exported_at, created_at, updated_at FROM consultoria_externa_itens WHERE user_id = ? AND deleted = 0 ORDER BY created_at DESC, id DESC');
+        $stmt = $pdo->prepare('SELECT id, client_name, phone, cidade, source, status, value, notes, stage_key, stage_id, exported_to_internal_queue, exported_at, created_at, updated_at FROM consultoria_externa_itens WHERE user_id = ? AND COALESCE(deleted, 0) = 0 ORDER BY created_at DESC, id DESC');
         $stmt->execute([$userId]);
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
         exit;
@@ -51,7 +58,7 @@ try {
 
     if ($action === 'get') {
         $id = (int)($_GET['id'] ?? 0);
-        $stmt = $pdo->prepare('SELECT id, client_name, phone, cidade, source, status, value, notes, stage_key, stage_id, exported_to_internal_queue, exported_at, created_at, updated_at FROM consultoria_externa_itens WHERE id = ? AND user_id = ? AND deleted = 0 LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, client_name, phone, cidade, source, status, value, notes, stage_key, stage_id, exported_to_internal_queue, exported_at, created_at, updated_at FROM consultoria_externa_itens WHERE id = ? AND user_id = ? AND COALESCE(deleted, 0) = 0 LIMIT 1');
         $stmt->execute([$id, $userId]);
         echo json_encode($stmt->fetch(PDO::FETCH_ASSOC) ?: []);
         exit;
@@ -93,7 +100,7 @@ try {
 
     if ($action === 'move_stage') {
         $id = (int)($_POST['id'] ?? 0);
-        $stageId = ce_resolve_stage_id($pdo, $userId, (int)($_POST['stage_id'] ?? 0), null);
+        $stageId = ce_resolve_global_stage_id($pdo, (int)($_POST['stage_id'] ?? 0));
         if ($id <= 0 || !$stageId) {
             throw new Exception('Dados de movimentacao invalidos');
         }

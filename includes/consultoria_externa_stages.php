@@ -9,6 +9,10 @@ function ce_stage_defaults(): array {
     ];
 }
 
+function ce_stage_owner_id(): int {
+    return 0;
+}
+
 function ce_ensure_stage_tables(PDO $pdo): void {
     $pdo->exec("CREATE TABLE IF NOT EXISTS consultoria_externa_itens (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -107,30 +111,33 @@ function ce_ensure_stage_tables(PDO $pdo): void {
     }
 }
 
-function ce_seed_default_stages(PDO $pdo, int $userId): void {
+function ce_seed_default_stages(PDO $pdo, ?int $userId = null): void {
+    $ownerId = $userId ?? ce_stage_owner_id();
     $stmt = $pdo->prepare('SELECT COUNT(*) FROM consultoria_externa_stages WHERE user_id = ?');
-    $stmt->execute([$userId]);
+    $stmt->execute([$ownerId]);
     if ((int) $stmt->fetchColumn() > 0) {
         return;
     }
 
     $insert = $pdo->prepare('INSERT INTO consultoria_externa_stages (user_id, name, position, color, card_color, icon, is_initial, export_to_internal_queue) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     foreach (ce_stage_defaults() as $stage) {
-        $insert->execute([$userId, $stage[0], $stage[1], $stage[2], $stage[3], $stage[4], $stage[5], $stage[6]]);
+        $insert->execute([$ownerId, $stage[0], $stage[1], $stage[2], $stage[3], $stage[4], $stage[5], $stage[6]]);
     }
 }
 
-function ce_list_stages(PDO $pdo, int $userId): array {
+function ce_list_stages(PDO $pdo, ?int $userId = null): array {
     ce_ensure_stage_tables($pdo);
-    ce_seed_default_stages($pdo, $userId);
+    $ownerId = $userId ?? ce_stage_owner_id();
+    ce_seed_default_stages($pdo, $ownerId);
     $stmt = $pdo->prepare('SELECT id, name, position, color, card_color, icon, is_initial, export_to_internal_queue FROM consultoria_externa_stages WHERE user_id = ? ORDER BY position ASC, id ASC');
-    $stmt->execute([$userId]);
+    $stmt->execute([$ownerId]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function ce_initial_stage_id(PDO $pdo, int $userId): ?int {
+function ce_initial_stage_id(PDO $pdo, ?int $userId = null): ?int {
+    $ownerId = $userId ?? ce_stage_owner_id();
     $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE user_id = ? ORDER BY is_initial DESC, position ASC, id ASC LIMIT 1');
-    $stmt->execute([$userId]);
+    $stmt->execute([$ownerId]);
     $id = $stmt->fetchColumn();
     return $id ? (int) $id : null;
 }
@@ -145,10 +152,11 @@ function ce_legacy_stage_key_to_position(?string $stageKey): int {
     return $map[(string) $stageKey] ?? 1;
 }
 
-function ce_resolve_stage_id(PDO $pdo, int $userId, $stageId, ?string $stageKey = null): ?int {
+function ce_resolve_stage_id(PDO $pdo, ?int $userId, $stageId, ?string $stageKey = null): ?int {
+    $ownerId = $userId ?? ce_stage_owner_id();
     if ((int) $stageId > 0) {
         $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE id = ? AND user_id = ? LIMIT 1');
-        $stmt->execute([(int) $stageId, $userId]);
+        $stmt->execute([(int) $stageId, $ownerId]);
         $id = $stmt->fetchColumn();
         if ($id) {
             return (int) $id;
@@ -157,9 +165,20 @@ function ce_resolve_stage_id(PDO $pdo, int $userId, $stageId, ?string $stageKey 
 
     $position = ce_legacy_stage_key_to_position($stageKey);
     $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE user_id = ? ORDER BY ABS(position - ?) ASC, position ASC, id ASC LIMIT 1');
-    $stmt->execute([$userId, $position]);
+    $stmt->execute([$ownerId, $position]);
     $id = $stmt->fetchColumn();
-    return $id ? (int) $id : ce_initial_stage_id($pdo, $userId);
+    return $id ? (int) $id : ce_initial_stage_id($pdo, $ownerId);
+}
+
+function ce_resolve_global_stage_id(PDO $pdo, $stageId): ?int {
+    if ((int) $stageId <= 0) {
+        return ce_initial_stage_id($pdo, ce_stage_owner_id());
+    }
+
+    $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE id = ? AND user_id = ? LIMIT 1');
+    $stmt->execute([(int) $stageId, ce_stage_owner_id()]);
+    $id = $stmt->fetchColumn();
+    return $id ? (int) $id : ce_initial_stage_id($pdo, ce_stage_owner_id());
 }
 
 function ce_export_item_if_needed(PDO $pdo, int $itemId, int $userId): void {

@@ -14,9 +14,22 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/permissions.php';
 require_once __DIR__ . '/consultoria_externa_stages.php';
 
-$userId = (int) $_SESSION['user_id'];
+$userId = ce_stage_owner_id();
+$requestedUserId = isset($_REQUEST['consultor_id']) ? (int) $_REQUEST['consultor_id'] : 0;
+if ($requestedUserId > 0) {
+    $isDirector = function_exists('isDirector') && isDirector();
+    if ($isDirector) {
+        $userId = ce_stage_owner_id();
+    }
+}
 $action = $_REQUEST['action'] ?? 'list';
-$canManageStages = function_exists('isDirector') && isDirector();
+$roleName = $_SESSION['role_name'] ?? null;
+if (!$roleName && !empty($_SESSION['role_id'])) {
+    $stmt = $pdo->prepare('SELECT name FROM roles WHERE id = ?');
+    $stmt->execute([$_SESSION['role_id']]);
+    $roleName = $stmt->fetchColumn();
+}
+$canManageStages = strtolower((string)$roleName) !== 'consultor_externo';
 
 function ce_stage_bool($value): int {
     if (is_bool($value)) {

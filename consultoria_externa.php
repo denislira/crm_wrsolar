@@ -22,8 +22,11 @@ if (!$roleName && !empty($_SESSION['role_id'])) {
 
 $isConsultorExterno = strtolower((string)$roleName) === 'consultor_externo';
 $isDirector = function_exists('isDirector') && isDirector();
+$loggedUserId = (int) $_SESSION['user_id'];
+$requestedConsultorId = isset($_GET['consultor_id']) ? (int) $_GET['consultor_id'] : 0;
 $canOpenConsultoriaExterna = $isConsultorExterno || $isDirector || hasPermission('consultoria_externa');
-$canManageConsultoriaStages = $isDirector;
+$canManageConsultoriaStages = !$isConsultorExterno;
+$showStagesButton = $canManageConsultoriaStages || $requestedConsultorId > 0;
 if (!$canOpenConsultoriaExterna) {
     header('Location: index.php');
     exit;
@@ -79,12 +82,10 @@ function ce_date($value) {
     return date('d/m', $ts);
 }
 
-$loggedUserId = (int) $_SESSION['user_id'];
-$requestedConsultorId = isset($_GET['consultor_id']) ? (int) $_GET['consultor_id'] : 0;
 $userId = $loggedUserId;
 $displayName = trim((string) ($_SESSION['username'] ?? 'Consultor Externo'));
 
-if ($isDirector && $requestedConsultorId > 0) {
+if ($requestedConsultorId > 0) {
     $stmt = $pdo->prepare("
         SELECT u.id, u.username
           FROM users u
@@ -95,16 +96,19 @@ if ($isDirector && $requestedConsultorId > 0) {
     $stmt->execute([$requestedConsultorId]);
     $requestedConsultor = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($requestedConsultor) {
-        $userId = (int) $requestedConsultor['id'];
+        if (!$isConsultorExterno) {
+            $userId = (int) $requestedConsultor['id'];
+        }
         $displayName = trim((string) ($requestedConsultor['username'] ?? $displayName));
     }
 }
 
 $apiBase = 'includes/consultoria_externa_api.php';
 $stagesApiBase = 'includes/consultoria_externa_stages_api.php';
+$apiConsultorId = $userId;
 
 ce_ensure_stage_tables($pdo);
-$stageRows = ce_list_stages($pdo, $userId);
+$stageRows = ce_list_stages($pdo);
 
 try {
     $itemColumns = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'consultoria_externa_itens'")->fetchAll(PDO::FETCH_COLUMN);
@@ -113,7 +117,7 @@ try {
 }
 
 $hasItemDeleted = in_array('deleted', $itemColumns, true);
-$itemWhere = $hasItemDeleted ? 'c.deleted = 0' : '1 = 1';
+$itemWhere = $hasItemDeleted ? 'COALESCE(c.deleted, 0) = 0' : '1 = 1';
 
 $consultorRows = ce_safe_query_all(
     $pdo,
@@ -157,7 +161,7 @@ foreach (array_keys($stageMeta) as $stageKey) {
 }
 
 foreach ($consultorRows as $item) {
-    $stageKey = ce_resolve_stage_id($pdo, $userId, $item['stage_id'] ?? null, $item['stage_key'] ?? null);
+    $stageKey = ce_resolve_global_stage_id($pdo, $item['stage_id'] ?? null);
     if (!$stageKey || !isset($groupedCards[$stageKey])) {
         $stageKey = array_key_first($stageMeta);
     }
@@ -485,8 +489,12 @@ include 'includes/header.php';
                 border-color: rgba(148, 163, 184, 0.18);
                 color: #e2e8f0;
             }
+            body.theme-dark .ce-card {
+                background: rgba(15, 23, 42, 0.88) !important;
+            }
             body.theme-dark .ce-column {
                 background: rgba(30, 41, 59, 0.68);
+                border-color: rgba(148, 163, 184, 0.22);
             }
             body.theme-dark .ce-toolbar h1,
             body.theme-dark .ce-card-title,
@@ -497,11 +505,35 @@ include 'includes/header.php';
             body.theme-dark .ce-toolbar-subtitle,
             body.theme-dark .ce-meta-row,
             body.theme-dark .ce-kpi-label,
-            body.theme-dark .ce-empty {
+            body.theme-dark .ce-empty,
+            body.theme-dark .ce-card-link,
+            body.theme-dark .ce-card-link:hover {
                 color: #94a3b8;
+            }
+            body.theme-dark .ce-card-link:hover {
+                color: #cbd5e1;
             }
             body.theme-dark .ce-card-footer {
                 border-top-color: rgba(148, 163, 184, 0.12);
+            }
+            body.theme-dark .ce-pill-type {
+                background: rgba(59, 130, 246, 0.18);
+                color: #93c5fd;
+            }
+            body.theme-dark .ce-pill-status {
+                background: rgba(148, 163, 184, 0.14);
+                color: #e2e8f0;
+            }
+            body.theme-dark .ce-value {
+                color: #4ade80;
+            }
+            body.theme-dark .ce-card {
+                box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28);
+                border-top-color: rgba(96, 165, 250, 0.85);
+            }
+            body.theme-dark .ce-empty {
+                background: rgba(15, 23, 42, 0.52);
+                border-color: rgba(148, 163, 184, 0.26);
             }
             @media (max-width: 1200px) {
                 .ce-kpis,
@@ -548,8 +580,8 @@ include 'includes/header.php';
                     <button id="ceToggleFilters" type="button" class="btn btn-light ce-filter-btn">
                         <i class="fa-solid fa-filter me-2"></i>Filtros
                     </button>
-                    <?php if ($canManageConsultoriaStages): ?>
-                        <button id="ceOpenStagesModal" type="button" class="btn btn-light ce-filter-btn">
+                    <?php if ($showStagesButton): ?>
+                        <button id="ceOpenStagesModal" type="button" class="btn btn-light ce-filter-btn" <?php echo $canManageConsultoriaStages ? '' : 'title="Apenas o diretor pode configurar as colunas"'; ?>>
                             <i class="fa-solid fa-sliders me-2"></i>Configurar colunas
                         </button>
                     <?php endif; ?>
@@ -815,6 +847,9 @@ include 'includes/header.php';
             (function () {
                 const apiBase = <?php echo json_encode($apiBase, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
                 const stagesApiBase = <?php echo json_encode($stagesApiBase, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+                const apiConsultorId = <?php echo (int) $apiConsultorId; ?>;
+                const apiConsultorQuery = apiConsultorId ? `&consultor_id=${encodeURIComponent(apiConsultorId)}` : '';
+                const stagesApiQuery = '';
                 let stages = <?php echo json_encode(array_values($stageMeta), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
                 const searchInput = document.getElementById('ceSearchInput');
                 const typeFilter = document.getElementById('ceTypeFilter');
@@ -962,7 +997,7 @@ include 'includes/header.php';
                 }
 
                 async function loadLeadForEdit(id) {
-                    const res = await fetch(`${apiBase}?action=get&id=${encodeURIComponent(id)}`);
+                    const res = await fetch(`${apiBase}?action=get&id=${encodeURIComponent(id)}${apiConsultorQuery}`);
                     if (!res.ok) {
                         throw new Error('Não foi possível carregar o registro');
                     }
@@ -990,7 +1025,7 @@ include 'includes/header.php';
                     leadSaveBtn.textContent = id ? 'Atualizando...' : 'Salvando...';
                     try {
                         const action = id ? 'update' : 'add';
-                        const res = await fetch(`${apiBase}?action=${action}`, {
+                        const res = await fetch(`${apiBase}?action=${action}${apiConsultorQuery}`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
                             body: payload.toString()
@@ -1077,7 +1112,7 @@ include 'includes/header.php';
                 }
 
                 async function loadStages() {
-                    const res = await fetch(`${stagesApiBase}?action=list`);
+                    const res = await fetch(`${stagesApiBase}?action=list${stagesApiQuery}`);
                     const data = await res.json().catch(() => []);
                     if (!res.ok) {
                         throw new Error(data.error || 'Falha ao carregar colunas');
@@ -1110,7 +1145,7 @@ include 'includes/header.php';
                     if (id) payload.set('id', id);
 
                     const action = id ? 'update' : 'add';
-                    const res = await fetch(`${stagesApiBase}?action=${action}`, {
+                    const res = await fetch(`${stagesApiBase}?action=${action}${stagesApiQuery}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
                         body: payload.toString()
@@ -1129,7 +1164,7 @@ include 'includes/header.php';
                     if (!confirm('Excluir esta coluna? Os registros dela serao movidos para a coluna inicial.')) return;
                     const payload = new URLSearchParams();
                     payload.set('id', id);
-                    const res = await fetch(`${stagesApiBase}?action=delete`, {
+                    const res = await fetch(`${stagesApiBase}?action=delete${stagesApiQuery}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
                         body: payload.toString()
@@ -1150,7 +1185,7 @@ include 'includes/header.php';
                     const [moved] = current.splice(from, 1);
                     current.splice(to, 0, moved);
                     const positions = current.map((stage, index) => ({ id: stage.id, position: index + 1 }));
-                    const res = await fetch(`${stagesApiBase}?action=reorder`, {
+                    const res = await fetch(`${stagesApiBase}?action=reorder${stagesApiQuery}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json; charset=UTF-8' },
                         body: JSON.stringify({ positions })
@@ -1199,7 +1234,7 @@ include 'includes/header.php';
                     payload.set('id', cardId);
                     payload.set('stage_id', stageId);
                     try {
-                        const res = await fetch(`${apiBase}?action=move_stage`, {
+                        const res = await fetch(`${apiBase}?action=move_stage${apiConsultorQuery}`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
                             body: payload.toString()
@@ -1259,6 +1294,10 @@ include 'includes/header.php';
 
                 if (openStagesModalBtn) {
                     openStagesModalBtn.addEventListener('click', async function () {
+                        if (!<?php echo $canManageConsultoriaStages ? 'true' : 'false'; ?>) {
+                            alert('Apenas o diretor pode configurar as colunas deste kanban.');
+                            return;
+                        }
                         try {
                             await loadStages();
                             const modal = getModalInstance(stagesModalEl);
