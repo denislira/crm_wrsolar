@@ -1155,13 +1155,20 @@ include 'includes/header.php';
                         throw new Error(data.error || 'Falha ao salvar coluna');
                     }
                     await loadStages();
-                    window.location.reload();
                 }
 
                 async function deleteSelectedStage() {
                     const id = String(stageIdInput.value || '').trim();
                     if (!id || stages.length <= 1) return;
                     if (!confirm('Excluir esta coluna? Os registros dela serao movidos para a coluna inicial.')) return;
+
+                    const currentStageId = String(id);
+                    const fallbackStage = stages.find((stage) => String(stage.id) !== currentStageId) || null;
+                    const fallbackStageId = fallbackStage ? String(fallbackStage.id) : '';
+                    const stageColumn = document.querySelector(`[data-stage-column="${CSS.escape(currentStageId)}"]`);
+                    const targetColumn = fallbackStageId ? document.querySelector(`[data-stage-column="${CSS.escape(fallbackStageId)}"]`) : null;
+                    const cardsToMove = stageColumn ? Array.from(stageColumn.querySelectorAll('[data-card]')) : [];
+
                     const payload = new URLSearchParams();
                     payload.set('id', id);
                     const res = await fetch(`${stagesApiBase}?action=delete${stagesApiQuery}`, {
@@ -1173,7 +1180,32 @@ include 'includes/header.php';
                     if (!res.ok || data.error) {
                         throw new Error(data.error || 'Falha ao excluir coluna');
                     }
-                    window.location.reload();
+
+                    stages = stages.filter((stage) => String(stage.id) !== currentStageId);
+                    renderStagesList();
+
+                    if (stageColumn && targetColumn) {
+                        const targetList = targetColumn.querySelector('[data-card-list]');
+                        cardsToMove.forEach((card) => {
+                            card.dataset.stage = fallbackStageId;
+                            if (targetList) {
+                                targetList.appendChild(card);
+                            }
+                        });
+                        stageColumn.remove();
+                        syncEmptyStates();
+                        applyFilters();
+                    } else {
+                        await loadStages();
+                    }
+
+                    if (stageIdInput) {
+                        if (stages.length) {
+                            selectStage(stages[0].id);
+                        } else {
+                            resetStageForm();
+                        }
+                    }
                 }
 
                 async function reorderStages(dragId, targetId) {
@@ -1194,7 +1226,8 @@ include 'includes/header.php';
                     if (!res.ok || data.error) {
                         throw new Error(data.error || 'Falha ao reordenar colunas');
                     }
-                    window.location.reload();
+                    stages = current;
+                    renderStagesList();
                 }
 
                 function syncEmptyStates() {

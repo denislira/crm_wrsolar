@@ -55,10 +55,10 @@ function ce_stage_payload(): array {
 
 try {
     ce_ensure_stage_tables($pdo);
-    ce_seed_default_stages($pdo, $userId);
+    ce_seed_default_stages($pdo, ce_stage_owner_id());
 
     if ($action === 'list') {
-        echo json_encode(ce_list_stages($pdo, $userId));
+        echo json_encode(ce_list_stages($pdo));
         exit;
     }
 
@@ -82,15 +82,14 @@ try {
         $export = ce_stage_bool($data['export_to_internal_queue'] ?? 0);
 
         if ($isInitial === 1) {
-            $pdo->prepare('UPDATE consultoria_externa_stages SET is_initial = 0 WHERE user_id = ?')->execute([$userId]);
+            $pdo->exec('UPDATE consultoria_externa_stages SET is_initial = 0');
         }
 
-        $stmt = $pdo->prepare('SELECT COALESCE(MAX(position), 0) FROM consultoria_externa_stages WHERE user_id = ?');
-        $stmt->execute([$userId]);
+        $stmt = $pdo->query('SELECT COALESCE(MAX(position), 0) FROM consultoria_externa_stages');
         $position = (int)$stmt->fetchColumn() + 1;
 
         $insert = $pdo->prepare('INSERT INTO consultoria_externa_stages (user_id, name, position, color, card_color, icon, is_initial, export_to_internal_queue) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-        $insert->execute([$userId, $name, $position, $color, $cardColor, $icon, $isInitial, $export]);
+        $insert->execute([ce_stage_owner_id(), $name, $position, $color, $cardColor, $icon, $isInitial, $export]);
         echo json_encode(['ok' => true, 'id' => (int)$pdo->lastInsertId()]);
         exit;
     }
@@ -108,11 +107,11 @@ try {
         $export = ce_stage_bool($data['export_to_internal_queue'] ?? 0);
 
         if ($isInitial === 1) {
-            $pdo->prepare('UPDATE consultoria_externa_stages SET is_initial = 0 WHERE user_id = ?')->execute([$userId]);
+            $pdo->exec('UPDATE consultoria_externa_stages SET is_initial = 0');
         }
 
-        $stmt = $pdo->prepare('UPDATE consultoria_externa_stages SET name = ?, color = ?, card_color = ?, icon = ?, is_initial = ?, export_to_internal_queue = ? WHERE id = ? AND user_id = ?');
-        $stmt->execute([$name, $color, $cardColor, $icon, $isInitial, $export, $id, $userId]);
+        $stmt = $pdo->prepare('UPDATE consultoria_externa_stages SET name = ?, color = ?, card_color = ?, icon = ?, is_initial = ?, export_to_internal_queue = ? WHERE id = ?');
+        $stmt->execute([$name, $color, $cardColor, $icon, $isInitial, $export, $id]);
         echo json_encode(['ok' => true]);
         exit;
     }
@@ -124,16 +123,16 @@ try {
         }
         $fallbackId = ce_initial_stage_id($pdo, $userId);
         if ($fallbackId === $id) {
-            $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE user_id = ? AND id <> ? ORDER BY position ASC, id ASC LIMIT 1');
-            $stmt->execute([$userId, $id]);
+            $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE id <> ? ORDER BY position ASC, id ASC LIMIT 1');
+            $stmt->execute([$id]);
             $nextId = $stmt->fetchColumn();
             $fallbackId = $nextId ? (int)$nextId : null;
         }
         if ($fallbackId) {
-            $pdo->prepare('UPDATE consultoria_externa_itens SET stage_id = ? WHERE user_id = ? AND stage_id = ?')->execute([$fallbackId, $userId, $id]);
+            $pdo->prepare('UPDATE consultoria_externa_itens SET stage_id = ? WHERE stage_id = ?')->execute([$fallbackId, $id]);
         }
-        $stmt = $pdo->prepare('DELETE FROM consultoria_externa_stages WHERE id = ? AND user_id = ?');
-        $stmt->execute([$id, $userId]);
+        $stmt = $pdo->prepare('DELETE FROM consultoria_externa_stages WHERE id = ?');
+        $stmt->execute([$id]);
         echo json_encode(['ok' => true]);
         exit;
     }
@@ -142,12 +141,12 @@ try {
         if (empty($data['positions']) || !is_array($data['positions'])) {
             throw new Exception('Posicoes invalidas');
         }
-        $update = $pdo->prepare('UPDATE consultoria_externa_stages SET position = ? WHERE id = ? AND user_id = ?');
+        $update = $pdo->prepare('UPDATE consultoria_externa_stages SET position = ? WHERE id = ?');
         foreach ($data['positions'] as $row) {
             if (!isset($row['id'], $row['position'])) {
                 continue;
             }
-            $update->execute([(int)$row['position'], (int)$row['id'], $userId]);
+            $update->execute([(int)$row['position'], (int)$row['id']]);
         }
         echo json_encode(['ok' => true]);
         exit;

@@ -113,8 +113,7 @@ function ce_ensure_stage_tables(PDO $pdo): void {
 
 function ce_seed_default_stages(PDO $pdo, ?int $userId = null): void {
     $ownerId = $userId ?? ce_stage_owner_id();
-    $stmt = $pdo->prepare('SELECT COUNT(*) FROM consultoria_externa_stages WHERE user_id = ?');
-    $stmt->execute([$ownerId]);
+    $stmt = $pdo->query('SELECT COUNT(*) FROM consultoria_externa_stages');
     if ((int) $stmt->fetchColumn() > 0) {
         return;
     }
@@ -127,17 +126,13 @@ function ce_seed_default_stages(PDO $pdo, ?int $userId = null): void {
 
 function ce_list_stages(PDO $pdo, ?int $userId = null): array {
     ce_ensure_stage_tables($pdo);
-    $ownerId = $userId ?? ce_stage_owner_id();
-    ce_seed_default_stages($pdo, $ownerId);
-    $stmt = $pdo->prepare('SELECT id, name, position, color, card_color, icon, is_initial, export_to_internal_queue FROM consultoria_externa_stages WHERE user_id = ? ORDER BY position ASC, id ASC');
-    $stmt->execute([$ownerId]);
+    ce_seed_default_stages($pdo, ce_stage_owner_id());
+    $stmt = $pdo->query('SELECT id, name, position, color, card_color, icon, is_initial, export_to_internal_queue FROM consultoria_externa_stages ORDER BY position ASC, id ASC');
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function ce_initial_stage_id(PDO $pdo, ?int $userId = null): ?int {
-    $ownerId = $userId ?? ce_stage_owner_id();
-    $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE user_id = ? ORDER BY is_initial DESC, position ASC, id ASC LIMIT 1');
-    $stmt->execute([$ownerId]);
+    $stmt = $pdo->query('SELECT id FROM consultoria_externa_stages ORDER BY is_initial DESC, position ASC, id ASC LIMIT 1');
     $id = $stmt->fetchColumn();
     return $id ? (int) $id : null;
 }
@@ -153,10 +148,9 @@ function ce_legacy_stage_key_to_position(?string $stageKey): int {
 }
 
 function ce_resolve_stage_id(PDO $pdo, ?int $userId, $stageId, ?string $stageKey = null): ?int {
-    $ownerId = $userId ?? ce_stage_owner_id();
     if ((int) $stageId > 0) {
-        $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE id = ? AND user_id = ? LIMIT 1');
-        $stmt->execute([(int) $stageId, $ownerId]);
+        $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE id = ? LIMIT 1');
+        $stmt->execute([(int) $stageId]);
         $id = $stmt->fetchColumn();
         if ($id) {
             return (int) $id;
@@ -164,10 +158,10 @@ function ce_resolve_stage_id(PDO $pdo, ?int $userId, $stageId, ?string $stageKey
     }
 
     $position = ce_legacy_stage_key_to_position($stageKey);
-    $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE user_id = ? ORDER BY ABS(position - ?) ASC, position ASC, id ASC LIMIT 1');
-    $stmt->execute([$ownerId, $position]);
+    $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages ORDER BY ABS(position - ?) ASC, position ASC, id ASC LIMIT 1');
+    $stmt->execute([$position]);
     $id = $stmt->fetchColumn();
-    return $id ? (int) $id : ce_initial_stage_id($pdo, $ownerId);
+    return $id ? (int) $id : ce_initial_stage_id($pdo, ce_stage_owner_id());
 }
 
 function ce_resolve_global_stage_id(PDO $pdo, $stageId): ?int {
@@ -175,14 +169,14 @@ function ce_resolve_global_stage_id(PDO $pdo, $stageId): ?int {
         return ce_initial_stage_id($pdo, ce_stage_owner_id());
     }
 
-    $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE id = ? AND user_id = ? LIMIT 1');
-    $stmt->execute([(int) $stageId, ce_stage_owner_id()]);
+    $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE id = ? LIMIT 1');
+    $stmt->execute([(int) $stageId]);
     $id = $stmt->fetchColumn();
     return $id ? (int) $id : ce_initial_stage_id($pdo, ce_stage_owner_id());
 }
 
 function ce_export_item_if_needed(PDO $pdo, int $itemId, int $userId): void {
-    $stmt = $pdo->prepare('SELECT c.*, s.export_to_internal_queue FROM consultoria_externa_itens c LEFT JOIN consultoria_externa_stages s ON s.id = c.stage_id AND s.user_id = c.user_id WHERE c.id = ? AND c.user_id = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT c.*, s.export_to_internal_queue FROM consultoria_externa_itens c LEFT JOIN consultoria_externa_stages s ON s.id = c.stage_id WHERE c.id = ? AND c.user_id = ? LIMIT 1');
     $stmt->execute([$itemId, $userId]);
     $item = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$item || (int)($item['export_to_internal_queue'] ?? 0) !== 1 || (int)($item['exported_to_internal_queue'] ?? 0) === 1) {
