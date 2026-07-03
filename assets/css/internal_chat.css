@@ -110,6 +110,17 @@
   justify-content: center;
 }
 
+.internal-chat-danger-btn {
+  color: #dc2626;
+}
+
+.internal-chat-danger-btn:hover,
+.internal-chat-danger-btn:focus {
+  border-color: rgba(220, 38, 38, .25);
+  background: rgba(220, 38, 38, .08);
+  color: #b91c1c;
+}
+
 .internal-chat-search {
   padding: .75rem .85rem;
   border-bottom: 1px solid rgba(15, 23, 42, .08);

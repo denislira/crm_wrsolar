@@ -79,6 +79,7 @@
             <strong>Chat interno</strong>
             <span id="internalChatSubtitle">Converse com a equipe</span>
           </div>
+          <button class="internal-chat-icon-btn internal-chat-danger-btn" type="button" data-chat-delete-conversation title="Excluir conversa" aria-label="Excluir conversa" hidden><i class="fa-solid fa-trash-can"></i></button>
           <button class="internal-chat-icon-btn" type="button" data-chat-refresh title="Atualizar" aria-label="Atualizar"><i class="fa-solid fa-rotate"></i></button>
           <button class="internal-chat-icon-btn" type="button" data-chat-close title="Fechar" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
         </header>
@@ -106,6 +107,7 @@
     root.querySelector('.internal-chat-toggle').addEventListener('click', () => setOpen(!state.open));
     root.querySelector('[data-chat-close]').addEventListener('click', () => setOpen(false));
     root.querySelector('[data-chat-refresh]').addEventListener('click', () => refreshAll());
+    root.querySelector('[data-chat-delete-conversation]').addEventListener('click', deleteActiveConversation);
     root.querySelector('#internalChatSearch').addEventListener('input', debounce(searchUsers, 220));
     root.querySelector('#internalChatForm').addEventListener('submit', sendActiveMessage);
     root.querySelector('#internalChatInput').addEventListener('keydown', function(event){
@@ -206,6 +208,9 @@
       state.conversations = json.conversations || [];
       renderUnread(json.unread_total || 0);
       renderPeople();
+      if (state.activeConversationId && !state.conversations.some(row => Number(row.id) === Number(state.activeConversationId))) {
+        clearActiveConversation();
+      }
       if (!state.activeConversationId) {
         const globalConv = state.conversations.find(row => String(row.type || '') === 'global');
         if (globalConv) openConversation(Number(globalConv.id));
@@ -246,9 +251,29 @@
     state.activeUser = conv || null;
     const subtitle = document.getElementById('internalChatSubtitle');
     if (subtitle) subtitle.textContent = conv ? displayName(conv) : 'Conversa';
+    updateConversationActions();
     setComposerEnabled(true);
     renderPeople();
     loadMessages(false);
+  }
+
+  function clearActiveConversation(){
+    state.activeConversationId = null;
+    state.activeUser = null;
+    state.lastMessageId = 0;
+    const subtitle = document.getElementById('internalChatSubtitle');
+    if (subtitle) subtitle.textContent = 'Converse com a equipe';
+    const box = document.getElementById('internalChatMessages');
+    if (box) box.innerHTML = '<div class="internal-chat-empty">Selecione alguem para iniciar.</div>';
+    updateConversationActions();
+    setComposerEnabled(false);
+  }
+
+  function updateConversationActions(){
+    const btn = document.querySelector('[data-chat-delete-conversation]');
+    if (!btn) return;
+    const canDelete = state.activeUser && String(state.activeUser.type || '') !== 'global';
+    btn.hidden = !canDelete;
   }
 
   function setComposerEnabled(enabled){
@@ -317,6 +342,24 @@
       loadMessages(false);
     }).catch(() => {
       alert('Falha ao excluir mensagem');
+    });
+  }
+
+  function deleteActiveConversation(){
+    const conversationId = Number(state.activeConversationId || 0);
+    if (!conversationId || !state.activeUser || String(state.activeUser.type || '') === 'global') return;
+    if (!window.confirm('Excluir esta conversa inteira? Todas as mensagens dela serao removidas.')) return;
+    const body = new URLSearchParams();
+    body.set('conversation_id', String(conversationId));
+    request('delete_conversation', {method:'POST', body: body.toString()}).then(json => {
+      if (!json || !json.success) {
+        alert((json && json.message) || 'Falha ao excluir conversa');
+        return;
+      }
+      clearActiveConversation();
+      loadSummary();
+    }).catch(() => {
+      alert('Falha ao excluir conversa');
     });
   }
 

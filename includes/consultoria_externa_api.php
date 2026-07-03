@@ -17,9 +17,17 @@ $action = $_REQUEST['action'] ?? 'list';
 $userId = (int) $_SESSION['user_id'];
 $requestedUserId = isset($_REQUEST['consultor_id']) ? (int) $_REQUEST['consultor_id'] : 0;
 if ($requestedUserId > 0) {
-    $isDirector = function_exists('isDirector') && isDirector();
-    if ($isDirector) {
-        $userId = $requestedUserId;
+    $stmt = $pdo->prepare("
+        SELECT u.id
+          FROM users u
+          LEFT JOIN roles r ON r.id = u.role_id
+         WHERE u.id = ? AND LOWER(COALESCE(r.name, '')) = 'consultor_externo'
+         LIMIT 1
+    ");
+    $stmt->execute([$requestedUserId]);
+    $requestedUser = $stmt->fetchColumn();
+    if ($requestedUser) {
+        $userId = (int) $requestedUser;
     }
 }
 

@@ -23,7 +23,7 @@ if (!$roleName && !empty($_SESSION['role_id'])) {
 $isConsultorExterno = strtolower((string)$roleName) === 'consultor_externo';
 $isDirector = function_exists('isDirector') && isDirector();
 $canOpenConsultoriaExterna = $isConsultorExterno || $isDirector || hasPermission('consultoria_externa');
-$canManageConsultoriaStages = $isDirector;
+$canManageConsultoriaStages = !$isConsultorExterno;
 if (!$canOpenConsultoriaExterna) {
     header('Location: index.php');
     exit;
@@ -84,7 +84,7 @@ $requestedConsultorId = isset($_GET['consultor_id']) ? (int) $_GET['consultor_id
 $userId = $loggedUserId;
 $displayName = trim((string) ($_SESSION['username'] ?? 'Consultor Externo'));
 
-if ($isDirector && $requestedConsultorId > 0) {
+if ($requestedConsultorId > 0) {
     $stmt = $pdo->prepare("
         SELECT u.id, u.username
           FROM users u
@@ -488,6 +488,13 @@ include 'includes/header.php';
             }
             body.theme-dark .ce-column {
                 background: rgba(30, 41, 59, 0.68);
+                border-color: rgba(148, 163, 184, 0.22);
+            }
+            body.theme-dark .ce-card {
+                background: rgba(15, 23, 42, 0.90) !important;
+                border-color: rgba(148, 163, 184, 0.18) !important;
+                border-top-color: rgba(96, 165, 250, 0.90) !important;
+                box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28);
             }
             body.theme-dark .ce-toolbar h1,
             body.theme-dark .ce-card-title,

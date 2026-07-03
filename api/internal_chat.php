@@ -364,6 +364,33 @@ try {
         chatJson(['success' => true]);
     }
 
+    if ($action === 'delete_conversation') {
+        $conversationId = (int) ($_POST['conversation_id'] ?? $_GET['conversation_id'] ?? 0);
+        if ($conversationId <= 0) {
+            http_response_code(422);
+            chatJson(['success' => false, 'message' => 'Conversa invalida']);
+        }
+
+        $stmt = $pdo->prepare("SELECT id, type FROM internal_chat_conversations WHERE id = ? LIMIT 1");
+        $stmt->execute([$conversationId]);
+        $conversation = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$conversation) {
+            http_response_code(404);
+            chatJson(['success' => false, 'message' => 'Conversa nao encontrada']);
+        }
+        if (($conversation['type'] ?? '') === 'global') {
+            http_response_code(403);
+            chatJson(['success' => false, 'message' => 'A sala geral nao pode ser excluida']);
+        }
+        if (!chatConversationAccess($pdo, $conversationId, $userId)) {
+            http_response_code(403);
+            chatJson(['success' => false, 'message' => 'Acesso negado']);
+        }
+
+        $pdo->prepare('DELETE FROM internal_chat_conversations WHERE id = ? LIMIT 1')->execute([$conversationId]);
+        chatJson(['success' => true]);
+    }
+
     http_response_code(400);
     chatJson(['success' => false, 'message' => 'Acao invalida']);
 } catch (InvalidArgumentException $e) {

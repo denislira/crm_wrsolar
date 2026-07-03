@@ -257,7 +257,6 @@ body.theme-dark .consultant-row {
         </div>
         <div class="d-flex gap-2">
             <a href="relatorios.php" class="btn btn-sm btn-outline-primary"><i class="fa fa-chart-bar me-1"></i>Relatórios</a>
-            <a href="leads_gestao.php" class="btn btn-sm btn-primary"><i class="fa fa-plus me-1"></i>Novo Lead</a>
         </div>
     </div>
 
