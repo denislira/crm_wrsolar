@@ -85,6 +85,7 @@ $hasClientType     = in_array('client_type',     $schema['pos_venda'], true);
 $hasKit            = in_array('kit',             $schema['pos_venda'], true);
 $hasMarca          = in_array('marca',           $schema['pos_venda'], true);
 $hasProjectStatusChangedAt = in_array('status_changed_at', $schema['projetos'], true);
+$focusProjectId = isset($_GET['project_id']) ? intval($_GET['project_id']) : 0;
 
 $missingSchemaMessage = '';
 if (empty($schema['pos_venda'])) {
@@ -145,9 +146,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $clientEmail   = trim($_POST['email'] ?? '');
             $clientAddress = trim($_POST['address'] ?? '');
             $cpf           = trim((string)($_POST['cpf'] ?? ''));
-            $birthDate     = $_POST['birth_date'] ?: null;
-            $instDate      = $_POST['installation_date']     ?: null;
-            $nextMaint     = $_POST['next_maintenance']      ?: null;
+            $birthDate     = isset($_POST['birth_date']) && trim((string)$_POST['birth_date']) !== '' ? $_POST['birth_date'] : null;
+            $instDate      = isset($_POST['installation_date']) && trim((string)$_POST['installation_date']) !== '' ? $_POST['installation_date'] : null;
+            $nextMaint     = isset($_POST['next_maintenance']) && trim((string)$_POST['next_maintenance']) !== '' ? $_POST['next_maintenance'] : null;
             $projectKwhRaw = trim((string)($_POST['project_kwh'] ?? ''));
             $equipment     = trim((string)($_POST['equipment'] ?? ''));
             $planValueRaw  = trim((string)($_POST['plan_value'] ?? ''));
@@ -158,11 +159,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $kit           = trim($_POST['kit']              ?? '');
             $marca         = trim($_POST['marca']            ?? '');
             $clientType    = trim($_POST['client_type']      ?? 'Degustação');
-            $lastCheckup   = $_POST['last_checkup']          ?: null;
+            $lastCheckup   = isset($_POST['last_checkup']) && trim((string)$_POST['last_checkup']) !== '' ? $_POST['last_checkup'] : null;
             $stage         = trim($_POST['stage']            ?? '');
             $clientStatus  = trim($_POST['client_status']    ?? '');
             if ($clientType === '') $clientType = 'Degustação';
             if ($clientStatus === '') $clientStatus = 'Assinante';
+            $projectOwnerId = (int) $_SESSION['user_id'];
+
+            if ($projId) {
+                $ownerStmt = $pdo->prepare('SELECT user_id FROM projetos WHERE id = ? LIMIT 1');
+                $ownerStmt->execute([$projId]);
+                $projectOwnerId = (int)($ownerStmt->fetchColumn() ?: $projectOwnerId);
+            }
 
         $planValue = null;
         if ($planValueRaw !== '') {
@@ -209,12 +217,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($projId) {
             $pdo->prepare('UPDATE projetos SET moved_to_post_sale = 1, updated_at = NOW() WHERE id = ? AND user_id = ?')
-                ->execute([$projId, $_SESSION['user_id']]);
+                ->execute([$projId, $projectOwnerId]);
             if ($previousProjectMoved === 0) {
                 log_project_movement(
                     $pdo,
                     $projId,
-                    $_SESSION['user_id'],
+                    $projectOwnerId,
                     'moved_to_post_sale',
                     null,
                     null,
@@ -1977,6 +1985,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
         return bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     };
     const posVendas = <?= json_encode($posVendas, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
+    const focusProjectId = <?= (int)$focusProjectId ?>;
     const APP_ROOT = '<?= rtrim(dirname($_SERVER['PHP_SELF']), '/\\') ?: '' ?>';
     let posVendaStages = [];
     let posVendaClientTypes = [];
@@ -3453,6 +3462,12 @@ Valor: ${escapeHtml(formatCurrencyBRL(pv.plan_value))}</textarea>
         ]);
         currentView = stages.length > 0 ? 'kanban' : 'table';
         renderView();
+        if (focusProjectId > 0) {
+            const target = posVendas.find(pv => String(pv.project_id || '') === String(focusProjectId));
+            if (target) {
+                await openPosVendaDetails(target);
+            }
+        }
     }
 
     initializePosVenda();

@@ -553,6 +553,10 @@ include 'includes/header.php';
                                 <?php foreach ($stageProjects[$stage] as $p): ?>
                                     <?php
                                         $projectStageColor = $stageColor;
+                                        $paymentStatus = isset($p['payment_status']) && $p['payment_status'] !== ''
+                                            ? $p['payment_status']
+                                            : ($p['status'] === 'Concluído' ? 'Pago' : 'Pendente');
+                                        $paymentBadge = $paymentStatus === 'Pago' ? 'bg-success' : 'bg-danger';
                                         $today = time();
                                         $dueDays = isset($p['due_days']) && intval($p['due_days']) > 0 ? intval($p['due_days']) : 30;
                                         $startedAt = !empty($p['closed_date']) ? strtotime($p['closed_date']) : (isset($p['created_at']) ? strtotime($p['created_at']) : $today);
@@ -564,12 +568,6 @@ include 'includes/header.php';
                                     ?>
                                     <div class="card mb-2 card-project shadow-sm" data-id="<?= $p['id'] ?>" data-user-id="<?= $p['user_id'] ?>" data-status="<?= htmlspecialchars(strtolower($p['status'] ?? '')) ?>" data-payment-type="<?= htmlspecialchars(strtolower($p['payment_type_effective'] ?? '')) ?>" data-payment-status="<?= htmlspecialchars(strtolower($paymentStatus)) ?>" data-client-name="<?= htmlspecialchars(strtolower($p['client_name'] ?? '')) ?>" data-contract="<?= htmlspecialchars(strtolower($p['contract'] ?? '')) ?>" data-lead-phone="<?= htmlspecialchars(strtolower($p['lead_phone'] ?? '')) ?>" data-overdue="<?= $isOverdue ?>" draggable="true" style="border-left:4px solid <?= htmlspecialchars($projectStageColor) ?>; border-color: <?= htmlspecialchars($projectStageColor) ?>;">
                                         <div class="card-body p-2">
-                                            <?php
-                                                $paymentStatus = isset($p['payment_status']) && $p['payment_status'] !== ''
-                                                    ? $p['payment_status']
-                                                    : ($p['status'] === 'Concluído' ? 'Pago' : 'Pendente');
-                                                $paymentBadge = $paymentStatus === 'Pago' ? 'bg-success' : 'bg-danger';
-                                            ?>
                                             <div class="d-flex justify-content-between align-items-center mb-1">
                                                 <span class="badge project-id-badge" style="background: <?= htmlspecialchars($projectStageColor) ?>; color:#fff; font-size:80%;">#<?= $p['id'] ?></span>
                                                 <span class="badge <?= $paymentBadge ?>" style="font-size:70%;"><?= htmlspecialchars($paymentStatus) ?></span>
@@ -626,6 +624,9 @@ include 'includes/header.php';
                                             <div class="d-flex flex-wrap gap-1 mt-2">
                                                 <button class="btn btn-sm btn-outline-primary btn-edit" data-id="<?= $p['id'] ?>" title="Editar"><i class="fa fa-edit"></i></button>
                                                 <button class="btn btn-sm btn-outline-danger btn-delete" data-id="<?= $p['id'] ?>" title="Excluir"><i class="fa fa-trash"></i></button>
+                                                <button type="button" class="btn btn-sm btn-outline-success btn-move-to-pos-venda" data-id="<?= $p['id'] ?>" title="Enviar para Pós-venda">
+                                                    <i class="fa-solid fa-tools" aria-hidden="true"></i>
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -1232,8 +1233,7 @@ include 'includes/header.php';
         document.getElementById('kanbanBoard').addEventListener('click', async (e)=>{
             const edit = e.target.closest('.btn-edit');
             const del = e.target.closest('.btn-delete');
-            const complete = e.target.closest('.btn-mark-complete');
-            const delayed = e.target.closest('.btn-mark-delayed');
+            const leadDetails = e.target.closest('.btn-lead-details');
             if (edit) {
                 const id = edit.getAttribute('data-id');
                 const res = await fetch('api/get_project.php?id='+encodeURIComponent(id));
@@ -1276,92 +1276,12 @@ include 'includes/header.php';
                 const j = await res.json();
                 if (j.success) location.reload(); else alert(j.message || 'Erro ao excluir');
             }
-
-            if (complete) {
-                const id = complete.getAttribute('data-id');
-                if (!confirm('Marcar como concluído?')) return;
-                const f = new FormData();
-                f.append('id', id);
-                f.append('status', 'Concluído');
-                f.append('closed_date', new Date().toISOString().split('T')[0]);
-                const res = await fetch('api/update_project.php', { method: 'POST', body: f });
-                const j = await res.json();
-                if (j.success) location.reload(); else alert(j.message || 'Erro ao atualizar');
-            }
-
-            if (delayed) {
-                const id = delayed.getAttribute('data-id');
-                if (!confirm('Marcar como atrasado?')) return;
-                const f = new FormData();
-                f.append('id', id);
-                f.append('status', 'Atrasado');
-                const res = await fetch('api/update_project.php', { method: 'POST', body: f });
-                const j = await res.json();
-                if (j.success) location.reload(); else alert(j.message || 'Erro ao atualizar');
-            }
-        });
-
-        // Drag-and-drop para movimentar cards entre colunas de status
-        document.querySelectorAll('.board-column').forEach(col => {
-            col.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; col.classList.add('drop-target'); });
-            col.addEventListener('dragleave', () => { col.classList.remove('drop-target'); });
-            col.addEventListener('drop', async e => {
-                e.preventDefault(); col.classList.remove('drop-target');
-                const projectId = e.dataTransfer.getData('text/plain');
-                if (!projectId) return;
-                const targetStatus = col.dataset.stage;
-                if (!targetStatus) return;
-                try {
-                    const f = new FormData();
-                    f.append('id', projectId);
-                    f.append('status', targetStatus);
-                    const res = await fetch('api/update_project.php', { method: 'POST', body: f });
-                    const j = await res.json();
-                    if (!j.success) throw new Error(j.message || 'Erro ao mover projeto');
-
-                    const card = document.querySelector(`.card-project[data-id="${projectId}"]`);
-                    if (card) {
-                        const statusBadge = card.querySelector('.status-badge');
-                        if (statusBadge) {
-                            statusBadge.textContent = targetStatus;
-                            statusBadge.className = 'badge status-badge ' + (targetStatus === 'Concluído' ? 'bg-success' : (targetStatus === 'Atrasado' ? 'bg-danger' : 'bg-warning'));
-                        }
-                        const targetColor = col.dataset.stageColor || null;
-                        if (targetColor) {
-                            card.style.borderLeft = '4px solid ' + targetColor;
-                            card.style.borderColor = targetColor;
-                            const progressBar = card.querySelector('.progress-bar');
-                            if (progressBar) {
-                                progressBar.style.backgroundColor = targetColor;
-                            }
-                            const projectIdBadge = card.querySelector('.project-id-badge');
-                            if (projectIdBadge) {
-                                projectIdBadge.style.backgroundColor = targetColor;
-                                projectIdBadge.style.color = '#fff';
-                            }
-                        }
-                        card.querySelectorAll('.abbr-stage-badge').forEach(badge => {
-                            const stageName = badge.dataset.stage;
-                            if (stageName === targetStatus) {
-                                const activeColor = col.dataset.stageColor || '#0d6efd';
-                                badge.style.background = activeColor;
-                                badge.style.color = '#fff';
-                            } else {
-                                badge.style.background = '#d8d8d8';
-                                badge.style.color = '#6c757d';
-                            }
-                        });
-                        col.appendChild(card);
-                    }
-
-                    updateStageCounts();
-                    handlePostSaleAutomationMove(card, col, projectId);
-                    applyFilters();
-                } catch(err) {
-                    console.error(err);
-                    alert('Falha ao mover projeto: ' + (err.message || err));
+            if (leadDetails) {
+                const leadId = leadDetails.dataset.leadId;
+                if (leadId) {
+                    await showLeadDetails(leadId);
                 }
-            });
+            }
         });
 
         const kanbanScrollWrap = document.querySelector('.kanban-scroll-wrap');
@@ -1522,6 +1442,64 @@ include 'includes/header.php';
             const leadId = btn.dataset.leadId;
             if (!leadId) return;
             await showLeadDetails(leadId);
+        });
+
+        async function moveProjectToPosVenda(projectId) {
+            if (!projectId) return;
+            if (!confirm('Enviar este projeto para Pós-venda?')) return;
+
+            try {
+                const projectRes = await fetch('api/get_project.php?id=' + encodeURIComponent(projectId));
+                const projectJson = await projectRes.json();
+                if (!projectRes.ok || !projectJson.success) {
+                    throw new Error(projectJson.message || 'Não foi possível carregar o projeto.');
+                }
+
+                const project = projectJson.data || {};
+                const formData = new FormData();
+                formData.append('action', 'save_pv');
+                formData.append('project_id', String(project.id || projectId));
+                formData.append('client_name', project.client_name || '');
+                formData.append('phone', project.lead_phone || '');
+                formData.append('email', project.lead_email || '');
+                formData.append('address', project.address || '');
+                formData.append('project_notes', project.contract || '');
+                formData.append('notes', project.contract || '');
+                formData.append('project_kwh', project.projeto || '');
+                formData.append('plan_value', project.proposal_value || '');
+                formData.append('client_status', project.client_status || 'Assinante');
+                formData.append('payment_status', project.payment_status || '');
+                formData.append('payment_type', project.payment_type_effective || project.payment_type || '');
+                const stageRes = await fetch('includes/pos_venda_stages_api.php?action=list&global=1');
+                const stagesJson = stageRes.ok ? await stageRes.json() : [];
+                const firstStage = Array.isArray(stagesJson) && stagesJson.length ? stagesJson[0] : null;
+                formData.append('stage', firstStage && firstStage.name ? String(firstStage.name) : '');
+
+                const saveRes = await fetch('pos-venda.php', { method: 'POST', body: formData });
+                const saveJson = await saveRes.json();
+                if (!saveRes.ok || !saveJson.success) {
+                    throw new Error(saveJson.message || 'Não foi possível enviar o projeto para Pós-venda.');
+                }
+
+                const card = document.querySelector(`.card-project[data-id="${projectId}"]`);
+                if (card) {
+                    card.remove();
+                    updateStageCounts();
+                    syncBoardColumns();
+                }
+
+                window.location.href = 'pos-venda.php?project_id=' + encodeURIComponent(String(project.id || projectId));
+            } catch (err) {
+                alert(err.message || 'Erro ao enviar projeto para Pós-venda.');
+            }
+        }
+
+        document.getElementById('kanbanBoard').addEventListener('click', async (e)=>{
+            const moveToPv = e.target.closest('.btn-move-to-pos-venda');
+            if (moveToPv) {
+                await moveProjectToPosVenda(moveToPv.dataset.id);
+                return;
+            }
         });
 
         async function fetchLeadMovements(leadId) {
