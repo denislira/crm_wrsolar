@@ -243,12 +243,13 @@
   min-width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: #dc3545;
+  background: linear-gradient(135deg, #dc3545, #b91c1c);
   color: #fff;
   font-size: .68rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, .14);
 }
 
 .internal-chat-empty {
@@ -306,6 +307,26 @@
 .internal-chat-message.mine .internal-chat-bubble {
   background: var(--blue-700, #0b6ac1);
   color: #fff;
+}
+
+.internal-chat-seen {
+  margin-top: .22rem;
+  display: inline-block;
+  color: #94a3b8;
+  font-size: .48rem;
+  line-height: 1;
+  font-weight: 700;
+  cursor: help;
+  user-select: none;
+}
+
+.internal-chat-seen i + i {
+  margin-left: -0.22rem;
+}
+
+.internal-chat-message.mine .internal-chat-seen {
+  width: 100%;
+  text-align: right;
 }
 
 .internal-chat-delete-btn {

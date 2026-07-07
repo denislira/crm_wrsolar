@@ -309,6 +309,52 @@ try {
             $mark->execute([$conversationId, $userId, $lastId]);
         }
 
+        $participantStmt = $pdo->prepare("
+            SELECT p.user_id, u.username, " . chatUserExpr($userColumns, 'u', 'nome_completo') . " AS nome_completo
+            FROM internal_chat_participants p
+            JOIN users u ON u.id = p.user_id
+            WHERE p.conversation_id = ?
+        ");
+        $participantStmt->execute([$conversationId]);
+        $participants = $participantStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $readerMap = [];
+        if ($messages) {
+            $readerStmt = $pdo->prepare("
+                SELECT r.user_id, r.last_read_message_id
+                FROM internal_chat_reads r
+                WHERE r.conversation_id = ?
+            ");
+            $readerStmt->execute([$conversationId]);
+            foreach ($readerStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $readerMap[(int) $row['user_id']] = (int) ($row['last_read_message_id'] ?? 0);
+            }
+        }
+
+        foreach ($messages as &$message) {
+            $message['read_by'] = [];
+            $message['read_count'] = 0;
+            if ((int) $message['sender_id'] !== $userId) {
+                continue;
+            }
+            foreach ($participants as $participant) {
+                $participantId = (int) $participant['user_id'];
+                if ($participantId === $userId) {
+                    continue;
+                }
+                $lastRead = $readerMap[$participantId] ?? 0;
+                if ($lastRead >= (int) $message['id']) {
+                    $message['read_by'][] = [
+                        'user_id' => $participantId,
+                        'username' => $participant['username'] ?? '',
+                        'nome_completo' => $participant['nome_completo'] ?? ''
+                    ];
+                }
+            }
+            $message['read_count'] = count($message['read_by']);
+        }
+        unset($message);
+
         chatJson(['success' => true, 'messages' => $messages]);
     }
 

@@ -45,6 +45,26 @@
     return String(value).slice(0, 10);
   }
 
+  function readerLabel(readBy){
+    const list = Array.isArray(readBy) ? readBy : [];
+    if (!list.length) return '';
+    const names = list.map(person => String(person.nome_completo || person.username || '').trim()).filter(Boolean);
+    if (!names.length) return '';
+    if (names.length === 1) return `Visto por ${names[0]}`;
+    if (names.length === 2) return `Visto por ${names[0]} e ${names[1]}`;
+    return `Visto por ${names[0]} e mais ${names.length - 1}`;
+  }
+
+  function readerTooltip(readBy){
+    const list = Array.isArray(readBy) ? readBy : [];
+    if (!list.length) return '';
+    const names = list.map(person => String(person.nome_completo || person.username || '').trim()).filter(Boolean);
+    if (!names.length) return '';
+    if (names.length === 1) return `Visualizado por ${names[0]}`;
+    if (names.length === 2) return `Visualizado por ${names[0]} e ${names[1]}`;
+    return `Visualizado por ${names[0]} e mais ${names.length - 1}`;
+  }
+
   function todayKey(){
     const d = new Date();
     const pad = n => String(n).padStart(2, '0');
@@ -311,12 +331,15 @@
       const senderName = String(message.nome_completo || '').trim() || String(message.username || '').trim();
       const isGlobal = state.activeUser && String(state.activeUser.type || '') === 'global';
       const canDelete = mine && formatDateKey(message.created_at) === todayKey();
+      const readLabel = mine ? readerLabel(message.read_by || []) : '';
+      const readTooltip = mine ? readerTooltip(message.read_by || []) : '';
       const item = document.createElement('div');
       item.className = 'internal-chat-message' + (mine ? ' mine' : '');
       item.innerHTML = `
         <div class="internal-chat-bubble-wrap">
           ${senderName && (isGlobal || !mine) ? `<div class="internal-chat-sender">${escapeHtml(mine && isGlobal ? 'Voce' : senderName)}</div>` : ''}
           <div class="internal-chat-bubble">${escapeHtml(message.body)}</div>
+          ${readLabel ? `<div class="internal-chat-seen" title="${escapeHtml(readTooltip)}" aria-label="${escapeHtml(readTooltip)}"><i class="fa-solid fa-check"></i><i class="fa-solid fa-check"></i></div>` : ''}
           ${canDelete ? `<button type="button" class="internal-chat-delete-btn" data-chat-delete="${escapeHtml(message.id)}" title="Excluir mensagem" aria-label="Excluir mensagem"><i class="fa-solid fa-trash-can"></i></button>` : ''}
         </div>
         <div class="internal-chat-time">${escapeHtml(formatTime(message.created_at))}</div>
