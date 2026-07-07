@@ -369,6 +369,62 @@ include 'includes/header.php';
                 flex-wrap: wrap;
                 margin-top: 1rem;
             }
+            .dm-attachments {
+                margin-top: 1rem;
+                border-top: 1px solid #e5e7eb;
+                padding-top: 1rem;
+                display: grid;
+                gap: .75rem;
+            }
+            .dm-attachment-upload {
+                display: flex;
+                gap: .65rem;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+            .dm-attachment-upload input[type="file"] {
+                max-width: 100%;
+            }
+            .dm-attachments-list {
+                display: grid;
+                gap: .5rem;
+            }
+            .dm-attachment-item {
+                border: 1px solid #e5e7eb;
+                border-radius: 10px;
+                padding: .7rem .85rem;
+                background: #fafbfc;
+                display: flex;
+                justify-content: space-between;
+                gap: .75rem;
+                align-items: center;
+            }
+            .dm-attachment-meta {
+                min-width: 0;
+            }
+            .dm-attachment-name {
+                font-weight: 800;
+                color: #10233f;
+                word-break: break-word;
+            }
+            .dm-attachment-sub {
+                font-size: .75rem;
+                color: #64748b;
+                margin-top: .15rem;
+            }
+            .dm-attachment-link {
+                white-space: nowrap;
+            }
+            .dm-attachment-delete {
+                border: 0;
+                background: #fee2e2;
+                color: #b91c1c;
+                border-radius: 8px;
+                padding: .45rem .6rem;
+            }
+            .dm-attachment-delete:hover {
+                background: #fecaca;
+            }
             .dm-empty-list {
                 border: 1px dashed #cbd5e1;
                 background: #fff;
@@ -741,9 +797,103 @@ include 'includes/header.php';
 
                             <div class="dm-field-label">Observacoes</div>
                             <div class="dm-notes">${escapeHtml(row.notes || 'Sem observacoes.')}</div>
+                            <div class="dm-attachments">
+                                <div class="dm-field-label">Anexos do card</div>
+                                <div class="dm-attachment-upload">
+                                    <input type="file" class="form-control form-control-sm" data-demand-attachment-input>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-demand-attachment-upload>Enviar arquivo</button>
+                                </div>
+                                <div class="dm-attachments-list" data-demand-attachments-list>
+                                    <div class="text-muted small">Carregando anexos...</div>
+                                </div>
+                            </div>
                             <div class="dm-detail-actions">${actionButtons(row)}</div>
                         </div>
                     `;
+                    loadAttachments(row.demand_id);
+                }
+
+                function attachmentRow(att) {
+                    const sizeLabel = att.file_size ? `${(Number(att.file_size) / 1024).toFixed(1)} KB` : '';
+                    return `
+                        <div class="dm-attachment-item">
+                            <div class="dm-attachment-meta">
+                                <div class="dm-attachment-name">${escapeHtml(att.filename || 'Arquivo')}</div>
+                                <div class="dm-attachment-sub">${escapeHtml(dateLabel(att.created_at))}${sizeLabel ? ' â€¢ ' + escapeHtml(sizeLabel) : ''}</div>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center">
+                                <a class="btn btn-sm btn-outline-secondary dm-attachment-link" href="${api}?action=download_attachment&attachment_id=${encodeURIComponent(att.id)}" target="_blank" rel="noopener">Baixar</a>
+                                <button type="button" class="dm-attachment-delete" data-demand-attachment-delete="${escapeHtml(att.id)}" title="Excluir anexo" aria-label="Excluir anexo"><i class="fa-solid fa-trash-can"></i></button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                async function loadAttachments(demandId) {
+                    const list = detailEl.querySelector('[data-demand-attachments-list]');
+                    if (!list || !demandId) return;
+                    list.innerHTML = '<div class="text-muted small">Carregando anexos...</div>';
+                    const res = await fetch(`${api}?action=attachments&demand_id=${encodeURIComponent(demandId)}`);
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data.ok) {
+                        list.innerHTML = `<div class="text-danger small">${escapeHtml(data.error || 'Falha ao carregar anexos')}</div>`;
+                        return;
+                    }
+                    const items = Array.isArray(data.attachments) ? data.attachments : [];
+                    if (!items.length) {
+                        list.innerHTML = '<div class="text-muted small">Nenhum arquivo anexado.</div>';
+                        return;
+                    }
+                    list.innerHTML = items.map((att) => `
+                        <div class="dm-attachment-item">
+                            <div class="dm-attachment-meta">
+                                <div class="dm-attachment-name">${escapeHtml(att.filename || 'Arquivo')}</div>
+                                <div class="dm-attachment-sub">${escapeHtml(dateLabel(att.created_at))}${att.file_size ? ' • ' + escapeHtml((Number(att.file_size) / 1024).toFixed(1) + ' KB') : ''}</div>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center">
+                                <a class="btn btn-sm btn-outline-secondary dm-attachment-link" href="${api}?action=download_attachment&attachment_id=${encodeURIComponent(att.id)}" target="_blank" rel="noopener">Baixar</a>
+                                <button type="button" class="dm-attachment-delete" data-demand-attachment-delete="${escapeHtml(att.id)}" title="Excluir anexo" aria-label="Excluir anexo"><i class="fa-solid fa-trash-can"></i></button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                async function deleteAttachment(attachmentId) {
+                    const payload = new URLSearchParams();
+                    payload.set('attachment_id', String(attachmentId));
+                    const res = await fetch(`${api}?action=delete_attachment`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                        body: payload.toString()
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data.ok) {
+                        throw new Error(data.error || 'Falha ao excluir anexo');
+                    }
+                    await loadAttachments(selectedId);
+                }
+
+                async function uploadAttachment() {
+                    if (!selectedId) return;
+                    const input = detailEl.querySelector('[data-demand-attachment-input]');
+                    const file = input && input.files ? input.files[0] : null;
+                    if (!file) {
+                        alert('Selecione um arquivo');
+                        return;
+                    }
+                    const formData = new FormData();
+                    formData.append('demand_id', String(selectedId));
+                    formData.append('attachment', file);
+                    const res = await fetch(`${api}?action=upload_attachment`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data.ok) {
+                        throw new Error(data.error || 'Falha ao enviar arquivo');
+                    }
+                    input.value = '';
+                    await loadAttachments(selectedId);
                 }
 
                 async function load() {
@@ -796,6 +946,31 @@ include 'includes/header.php';
                 });
 
                 detailEl.addEventListener('click', async (event) => {
+                    const deleteBtn = event.target.closest('[data-demand-attachment-delete]');
+                    if (deleteBtn) {
+                        if (!window.confirm('Excluir este anexo?')) return;
+                        deleteBtn.disabled = true;
+                        try {
+                            await deleteAttachment(deleteBtn.dataset.demandAttachmentDelete);
+                        } catch (error) {
+                            alert(error.message || 'Falha ao excluir anexo');
+                        } finally {
+                            deleteBtn.disabled = false;
+                        }
+                        return;
+                    }
+                    const uploadBtn = event.target.closest('[data-demand-attachment-upload]');
+                    if (uploadBtn) {
+                        uploadBtn.disabled = true;
+                        try {
+                            await uploadAttachment();
+                        } catch (error) {
+                            alert(error.message || 'Falha ao enviar arquivo');
+                        } finally {
+                            uploadBtn.disabled = false;
+                        }
+                        return;
+                    }
                     const button = event.target.closest('[data-action][data-id]');
                     if (!button) return;
                     button.disabled = true;

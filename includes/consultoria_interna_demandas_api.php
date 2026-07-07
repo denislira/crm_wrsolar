@@ -83,6 +83,144 @@ try {
         exit;
     }
 
+    if ($action === 'attachments') {
+        $demandId = (int)($_GET['demand_id'] ?? 0);
+        if ($demandId <= 0) {
+            throw new Exception('ID invalido');
+        }
+        $stmt = $pdo->prepare('SELECT id FROM consultoria_interna_demandas WHERE id = ? LIMIT 1');
+        $stmt->execute([$demandId]);
+        if (!$stmt->fetchColumn()) {
+            throw new Exception('Demanda nao encontrada');
+        }
+        $stmt = $pdo->prepare('SELECT id, filename, mimetype, file_size, created_at, user_id FROM consultoria_interna_demandas_attachments WHERE demand_id = ? ORDER BY id DESC');
+        $stmt->execute([$demandId]);
+        echo json_encode(['ok' => true, 'attachments' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+        exit;
+    }
+
+    if ($action === 'upload_attachment') {
+        $demandId = (int)($_POST['demand_id'] ?? 0);
+        if ($demandId <= 0) {
+            throw new Exception('ID invalido');
+        }
+        $stmt = $pdo->prepare('SELECT id FROM consultoria_interna_demandas WHERE id = ? LIMIT 1');
+        $stmt->execute([$demandId]);
+        if (!$stmt->fetchColumn()) {
+            throw new Exception('Demanda nao encontrada');
+        }
+        if (empty($_FILES['attachment'])) {
+            throw new Exception('Nenhum arquivo enviado');
+        }
+        $file = $_FILES['attachment'];
+        if (!empty($file['error'])) {
+            throw new Exception('Falha no upload');
+        }
+        if (($file['size'] ?? 0) > 20 * 1024 * 1024) {
+            throw new Exception('Arquivo muito grande');
+        }
+
+        $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename((string)($file['name'] ?? 'arquivo')));
+        $storedName = time() . '_' . bin2hex(random_bytes(4)) . '_' . $safeName;
+        $dir = dirname(__DIR__) . '/uploads/demandas/' . $demandId;
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        $targetPath = $dir . '/' . $storedName;
+        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+            throw new Exception('Falha ao salvar arquivo');
+        }
+
+        $relativePath = 'uploads/demandas/' . $demandId . '/' . $storedName;
+        $stmt = $pdo->prepare('INSERT INTO consultoria_interna_demandas_attachments (demand_id, user_id, filename, stored_name, file_path, mimetype, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())');
+        $stmt->execute([
+            $demandId,
+            $userId,
+            $safeName,
+            $storedName,
+            $relativePath,
+            $file['type'] ?? null,
+            (int)($file['size'] ?? 0),
+        ]);
+
+        echo json_encode(['ok' => true, 'attachment' => [
+            'id' => (int)$pdo->lastInsertId(),
+            'filename' => $safeName,
+            'mimetype' => $file['type'] ?? null,
+            'file_size' => (int)($file['size'] ?? 0),
+            'created_at' => date('Y-m-d H:i:s'),
+            'file_path' => $relativePath
+        ]]);
+        exit;
+    }
+
+    if ($action === 'download_attachment') {
+        $attachmentId = (int)($_GET['attachment_id'] ?? 0);
+        if ($attachmentId <= 0) {
+            throw new Exception('Anexo invalido');
+        }
+        $stmt = $pdo->prepare('SELECT a.*, d.id AS demand_exists FROM consultoria_interna_demandas_attachments a INNER JOIN consultoria_interna_demandas d ON d.id = a.demand_id WHERE a.id = ? LIMIT 1');
+        $stmt->execute([$attachmentId]);
+        $att = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$att) {
+            throw new Exception('Anexo nao encontrado');
+        }
+        $path = dirname(__DIR__) . '/' . $att['file_path'];
+        if (!is_file($path)) {
+            throw new Exception('Arquivo nao encontrado');
+        }
+        header('Content-Type: ' . ($att['mimetype'] ?: 'application/octet-stream'));
+        header('Content-Disposition: attachment; filename="' . basename($att['filename'] ?: 'anexo') . '"');
+        header('Content-Length: ' . filesize($path));
+        readfile($path);
+        exit;
+    }
+
+    if ($action === 'delete_attachment') {
+        $attachmentId = (int)($_POST['attachment_id'] ?? 0);
+        if ($attachmentId <= 0) {
+            throw new Exception('Anexo invalido');
+        }
+
+        $stmt = $pdo->prepare('SELECT a.id, a.demand_id, a.file_path FROM consultoria_interna_demandas_attachments a INNER JOIN consultoria_interna_demandas d ON d.id = a.demand_id WHERE a.id = ? LIMIT 1');
+        $stmt->execute([$attachmentId]);
+        $att = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$att) {
+            throw new Exception('Anexo nao encontrado');
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $del = $pdo->prepare('DELETE FROM consultoria_interna_demandas_attachments WHERE id = ? LIMIT 1');
+            $del->execute([$attachmentId]);
+
+            $path = dirname(__DIR__) . '/' . ltrim((string)($att['file_path'] ?? ''), '/\\');
+            if ($path && is_file($path)) {
+                @unlink($path);
+            }
+
+            $dir = dirname($path);
+            if ($dir && is_dir($dir)) {
+                $files = @scandir($dir);
+                if (is_array($files)) {
+                    $remaining = array_diff($files, ['.', '..']);
+                    if (!$remaining) {
+                        @rmdir($dir);
+                    }
+                }
+            }
+
+            $pdo->commit();
+            echo json_encode(['ok' => true]);
+            exit;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
     if ($action === 'accept') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id <= 0) {
