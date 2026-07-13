@@ -75,7 +75,18 @@ switch ($action) {
         $username = $_SESSION['username'] ?? '';
         $w = [];
         $params = [];
-        if (!empty($_GET['responsavel'])) {
+        $filterResponsavelId = isset($_GET['responsavel_id']) && $_GET['responsavel_id'] !== '' && is_numeric($_GET['responsavel_id']) ? (int) $_GET['responsavel_id'] : null;
+        if ($filterResponsavelId !== null && $hasResponsavelId) {
+            $responsavelNome = isset($_GET['responsavel']) ? trim((string)$_GET['responsavel']) : '';
+            if ($responsavelNome !== '') {
+                $w[] = '(responsavel_id = ? OR responsavel = ?)';
+                $params[] = $filterResponsavelId;
+                $params[] = $responsavelNome;
+            } else {
+                $w[] = 'responsavel_id = ?';
+                $params[] = $filterResponsavelId;
+            }
+        } elseif (!empty($_GET['responsavel'])) {
             $w[] = 'responsavel = ?';
             $params[] = $_GET['responsavel'];
         }

@@ -20,13 +20,50 @@ try {
     // tabela teams pode não existir em instalações antigas — fallback para lista estática
     $equipes = ['Marketing','Vendas','Atendimento','Técnica','Financeiro'];
 }
+// Lista de responsáveis para o filtro: usa user_id quando existir e mantém fallback por nome.
+$responsaveis = [];
+try {
+    $hasResponsavelId = false;
+    try {
+        $checkStmt = $pdo->prepare("SHOW COLUMNS FROM team_tasks LIKE 'responsavel_id'");
+        $checkStmt->execute();
+        $hasResponsavelId = (bool) $checkStmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $hasResponsavelId = false;
+    }
 
+    if ($hasResponsavelId) {
+        $stmt = $pdo->query('SELECT DISTINCT COALESCE(u.id, t.responsavel_id) AS filtro_id, COALESCE(u.username, t.responsavel) AS filtro_nome FROM team_tasks t LEFT JOIN users u ON u.id = t.responsavel_id WHERE COALESCE(u.username, t.responsavel) IS NOT NULL AND COALESCE(u.username, t.responsavel) <> "" ORDER BY filtro_nome');
+    } else {
+        $stmt = $pdo->query('SELECT DISTINCT NULL AS filtro_id, responsavel AS filtro_nome FROM team_tasks WHERE responsavel IS NOT NULL AND responsavel <> "" ORDER BY responsavel');
+    }
 
+    $responsaveis = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-
-$respStmt = $pdo->prepare('SELECT DISTINCT responsavel FROM team_tasks WHERE user_id = ? AND responsavel IS NOT NULL AND responsavel <> ""');
-$respStmt->execute([$_SESSION['user_id']]);
-$responsaveis = array_map(function($r){return $r['responsavel'];}, $respStmt->fetchAll(PDO::FETCH_ASSOC));
+    $usersForFilter = [];
+    try {
+        $usersFilterStmt = $pdo->query('SELECT id, username FROM users ORDER BY username');
+        $usersForFilter = $usersFilterStmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $usersForFilter = [];
+    }
+    $existingKeys = [];
+    foreach ($responsaveis as $r) {
+        $key = (!empty($r['filtro_id'])) ? ('id:' . $r['filtro_id']) : ('name:' . mb_strtolower((string)($r['filtro_nome'] ?? '')));
+        $existingKeys[$key] = true;
+    }
+    foreach ($usersForFilter as $u) {
+        $key = 'id:' . $u['id'];
+        if (!isset($existingKeys[$key])) {
+            $responsaveis[] = ['filtro_id' => $u['id'], 'filtro_nome' => $u['username']];
+        }
+    }
+    usort($responsaveis, function($a, $b) {
+        return strcmp((string)($a['filtro_nome'] ?? ''), (string)($b['filtro_nome'] ?? ''));
+    });
+} catch (Exception $e) {
+    $responsaveis = [];
+}
 
 // Lista de usuários para selecionar como responsável em novas tarefas
 $users = [];
@@ -508,7 +545,9 @@ body.theme-dark .status-Concluida {
                                             </select>
                                             <select id="filtroResp" class="form-select integration-select">
                                                 <option value="">Respons&aacute;vel</option>
-                                                <?php foreach ($responsaveis as $r): ?><option value="<?php echo htmlspecialchars($r); ?>"><?php echo htmlspecialchars($r); ?></option><?php endforeach; ?>
+                                                <?php foreach ($responsaveis as $r): ?>
+                                                    <option value="<?php echo htmlspecialchars((string)($r['filtro_id'] ?? $r['filtro_nome'])); ?>" data-responsavel-nome="<?php echo htmlspecialchars($r['filtro_nome'] ?? ''); ?>"><?php echo htmlspecialchars($r['filtro_nome'] ?? ''); ?></option>
+                                                <?php endforeach; ?>
                                             </select>
                                             <select id="filtroStatus" class="form-select integration-select" style="min-width: 138px;">
                                                 <option value="">Status</option>
@@ -924,6 +963,8 @@ let filtroMinhasAtivo = false;
 async function atualizarTarefas() {
     const equipeFiltro = document.getElementById('filtroEquipe').value;
     const respFiltro = document.getElementById('filtroResp').value;
+    const respOption = document.getElementById('filtroResp')?.selectedOptions?.[0] || null;
+    const respNomeFiltro = respOption ? (respOption.dataset.responsavelNome || respOption.textContent || '') : '';
     const mineChecked = filtroMinhasAtivo;
     const statusFiltro = document.getElementById('filtroStatus').value;
     const buscaFiltro = document.getElementById('filtroBusca').value;
@@ -959,8 +1000,14 @@ async function atualizarTarefas() {
         } catch (e) { console.error(e); list.innerHTML = '<div class="text-danger">Erro carregando lembretes</div>'; }
         return;
     }
-    const responsavelParam = mineChecked ? username : respFiltro;
-    let tarefas = await fetchTasks({equipe: equipeFiltro, responsavel: responsavelParam, status: statusFiltro});
+    const params = { equipe: equipeFiltro, status: statusFiltro };
+    if (mineChecked) {
+        params.responsavel = username;
+    } else if (respFiltro) {
+        params.responsavel_id = respFiltro;
+        if (respNomeFiltro) params.responsavel = respNomeFiltro;
+    }
+    let tarefas = await fetchTasks(params);
     
     // Aplicar filtro de busca
     if (buscaFiltro && buscaFiltro.trim() !== '') {
