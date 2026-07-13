@@ -31,16 +31,21 @@ CREATE TABLE IF NOT EXISTS consultoria_externa_stages (
   icon VARCHAR(50) DEFAULT 'fa-layer-group',
   is_initial TINYINT(1) NOT NULL DEFAULT 0,
   export_to_internal_queue TINYINT(1) NOT NULL DEFAULT 0,
+  next_stage_id INT DEFAULT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_ce_stage_user (user_id),
-  INDEX idx_ce_stage_position (position)
+  INDEX idx_ce_stage_position (position),
+  INDEX idx_ce_stage_next_stage (next_stage_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE consultoria_externa_itens
   ADD COLUMN IF NOT EXISTS stage_id INT DEFAULT NULL AFTER stage_key,
   ADD COLUMN IF NOT EXISTS exported_to_internal_queue TINYINT(1) NOT NULL DEFAULT 0 AFTER stage_id,
   ADD COLUMN IF NOT EXISTS exported_at DATETIME DEFAULT NULL AFTER exported_to_internal_queue;
+
+ALTER TABLE consultoria_externa_stages
+  ADD COLUMN IF NOT EXISTS next_stage_id INT DEFAULT NULL AFTER export_to_internal_queue;
 
 CREATE TABLE IF NOT EXISTS consultoria_interna_demandas (
   id INT AUTO_INCREMENT PRIMARY KEY,

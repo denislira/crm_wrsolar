@@ -149,6 +149,7 @@ foreach ($stageRows as $stage) {
         'card_color' => (string) ($stage['card_color'] ?: '#ffffff'),
         'is_initial' => (int) ($stage['is_initial'] ?? 0),
         'export_to_internal_queue' => (int) ($stage['export_to_internal_queue'] ?? 0),
+        'next_stage_id' => isset($stage['next_stage_id']) ? (int) $stage['next_stage_id'] : 0,
     ];
 }
 
@@ -802,6 +803,16 @@ include 'includes/header.php';
                                                 <input id="ceStageExport" class="form-check-input" type="checkbox">
                                                 <label for="ceStageExport" class="form-check-label">Enviar para Fila de Demandas Internas ao entrar nesta coluna</label>
                                             </div>
+                                            <div class="mt-3">
+                                                <label for="ceStageNextStage" class="form-label">Ao concluir a parte interna, mover para</label>
+                                                <select id="ceStageNextStage" class="form-select">
+                                                    <option value="">Não mover</option>
+                                                    <?php foreach ($stageMeta as $stageKey => $meta): ?>
+                                                        <option value="<?php echo htmlspecialchars((string) $stageKey, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <div class="form-text">Escolha apenas uma coluna de destino.</div>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="d-flex gap-2 mt-4">
@@ -861,6 +872,7 @@ include 'includes/header.php';
                 const stageCardColorInput = document.getElementById('ceStageCardColor');
                 const stageInitialInput = document.getElementById('ceStageInitial');
                 const stageExportInput = document.getElementById('ceStageExport');
+                const stageNextStageInput = document.getElementById('ceStageNextStage');
                 const stageDeleteBtn = document.getElementById('ceStageDeleteBtn');
                 const newStageBtn = document.getElementById('ceNewStageBtn');
                 function getModalInstance(modalEl) {
@@ -1032,6 +1044,7 @@ include 'includes/header.php';
                     stageCardColorInput.value = '#ffffff';
                     stageInitialInput.checked = !stages.length;
                     stageExportInput.checked = false;
+                    if (stageNextStageInput) stageNextStageInput.value = '';
                     if (stageDeleteBtn) stageDeleteBtn.style.display = 'none';
                 }
 
@@ -1045,6 +1058,7 @@ include 'includes/header.php';
                     stageCardColorInput.value = stage.card_color || '#ffffff';
                     stageInitialInput.checked = Number(stage.is_initial) === 1;
                     stageExportInput.checked = Number(stage.export_to_internal_queue) === 1;
+                    if (stageNextStageInput) stageNextStageInput.value = stage.next_stage_id ? String(stage.next_stage_id) : '';
                     if (stageDeleteBtn) stageDeleteBtn.style.display = stages.length > 1 ? '' : 'none';
                 }
 
@@ -1070,6 +1084,7 @@ include 'includes/header.php';
                                         <span class="badge bg-secondary">#${stage.position || '-'}</span>
                                         ${Number(stage.is_initial) === 1 ? '<span class="badge bg-primary">Inicial</span>' : ''}
                                         ${Number(stage.export_to_internal_queue) === 1 ? '<span class="badge bg-success">Exporta</span>' : ''}
+                                        ${stage.next_stage_id ? '<span class="badge bg-info text-dark">Retorna ao interno</span>' : ''}
                                     </div>
                                 </div>
                             </div>
@@ -1101,7 +1116,8 @@ include 'includes/header.php';
                         card_color: stage.card_color || '#ffffff',
                         position: stage.position,
                         is_initial: stage.is_initial,
-                        export_to_internal_queue: stage.export_to_internal_queue
+                        export_to_internal_queue: stage.export_to_internal_queue,
+                        next_stage_id: stage.next_stage_id || 0
                     })) : [];
                     renderStagesList();
                     if (stages.length) selectStage(stages[0].id);
@@ -1117,6 +1133,7 @@ include 'includes/header.php';
                     payload.set('card_color', stageCardColorInput.value || '#ffffff');
                     payload.set('is_initial', stageInitialInput.checked ? '1' : '0');
                     payload.set('export_to_internal_queue', stageExportInput.checked ? '1' : '0');
+                    payload.set('next_stage_id', stageNextStageInput && stageNextStageInput.value ? stageNextStageInput.value : '');
                     if (id) payload.set('id', id);
 
                     const action = id ? 'update' : 'add';

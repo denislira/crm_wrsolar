@@ -237,8 +237,43 @@ try {
         if ($id <= 0) {
             throw new Exception('ID invalido');
         }
-        $stmt = $pdo->prepare("UPDATE consultoria_interna_demandas SET status = 'done', updated_at = NOW() WHERE id = ?");
+        $stmt = $pdo->prepare("
+            SELECT
+                d.id,
+                d.external_item_id,
+                d.external_stage_id,
+                i.user_id AS external_user_id,
+                s.next_stage_id
+            FROM consultoria_interna_demandas d
+            INNER JOIN consultoria_externa_itens i ON i.id = d.external_item_id
+            LEFT JOIN consultoria_externa_stages s ON s.id = d.external_stage_id
+            WHERE d.id = ?
+            LIMIT 1
+        ");
         $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            throw new Exception('Demanda nao encontrada');
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare("UPDATE consultoria_interna_demandas SET status = 'done', updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$id]);
+
+            $nextStageId = (int)($row['next_stage_id'] ?? 0);
+            if ($nextStageId > 0) {
+                $move = $pdo->prepare('UPDATE consultoria_externa_itens SET stage_id = ?, updated_at = NOW() WHERE id = ? AND user_id = ?');
+                $move->execute([$nextStageId, (int)$row['external_item_id'], (int)$row['external_user_id']]);
+            }
+
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
         echo json_encode(['ok' => true]);
         exit;
     }

@@ -80,6 +80,16 @@ try {
         $icon = trim((string)($data['icon'] ?? 'fa-layer-group'));
         $isInitial = ce_stage_bool($data['is_initial'] ?? 0);
         $export = ce_stage_bool($data['export_to_internal_queue'] ?? 0);
+        $nextStageId = (int)($data['next_stage_id'] ?? 0);
+        if ($nextStageId <= 0) {
+            $nextStageId = null;
+        } else {
+            $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE id = ? LIMIT 1');
+            $stmt->execute([$nextStageId]);
+            if (!$stmt->fetchColumn()) {
+                $nextStageId = null;
+            }
+        }
 
         if ($isInitial === 1) {
             $pdo->exec('UPDATE consultoria_externa_stages SET is_initial = 0');
@@ -88,8 +98,8 @@ try {
         $stmt = $pdo->query('SELECT COALESCE(MAX(position), 0) FROM consultoria_externa_stages');
         $position = (int)$stmt->fetchColumn() + 1;
 
-        $insert = $pdo->prepare('INSERT INTO consultoria_externa_stages (user_id, name, position, color, card_color, icon, is_initial, export_to_internal_queue) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-        $insert->execute([ce_stage_owner_id(), $name, $position, $color, $cardColor, $icon, $isInitial, $export]);
+        $insert = $pdo->prepare('INSERT INTO consultoria_externa_stages (user_id, name, position, color, card_color, icon, is_initial, export_to_internal_queue, next_stage_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $insert->execute([ce_stage_owner_id(), $name, $position, $color, $cardColor, $icon, $isInitial, $export, $nextStageId]);
         echo json_encode(['ok' => true, 'id' => (int)$pdo->lastInsertId()]);
         exit;
     }
@@ -105,13 +115,23 @@ try {
         $icon = trim((string)($data['icon'] ?? 'fa-layer-group'));
         $isInitial = ce_stage_bool($data['is_initial'] ?? 0);
         $export = ce_stage_bool($data['export_to_internal_queue'] ?? 0);
+        $nextStageId = (int)($data['next_stage_id'] ?? 0);
+        if ($nextStageId <= 0) {
+            $nextStageId = null;
+        } else {
+            $stmt = $pdo->prepare('SELECT id FROM consultoria_externa_stages WHERE id = ? LIMIT 1');
+            $stmt->execute([$nextStageId]);
+            if (!$stmt->fetchColumn()) {
+                $nextStageId = null;
+            }
+        }
 
         if ($isInitial === 1) {
             $pdo->exec('UPDATE consultoria_externa_stages SET is_initial = 0');
         }
 
-        $stmt = $pdo->prepare('UPDATE consultoria_externa_stages SET name = ?, color = ?, card_color = ?, icon = ?, is_initial = ?, export_to_internal_queue = ? WHERE id = ?');
-        $stmt->execute([$name, $color, $cardColor, $icon, $isInitial, $export, $id]);
+        $stmt = $pdo->prepare('UPDATE consultoria_externa_stages SET name = ?, color = ?, card_color = ?, icon = ?, is_initial = ?, export_to_internal_queue = ?, next_stage_id = ? WHERE id = ?');
+        $stmt->execute([$name, $color, $cardColor, $icon, $isInitial, $export, $nextStageId, $id]);
         echo json_encode(['ok' => true]);
         exit;
     }

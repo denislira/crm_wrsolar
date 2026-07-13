@@ -2,10 +2,10 @@
 
 function ce_stage_defaults(): array {
     return [
-        ['Captacao Tecnica', 1, '#3b82f6', '#ffffff', 'fa-house-signal', 1, 0],
-        ['Aguardando Orcamento', 2, '#f59e0b', '#ffffff', 'fa-file-invoice-dollar', 0, 0],
-        ['Processo Bancario', 3, '#8b5cf6', '#ffffff', 'fa-building-columns', 0, 0],
-        ['Contrato Gerado', 4, '#10b981', '#ffffff', 'fa-file-signature', 0, 0],
+        ['Captacao Tecnica', 1, '#3b82f6', '#ffffff', 'fa-house-signal', 1, 0, null],
+        ['Aguardando Orcamento', 2, '#f59e0b', '#ffffff', 'fa-file-invoice-dollar', 0, 0, null],
+        ['Processo Bancario', 3, '#8b5cf6', '#ffffff', 'fa-building-columns', 0, 0, null],
+        ['Contrato Gerado', 4, '#10b981', '#ffffff', 'fa-file-signature', 0, 0, null],
     ];
 }
 
@@ -47,10 +47,12 @@ function ce_ensure_stage_tables(PDO $pdo): void {
         icon VARCHAR(50) DEFAULT 'fa-layer-group',
         is_initial TINYINT(1) NOT NULL DEFAULT 0,
         export_to_internal_queue TINYINT(1) NOT NULL DEFAULT 0,
+        next_stage_id INT DEFAULT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_ce_stage_user (user_id),
-        INDEX idx_ce_stage_position (position)
+        INDEX idx_ce_stage_position (position),
+        INDEX idx_ce_stage_next_stage (next_stage_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS consultoria_interna_demandas (
@@ -125,6 +127,17 @@ function ce_ensure_stage_tables(PDO $pdo): void {
     if ($itemCols && !in_array('exported_at', $itemCols, true)) {
         $pdo->exec("ALTER TABLE consultoria_externa_itens ADD COLUMN exported_at DATETIME DEFAULT NULL AFTER exported_to_internal_queue");
     }
+
+    $stageCols = [];
+    try {
+        $stageCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'consultoria_externa_stages'")->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Throwable $e) {
+        $stageCols = [];
+    }
+
+    if ($stageCols && !in_array('next_stage_id', $stageCols, true)) {
+        $pdo->exec("ALTER TABLE consultoria_externa_stages ADD COLUMN next_stage_id INT DEFAULT NULL AFTER export_to_internal_queue");
+    }
 }
 
 function ce_seed_default_stages(PDO $pdo, ?int $userId = null): void {
@@ -134,16 +147,16 @@ function ce_seed_default_stages(PDO $pdo, ?int $userId = null): void {
         return;
     }
 
-    $insert = $pdo->prepare('INSERT INTO consultoria_externa_stages (user_id, name, position, color, card_color, icon, is_initial, export_to_internal_queue) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $insert = $pdo->prepare('INSERT INTO consultoria_externa_stages (user_id, name, position, color, card_color, icon, is_initial, export_to_internal_queue, next_stage_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     foreach (ce_stage_defaults() as $stage) {
-        $insert->execute([$ownerId, $stage[0], $stage[1], $stage[2], $stage[3], $stage[4], $stage[5], $stage[6]]);
+        $insert->execute([$ownerId, $stage[0], $stage[1], $stage[2], $stage[3], $stage[4], $stage[5], $stage[6], $stage[7]]);
     }
 }
 
 function ce_list_stages(PDO $pdo, ?int $userId = null): array {
     ce_ensure_stage_tables($pdo);
     ce_seed_default_stages($pdo, ce_stage_owner_id());
-    $stmt = $pdo->query('SELECT id, name, position, color, card_color, icon, is_initial, export_to_internal_queue FROM consultoria_externa_stages ORDER BY position ASC, id ASC');
+    $stmt = $pdo->query('SELECT id, name, position, color, card_color, icon, is_initial, export_to_internal_queue, next_stage_id FROM consultoria_externa_stages ORDER BY position ASC, id ASC');
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -189,6 +202,14 @@ function ce_resolve_global_stage_id(PDO $pdo, $stageId): ?int {
     $stmt->execute([(int) $stageId]);
     $id = $stmt->fetchColumn();
     return $id ? (int) $id : ce_initial_stage_id($pdo, ce_stage_owner_id());
+}
+
+function ce_move_item_to_stage(PDO $pdo, int $itemId, int $userId, ?int $stageId): void {
+    if (!$stageId) {
+        return;
+    }
+    $stmt = $pdo->prepare('UPDATE consultoria_externa_itens SET stage_id = ?, updated_at = NOW() WHERE id = ? AND user_id = ?');
+    $stmt->execute([$stageId, $itemId, $userId]);
 }
 
 function ce_export_item_if_needed(PDO $pdo, int $itemId, int $userId): void {
