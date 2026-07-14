@@ -589,7 +589,7 @@ include 'includes/header.php';
                     </button>
                     <?php if ($canManageConsultoriaStages): ?>
                         <button id="ceOpenStagesModal" type="button" class="btn btn-light ce-filter-btn">
-                            <i class="fa-solid fa-sliders me-2"></i>Configurar colunas
+                            <i class="fa-solid fa-sliders me-2"></i>Configurar colunas 
                         </button>
                     <?php endif; ?>
                     <button id="ceOpenLeadModal" type="button" class="btn btn-primary ce-create-btn">
@@ -823,7 +823,8 @@ include 'includes/header.php';
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Fonte</label>
-                                                    <input id="ceLeadSource" class="form-control" value="<?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?>" readonly>
+                                                    <input id="ceLeadSource" class="form-control" value="<?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?>" disabled>
+                                                    <div class="form-text">Preenchido automaticamente com o consultor logado.</div>
                                                 </div>
                                             </div>
                                         </div>
