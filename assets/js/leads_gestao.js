@@ -133,6 +133,7 @@
             const el = document.getElementById(id);
             if (el) el.value = value;
         });
+        populateLeadFilterOptions();
         const stalledBtn = document.getElementById('stalledToggle');
         if (stalledBtn) {
             stalledBtn.classList.remove('active');
@@ -457,6 +458,10 @@
         return { city: raw, uf: '', state: '' };
     }
 
+    function getLeadCityDisplay(lead){
+        return String(lead?.cidade || lead?.city || '').trim();
+    }
+
     function getLeadStateUf(lead){
         const direct = String(lead?.estado || lead?.uf || lead?.state || '').trim().toUpperCase();
         if (/^[A-Z]{2}$/.test(direct)) return direct;
@@ -468,6 +473,61 @@
             ? CITY_DATA_CACHE.find(item => normalizeText(item.name) === normalizeText(parsed.city || cityValue))
             : null;
         return String(matched?.uf || '').trim().toUpperCase();
+    }
+
+    function getStateOptionsFromLeads(leads){
+        const seen = new Set();
+        const list = [];
+        (Array.isArray(leads) ? leads : []).forEach(lead => {
+            const uf = getLeadStateUf(lead);
+            if (!/^[A-Z]{2}$/.test(uf) || seen.has(uf)) return;
+            seen.add(uf);
+            list.push(uf);
+        });
+        return list.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }
+
+    function getCityOptionsFromLeads(leads, stateUf = ''){
+        const ufWanted = String(stateUf || '').trim().toUpperCase();
+        const seen = new Map();
+        (Array.isArray(leads) ? leads : []).forEach(lead => {
+            const city = getLeadCityDisplay(lead);
+            if (!city) return;
+            const leadUf = getLeadStateUf(lead);
+            if (ufWanted && leadUf !== ufWanted) return;
+            const key = cityFilterKey(city);
+            if (!key) return;
+            if (!seen.has(key) || city.length > seen.get(key).length) {
+                seen.set(key, city);
+            }
+        });
+        return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }
+
+    function populateLeadFilterOptions(){
+        const filterEstado = document.getElementById('filterEstado');
+        const filterCidadeList = document.getElementById('filterCidadeList');
+        if (filterEstado) {
+            const current = String(CURRENT_ESTADO_FILTER || '').trim().toUpperCase();
+            const states = getStateOptionsFromLeads(allLeads);
+            filterEstado.innerHTML = '<option value="">Todos estados</option>';
+            states.forEach(uf => {
+                const opt = document.createElement('option');
+                opt.value = uf;
+                opt.textContent = uf;
+                filterEstado.appendChild(opt);
+            });
+            filterEstado.value = current;
+        }
+        if (filterCidadeList) {
+            const cidades = getCityOptionsFromLeads(allLeads, CURRENT_ESTADO_FILTER);
+            filterCidadeList.innerHTML = '';
+            cidades.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                filterCidadeList.appendChild(opt);
+            });
+        }
     }
 
     async function loadCityData(){
@@ -624,34 +684,10 @@
             }
             console.log('Leads loaded:', json.length);
             allLeads = json.map(l => ({...l, score: l.score ?? computeScore(l)}));
-            // populate cidade filter
-            const cidadeMap = new Map();
-            allLeads.forEach(l => {
-                const raw = String(l.cidade || l.city || '').trim();
-                if (!raw) return;
-                const key = cityFilterKey(raw);
-                if (!key) return;
-                if (!cidadeMap.has(key) || raw.length > cidadeMap.get(key).length) {
-                    cidadeMap.set(key, raw);
-                }
-            });
-            const cidades = Array.from(cidadeMap.values()).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            populateLeadFilterOptions();
             const filterCidade = document.getElementById('filterCidade');
             if (filterCidade) {
                 filterCidade.value = CURRENT_CIDADE_FILTER || '';
-            }
-            const filterEstado = document.getElementById('filterEstado');
-            if (filterEstado) {
-                filterEstado.value = CURRENT_ESTADO_FILTER || '';
-            }
-            const filterCidadeList = document.getElementById('filterCidadeList');
-            if (filterCidadeList) {
-                filterCidadeList.innerHTML = '';
-                cidades.forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c;
-                    filterCidadeList.appendChild(opt);
-                });
             }
             // compute presence of SEM STATUS (stage_id === 0 or null)
             const prevSem = SEMSTATUS_PRESENT;
@@ -3608,6 +3644,7 @@
         if (filterEstadoEl) {
             filterEstadoEl.addEventListener('change', (e)=>{
                 CURRENT_ESTADO_FILTER = e.target.value || '';
+                populateLeadFilterOptions();
                 renderAll();
             });
         }

@@ -73,6 +73,25 @@ function ce_api_payload(): array {
     ];
 }
 
+function ce_api_fetch_attachments(PDO $pdo, int $itemId): array {
+    $stmt = $pdo->prepare('
+        SELECT
+            a.id AS attachment_id,
+            a.demand_id,
+            a.filename,
+            a.mimetype,
+            a.file_size,
+            a.created_at,
+            a.user_id
+        FROM consultoria_interna_demandas d
+        INNER JOIN consultoria_interna_demandas_attachments a ON a.demand_id = d.id
+        WHERE d.external_item_id = ?
+        ORDER BY a.id DESC
+    ');
+    $stmt->execute([$itemId]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 try {
     ce_ensure_stage_tables($pdo);
     ce_seed_default_stages($pdo, $userId);
@@ -88,7 +107,11 @@ try {
         $id = (int)($_GET['id'] ?? 0);
         $stmt = $pdo->prepare('SELECT id, client_name, email, phone, cpf_cnpj, cidade, source, status, ultimo_contato, created_entry_at, consumo, estimativa_kwh, value, forma_pagamento_id, notes, stage_key, stage_id, exported_to_internal_queue, exported_at, created_at, updated_at FROM consultoria_externa_itens WHERE id = ? AND user_id = ? AND COALESCE(deleted, 0) = 0 LIMIT 1');
         $stmt->execute([$id, $userId]);
-        echo json_encode($stmt->fetch(PDO::FETCH_ASSOC) ?: []);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        if ($row) {
+            $row['attachments'] = ce_api_fetch_attachments($pdo, $id);
+        }
+        echo json_encode($row);
         exit;
     }
 

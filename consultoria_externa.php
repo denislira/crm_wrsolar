@@ -775,6 +775,10 @@ include 'includes/header.php';
                                                     <div class="d-flex justify-content-end mt-2">
                                                         <button id="ceUploadAnexosNow" type="button" class="btn btn-sm btn-outline-primary"><i class="fa fa-upload"></i> Enviar</button>
                                                     </div>
+                                                    <div class="mt-3">
+                                                        <label class="form-label fw-semibold mb-2">Anexos já enviados pelos consultores internos</label>
+                                                        <div id="ceLeadAttachments" class="vstack gap-2"></div>
+                                                    </div>
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Notas</label>
@@ -949,6 +953,7 @@ include 'includes/header.php';
                 const leadCityState = document.getElementById('ceLeadCityState');
                 const leadAnexosInput = document.getElementById('ceLeadAnexos');
                 const leadAnexosNames = document.getElementById('ceAnexosFileNames');
+                const leadAttachmentsContainer = document.getElementById('ceLeadAttachments');
                 const leadSourceInput = document.getElementById('ceLeadSource');
                 const leadSourceDisplay = <?php echo json_encode($displayName, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
                 const leadStageInput = document.getElementById('ceLeadStageId');
@@ -1066,6 +1071,34 @@ include 'includes/header.php';
                     if (leadConsumoInput) leadConsumoInput.value = '';
                     if (leadEstimativaInput) leadEstimativaInput.value = '';
                     if (leadFormaPagamentoInput) leadFormaPagamentoInput.value = '';
+                    if (leadAttachmentsContainer) {
+                        leadAttachmentsContainer.innerHTML = '<div class="text-muted small">Nenhum anexo carregado.</div>';
+                    }
+                }
+
+                function renderLeadAttachments(attachments) {
+                    if (!leadAttachmentsContainer) return;
+                    if (!Array.isArray(attachments) || !attachments.length) {
+                        leadAttachmentsContainer.innerHTML = '<div class="text-muted small">Nenhum anexo carregado.</div>';
+                        return;
+                    }
+
+                    leadAttachmentsContainer.innerHTML = '';
+                    attachments.forEach((attachment) => {
+                        const row = document.createElement('div');
+                        row.className = 'border rounded p-2 bg-light d-flex justify-content-between align-items-center gap-3';
+                        const sizeLabel = attachment.file_size ? `${(Number(attachment.file_size) / 1024).toFixed(1)} KB` : '';
+                        row.innerHTML = `
+                            <div class="min-w-0">
+                                <div class="fw-semibold text-truncate">${attachment.filename || 'Anexo'}</div>
+                                <div class="small text-muted">${attachment.created_at || ''}${sizeLabel ? ` • ${sizeLabel}` : ''}</div>
+                            </div>
+                            <a class="btn btn-sm btn-outline-primary flex-shrink-0" href="includes/consultoria_interna_demandas_api.php?action=download_attachment&attachment_id=${encodeURIComponent(attachment.attachment_id)}" target="_blank" rel="noopener">
+                                <i class="fa fa-download me-1"></i>Baixar
+                            </a>
+                        `;
+                        leadAttachmentsContainer.appendChild(row);
+                    });
                 }
 
                 function openLeadModal(card = null) {
@@ -1091,6 +1124,7 @@ include 'includes/header.php';
                         leadValueInput.value = card.orcamento_value ? formatMoneyInput(card.orcamento_value) : '';
                         if (leadFormaPagamentoInput) leadFormaPagamentoInput.value = card.forma_pagamento_id || '';
                         leadNotesInput.value = card.notes || '';
+                        renderLeadAttachments(Array.isArray(card.attachments) ? card.attachments : []);
                     }
                     leadModal.show();
                 }
@@ -1100,7 +1134,8 @@ include 'includes/header.php';
                     if (!res.ok) {
                         throw new Error('NÃ£o foi possÃ­vel carregar o registro');
                     }
-                    return await res.json();
+                    const data = await res.json();
+                    return data && typeof data === 'object' ? data : {};
                 }
 
                 async function saveLeadForm(event) {
