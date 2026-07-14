@@ -42,6 +42,98 @@ body.dark-mode #leadsPreloaderText{
 .kanban-top-scrollbar::-webkit-scrollbar-track{background:#e9eef5;border-radius:6px}
 .kanban-top-scrollbar::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:6px}
 .kanban-top-scrollbar::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+#searchInput,
+#filterCidade,
+#filterEstado,
+#filterScore{
+  min-height:34px;
+}
+#searchInput{flex:1 1 360px;min-width:260px}
+#filterCidade{width:240px}
+#filterEstado{width:120px}
+#filterScore{width:150px}
+.leads-search{max-width:520px}
+.container-fluid > .d-flex.justify-content-between.align-items-center.mb-4{
+  gap:16px;
+  flex-wrap:nowrap;
+}
+.container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 > h1{
+  flex:0 0 auto;
+  margin-right:6px;
+}
+.container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 > .d-flex{
+  flex:1 1 auto;
+  flex-wrap:nowrap;
+  min-width:0;
+}
+.container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 .btn,
+.container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 .form-control{
+  white-space:nowrap;
+}
+.container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 .btn{
+  flex:0 0 auto;
+}
+.container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 #newLeadBtn{
+  white-space:nowrap;
+  min-width:max-content;
+}
+.container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 #searchInput{
+  flex:1 1 360px;
+  max-width:none;
+  min-width:280px;
+}
+.container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 .btn-funil-config{
+  white-space:nowrap;
+  min-width:max-content;
+  padding-left:10px;
+  padding-right:10px;
+}
+.filters-toggle-btn{
+  min-width:96px;
+  border-radius:999px;
+}
+.filters-toggle-btn.active{
+  background:#0b6ac1;
+  color:#fff;
+  border-color:#0b6ac1;
+}
+.advanced-filters-bar{
+  margin-top:-4px;
+  margin-bottom:18px;
+}
+.advanced-filters-shell{
+  background:linear-gradient(180deg,#ffffff 0%,#f4f8ff 100%);
+  border:1px solid rgba(11,26,49,0.08);
+  border-radius:18px;
+  padding:16px 18px;
+  box-shadow:0 12px 28px rgba(11,26,49,0.08);
+}
+.advanced-filters-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:14px;
+}
+.advanced-filters-title{
+  font-size:1rem;
+  font-weight:800;
+  color:#0f2f52;
+}
+.advanced-filters-subtitle{
+  font-size:.82rem;
+  color:var(--muted);
+}
+.advanced-filters-grid{
+  display:grid;
+  grid-template-columns:1.4fr .7fr .9fr .9fr 1.4fr;
+  gap:12px;
+  align-items:end;
+}
+#advancedFiltersBar .form-label{
+  font-weight:700;
+  letter-spacing:.01em;
+}
 #topScrollbarContent{height:1px}
 .date-filter-input{
   border:1px solid #0d6efd !important;
@@ -88,6 +180,37 @@ body.dark-mode #leadsPreloaderText{
 
 @media (max-width: 900px){
     .kanban-skeleton-column{flex-basis:260px}
+    .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4{
+      flex-wrap:wrap;
+      gap:12px;
+    }
+    .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 > .d-flex{
+      flex-wrap:wrap;
+      width:100%;
+    }
+    .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 > h1{
+      margin-right:0;
+    }
+    .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 #newLeadBtn{
+      min-width:0;
+    }
+    #searchInput{
+      min-width:0 !important;
+      width:100% !important;
+      flex:1 1 100%;
+    }
+    .advanced-filters-grid{
+      grid-template-columns:1fr;
+    }
+    .advanced-filters-header{
+      flex-direction:column;
+      align-items:stretch;
+    }
+    #searchInput,#filterCidade,#filterEstado,#filterScore{
+      min-width:0 !important;
+      width:100% !important;
+      flex:1 1 100%;
+    }
     /* On narrow screens the panel is full-width so avoid extra rounding and section backgrounds */
     .lead-panel{border-radius:0}
     #leadDetailContent .lead-col{background:transparent;border:none;padding:0;margin-bottom:0}
@@ -139,18 +262,18 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
 
 #kpiRow .small.text-muted{
     color:#4f6b87 !important;
-    font-size:.74rem;
+    font-size:.68rem;
     text-transform:uppercase;
-    letter-spacing:.05em;
-    font-weight:700;
+    letter-spacing:.03em;
+    font-weight:500;
 }
 
 #kpiRow .h4{
     margin-bottom:0;
-    font-size:1.45rem;
+    font-size:1.28rem;
     line-height:1.1;
     color:#0f2f52;
-    font-weight:800;
+    font-weight:600;
 }
 
 #kpiRow #trashedKpiCard::before{
@@ -170,12 +293,12 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
 @media (min-width: 768px) {
     /* Increase width and font of 'Valor no pipeline' (4th column in #kpiRow) */
     #kpiRow > div:nth-child(4){ flex: 0 0 18% !important; max-width: 18% !important; }
-    #kpiRow > div:nth-child(4) .small.text-muted{ font-size:0.85rem !important; }
-    #kpiRow > div:nth-child(4) .h4{ font-size:1.4rem !important; }
+    #kpiRow > div:nth-child(4) .small.text-muted{ font-size:0.72rem !important; }
+    #kpiRow > div:nth-child(4) .h4{ font-size:1.2rem !important; }
 
     /* Increase width and prominence of 'Leads quentes' (5th column) */
     #kpiRow > div:nth-child(5){ flex: 0 0 14% !important; max-width: 14% !important; }
-    #kpiRow > div:nth-child(5) .h4{ font-size:1.5rem !important; font-weight:700 !important; }
+    #kpiRow > div:nth-child(5) .h4{ font-size:1.28rem !important; font-weight:600 !important; }
 }
 .loading{opacity:.6}
 

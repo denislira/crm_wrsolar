@@ -26,21 +26,87 @@ include 'includes/header.php';
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h1 class="h4 mb-0">Gestão de Leads</h1>
-                <div class="d-flex gap-2 align-items-center">
-                    <input id="searchInput" class="form-control form-control-sm" placeholder="Buscar por nome, empresa ou telefone..." style="min-width:280px">
-                    <div class="position-relative" style="min-width:240px;">
-                        <input id="filterCidade" class="form-control form-control-sm" list="filterCidadeList" placeholder="Todas cidades">
-                        <datalist id="filterCidadeList"></datalist>
-                    </div>
-                    <select id="filterScore" class="form-select form-select-sm">
-                        <option value="">Todos scores</option>
-                        <option value="hot">🔥 Quente (80+)</option>
-                        <option value="warm">⚡ Morno (50-79)</option>
-                        <option value="cold">❄️ Frio (0-49)</option>
-                    </select>
+                <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
+                    <input id="searchInput" class="form-control form-control-sm leads-search" placeholder="Buscar por nome, empresa ou telefone...">
+                    <button id="toggleAdvancedFiltersBtn" class="btn btn-sm btn-outline-primary filters-toggle-btn" type="button" aria-expanded="false" aria-controls="advancedFiltersBar">
+                        Filtros
+                    </button>
                     <button id="newLeadBtn" class="btn btn-primary btn-sm" style="min-width:160px;">Novo lead</button>
                     <a href="import_leads.php" class="btn btn-sm btn-outline-secondary" title="Importar leads via CSV">Importar CSV</a>
-                    <button id="funilConfigBtn" class="btn btn-sm btn-outline-primary" title="Personalizar estágios do funil" onclick="location.href='funil_config.php'">Personalizar Funil</button>
+                    <button id="funilConfigBtn" class="btn btn-sm btn-outline-primary btn-funil-config" title="Personalizar estágios do funil" onclick="location.href='funil_config.php'">Personalizar Funil</button>
+                </div>
+            </div>
+
+            <div id="advancedFiltersBar" class="advanced-filters-bar d-none">
+                <div class="advanced-filters-shell">
+                    <div class="advanced-filters-header">
+                        <div>
+                            <div class="advanced-filters-title">Filtros avançados</div>
+                            <div class="advanced-filters-subtitle">Refine a lista sem apertar a área principal.</div>
+                        </div>
+                        <button id="clearLeadFiltersBtn" class="btn btn-sm btn-light" type="button">Limpar</button>
+                    </div>
+                    <div class="advanced-filters-grid">
+                        <div class="position-relative">
+                            <label class="form-label small text-muted mb-1" for="filterCidade">Cidade</label>
+                            <input id="filterCidade" class="form-control form-control-sm" list="filterCidadeList" placeholder="Todas cidades">
+                            <datalist id="filterCidadeList"></datalist>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-1" for="filterEstado">Estado</label>
+                            <select id="filterEstado" class="form-select form-select-sm">
+                                <option value="">Todos estados</option>
+                                <option value="AC">AC</option>
+                                <option value="AL">AL</option>
+                                <option value="AP">AP</option>
+                                <option value="AM">AM</option>
+                                <option value="BA">BA</option>
+                                <option value="CE">CE</option>
+                                <option value="DF">DF</option>
+                                <option value="ES">ES</option>
+                                <option value="GO">GO</option>
+                                <option value="MA">MA</option>
+                                <option value="MT">MT</option>
+                                <option value="MS">MS</option>
+                                <option value="MG">MG</option>
+                                <option value="PA">PA</option>
+                                <option value="PB">PB</option>
+                                <option value="PR">PR</option>
+                                <option value="PE">PE</option>
+                                <option value="PI">PI</option>
+                                <option value="RJ">RJ</option>
+                                <option value="RN">RN</option>
+                                <option value="RS">RS</option>
+                                <option value="RO">RO</option>
+                                <option value="RR">RR</option>
+                                <option value="SC">SC</option>
+                                <option value="SP">SP</option>
+                                <option value="SE">SE</option>
+                                <option value="TO">TO</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-1" for="filterScore">Score</label>
+                            <select id="filterScore" class="form-select form-select-sm">
+                                <option value="">Todos scores</option>
+                                <option value="hot">🔥 Quente (80+)</option>
+                                <option value="warm">⚡ Morno (50-79)</option>
+                                <option value="cold">❄️ Frio (0-49)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-1">Status rápido</label>
+                            <button id="stalledToggle" class="btn btn-sm btn-outline-secondary w-100">Leads parados</button>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-1">Período</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input id="filterDateStart" type="date" class="form-control form-control-sm date-filter-input">
+                                <input id="filterDateEnd" type="date" class="form-control form-control-sm date-filter-input">
+                                <button id="applyDateFilterBtn" class="btn btn-sm btn-outline-primary" title="Aplicar filtro de data">OK</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -74,14 +140,6 @@ include 'includes/header.php';
                 <div class="d-flex gap-2 align-items-center flex-wrap w-100 justify-content-end">
                     <button id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger d-none" title="Excluir selecionados"><i class="fa fa-trash"></i></button>
                     <button id="bulkUncheckBtn" class="btn btn-sm btn-outline-secondary d-none" title="Desmarcar todos"><i class="fa fa-times"></i></button>
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <div class="d-flex align-items-center gap-1">
-                            <input id="filterDateStart" type="date" class="form-control form-control-sm date-filter-input" style="width: 145px;" title="Data início">
-                            <input id="filterDateEnd" type="date" class="form-control form-control-sm date-filter-input" style="width: 145px;" title="Data fim">
-                            <button id="applyDateFilterBtn" class="btn btn-sm btn-outline-primary" title="Aplicar filtro de data">OK</button>
-                        </div>
-                        <button id="stalledToggle" class="btn btn-sm btn-outline-secondary">Leads parados</button>
-                    </div>
                     <button id="toggleSemStatusBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Sem Status">Sem Status</button>
                     <button id="toggleAnunciosBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Anúncios">Anúncios</button>
                     <button id="toggleIndicadosBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Indicações">Indicações</button>

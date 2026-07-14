@@ -18,11 +18,18 @@ function ce_ensure_stage_tables(PDO $pdo): void {
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
         client_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) DEFAULT NULL,
         phone VARCHAR(50) DEFAULT NULL,
+        cpf_cnpj VARCHAR(30) DEFAULT NULL,
         cidade VARCHAR(255) DEFAULT NULL,
         source VARCHAR(255) DEFAULT NULL,
         status VARCHAR(100) DEFAULT NULL,
+        ultimo_contato DATE DEFAULT NULL,
+        created_entry_at DATE DEFAULT NULL,
+        consumo DECIMAL(12,2) DEFAULT NULL,
+        estimativa_kwh DECIMAL(12,2) DEFAULT NULL,
         value DECIMAL(12,2) DEFAULT 0.00,
+        forma_pagamento_id INT DEFAULT NULL,
         notes TEXT DEFAULT NULL,
         stage_key VARCHAR(50) DEFAULT 'captacao_tecnica',
         stage_id INT DEFAULT NULL,
@@ -120,6 +127,20 @@ function ce_ensure_stage_tables(PDO $pdo): void {
 
     if ($itemCols && !in_array('stage_id', $itemCols, true)) {
         $pdo->exec("ALTER TABLE consultoria_externa_itens ADD COLUMN stage_id INT DEFAULT NULL AFTER stage_key");
+    }
+    $additionalCols = [
+        'email' => 'VARCHAR(255) DEFAULT NULL AFTER client_name',
+        'cpf_cnpj' => 'VARCHAR(30) DEFAULT NULL AFTER phone',
+        'ultimo_contato' => 'DATE DEFAULT NULL AFTER status',
+        'created_entry_at' => 'DATE DEFAULT NULL AFTER ultimo_contato',
+        'consumo' => 'DECIMAL(12,2) DEFAULT NULL AFTER created_entry_at',
+        'estimativa_kwh' => 'DECIMAL(12,2) DEFAULT NULL AFTER consumo',
+        'forma_pagamento_id' => 'INT DEFAULT NULL AFTER value',
+    ];
+    foreach ($additionalCols as $col => $definition) {
+        if ($itemCols && !in_array($col, $itemCols, true)) {
+            $pdo->exec("ALTER TABLE consultoria_externa_itens ADD COLUMN {$col} {$definition}");
+        }
     }
     if ($itemCols && !in_array('exported_to_internal_queue', $itemCols, true)) {
         $pdo->exec("ALTER TABLE consultoria_externa_itens ADD COLUMN exported_to_internal_queue TINYINT(1) NOT NULL DEFAULT 0 AFTER stage_id");

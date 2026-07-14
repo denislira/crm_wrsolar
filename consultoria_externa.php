@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -46,17 +46,17 @@ function ce_normalize($value) {
     }
 
     $map = [
-        'Á' => 'a', 'À' => 'a', 'Ã' => 'a', 'Â' => 'a', 'Ä' => 'a',
-        'á' => 'a', 'à' => 'a', 'ã' => 'a', 'â' => 'a', 'ä' => 'a',
-        'É' => 'e', 'È' => 'e', 'Ê' => 'e', 'Ë' => 'e',
-        'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
-        'Í' => 'i', 'Ì' => 'i', 'Î' => 'i', 'Ï' => 'i',
-        'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
-        'Ó' => 'o', 'Ò' => 'o', 'Õ' => 'o', 'Ô' => 'o', 'Ö' => 'o',
-        'ó' => 'o', 'ò' => 'o', 'õ' => 'o', 'ô' => 'o', 'ö' => 'o',
-        'Ú' => 'u', 'Ù' => 'u', 'Û' => 'u', 'Ü' => 'u',
-        'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
-        'Ç' => 'c', 'ç' => 'c'
+        'Ã' => 'a', 'Ã€' => 'a', 'Ãƒ' => 'a', 'Ã‚' => 'a', 'Ã„' => 'a',
+        'Ã¡' => 'a', 'Ã ' => 'a', 'Ã£' => 'a', 'Ã¢' => 'a', 'Ã¤' => 'a',
+        'Ã‰' => 'e', 'Ãˆ' => 'e', 'ÃŠ' => 'e', 'Ã‹' => 'e',
+        'Ã©' => 'e', 'Ã¨' => 'e', 'Ãª' => 'e', 'Ã«' => 'e',
+        'Ã' => 'i', 'ÃŒ' => 'i', 'ÃŽ' => 'i', 'Ã' => 'i',
+        'Ã­' => 'i', 'Ã¬' => 'i', 'Ã®' => 'i', 'Ã¯' => 'i',
+        'Ã“' => 'o', 'Ã’' => 'o', 'Ã•' => 'o', 'Ã”' => 'o', 'Ã–' => 'o',
+        'Ã³' => 'o', 'Ã²' => 'o', 'Ãµ' => 'o', 'Ã´' => 'o', 'Ã¶' => 'o',
+        'Ãš' => 'u', 'Ã™' => 'u', 'Ã›' => 'u', 'Ãœ' => 'u',
+        'Ãº' => 'u', 'Ã¹' => 'u', 'Ã»' => 'u', 'Ã¼' => 'u',
+        'Ã‡' => 'c', 'Ã§' => 'c'
     ];
 
     return strtolower(strtr($value, $map));
@@ -477,6 +477,36 @@ include 'includes/header.php';
                 flex-wrap: wrap;
                 margin-top: .2rem;
             }
+            .ce-lead-modal-content {
+                border-radius: 14px;
+                overflow: hidden;
+                box-shadow: 0 24px 60px rgba(11, 26, 49, 0.12);
+            }
+            .ce-lead-modal-content .modal-header {
+                background: transparent;
+                padding: 18px 22px;
+                border-bottom: none;
+                font-weight: 700;
+            }
+            .ce-lead-modal-content .modal-body {
+                padding: 20px;
+                background: transparent;
+            }
+            .ce-lead-modal-content .modal-footer {
+                padding: 14px 22px;
+                border-top: none;
+            }
+            .ce-lead-modal-content .form-control,
+            .ce-lead-modal-content .form-select {
+                border-radius: 10px;
+                padding: 10px 12px;
+                border: 1px solid rgba(11, 26, 49, 0.08);
+                box-shadow: none;
+            }
+            .ce-lead-modal-content label {
+                font-weight: 600;
+                font-size: .9rem;
+            }
             body.theme-dark .ce-shell {
                 background: linear-gradient(180deg, rgba(15,23,42,0.96) 0%, rgba(15,23,42,0.88) 100%);
             }
@@ -550,7 +580,7 @@ include 'includes/header.php';
             <div class="ce-toolbar">
                 <div>
                     <h1>Painel de Consultores Externos</h1>
-                    <div class="ce-toolbar-subtitle">Visão rápida das visitas, orçamentos, financiamentos e contratos de <?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?>.</div>
+                    <div class="ce-toolbar-subtitle">VisÃ£o rÃ¡pida das visitas, orÃ§amentos, financiamentos e contratos de <?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?>.</div>
                 </div>
                 <div class="ce-actions">
                     <input id="ceSearchInput" type="search" class="form-control ce-search" placeholder="Buscar cliente...">
@@ -655,7 +685,7 @@ include 'includes/header.php';
                                                         <i class="fa-regular fa-pen-to-square"></i>
                                                     </button>
                                                 <?php endif; ?>
-                                                <a class="ce-card-link" href="<?php echo htmlspecialchars($card['link'], ENT_QUOTES, 'UTF-8'); ?>" title="Abrir módulo relacionado">
+                                                <a class="ce-card-link" href="<?php echo htmlspecialchars($card['link'], ENT_QUOTES, 'UTF-8'); ?>" title="Abrir mÃ³dulo relacionado">
                                                     <i class="fa-solid fa-ellipsis-vertical"></i>
                                                 </a>
                                             </div>
@@ -686,71 +716,126 @@ include 'includes/header.php';
         </div>
 
         <div class="modal fade" id="ceLeadModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
                 <div class="modal-content">
-                    <div class="modal-header">
-                        <div>
-                            <h5 class="modal-title mb-0" id="ceLeadModalTitle">Cadastrar Registro</h5>
-                            <div class="small text-muted">Registro rápido para o painel de consultores externos.</div>
-                        </div>
+                    <div class="modal-header bg-light border-bottom">
+                        <h5 class="modal-title d-flex align-items-center gap-2" id="ceLeadModalTitle">
+                            <i class="fa-regular fa-user-plus text-primary"></i> <span>Cadastrar Registro</span>
+                        </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                     </div>
-                    <form id="ceLeadForm">
-                        <input type="hidden" id="ceLeadId" name="id" value="">
-                        <div class="modal-body">
-                            <div class="row g-3">
-                                <div class="col-md-8">
-                                    <label for="ceLeadName" class="form-label">Nome</label>
-                                    <input id="ceLeadName" name="name" type="text" class="form-control" placeholder="Nome do cliente ou empresa" required>
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="ceLeadPhone" class="form-label">Telefone</label>
-                                    <input id="ceLeadPhone" name="phone" type="text" class="form-control" placeholder="(00) 00000-0000">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="ceLeadCity" class="form-label">Cidade</label>
-                                    <input id="ceLeadCity" name="cidade" type="text" class="form-control" placeholder="Cidade - UF">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="ceLeadSource" class="form-label">Origem</label>
-                                    <input id="ceLeadSource" name="source" type="text" class="form-control" placeholder="Ex: Visita, Indicação, WhatsApp">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="ceLeadStageId" class="form-label">Coluna do Kanban</label>
-                                    <select id="ceLeadStageId" name="stage_id" class="form-select">
-                                        <?php foreach ($stageMeta as $stageKey => $meta): ?>
-                                            <option value="<?php echo htmlspecialchars($stageKey, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8'); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="ceLeadStatus" class="form-label">Status</label>
-                                    <select id="ceLeadStatus" name="status" class="form-select">
-                                        <option value="">Sem status</option>
-                                        <option value="Em captação técnica">Em captação técnica</option>
-                                        <option value="Aguardando orçamento">Aguardando orçamento</option>
-                                        <option value="Processo bancário">Processo bancário</option>
-                                        <option value="Contrato gerado">Contrato gerado</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="ceLeadValue" class="form-label">Valor</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text">R$</span>
-                                        <input id="ceLeadValue" name="orcamento_value" type="text" class="form-control" placeholder="0,00">
+                    <div class="modal-body">
+                        <form id="ceLeadForm" enctype="multipart/form-data">
+                            <input type="hidden" id="ceLeadId">
+                            <div class="container-fluid">
+                                <div class="row">
+                                    <div class="col-lg-7">
+                                        <div class="card mb-3">
+                                            <div class="card-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-semibold">Nome</label>
+                                                    <input id="ceLeadName" class="form-control form-control-lg" required placeholder="Nome completo ou empresa">
+                                                </div>
+                                                <div class="row">
+                                                    <div class="col-md-6 mb-3">
+                                                        <label class="form-label">Email</label>
+                                                        <input id="ceLeadEmail" class="form-control" type="email" placeholder="exemplo@dominio.com">
+                                                    </div>
+                                                    <div class="col-md-6 mb-3">
+                                                        <label class="form-label">Telefone</label>
+                                                        <input id="ceLeadPhone" class="form-control" type="tel" placeholder="(00) 90000-0000">
+                                                    </div>
+                                                </div>
+                                                <div class="row">
+                                                    <div class="col-md-6 mb-3">
+                                                        <label class="form-label">CPF / CNPJ</label>
+                                                        <input id="ceLeadCpfCnpj" class="form-control" placeholder="000.000.000-00 ou 00.000.000/0000-00">
+                                                    </div>
+                                                    <div class="col-md-6 mb-3">
+                                                        <label class="form-label">Cidade</label>
+                                                        <div class="position-relative">
+                                                            <input id="ceLeadCity" class="form-control" placeholder="Cidade">
+                                                            <div id="ceLeadCitySuggestions" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index:1080; max-height: 240px; overflow-y: auto;"></div>
+                                                        </div>
+                                                        <div class="form-text d-flex justify-content-between align-items-center">
+                                                            <span>Digite a cidade para ver sugestões com UF.</span>
+                                                            <span id="ceLeadCityState" class="badge bg-light text-dark border">UF</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Anexar Arquivos</label>
+                                                    <div id="ceAnexosDropzone" style="border:2px dashed #adb5bd;border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;" onclick="document.getElementById('ceLeadAnexos').click()">
+                                                        <i class="fa fa-cloud-upload fa-2x text-muted mb-2"></i>
+                                                        <div class="text-muted small">Arraste e solte arquivos aqui ou <span style="color:#0d6efd;text-decoration:underline;">clique para selecionar</span></div>
+                                                        <div class="form-text mt-1">PDF, DOC, DOCX, CSV, XLS, XLSX, XML, TXT, RTF, ODT, PPTX, JPG, JPEG, PNG, GIF, BMP, WEBP, JFIF (max 10MB cada)</div>
+                                                        <div id="ceAnexosFileNames" class="mt-2 small text-start"></div>
+                                                    </div>
+                                                    <input id="ceLeadAnexos" type="file" multiple accept=".pdf,.doc,.docx,.csv,.xls,.xlsx,.xml,.txt,.rtf,.odt,.pptx,.jpg,.jpeg,.png,.gif,.bmp,.webp,.jfif" style="display:none">
+                                                    <div class="d-flex justify-content-end mt-2">
+                                                        <button id="ceUploadAnexosNow" type="button" class="btn btn-sm btn-outline-primary"><i class="fa fa-upload"></i> Enviar</button>
+                                                    </div>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Notas</label>
+                                                    <textarea id="ceLeadNotes" class="form-control" rows="4" placeholder="Observações sobre o registro..."></textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-5">
+                                        <div class="card mb-3">
+                                            <div class="card-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Status</label>
+                                                    <select id="ceLeadStatus" class="form-select"></select>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Último Contato</label>
+                                                    <input id="ceLeadUltimoContato" class="form-control" type="date">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Data de Entrada</label>
+                                                    <input id="ceLeadCreatedAt" class="form-control" type="date" placeholder="Data de entrada">
+                                                    <div class="form-text small">Data de início do registro, pode ser editada.</div>
+                                                </div>
+                                                <div class="row">
+                                                    <div class="col-md-6 mb-3">
+                                                        <label class="form-label">Consumo (R$)</label>
+                                                        <input id="ceLeadConsumo" class="form-control" type="number" step="0.01" placeholder="0,00">
+                                                    </div>
+                                                    <div class="col-md-6 mb-3">
+                                                        <label class="form-label">Estimativa (kWh)</label>
+                                                        <input id="ceLeadEstimativaKwh" class="form-control" type="number" step="0.01" placeholder="0,00">
+                                                    </div>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Valor de Orçamento</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">R$</span>
+                                                        <input id="ceLeadOrcamento" class="form-control currency-mask" type="text" placeholder="0,00">
+                                                    </div>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Forma de Pagamento</label>
+                                                    <select id="ceLeadFormaPagamento" class="form-select"><option value="">-- selecione --</option></select>
+                                                    <div class="form-text">Selecione a forma de pagamento principal do cliente.</div>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Fonte</label>
+                                                    <input id="ceLeadSource" class="form-control" value="<?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?>" readonly>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-12">
-                                    <label for="ceLeadNotes" class="form-label">Observações</label>
-                                    <textarea id="ceLeadNotes" name="notes" class="form-control" rows="4" placeholder="Detalhes da visita, negociação ou próximos passos"></textarea>
-                                </div>
                             </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                            <button id="ceLeadSaveBtn" type="submit" class="btn btn-primary">Salvar</button>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
+                    <div class="modal-footer d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button id="ceLeadSaveBtn" type="submit" form="ceLeadForm" class="btn btn-primary"><i class="fa fa-save"></i> Salvar</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -806,7 +891,7 @@ include 'includes/header.php';
                                             <div class="mt-3">
                                                 <label for="ceStageNextStage" class="form-label">Ao concluir a parte interna, mover para</label>
                                                 <select id="ceStageNextStage" class="form-select">
-                                                    <option value="">Não mover</option>
+                                                    <option value="">NÃ£o mover</option>
                                                     <?php foreach ($stageMeta as $stageKey => $meta): ?>
                                                         <option value="<?php echo htmlspecialchars((string) $stageKey, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8'); ?></option>
                                                     <?php endforeach; ?>
@@ -856,12 +941,23 @@ include 'includes/header.php';
                 const leadModalTitle = document.getElementById('ceLeadModalTitle');
                 const leadIdInput = document.getElementById('ceLeadId');
                 const leadNameInput = document.getElementById('ceLeadName');
+                const leadEmailInput = document.getElementById('ceLeadEmail');
                 const leadPhoneInput = document.getElementById('ceLeadPhone');
+                const leadCpfInput = document.getElementById('ceLeadCpfCnpj');
                 const leadCityInput = document.getElementById('ceLeadCity');
+                const leadCityState = document.getElementById('ceLeadCityState');
+                const leadAnexosInput = document.getElementById('ceLeadAnexos');
+                const leadAnexosNames = document.getElementById('ceAnexosFileNames');
                 const leadSourceInput = document.getElementById('ceLeadSource');
+                const leadSourceDisplay = <?php echo json_encode($displayName, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
                 const leadStageInput = document.getElementById('ceLeadStageId');
                 const leadStatusInput = document.getElementById('ceLeadStatus');
-                const leadValueInput = document.getElementById('ceLeadValue');
+                const leadUltimoContatoInput = document.getElementById('ceLeadUltimoContato');
+                const leadCreatedAtInput = document.getElementById('ceLeadCreatedAt');
+                const leadConsumoInput = document.getElementById('ceLeadConsumo');
+                const leadEstimativaInput = document.getElementById('ceLeadEstimativaKwh');
+                const leadValueInput = document.getElementById('ceLeadOrcamento');
+                const leadFormaPagamentoInput = document.getElementById('ceLeadFormaPagamento');
                 const leadNotesInput = document.getElementById('ceLeadNotes');
                 const stagesList = document.getElementById('ceStagesList');
                 const stageForm = document.getElementById('ceStageForm');
@@ -955,12 +1051,20 @@ include 'includes/header.php';
                     leadIdInput.value = '';
                     leadModalTitle.textContent = 'Cadastrar Registro';
                     leadSaveBtn.textContent = 'Salvar';
+                    if (leadSourceInput) leadSourceInput.value = leadSourceDisplay;
                     const initialStage = stages.find((stage) => Number(stage.is_initial) === 1) || stages[0];
                     if (leadStageInput && initialStage) {
                         leadStageInput.value = String(initialStage.id);
                     }
                     leadStatusInput.value = '';
                     leadValueInput.value = '';
+                    if (leadEmailInput) leadEmailInput.value = '';
+                    if (leadCpfInput) leadCpfInput.value = '';
+                    if (leadUltimoContatoInput) leadUltimoContatoInput.value = '';
+                    if (leadCreatedAtInput) leadCreatedAtInput.value = '';
+                    if (leadConsumoInput) leadConsumoInput.value = '';
+                    if (leadEstimativaInput) leadEstimativaInput.value = '';
+                    if (leadFormaPagamentoInput) leadFormaPagamentoInput.value = '';
                 }
 
                 function openLeadModal(card = null) {
@@ -972,12 +1076,19 @@ include 'includes/header.php';
                         leadSaveBtn.textContent = 'Atualizar';
                         leadIdInput.value = String(card.id || '');
                         leadNameInput.value = card.name || card.client_name || '';
+                        if (leadEmailInput) leadEmailInput.value = card.email || '';
                         leadPhoneInput.value = card.phone || '';
+                        if (leadCpfInput) leadCpfInput.value = card.cpf_cnpj || '';
                         leadCityInput.value = card.cidade || '';
-                        leadSourceInput.value = card.source || '';
+                        if (leadSourceInput) leadSourceInput.value = card.source || leadSourceDisplay;
                         if (leadStageInput) leadStageInput.value = String(card.stage_id || '');
                         leadStatusInput.value = card.status || '';
+                        if (leadUltimoContatoInput) leadUltimoContatoInput.value = card.ultimo_contato ? String(card.ultimo_contato).substring(0, 10) : '';
+                        if (leadCreatedAtInput) leadCreatedAtInput.value = card.created_entry_at ? String(card.created_entry_at).substring(0, 10) : '';
+                        if (leadConsumoInput) leadConsumoInput.value = card.consumo || '';
+                        if (leadEstimativaInput) leadEstimativaInput.value = card.estimativa_kwh || '';
                         leadValueInput.value = card.orcamento_value ? formatMoneyInput(card.orcamento_value) : '';
+                        if (leadFormaPagamentoInput) leadFormaPagamentoInput.value = card.forma_pagamento_id || '';
                         leadNotesInput.value = card.notes || '';
                     }
                     leadModal.show();
@@ -986,7 +1097,7 @@ include 'includes/header.php';
                 async function loadLeadForEdit(id) {
                     const res = await fetch(`${apiBase}?action=get&id=${encodeURIComponent(id)}${apiConsultorQuery}`);
                     if (!res.ok) {
-                        throw new Error('Não foi possível carregar o registro');
+                        throw new Error('NÃ£o foi possÃ­vel carregar o registro');
                     }
                     return await res.json();
                 }
@@ -996,12 +1107,19 @@ include 'includes/header.php';
                     const id = String(leadIdInput.value || '').trim();
                     const payload = new URLSearchParams();
                     payload.set('name', leadNameInput.value.trim());
+                    payload.set('email', leadEmailInput ? leadEmailInput.value.trim() : '');
                     payload.set('phone', leadPhoneInput.value.trim());
+                    payload.set('cpf_cnpj', leadCpfInput ? leadCpfInput.value.trim() : '');
                     payload.set('cidade', leadCityInput.value.trim());
-                    payload.set('source', leadSourceInput.value.trim());
+                    payload.set('source', leadSourceDisplay);
                     if (leadStageInput) payload.set('stage_id', leadStageInput.value.trim());
                     payload.set('status', leadStatusInput.value.trim());
+                    payload.set('ultimo_contato', leadUltimoContatoInput ? leadUltimoContatoInput.value.trim() : '');
+                    payload.set('created_entry_at', leadCreatedAtInput ? leadCreatedAtInput.value.trim() : '');
+                    payload.set('consumo', leadConsumoInput ? leadConsumoInput.value.trim() : '');
+                    payload.set('estimativa_kwh', leadEstimativaInput ? leadEstimativaInput.value.trim() : '');
                     payload.set('orcamento_value', String(parseMoneyInput(leadValueInput.value)));
+                    payload.set('forma_pagamento_id', leadFormaPagamentoInput ? leadFormaPagamentoInput.value.trim() : '');
                     payload.set('notes', leadNotesInput.value.trim());
                     if (id) {
                         payload.set('id', id);

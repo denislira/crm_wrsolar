@@ -12,6 +12,7 @@
     let CURRENT_SEARCH = '';
     let CURRENT_SCORE_FILTER = '';
     let CURRENT_CIDADE_FILTER = '';
+    let CURRENT_ESTADO_FILTER = '';
     let CURRENT_STALLED_ONLY = false;
     let CURRENT_DATE_FROM = '';
     let CURRENT_DATE_TO = '';
@@ -24,6 +25,7 @@
     let CITY_SUGGESTION_TIMER = null;
     let FILTER_CITY_TIMER = null;
     const FILTER_CITY_MIN_CHARS = 3;
+    let ADVANCED_FILTERS_OPEN = false;
 
     function getFilteredLeads(){
         let filtered = allLeads.slice(); // copy
@@ -53,6 +55,11 @@
         if (CURRENT_CIDADE_FILTER) {
             const wanted = cityFilterKey(CURRENT_CIDADE_FILTER);
             filtered = filtered.filter(l => cityFilterKey(l.cidade || l.city) === wanted);
+        }
+        // apply estado filter
+        if (CURRENT_ESTADO_FILTER) {
+            const wantedUf = normalizeText(CURRENT_ESTADO_FILTER).toUpperCase();
+            filtered = filtered.filter(l => getLeadStateUf(l) === wantedUf);
         }
         // apply stalled only
         if (CURRENT_STALLED_ONLY) {
@@ -93,6 +100,45 @@
     function hidePreloader(){ setPreloaderVisible(false); }
     function nextPaint(){
         return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+
+    function syncAdvancedFiltersUi(){
+        const bar = document.getElementById('advancedFiltersBar');
+        const btn = document.getElementById('toggleAdvancedFiltersBtn');
+        if (bar) bar.classList.toggle('d-none', !ADVANCED_FILTERS_OPEN);
+        if (btn) {
+            btn.setAttribute('aria-expanded', ADVANCED_FILTERS_OPEN ? 'true' : 'false');
+            btn.classList.toggle('active', ADVANCED_FILTERS_OPEN);
+            btn.textContent = ADVANCED_FILTERS_OPEN ? 'Filtros ativos' : 'Filtros';
+        }
+    }
+
+    function clearLeadFilters(){
+        CURRENT_SEARCH = '';
+        CURRENT_SCORE_FILTER = '';
+        CURRENT_CIDADE_FILTER = '';
+        CURRENT_ESTADO_FILTER = '';
+        CURRENT_STALLED_ONLY = false;
+        CURRENT_DATE_FROM = '';
+        CURRENT_DATE_TO = '';
+        const ids = {
+            searchInput: '',
+            filterScore: '',
+            filterCidade: '',
+            filterEstado: '',
+            filterDateStart: '',
+            filterDateEnd: ''
+        };
+        Object.entries(ids).forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = value;
+        });
+        const stalledBtn = document.getElementById('stalledToggle');
+        if (stalledBtn) {
+            stalledBtn.classList.remove('active');
+            stalledBtn.textContent = 'Leads parados';
+        }
+        renderAll();
     }
 
     // Field adapter: maps common field keys to multiple possible modal input IDs
@@ -411,6 +457,19 @@
         return { city: raw, uf: '', state: '' };
     }
 
+    function getLeadStateUf(lead){
+        const direct = String(lead?.estado || lead?.uf || lead?.state || '').trim().toUpperCase();
+        if (/^[A-Z]{2}$/.test(direct)) return direct;
+        const cityValue = String(lead?.cidade || lead?.city || '').trim();
+        if (!cityValue) return '';
+        const parsed = splitCityUf(cityValue);
+        if (parsed.uf && /^[A-Z]{2}$/.test(parsed.uf)) return parsed.uf;
+        const matched = Array.isArray(CITY_DATA_CACHE)
+            ? CITY_DATA_CACHE.find(item => normalizeText(item.name) === normalizeText(parsed.city || cityValue))
+            : null;
+        return String(matched?.uf || '').trim().toUpperCase();
+    }
+
     async function loadCityData(){
         if (Array.isArray(CITY_DATA_CACHE)) return CITY_DATA_CACHE;
         if (CITY_DATA_LOADING) return CITY_DATA_LOADING;
@@ -580,6 +639,10 @@
             const filterCidade = document.getElementById('filterCidade');
             if (filterCidade) {
                 filterCidade.value = CURRENT_CIDADE_FILTER || '';
+            }
+            const filterEstado = document.getElementById('filterEstado');
+            if (filterEstado) {
+                filterEstado.value = CURRENT_ESTADO_FILTER || '';
             }
             const filterCidadeList = document.getElementById('filterCidadeList');
             if (filterCidadeList) {
@@ -3540,6 +3603,29 @@
                 }, 1000);
             });
         }
+
+        const filterEstadoEl = $('#filterEstado');
+        if (filterEstadoEl) {
+            filterEstadoEl.addEventListener('change', (e)=>{
+                CURRENT_ESTADO_FILTER = e.target.value || '';
+                renderAll();
+            });
+        }
+
+        const advancedFiltersBtn = $('#toggleAdvancedFiltersBtn');
+        if (advancedFiltersBtn) {
+            advancedFiltersBtn.addEventListener('click', ()=>{
+                ADVANCED_FILTERS_OPEN = !ADVANCED_FILTERS_OPEN;
+                syncAdvancedFiltersUi();
+            });
+        }
+
+        const clearFiltersBtn = $('#clearLeadFiltersBtn');
+        if (clearFiltersBtn) {
+            clearFiltersBtn.addEventListener('click', clearLeadFilters);
+        }
+
+        syncAdvancedFiltersUi();
 
         // stalled toggle
         const stalledBtn = $('#stalledToggle'); if (stalledBtn) {

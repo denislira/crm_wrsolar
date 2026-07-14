@@ -16,19 +16,32 @@ require_once __DIR__ . '/consultoria_externa_stages.php';
 $action = $_REQUEST['action'] ?? 'list';
 $userId = (int) $_SESSION['user_id'];
 $requestedUserId = isset($_REQUEST['consultor_id']) ? (int) $_REQUEST['consultor_id'] : 0;
+$consultorName = '';
 if ($requestedUserId > 0) {
     $stmt = $pdo->prepare("
-        SELECT u.id
+        SELECT u.id, u.username
           FROM users u
           LEFT JOIN roles r ON r.id = u.role_id
          WHERE u.id = ? AND LOWER(COALESCE(r.name, '')) = 'consultor_externo'
          LIMIT 1
     ");
     $stmt->execute([$requestedUserId]);
-    $requestedUser = $stmt->fetchColumn();
+    $requestedUser = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($requestedUser) {
-        $userId = (int) $requestedUser;
+        $userId = (int) $requestedUser['id'];
+        $consultorName = trim((string) ($requestedUser['username'] ?? ''));
     }
+}
+if ($consultorName === '') {
+    $stmt = $pdo->prepare("
+        SELECT u.username
+          FROM users u
+          LEFT JOIN roles r ON r.id = u.role_id
+         WHERE u.id = ? AND LOWER(COALESCE(r.name, '')) = 'consultor_externo'
+         LIMIT 1
+    ");
+    $stmt->execute([$userId]);
+    $consultorName = trim((string) ($stmt->fetchColumn() ?: 'Consultor Externo'));
 }
 
 function ce_api_norm_stage($status): string {
@@ -43,12 +56,19 @@ function ce_api_norm_stage($status): string {
 function ce_api_payload(): array {
     return [
         'client_name' => trim((string)($_POST['client_name'] ?? $_POST['name'] ?? '')),
+        'email' => trim((string)($_POST['email'] ?? '')),
         'phone' => trim((string)($_POST['phone'] ?? '')),
+        'cpf_cnpj' => trim((string)($_POST['cpf_cnpj'] ?? '')),
         'cidade' => trim((string)($_POST['cidade'] ?? '')),
         'source' => trim((string)($_POST['source'] ?? '')),
         'status' => trim((string)($_POST['status'] ?? '')),
         'stage_id' => (int)($_POST['stage_id'] ?? 0),
+        'ultimo_contato' => trim((string)($_POST['ultimo_contato'] ?? '')),
+        'created_entry_at' => trim((string)($_POST['created_entry_at'] ?? '')),
+        'consumo' => trim((string)($_POST['consumo'] ?? '')),
+        'estimativa_kwh' => trim((string)($_POST['estimativa_kwh'] ?? '')),
         'value' => (float) str_replace(',', '.', preg_replace('/[^\d,\.]/', '', (string)($_POST['value'] ?? $_POST['orcamento_value'] ?? '0'))),
+        'forma_pagamento_id' => (int)($_POST['forma_pagamento_id'] ?? 0),
         'notes' => trim((string)($_POST['notes'] ?? '')),
     ];
 }
@@ -58,7 +78,7 @@ try {
     ce_seed_default_stages($pdo, $userId);
 
     if ($action === 'list') {
-        $stmt = $pdo->prepare('SELECT id, client_name, phone, cidade, source, status, value, notes, stage_key, stage_id, exported_to_internal_queue, exported_at, created_at, updated_at FROM consultoria_externa_itens WHERE user_id = ? AND COALESCE(deleted, 0) = 0 ORDER BY created_at DESC, id DESC');
+        $stmt = $pdo->prepare('SELECT id, client_name, email, phone, cpf_cnpj, cidade, source, status, ultimo_contato, created_entry_at, consumo, estimativa_kwh, value, forma_pagamento_id, notes, stage_key, stage_id, exported_to_internal_queue, exported_at, created_at, updated_at FROM consultoria_externa_itens WHERE user_id = ? AND COALESCE(deleted, 0) = 0 ORDER BY created_at DESC, id DESC');
         $stmt->execute([$userId]);
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
         exit;
@@ -66,7 +86,7 @@ try {
 
     if ($action === 'get') {
         $id = (int)($_GET['id'] ?? 0);
-        $stmt = $pdo->prepare('SELECT id, client_name, phone, cidade, source, status, value, notes, stage_key, stage_id, exported_to_internal_queue, exported_at, created_at, updated_at FROM consultoria_externa_itens WHERE id = ? AND user_id = ? AND COALESCE(deleted, 0) = 0 LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, client_name, email, phone, cpf_cnpj, cidade, source, status, ultimo_contato, created_entry_at, consumo, estimativa_kwh, value, forma_pagamento_id, notes, stage_key, stage_id, exported_to_internal_queue, exported_at, created_at, updated_at FROM consultoria_externa_itens WHERE id = ? AND user_id = ? AND COALESCE(deleted, 0) = 0 LIMIT 1');
         $stmt->execute([$id, $userId]);
         echo json_encode($stmt->fetch(PDO::FETCH_ASSOC) ?: []);
         exit;
@@ -80,8 +100,8 @@ try {
 
         $stageKey = ce_api_norm_stage($data['status']);
         $stageId = ce_resolve_stage_id($pdo, $userId, $data['stage_id'], $stageKey);
-        $stmt = $pdo->prepare('INSERT INTO consultoria_externa_itens (user_id, client_name, phone, cidade, source, status, value, notes, stage_key, stage_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
-        $stmt->execute([$userId, $data['client_name'], $data['phone'], $data['cidade'], $data['source'], $data['status'], $data['value'], $data['notes'], $stageKey, $stageId]);
+        $stmt = $pdo->prepare('INSERT INTO consultoria_externa_itens (user_id, client_name, email, phone, cpf_cnpj, cidade, source, status, ultimo_contato, created_entry_at, consumo, estimativa_kwh, value, forma_pagamento_id, notes, stage_key, stage_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+        $stmt->execute([$userId, $data['client_name'], $data['email'], $data['phone'], $data['cpf_cnpj'], $data['cidade'], $consultorName, $data['status'], $data['ultimo_contato'] ?: null, $data['created_entry_at'] ?: null, $data['consumo'] ?: null, $data['estimativa_kwh'] ?: null, $data['value'], $data['forma_pagamento_id'] ?: null, $data['notes'], $stageKey, $stageId]);
         $newId = (int)$pdo->lastInsertId();
         ce_export_item_if_needed($pdo, $newId, $userId);
 
@@ -98,8 +118,8 @@ try {
 
         $stageKey = ce_api_norm_stage($data['status']);
         $stageId = ce_resolve_stage_id($pdo, $userId, $data['stage_id'], $stageKey);
-        $stmt = $pdo->prepare('UPDATE consultoria_externa_itens SET client_name=?, phone=?, cidade=?, source=?, status=?, value=?, notes=?, stage_key=?, stage_id=?, updated_at=NOW() WHERE id=? AND user_id=?');
-        $stmt->execute([$data['client_name'], $data['phone'], $data['cidade'], $data['source'], $data['status'], $data['value'], $data['notes'], $stageKey, $stageId, $id, $userId]);
+        $stmt = $pdo->prepare('UPDATE consultoria_externa_itens SET client_name=?, email=?, phone=?, cpf_cnpj=?, cidade=?, source=?, status=?, ultimo_contato=?, created_entry_at=?, consumo=?, estimativa_kwh=?, value=?, forma_pagamento_id=?, notes=?, stage_key=?, stage_id=?, updated_at=NOW() WHERE id=? AND user_id=?');
+        $stmt->execute([$data['client_name'], $data['email'], $data['phone'], $data['cpf_cnpj'], $data['cidade'], $consultorName, $data['status'], $data['ultimo_contato'] ?: null, $data['created_entry_at'] ?: null, $data['consumo'] ?: null, $data['estimativa_kwh'] ?: null, $data['value'], $data['forma_pagamento_id'] ?: null, $data['notes'], $stageKey, $stageId, $id, $userId]);
         ce_export_item_if_needed($pdo, $id, $userId);
 
         echo json_encode(['ok' => true]);
