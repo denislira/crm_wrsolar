@@ -550,28 +550,111 @@ include 'includes/header.php';
             }
             @media (max-width: 767px) {
                 .ce-shell {
-                    border-radius: 18px;
-                    padding: 1rem;
+                    min-height: calc(100vh - 64px);
+                    border-radius: 14px;
+                    padding: .75rem;
+                }
+                .ce-toolbar {
+                    gap: .75rem;
+                    margin-bottom: .9rem;
+                }
+                .ce-toolbar h1 {
+                    font-size: 1.22rem;
+                    line-height: 1.2;
+                }
+                .ce-toolbar-subtitle {
+                    font-size: .82rem;
+                    line-height: 1.35;
                 }
                 .ce-kpis,
                 .ce-board {
                     grid-template-columns: 1fr;
                 }
+                .ce-kpis {
+                    display: flex;
+                    overflow-x: auto;
+                    gap: .7rem;
+                    margin-bottom: 1rem;
+                    padding-bottom: .35rem;
+                }
+                .ce-kpi {
+                    flex: 0 0 155px;
+                    border-radius: 12px;
+                    padding: .85rem;
+                }
+                .ce-kpi-value {
+                    font-size: 1.28rem;
+                    overflow-wrap: anywhere;
+                }
                 .ce-board {
                     display: flex;
                     overflow-x: auto;
+                    gap: .75rem;
+                    padding-bottom: .85rem;
+                    scroll-snap-type: x proximity;
                 }
                 .ce-column {
-                    flex-basis: 280px;
-                    min-width: 280px;
+                    flex: 0 0 min(86vw, 310px);
+                    min-width: min(86vw, 310px);
+                    min-height: 360px;
+                    border-radius: 14px;
+                    padding: .75rem;
+                    scroll-snap-align: start;
+                }
+                .ce-column-header {
+                    gap: .5rem;
+                    padding-bottom: .65rem;
+                }
+                .ce-column-title {
+                    font-size: .82rem;
+                    min-width: 0;
+                }
+                .ce-column-title span {
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .ce-card-list {
+                    gap: .7rem;
+                }
+                .ce-card {
+                    border-radius: 12px;
+                    padding: .85rem;
+                }
+                .ce-card-title {
+                    font-size: .96rem;
+                    overflow-wrap: anywhere;
                 }
                 .ce-actions {
                     width: 100%;
+                    gap: .5rem;
                 }
-                .ce-search,
+                .ce-search {
+                    width: 100%;
+                    min-width: 0;
+                    padding: .65rem .8rem;
+                }
                 .ce-create-btn,
                 .ce-filter-btn {
-                    width: 100%;
+                    flex: 1 1 calc(50% - .5rem);
+                    min-width: 0;
+                    padding: .65rem .7rem;
+                    white-space: normal;
+                    line-height: 1.15;
+                }
+                .ce-filters-panel {
+                    border-radius: 14px;
+                    padding: .75rem;
+                }
+                .ce-stage-row {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+                .ce-lead-modal-content .modal-header,
+                .ce-lead-modal-content .modal-body,
+                .ce-lead-modal-content .modal-footer {
+                    padding-left: 14px;
+                    padding-right: 14px;
                 }
             }
         </style>

@@ -231,6 +231,173 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
 #leadDetailContent .lead-col .reminder-list, #leadDetailContent .lead-col .timeline {max-height: calc(100vh - 220px);overflow:auto}
 @media (max-width: 900px){ .kanban-column{flex:0 0 260px} .lead-panel{width:100%;top:56px;height:calc(100vh - 56px)} }
 @media (max-width: 900px){ .column-content{height:clamp(280px,calc(100vh - 280px),640px)} }
+@media (max-width: 767.98px){
+  :root{
+    --kanban-column-content-height:clamp(360px,calc(100vh - 250px),620px);
+  }
+
+  body{
+    background:#eef3f8;
+  }
+
+  .leads-preloader,
+  body.sidebar-collapsed .leads-preloader{
+    left:0;
+    width:100%;
+    top:48px;
+    height:calc(100vh - 48px);
+  }
+
+  main.main-content-scroll{
+    padding:0.75rem !important;
+  }
+
+  .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4{
+    margin-bottom:0.85rem !important;
+  }
+
+  .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 > h1{
+    width:100%;
+    font-size:1.15rem;
+  }
+
+  .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 > .d-flex{
+    gap:0.45rem !important;
+  }
+
+  .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 .btn,
+  .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 .form-control{
+    min-height:38px;
+  }
+
+  .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 #newLeadBtn,
+  .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 .btn-funil-config,
+  .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 a.btn,
+  .filters-toggle-btn{
+    flex:1 1 calc(50% - 0.45rem);
+    min-width:0;
+  }
+
+  .advanced-filters-shell{
+    border-radius:14px;
+    padding:12px;
+  }
+
+  .advanced-filters-subtitle{
+    display:none;
+  }
+
+  .date-filter-input{
+    min-width:0;
+  }
+
+  .kpi-row{
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    padding-bottom:0.35rem;
+    margin-left:-0.25rem;
+    margin-right:-0.25rem;
+  }
+
+  .kpi-row > [class*="col-"]{
+    flex:0 0 150px;
+    max-width:150px;
+    padding-left:0.25rem;
+    padding-right:0.25rem;
+  }
+
+  #kpiRow .card{
+    border-radius:12px;
+    padding:0.8rem !important;
+    min-height:86px;
+  }
+
+  #kpiRow .h4{
+    font-size:1.05rem;
+    overflow-wrap:anywhere;
+  }
+
+  .d-flex.justify-content-between.align-items-center.mb-2 > .d-flex{
+    justify-content:flex-start !important;
+    overflow-x:auto;
+    flex-wrap:nowrap !important;
+    padding-bottom:0.35rem;
+  }
+
+  .d-flex.justify-content-between.align-items-center.mb-2 .btn{
+    flex:0 0 auto;
+    min-height:36px;
+  }
+
+  .kanban-top-scrollbar{
+    height:8px;
+    margin-bottom:2px;
+  }
+
+  .kanban-wrap{
+    gap:10px;
+    padding:6px 0 12px;
+    scroll-snap-type:x proximity;
+  }
+
+  .kanban-wrap.panel-open,
+  .kanban-wrap.panel-open.panel-expanded{
+    margin-right:0;
+  }
+
+  .kanban-column,
+  .kanban-skeleton-column{
+    flex:0 0 min(86vw, 310px);
+    min-width:min(86vw, 310px);
+    border-radius:12px;
+    scroll-snap-align:start;
+  }
+
+  .kanban-header{
+    padding:9px 10px;
+    gap:6px;
+  }
+
+  .column-content{
+    padding:10px;
+    height:var(--kanban-column-content-height);
+  }
+
+  .lead-card{
+    padding:11px;
+    border-radius:10px;
+  }
+
+  .lead-meta{
+    flex-wrap:wrap;
+    gap:4px 8px;
+  }
+
+  .lead-panel,
+  .lead-panel.expanded{
+    top:48px;
+    width:100%;
+    height:calc(100vh - 48px);
+    border-radius:0;
+    z-index:1400;
+  }
+
+  .lead-panel-inner{
+    padding:12px;
+  }
+
+  #leadDetailContent{
+    padding:2.25rem 0.25rem 1rem !important;
+  }
+
+  #leadDetailContent.columns-2{
+    display:block !important;
+  }
+
+  .lead-panel .expand-panel{
+    display:none;
+  }
+}
 /* small helpers */
 .kpi-row .card{background:var(--card)}
 
@@ -458,6 +625,18 @@ body.kanban-only.theme-dark .app-sidebar{
 body.kanban-only.theme-dark .navbar{
     background-color: rgba(6,12,22,0.28) !important;
     backdrop-filter: blur(4px) saturate(0.9);
+}
+@media (max-width: 767.98px){
+    .app-sidebar,
+    body.kanban-only .app-sidebar,
+    body.kanban-only.theme-dark .app-sidebar{
+        z-index:3000 !important;
+    }
+    body:not(.sidebar-collapsed) .app-sidebar,
+    body.kanban-only:not(.sidebar-collapsed) .app-sidebar{
+        background:linear-gradient(180deg,var(--blue-900,#073b6b),var(--blue-700,#0b6ac1)) !important;
+        box-shadow:12px 0 30px rgba(15,23,42,0.30) !important;
+    }
 }
 
 /* Ensure Kanban UI remains visually opaque above the background */
