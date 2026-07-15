@@ -192,6 +192,64 @@ foreach ($stageMeta as $stageKey => $meta) {
     $summaryCounts[$stageKey] = count($groupedCards[$stageKey]);
 }
 
+$totalConsultoriaItems = count($consultorRows);
+$totalConsultoriaValue = array_reduce($consultorRows, function ($carry, $item) {
+    return $carry + (float) ($item['value'] ?? 0);
+}, 0.0);
+$exportedConsultoriaItems = count(array_filter($consultorRows, function ($item) {
+    return (int) ($item['exported_to_internal_queue'] ?? 0) === 1;
+}));
+$closedStatusTerms = ['fechado', 'fechada', 'contrato', 'ganho', 'ganha', 'aprovado', 'aprovada', 'finalizado', 'finalizada'];
+$lostStatusTerms = ['perdido', 'perdida', 'cancelado', 'cancelada'];
+$closedConsultoriaItems = 0;
+$inactiveConsultoriaItems = 0;
+foreach ($consultorRows as $item) {
+    $normalizedStatus = ce_normalize($item['status'] ?? '');
+    foreach ($closedStatusTerms as $term) {
+        if ($normalizedStatus !== '' && strpos($normalizedStatus, $term) !== false) {
+            $closedConsultoriaItems++;
+            $inactiveConsultoriaItems++;
+            continue 2;
+        }
+    }
+    foreach ($lostStatusTerms as $term) {
+        if ($normalizedStatus !== '' && strpos($normalizedStatus, $term) !== false) {
+            $inactiveConsultoriaItems++;
+            continue 2;
+        }
+    }
+}
+$activeConsultoriaItems = max(0, $totalConsultoriaItems - $inactiveConsultoriaItems);
+$consultoriaConversionRate = $totalConsultoriaItems > 0 ? ($closedConsultoriaItems / $totalConsultoriaItems) * 100 : 0;
+
+$defaultStatusOptions = ['Novo', 'Em atendimento', 'Orçamento enviado', 'Negociação', 'Fechado', 'Perdido'];
+$statusOptions = $defaultStatusOptions;
+$statusRows = ce_safe_query_all($pdo, "SELECT name FROM lead_statuses WHERE COALESCE(name, '') <> '' ORDER BY position ASC, id ASC");
+foreach ($statusRows as $row) {
+    $statusOptions[] = (string) ($row['name'] ?? '');
+}
+foreach ($consultorRows as $item) {
+    $statusOptions[] = (string) ($item['status'] ?? '');
+}
+$statusOptions = array_values(array_unique(array_filter(array_map('trim', $statusOptions))));
+
+$paymentMethodOptions = [];
+try {
+    $paymentTable = $pdo->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_methods'")->fetchColumn();
+    if ($paymentTable) {
+        $paymentCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_methods'")->fetchAll(PDO::FETCH_COLUMN);
+        if (in_array('code', $paymentCols, true)) {
+            $paymentMethodOptions = ce_safe_query_all($pdo, "SELECT id, name FROM payment_methods WHERE code = 1 ORDER BY name ASC");
+        } elseif (in_array('scope', $paymentCols, true)) {
+            $paymentMethodOptions = ce_safe_query_all($pdo, "SELECT id, name FROM payment_methods WHERE scope = 'leads' OR scope IS NULL OR scope = '' ORDER BY name ASC");
+        } else {
+            $paymentMethodOptions = ce_safe_query_all($pdo, "SELECT id, name FROM payment_methods ORDER BY name ASC");
+        }
+    }
+} catch (Exception $e) {
+    $paymentMethodOptions = [];
+}
+
 include 'includes/header.php';
 ?>
 <div class="d-flex">
@@ -203,6 +261,19 @@ include 'includes/header.php';
                 background: linear-gradient(180deg, #f5f7fb 0%, #edf2f7 100%);
                 border-radius: 24px;
                 padding: 1.25rem;
+            }
+            .ce-page-header {
+                display: grid;
+                grid-template-columns: minmax(220px, auto) minmax(0, 1fr);
+                align-items: center;
+                gap: 1rem;
+                margin-bottom: 1rem;
+            }
+            .ce-page-title {
+                font-size: 1.35rem;
+                font-weight: 700;
+                color: #16324f;
+                margin: 0;
             }
             .ce-toolbar {
                 display: flex;
@@ -223,13 +294,16 @@ include 'includes/header.php';
                 font-size: .94rem;
             }
             .ce-actions {
-                display: flex;
-                flex-wrap: wrap;
+                display: grid;
+                grid-template-columns: minmax(280px, 1fr) auto auto auto;
                 gap: .75rem;
                 align-items: center;
+                justify-content: stretch;
+                min-width: 0;
             }
             .ce-search {
-                min-width: 240px;
+                width: 100%;
+                min-width: 0;
                 border-radius: 12px;
                 border: 1px solid #d7dfeb;
                 padding: .8rem .95rem;
@@ -241,6 +315,7 @@ include 'includes/header.php';
                 padding: .78rem 1rem;
                 font-weight: 600;
                 box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+                white-space: nowrap;
             }
             .ce-create-btn {
                 background: linear-gradient(135deg, #2563eb, #1d4ed8);
@@ -258,6 +333,22 @@ include 'includes/header.php';
             .ce-filters-panel.is-open {
                 display: block;
             }
+            .ce-filters-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1rem;
+                margin-bottom: .85rem;
+            }
+            .ce-filters-title {
+                font-size: .86rem;
+                font-weight: 700;
+                color: #16324f;
+            }
+            .ce-filters-subtitle {
+                font-size: .78rem;
+                color: #64748b;
+            }
             .ce-kpis {
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -270,6 +361,12 @@ include 'includes/header.php';
                 padding: 1rem 1.1rem;
                 box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
                 border-top: 3px solid var(--accent, #cbd5e1);
+            }
+            .ce-kpi-general {
+                border-top-width: 4px;
+            }
+            .ce-kpi-stage {
+                background: rgba(255, 255, 255, 0.78);
             }
             .ce-kpi-label {
                 font-size: .76rem;
@@ -284,6 +381,11 @@ include 'includes/header.php';
                 color: #0f172a;
                 line-height: 1;
             }
+            .ce-kpi-money {
+                font-size: 1.32rem;
+                line-height: 1.15;
+                overflow-wrap: anywhere;
+            }
             .ce-board {
                 display: flex;
                 gap: 1rem;
@@ -292,6 +394,7 @@ include 'includes/header.php';
                 overflow-y: hidden;
                 padding: .25rem 0 .75rem;
                 scrollbar-gutter: stable;
+                cursor: grab;
             }
             .ce-board::-webkit-scrollbar {
                 height: 12px;
@@ -306,6 +409,133 @@ include 'includes/header.php';
             }
             .ce-board::-webkit-scrollbar-thumb:hover {
                 background: #94a3b8;
+            }
+            .ce-kanban-top-scrollbar {
+                overflow-x: auto;
+                overflow-y: hidden;
+                height: 12px;
+                margin: 0 2px 4px 2px;
+            }
+            .ce-kanban-top-scrollbar::-webkit-scrollbar {
+                height: 12px;
+            }
+            .ce-kanban-top-scrollbar::-webkit-scrollbar-track {
+                background: #e9eef5;
+                border-radius: 6px;
+            }
+            .ce-kanban-top-scrollbar::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 6px;
+            }
+            .ce-kanban-top-scrollbar::-webkit-scrollbar-thumb:hover {
+                background: #94a3b8;
+            }
+            #ceTopScrollbarContent {
+                height: 1px;
+            }
+            .ce-board.is-dragging {
+                cursor: grabbing;
+                user-select: none;
+            }
+            .ce-view-toolbar {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: .5rem;
+                flex-wrap: wrap;
+                margin-bottom: .75rem;
+            }
+            .ce-icon-btn {
+                width: 34px;
+                height: 34px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0 6px;
+            }
+            .ce-list-wrap {
+                background: #fff;
+                border: 1px solid #e2e8f0;
+                border-radius: 16px;
+                box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+                overflow: hidden;
+            }
+            .ce-list-wrap .table {
+                margin-bottom: 0;
+            }
+            .ce-list-wrap th {
+                font-size: .74rem;
+                text-transform: uppercase;
+                letter-spacing: .04em;
+                color: #64748b;
+                white-space: nowrap;
+                position: relative;
+            }
+            .ce-list-wrap td {
+                vertical-align: middle;
+            }
+            .ce-th-inner {
+                display: inline-flex;
+                align-items: center;
+                gap: .4rem;
+            }
+            .ce-table-filter-btn {
+                width: 22px;
+                height: 22px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border: 0;
+                border-radius: 6px;
+                background: transparent;
+                color: #94a3b8;
+                padding: 0;
+            }
+            .ce-table-filter-btn:hover,
+            .ce-table-filter-btn.active {
+                background: rgba(37, 99, 235, 0.08);
+                color: #2563eb;
+            }
+            .ce-table-filter-btn i {
+                font-size: .7rem;
+            }
+            .ce-table-filter-popup {
+                position: fixed;
+                z-index: 1085;
+                width: min(280px, calc(100vw - 24px));
+                background: #fff;
+                border: 1px solid #d7dfeb;
+                border-radius: 12px;
+                box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+                padding: .75rem;
+                text-transform: none;
+                letter-spacing: 0;
+            }
+            .ce-table-filter-popup-title {
+                font-size: .78rem;
+                font-weight: 700;
+                color: #16324f;
+                margin-bottom: .5rem;
+            }
+            .ce-table-filter-options {
+                max-height: 190px;
+                overflow: auto;
+                display: grid;
+                gap: .35rem;
+                padding-right: .15rem;
+            }
+            .ce-table-filter-option {
+                display: flex;
+                align-items: center;
+                gap: .45rem;
+                font-size: .82rem;
+                color: #334155;
+            }
+            .ce-table-filter-actions {
+                display: flex;
+                justify-content: flex-end;
+                gap: .4rem;
+                margin-top: .75rem;
             }
             .ce-column {
                 flex: 0 0 320px;
@@ -512,7 +742,8 @@ include 'includes/header.php';
             }
             body.theme-dark .ce-kpi,
             body.theme-dark .ce-card,
-            body.theme-dark .ce-filters-panel {
+            body.theme-dark .ce-filters-panel,
+            body.theme-dark .ce-list-wrap {
                 background: rgba(15, 23, 42, 0.82);
                 border-color: rgba(148, 163, 184, 0.18);
                 color: #e2e8f0;
@@ -528,12 +759,15 @@ include 'includes/header.php';
                 box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28);
             }
             body.theme-dark .ce-toolbar h1,
+            body.theme-dark .ce-page-title,
+            body.theme-dark .ce-filters-title,
             body.theme-dark .ce-card-title,
             body.theme-dark .ce-kpi-value,
             body.theme-dark .ce-column-title {
                 color: #f8fafc;
             }
             body.theme-dark .ce-toolbar-subtitle,
+            body.theme-dark .ce-filters-subtitle,
             body.theme-dark .ce-meta-row,
             body.theme-dark .ce-kpi-label,
             body.theme-dark .ce-empty {
@@ -542,10 +776,75 @@ include 'includes/header.php';
             body.theme-dark .ce-card-footer {
                 border-top-color: rgba(148, 163, 184, 0.12);
             }
+            body.theme-dark .ce-table-filter-popup {
+                background: #0f172a;
+                border-color: rgba(148, 163, 184, 0.22);
+                color: #e2e8f0;
+            }
+            body.theme-dark .ce-table-filter-popup-title,
+            body.theme-dark .ce-table-filter-option {
+                color: #e2e8f0;
+            }
+            body.ce-kanban-only .ce-page-header,
+            body.ce-kanban-only .ce-toolbar,
+            body.ce-kanban-only .ce-filters-panel,
+            body.ce-kanban-only .ce-kpis,
+            body.ce-kanban-only .ce-list-wrap {
+                display: none !important;
+            }
+            body.ce-kanban-only .main-content-scroll {
+                padding: .5rem !important;
+            }
+            body.ce-kanban-only .ce-shell {
+                min-height: calc(100vh - 1rem);
+                border-radius: 14px;
+                padding: .75rem;
+            }
+            body.ce-kanban-only .ce-board {
+                min-height: calc(100vh - 105px);
+            }
+            body.ce-kanban-compact .ce-board {
+                gap: .5rem;
+            }
+            body.ce-kanban-compact .ce-column {
+                flex-basis: 240px;
+                min-width: 220px;
+                padding: .55rem;
+                border-radius: 12px;
+            }
+            body.ce-kanban-compact .ce-card {
+                padding: .7rem;
+                border-radius: 10px;
+            }
+            body.ce-kanban-compact .ce-card-title {
+                font-size: .9rem;
+            }
+            body.ce-kanban-compact .ce-meta-row,
+            body.ce-kanban-compact .ce-card-footer {
+                font-size: .74rem;
+            }
             @media (max-width: 1200px) {
+                .ce-page-header {
+                    grid-template-columns: 1fr;
+                    align-items: stretch;
+                }
+                .ce-actions {
+                    grid-template-columns: minmax(260px, 1fr) repeat(3, auto);
+                }
                 .ce-kpis,
                 .ce-board {
                     grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+            }
+            @media (max-width: 991px) {
+                .ce-actions {
+                    grid-template-columns: 1fr 1fr;
+                }
+                .ce-search {
+                    grid-column: 1 / -1;
+                }
+                .ce-create-btn {
+                    grid-column: span 1;
                 }
             }
             @media (max-width: 767px) {
@@ -553,6 +852,12 @@ include 'includes/header.php';
                     min-height: calc(100vh - 64px);
                     border-radius: 14px;
                     padding: .75rem;
+                }
+                .ce-page-header {
+                    gap: .75rem;
+                }
+                .ce-page-title {
+                    font-size: 1.18rem;
                 }
                 .ce-toolbar {
                     gap: .75rem;
@@ -627,6 +932,8 @@ include 'includes/header.php';
                 }
                 .ce-actions {
                     width: 100%;
+                    display: grid;
+                    grid-template-columns: 1fr;
                     gap: .5rem;
                 }
                 .ce-search {
@@ -636,7 +943,7 @@ include 'includes/header.php';
                 }
                 .ce-create-btn,
                 .ce-filter-btn {
-                    flex: 1 1 calc(50% - .5rem);
+                    width: 100%;
                     min-width: 0;
                     padding: .65rem .7rem;
                     white-space: normal;
@@ -660,32 +967,36 @@ include 'includes/header.php';
         </style>
 
         <div class="ce-shell">
-            <div class="ce-toolbar">
-                <div>
-                    <h1>Painel de Consultores Externos</h1>
-                    <div class="ce-toolbar-subtitle">VisÃ£o rÃ¡pida das visitas, orÃ§amentos, financiamentos e contratos de <?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?>.</div>
-                </div>
+            <div class="ce-page-header">
+                <h1 class="ce-page-title">Consultoria Externa</h1>
                 <div class="ce-actions">
-                    <input id="ceSearchInput" type="search" class="form-control ce-search" placeholder="Buscar cliente...">
-                    <button id="ceToggleFilters" type="button" class="btn btn-light ce-filter-btn">
-                        <i class="fa-solid fa-filter me-2"></i>Filtros
+                    <input id="ceSearchInput" type="search" class="form-control form-control-sm ce-search" placeholder="Buscar por cliente, telefone, cidade ou fonte...">
+                    <button id="ceToggleFilters" type="button" class="btn btn-sm btn-outline-primary ce-filter-btn" aria-expanded="false" aria-controls="ceFiltersPanel">
+                        Filtros
                     </button>
                     <?php if ($canManageConsultoriaStages): ?>
-                        <button id="ceOpenStagesModal" type="button" class="btn btn-light ce-filter-btn">
+                        <button id="ceOpenStagesModal" type="button" class="btn btn-sm btn-outline-primary ce-filter-btn">
                             <i class="fa-solid fa-sliders me-2"></i>Configurar colunas 
                         </button>
                     <?php endif; ?>
-                    <button id="ceOpenLeadModal" type="button" class="btn btn-primary ce-create-btn">
+                    <button id="ceOpenLeadModal" type="button" class="btn btn-sm btn-primary ce-create-btn">
                         <i class="fa-solid fa-circle-plus me-2"></i>Cadastrar Visita / Lead
                     </button>
                 </div>
             </div>
 
             <div id="ceFiltersPanel" class="ce-filters-panel">
+                <div class="ce-filters-header">
+                    <div>
+                        <div class="ce-filters-title">Filtros avançados</div>
+                        <div class="ce-filters-subtitle">Refine os registros de consultoria sem sair do painel.</div>
+                    </div>
+                    <button id="ceClearFilters" class="btn btn-sm btn-light" type="button">Limpar</button>
+                </div>
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label for="ceTypeFilter" class="form-label small text-muted">Tipo</label>
-                        <select id="ceTypeFilter" class="form-select">
+                        <select id="ceTypeFilter" class="form-select form-select-sm">
                             <option value="">Todos</option>
                             <option value="lead">Lead</option>
                             <option value="projeto">Projeto</option>
@@ -693,7 +1004,7 @@ include 'includes/header.php';
                     </div>
                     <div class="col-md-4">
                         <label for="ceStageFilter" class="form-label small text-muted">Coluna</label>
-                        <select id="ceStageFilter" class="form-select">
+                        <select id="ceStageFilter" class="form-select form-select-sm">
                             <option value="">Todas</option>
                             <?php foreach ($stageMeta as $stageKey => $meta): ?>
                                 <option value="<?php echo htmlspecialchars($stageKey, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8'); ?></option>
@@ -702,18 +1013,49 @@ include 'includes/header.php';
                     </div>
                     <div class="col-md-4">
                         <label for="ceCityFilter" class="form-label small text-muted">Cidade</label>
-                        <input id="ceCityFilter" type="text" class="form-control" placeholder="Filtrar por cidade">
+                        <input id="ceCityFilter" type="text" class="form-control form-control-sm" placeholder="Filtrar por cidade">
                     </div>
                 </div>
             </div>
 
+            <div class="ce-toolbar">
+                <div>
+                    <h1>Painel de Consultores Externos</h1>
+                    <div class="ce-toolbar-subtitle">Visão rápida das visitas, orçamentos, financiamentos e contratos de <?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?>.</div>
+                </div>
+            </div>
+
             <div class="ce-kpis">
-                <?php foreach ($stageMeta as $stageKey => $meta): ?>
-                    <div class="ce-kpi" style="--accent: <?php echo htmlspecialchars($meta['accent'], ENT_QUOTES, 'UTF-8'); ?>;">
-                        <div class="ce-kpi-label"><?php echo htmlspecialchars($meta['summary'], ENT_QUOTES, 'UTF-8'); ?></div>
-                        <div class="ce-kpi-value" data-summary-stage="<?php echo htmlspecialchars($stageKey, ENT_QUOTES, 'UTF-8'); ?>"><?php echo str_pad((string) $summaryCounts[$stageKey], 2, '0', STR_PAD_LEFT); ?></div>
-                    </div>
-                <?php endforeach; ?>
+                <div class="ce-kpi ce-kpi-general" style="--accent: #2563eb;">
+                    <div class="ce-kpi-label">Registros totais</div>
+                    <div class="ce-kpi-value" id="ceKpiTotal"><?php echo str_pad((string) $totalConsultoriaItems, 2, '0', STR_PAD_LEFT); ?></div>
+                </div>
+                <div class="ce-kpi ce-kpi-general" style="--accent: #16a34a;">
+                    <div class="ce-kpi-label">Valor no pipeline</div>
+                    <div class="ce-kpi-value ce-kpi-money" id="ceKpiValue"><?php echo ce_money($totalConsultoriaValue); ?></div>
+                </div>
+                <div class="ce-kpi ce-kpi-general" style="--accent: #f59e0b;">
+                    <div class="ce-kpi-label">Registros ativos</div>
+                    <div class="ce-kpi-value" id="ceKpiActive"><?php echo str_pad((string) $activeConsultoriaItems, 2, '0', STR_PAD_LEFT); ?></div>
+                </div>
+                <div class="ce-kpi ce-kpi-general" style="--accent: #7c3aed;">
+                    <div class="ce-kpi-label">Taxa de fechamento</div>
+                    <div class="ce-kpi-value" id="ceKpiConversion"><?php echo number_format($consultoriaConversionRate, 1, ',', '.'); ?>%</div>
+                </div>
+                <div class="ce-kpi ce-kpi-general" style="--accent: #0f766e;">
+                    <div class="ce-kpi-label">Enviados para fila</div>
+                    <div class="ce-kpi-value" id="ceKpiExported"><?php echo str_pad((string) $exportedConsultoriaItems, 2, '0', STR_PAD_LEFT); ?></div>
+                </div>
+            </div>
+
+            <div class="ce-view-toolbar">
+                <button id="ceToggleViewBtn" class="btn btn-sm btn-outline-secondary" type="button" title="Alternar visualização Kanban / Tabela"><i class="fa fa-columns"></i></button>
+                <button id="ceKanbanCompactBtn" class="btn btn-sm btn-outline-secondary ce-icon-btn" type="button" title="Compactar Kanban"><i class="fa fa-compress" id="ceKanbanCompactIcon" aria-hidden="true"></i></button>
+                <button id="ceKanbanOnlyBtn" class="btn btn-sm btn-outline-secondary ce-icon-btn" type="button" title="Mostrar somente Kanban"><i class="fa fa-expand-arrows-alt" id="ceKanbanOnlyIcon" aria-hidden="true"></i></button>
+            </div>
+
+            <div id="ceTopScrollbar" class="ce-kanban-top-scrollbar">
+                <div id="ceTopScrollbarContent"></div>
             </div>
 
             <div class="ce-board" id="ceBoard">
@@ -753,6 +1095,16 @@ include 'includes/header.php';
                                         data-type="<?php echo htmlspecialchars($card['type'], ENT_QUOTES, 'UTF-8'); ?>"
                                         data-city="<?php echo htmlspecialchars(ce_normalize($card['cidade']), ENT_QUOTES, 'UTF-8'); ?>"
                                         data-search="<?php echo htmlspecialchars($searchBlob, ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-title="<?php echo htmlspecialchars($card['title'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-status-label="<?php echo htmlspecialchars($card['status'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-city-label="<?php echo htmlspecialchars($card['cidade'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-phone="<?php echo htmlspecialchars($card['phone'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-source="<?php echo htmlspecialchars($card['source'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-owner="<?php echo htmlspecialchars($card['owner'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-value="<?php echo htmlspecialchars((string) $card['value'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-created="<?php echo htmlspecialchars($card['created_at'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-stage-label="<?php echo htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-exported="<?php echo (int) $card['exported']; ?>"
                                         style="--accent: <?php echo htmlspecialchars($meta['accent'], ENT_QUOTES, 'UTF-8'); ?>; background: <?php echo htmlspecialchars($meta['card_color'], ENT_QUOTES, 'UTF-8'); ?>;"
                                     >
                                         <div class="ce-card-top">
@@ -795,6 +1147,27 @@ include 'includes/header.php';
                         </div>
                     </section>
                 <?php endforeach; ?>
+            </div>
+
+            <div id="ceListWrap" class="ce-list-wrap d-none">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th><span class="ce-th-inner">Cliente <button type="button" class="ce-table-filter-btn" data-ce-table-filter="title" title="Filtrar Cliente"><i class="fa fa-filter"></i></button></span></th>
+                                <th><span class="ce-th-inner">Coluna <button type="button" class="ce-table-filter-btn" data-ce-table-filter="stageLabel" title="Filtrar Coluna"><i class="fa fa-filter"></i></button></span></th>
+                                <th><span class="ce-th-inner">Status <button type="button" class="ce-table-filter-btn" data-ce-table-filter="statusLabel" title="Filtrar Status"><i class="fa fa-filter"></i></button></span></th>
+                                <th><span class="ce-th-inner">Cidade <button type="button" class="ce-table-filter-btn" data-ce-table-filter="cityLabel" title="Filtrar Cidade"><i class="fa fa-filter"></i></button></span></th>
+                                <th><span class="ce-th-inner">Telefone <button type="button" class="ce-table-filter-btn" data-ce-table-filter="phone" title="Filtrar Telefone"><i class="fa fa-filter"></i></button></span></th>
+                                <th><span class="ce-th-inner">Valor <button type="button" class="ce-table-filter-btn" data-ce-table-filter="value" title="Filtrar Valor"><i class="fa fa-filter"></i></button></span></th>
+                                <th><span class="ce-th-inner">Fonte <button type="button" class="ce-table-filter-btn" data-ce-table-filter="source" title="Filtrar Fonte"><i class="fa fa-filter"></i></button></span></th>
+                                <th><span class="ce-th-inner">Criado <button type="button" class="ce-table-filter-btn" data-ce-table-filter="created" title="Filtrar Criado"><i class="fa fa-filter"></i></button></span></th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ceTableBody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -871,11 +1244,24 @@ include 'includes/header.php';
                                         </div>
                                     </div>
                                     <div class="col-lg-5">
-                                        <div class="card mb-3">
+                                            <div class="card mb-3">
                                             <div class="card-body">
                                                 <div class="mb-3">
+                                                    <label class="form-label">Coluna do Kanban</label>
+                                                    <select id="ceLeadStageId" class="form-select">
+                                                        <?php foreach ($stageMeta as $stageKey => $meta): ?>
+                                                            <option value="<?php echo htmlspecialchars((string) $stageKey, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </div>
+                                                <div class="mb-3">
                                                     <label class="form-label">Status</label>
-                                                    <select id="ceLeadStatus" class="form-select"></select>
+                                                    <select id="ceLeadStatus" class="form-select">
+                                                        <option value="">-- selecione --</option>
+                                                        <?php foreach ($statusOptions as $statusOption): ?>
+                                                            <option value="<?php echo htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8'); ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Último Contato</label>
@@ -905,7 +1291,12 @@ include 'includes/header.php';
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Forma de Pagamento</label>
-                                                    <select id="ceLeadFormaPagamento" class="form-select"><option value="">-- selecione --</option></select>
+                                                    <select id="ceLeadFormaPagamento" class="form-select">
+                                                        <option value="">-- selecione --</option>
+                                                        <?php foreach ($paymentMethodOptions as $paymentMethod): ?>
+                                                            <option value="<?php echo (int) $paymentMethod['id']; ?>"><?php echo htmlspecialchars((string) $paymentMethod['name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
                                                     <div class="form-text">Selecione a forma de pagamento principal do cliente.</div>
                                                 </div>
                                                 <div class="mb-3">
@@ -1016,10 +1407,26 @@ include 'includes/header.php';
                 const cityFilter = document.getElementById('ceCityFilter');
                 const toggleFilters = document.getElementById('ceToggleFilters');
                 const filtersPanel = document.getElementById('ceFiltersPanel');
+                const clearFiltersBtn = document.getElementById('ceClearFilters');
                 const cards = Array.from(document.querySelectorAll('[data-card]'));
                 const countBadges = Array.from(document.querySelectorAll('[data-count-for]'));
                 const summaryValues = Array.from(document.querySelectorAll('[data-summary-stage]'));
+                const kpiTotal = document.getElementById('ceKpiTotal');
+                const kpiValue = document.getElementById('ceKpiValue');
+                const kpiActive = document.getElementById('ceKpiActive');
+                const kpiConversion = document.getElementById('ceKpiConversion');
+                const kpiExported = document.getElementById('ceKpiExported');
                 const board = document.getElementById('ceBoard');
+                const topScrollbar = document.getElementById('ceTopScrollbar');
+                const topScrollbarContent = document.getElementById('ceTopScrollbarContent');
+                const listWrap = document.getElementById('ceListWrap');
+                const tableBody = document.getElementById('ceTableBody');
+                const toggleViewBtn = document.getElementById('ceToggleViewBtn');
+                const kanbanCompactBtn = document.getElementById('ceKanbanCompactBtn');
+                const kanbanCompactIcon = document.getElementById('ceKanbanCompactIcon');
+                const kanbanOnlyBtn = document.getElementById('ceKanbanOnlyBtn');
+                const kanbanOnlyIcon = document.getElementById('ceKanbanOnlyIcon');
+                const tableFilterButtons = Array.from(document.querySelectorAll('[data-ce-table-filter]'));
                 const openLeadModalBtn = document.getElementById('ceOpenLeadModal');
                 const openStagesModalBtn = document.getElementById('ceOpenStagesModal');
                 const leadModalEl = document.getElementById('ceLeadModal');
@@ -1060,6 +1467,7 @@ include 'includes/header.php';
                 const stageNextStageInput = document.getElementById('ceStageNextStage');
                 const stageDeleteBtn = document.getElementById('ceStageDeleteBtn');
                 const newStageBtn = document.getElementById('ceNewStageBtn');
+                const tableFilters = {};
                 function getModalInstance(modalEl) {
                     if (!modalEl) return null;
                     if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
@@ -1108,6 +1516,307 @@ include 'includes/header.php';
                         const visibleCount = cards.filter((card) => card.dataset.stage === stage && card.style.display !== 'none').length;
                         summary.textContent = String(visibleCount).padStart(2, '0');
                     });
+                    updateGeneralKpis();
+                }
+
+                function escapeHtml(value) {
+                    return String(value || '').replace(/[&<>"']/g, (char) => ({
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#039;'
+                    }[char]));
+                }
+
+                function formatMoney(value) {
+                    const number = Number(value || 0);
+                    return number.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                }
+
+                function padCount(value) {
+                    return String(Number(value || 0)).padStart(2, '0');
+                }
+
+                function isClosedStatus(status) {
+                    const value = normalize(status);
+                    return ['fechado', 'fechada', 'contrato', 'ganho', 'ganha', 'aprovado', 'aprovada', 'finalizado', 'finalizada'].some((term) => value.includes(term));
+                }
+
+                function isLostStatus(status) {
+                    const value = normalize(status);
+                    return ['perdido', 'perdida', 'cancelado', 'cancelada'].some((term) => value.includes(term));
+                }
+
+                function formatDate(value) {
+                    if (!value) return '--';
+                    const date = new Date(String(value).replace(' ', 'T'));
+                    if (Number.isNaN(date.getTime())) return '--';
+                    return date.toLocaleDateString('pt-BR');
+                }
+
+                function getVisibleCards() {
+                    return cards.filter((card) => card.style.display !== 'none');
+                }
+
+                function updateGeneralKpis() {
+                    const visibleCards = getVisibleCards();
+                    const total = visibleCards.length;
+                    const value = visibleCards.reduce((sum, card) => sum + Number(card.dataset.value || 0), 0);
+                    const closed = visibleCards.filter((card) => isClosedStatus(card.dataset.statusLabel || '')).length;
+                    const inactive = visibleCards.filter((card) => isClosedStatus(card.dataset.statusLabel || '') || isLostStatus(card.dataset.statusLabel || '')).length;
+                    const active = Math.max(0, total - inactive);
+                    const exported = visibleCards.filter((card) => String(card.dataset.exported || '0') === '1').length;
+
+                    if (kpiTotal) kpiTotal.textContent = padCount(total);
+                    if (kpiValue) kpiValue.textContent = formatMoney(value);
+                    if (kpiActive) kpiActive.textContent = padCount(active);
+                    if (kpiConversion) {
+                        const conversion = total ? (closed / total) * 100 : 0;
+                        kpiConversion.textContent = `${conversion.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+                    }
+                    if (kpiExported) kpiExported.textContent = padCount(exported);
+                }
+
+                function getTableFilterValue(card, key) {
+                    if (key === 'created') return formatDate(card.dataset.created);
+                    if (key === 'value') return formatMoney(card.dataset.value);
+                    return card.dataset[key] || '';
+                }
+
+                function getTableFilteredCards() {
+                    return getVisibleCards().filter((card) => {
+                        return Object.keys(tableFilters).every((key) => {
+                            const filter = tableFilters[key];
+                            if (!filter || (Array.isArray(filter) && !filter.length)) return true;
+                            const rawValue = getTableFilterValue(card, key);
+                            if (Array.isArray(filter)) {
+                                return filter.includes(rawValue || '--');
+                            }
+                            return normalize(rawValue).includes(normalize(filter));
+                        });
+                    });
+                }
+
+                function syncTableFilterButtons() {
+                    tableFilterButtons.forEach((button) => {
+                        const key = button.dataset.ceTableFilter;
+                        const filter = tableFilters[key];
+                        const active = Array.isArray(filter) ? filter.length > 0 : !!filter;
+                        button.classList.toggle('active', active);
+                    });
+                }
+
+                function closeTableFilterPopup() {
+                    const popup = document.querySelector('.ce-table-filter-popup');
+                    if (popup) popup.remove();
+                }
+
+                function uniqueTableValues(key) {
+                    const values = getVisibleCards()
+                        .map((card) => getTableFilterValue(card, key) || '--')
+                        .filter((value) => String(value).trim() !== '');
+                    return Array.from(new Set(values)).sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
+                }
+
+                function openTableFilterPopup(button, key) {
+                    closeTableFilterPopup();
+                    const popup = document.createElement('div');
+                    popup.className = 'ce-table-filter-popup';
+                    const rect = button.getBoundingClientRect();
+                    popup.style.top = `${rect.bottom + 8}px`;
+                    popup.style.left = `${Math.min(rect.left, window.innerWidth - 292)}px`;
+
+                    const label = button.closest('th')?.innerText.replace(/\s+/g, ' ').trim() || 'Filtro';
+                    const optionKeys = ['stageLabel', 'statusLabel', 'cityLabel', 'source'];
+                    if (optionKeys.includes(key)) {
+                        const selected = Array.isArray(tableFilters[key]) ? tableFilters[key] : [];
+                        const options = uniqueTableValues(key);
+                        popup.innerHTML = `
+                            <div class="ce-table-filter-popup-title">${escapeHtml(label)}</div>
+                            <div class="ce-table-filter-options">
+                                ${options.length ? options.map((value, index) => `
+                                    <label class="ce-table-filter-option">
+                                        <input type="checkbox" value="${escapeHtml(value)}" ${selected.includes(value) ? 'checked' : ''}>
+                                        <span>${escapeHtml(value)}</span>
+                                    </label>
+                                `).join('') : '<div class="small text-muted">Sem opções.</div>'}
+                            </div>
+                            <div class="ce-table-filter-actions">
+                                <button type="button" class="btn btn-sm btn-light" data-ce-popup-clear>Limpar</button>
+                                <button type="button" class="btn btn-sm btn-primary" data-ce-popup-apply>Aplicar</button>
+                            </div>
+                        `;
+                        popup.querySelector('[data-ce-popup-apply]')?.addEventListener('click', () => {
+                            const checked = Array.from(popup.querySelectorAll('input[type="checkbox"]:checked')).map((input) => input.value);
+                            if (checked.length) tableFilters[key] = checked;
+                            else delete tableFilters[key];
+                            closeTableFilterPopup();
+                            renderTable();
+                        });
+                    } else {
+                        popup.innerHTML = `
+                            <div class="ce-table-filter-popup-title">${escapeHtml(label)}</div>
+                            <input class="form-control form-control-sm" data-ce-popup-input value="${escapeHtml(tableFilters[key] || '')}" placeholder="Digite para filtrar">
+                            <div class="ce-table-filter-actions">
+                                <button type="button" class="btn btn-sm btn-light" data-ce-popup-clear>Limpar</button>
+                                <button type="button" class="btn btn-sm btn-primary" data-ce-popup-apply>Aplicar</button>
+                            </div>
+                        `;
+                        const input = popup.querySelector('[data-ce-popup-input]');
+                        input?.addEventListener('keydown', (event) => {
+                            if (event.key === 'Enter') popup.querySelector('[data-ce-popup-apply]')?.click();
+                        });
+                        popup.querySelector('[data-ce-popup-apply]')?.addEventListener('click', () => {
+                            const value = input ? input.value.trim() : '';
+                            if (value) tableFilters[key] = value;
+                            else delete tableFilters[key];
+                            closeTableFilterPopup();
+                            renderTable();
+                        });
+                        setTimeout(() => input?.focus(), 0);
+                    }
+
+                    popup.querySelector('[data-ce-popup-clear]')?.addEventListener('click', () => {
+                        delete tableFilters[key];
+                        closeTableFilterPopup();
+                        renderTable();
+                    });
+                    document.body.appendChild(popup);
+                }
+
+                function renderTable() {
+                    if (!tableBody) return;
+                    const visibleCards = getTableFilteredCards();
+                    if (!visibleCards.length) {
+                        tableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">Nenhum registro encontrado.</td></tr>';
+                        syncTableFilterButtons();
+                        return;
+                    }
+
+                    tableBody.innerHTML = visibleCards.map((card) => {
+                        const id = card.dataset.id || '';
+                        return `
+                            <tr data-table-row="${escapeHtml(id)}">
+                                <td>
+                                    <div class="fw-semibold">${escapeHtml(card.dataset.title || 'Registro sem nome')}</div>
+                                    <div class="small text-muted">${escapeHtml(card.dataset.owner || '')}</div>
+                                </td>
+                                <td>${escapeHtml(card.dataset.stageLabel || '')}</td>
+                                <td><span class="badge bg-light text-dark border">${escapeHtml(card.dataset.statusLabel || 'Sem status')}</span></td>
+                                <td>${escapeHtml(card.dataset.cityLabel || '--')}</td>
+                                <td>${escapeHtml(card.dataset.phone || '--')}</td>
+                                <td class="fw-semibold text-success">${formatMoney(card.dataset.value)}</td>
+                                <td>${escapeHtml(card.dataset.source || '--')}</td>
+                                <td>${formatDate(card.dataset.created)}</td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-ce-edit-table="${escapeHtml(id)}" title="Editar registro">
+                                        <i class="fa-regular fa-pen-to-square"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                    syncTableFilterButtons();
+                }
+
+                function setViewMode(mode) {
+                    const isTable = mode === 'table';
+                    if (board) board.classList.toggle('d-none', isTable);
+                    if (topScrollbar) topScrollbar.classList.toggle('d-none', isTable);
+                    if (listWrap) listWrap.classList.toggle('d-none', !isTable);
+                    if (toggleViewBtn) {
+                        toggleViewBtn.title = isTable ? 'Alternar para Kanban' : 'Alternar para Tabela';
+                        toggleViewBtn.innerHTML = isTable ? '<i class="fa fa-table"></i>' : '<i class="fa fa-columns"></i>';
+                    }
+                    try { localStorage.setItem('ceViewMode', isTable ? 'table' : 'kanban'); } catch (e) {}
+                    if (!isTable) syncTopScrollbar();
+                    if (isTable) renderTable();
+                }
+
+                function syncTopScrollbar() {
+                    if (!board || !topScrollbar || !topScrollbarContent) return;
+                    const updateWidth = () => {
+                        topScrollbarContent.style.width = `${board.scrollWidth}px`;
+                    };
+                    updateWidth();
+                    if (topScrollbar.dataset.synced === '1') return;
+                    topScrollbar.dataset.synced = '1';
+
+                    if (typeof ResizeObserver !== 'undefined') {
+                        try {
+                            const observer = new ResizeObserver(updateWidth);
+                            observer.observe(board);
+                        } catch (e) {
+                            window.addEventListener('resize', updateWidth);
+                        }
+                    } else {
+                        window.addEventListener('resize', updateWidth);
+                    }
+
+                    let syncingTop = false;
+                    let syncingBoard = false;
+                    topScrollbar.addEventListener('scroll', () => {
+                        if (syncingBoard) return;
+                        syncingTop = true;
+                        board.scrollLeft = topScrollbar.scrollLeft;
+                        setTimeout(() => { syncingTop = false; }, 10);
+                    });
+                    board.addEventListener('scroll', () => {
+                        if (syncingTop) return;
+                        syncingBoard = true;
+                        topScrollbar.scrollLeft = board.scrollLeft;
+                        setTimeout(() => { syncingBoard = false; }, 10);
+                    });
+                }
+
+                function setupHorizontalKanbanDrag() {
+                    if (!board || board.dataset.dragReady === '1') return;
+                    board.dataset.dragReady = '1';
+                    let isDown = false;
+                    let startX = 0;
+                    let scrollLeft = 0;
+
+                    board.addEventListener('mousedown', (event) => {
+                        if (event.target.closest('.ce-card, input, button, select, textarea, a, .modal')) return;
+                        isDown = true;
+                        board.classList.add('is-dragging');
+                        startX = event.pageX - board.offsetLeft;
+                        scrollLeft = board.scrollLeft;
+                        event.preventDefault();
+                    });
+                    board.addEventListener('mouseleave', () => {
+                        isDown = false;
+                        board.classList.remove('is-dragging');
+                    });
+                    board.addEventListener('mouseup', () => {
+                        isDown = false;
+                        board.classList.remove('is-dragging');
+                    });
+                    board.addEventListener('mousemove', (event) => {
+                        if (!isDown) return;
+                        event.preventDefault();
+                        const x = event.pageX - board.offsetLeft;
+                        const walk = (x - startX) * 2;
+                        board.scrollLeft = scrollLeft - walk;
+                    });
+                }
+
+                function setKanbanCompact(enabled) {
+                    document.body.classList.toggle('ce-kanban-compact', enabled);
+                    if (kanbanCompactIcon) {
+                        kanbanCompactIcon.className = enabled ? 'fa fa-expand' : 'fa fa-compress';
+                    }
+                    try { localStorage.setItem('ceKanbanCompact', enabled ? '1' : '0'); } catch (e) {}
+                }
+
+                function setKanbanOnly(enabled) {
+                    document.body.classList.toggle('ce-kanban-only', enabled);
+                    if (kanbanOnlyIcon) {
+                        kanbanOnlyIcon.className = enabled ? 'fa fa-compress-arrows-alt' : 'fa fa-expand-arrows-alt';
+                    }
+                    if (enabled) setViewMode('kanban');
+                    try { localStorage.setItem('ceKanbanOnly', enabled ? '1' : '0'); } catch (e) {}
                 }
 
                 if (board) {
@@ -1118,6 +1827,7 @@ include 'includes/header.php';
                         }
                     }, { passive: false });
                 }
+                setupHorizontalKanbanDrag();
 
                 function formatMoneyInput(value) {
                     const digits = String(value || '').replace(/\D/g, '');
@@ -1128,10 +1838,28 @@ include 'includes/header.php';
                     return parts.join(',');
                 }
 
+                function formatMoneyValueForInput(value) {
+                    const number = Number(value || 0);
+                    if (!Number.isFinite(number) || number <= 0) return '';
+                    return number.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+
                 function parseMoneyInput(value) {
                     const normalized = String(value || '').replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
                     const parsed = parseFloat(normalized);
                     return Number.isFinite(parsed) ? parsed : 0;
+                }
+
+                function ensureSelectOption(select, value) {
+                    if (!select || value === null || value === undefined || String(value).trim() === '') return;
+                    const wanted = String(value);
+                    const exists = Array.from(select.options).some((option) => option.value === wanted);
+                    if (!exists) {
+                        const option = document.createElement('option');
+                        option.value = wanted;
+                        option.textContent = wanted;
+                        select.appendChild(option);
+                    }
                 }
 
                 function resetLeadModal() {
@@ -1199,12 +1927,15 @@ include 'includes/header.php';
                         leadCityInput.value = card.cidade || '';
                         if (leadSourceInput) leadSourceInput.value = card.source || leadSourceDisplay;
                         if (leadStageInput) leadStageInput.value = String(card.stage_id || '');
+                        ensureSelectOption(leadStatusInput, card.status || '');
                         leadStatusInput.value = card.status || '';
                         if (leadUltimoContatoInput) leadUltimoContatoInput.value = card.ultimo_contato ? String(card.ultimo_contato).substring(0, 10) : '';
                         if (leadCreatedAtInput) leadCreatedAtInput.value = card.created_entry_at ? String(card.created_entry_at).substring(0, 10) : '';
                         if (leadConsumoInput) leadConsumoInput.value = card.consumo || '';
                         if (leadEstimativaInput) leadEstimativaInput.value = card.estimativa_kwh || '';
-                        leadValueInput.value = card.orcamento_value ? formatMoneyInput(card.orcamento_value) : '';
+                        const budgetValue = card.orcamento_value || card.value || '';
+                        leadValueInput.value = budgetValue ? formatMoneyValueForInput(budgetValue) : '';
+                        ensureSelectOption(leadFormaPagamentoInput, card.forma_pagamento_id || '');
                         if (leadFormaPagamentoInput) leadFormaPagamentoInput.value = card.forma_pagamento_id || '';
                         leadNotesInput.value = card.notes || '';
                         renderLeadAttachments(Array.isArray(card.attachments) ? card.attachments : []);
@@ -1454,6 +2185,10 @@ include 'includes/header.php';
                     if (!targetList) return;
 
                     card.dataset.stage = stageId;
+                    const nextStage = stages.find((item) => String(item.id) === String(stageId));
+                    if (nextStage) {
+                        card.dataset.stageLabel = nextStage.label || '';
+                    }
                     targetList.appendChild(card);
                     syncEmptyStates();
                     applyFilters();
@@ -1474,6 +2209,10 @@ include 'includes/header.php';
                         }
                     } catch (error) {
                         card.dataset.stage = originalStage;
+                        const previousStage = stages.find((item) => String(item.id) === String(originalStage));
+                        if (previousStage) {
+                            card.dataset.stageLabel = previousStage.label || '';
+                        }
                         if (originalList) {
                             originalList.appendChild(card);
                         }
@@ -1499,12 +2238,77 @@ include 'includes/header.php';
                         card.style.display = matchesSearch && matchesType && matchesStage && matchesCity ? '' : 'none';
                     });
 
+                    syncEmptyStates();
                     updateCounts();
+                    renderTable();
+                    syncTopScrollbar();
                 }
 
                 if (toggleFilters && filtersPanel) {
                     toggleFilters.addEventListener('click', function () {
-                        filtersPanel.classList.toggle('is-open');
+                        const isOpen = filtersPanel.classList.toggle('is-open');
+                        toggleFilters.classList.toggle('active', isOpen);
+                        toggleFilters.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                    });
+                }
+
+                if (clearFiltersBtn) {
+                    clearFiltersBtn.addEventListener('click', function () {
+                        if (searchInput) searchInput.value = '';
+                        if (typeFilter) typeFilter.value = '';
+                        if (stageFilter) stageFilter.value = '';
+                        if (cityFilter) cityFilter.value = '';
+                        Object.keys(tableFilters).forEach((key) => delete tableFilters[key]);
+                        closeTableFilterPopup();
+                        applyFilters();
+                    });
+                }
+
+                tableFilterButtons.forEach((button) => {
+                    button.addEventListener('click', function (event) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const key = button.dataset.ceTableFilter;
+                        if (key) openTableFilterPopup(button, key);
+                    });
+                });
+
+                document.addEventListener('click', function (event) {
+                    if (event.target.closest('.ce-table-filter-popup') || event.target.closest('[data-ce-table-filter]')) return;
+                    closeTableFilterPopup();
+                });
+
+                if (toggleViewBtn) {
+                    toggleViewBtn.addEventListener('click', function () {
+                        const isTable = listWrap && !listWrap.classList.contains('d-none');
+                        setViewMode(isTable ? 'kanban' : 'table');
+                    });
+                }
+
+                if (kanbanCompactBtn) {
+                    kanbanCompactBtn.addEventListener('click', function () {
+                        setKanbanCompact(!document.body.classList.contains('ce-kanban-compact'));
+                    });
+                }
+
+                if (kanbanOnlyBtn) {
+                    kanbanOnlyBtn.addEventListener('click', function () {
+                        setKanbanOnly(!document.body.classList.contains('ce-kanban-only'));
+                    });
+                }
+
+                if (tableBody) {
+                    tableBody.addEventListener('click', async function (event) {
+                        const button = event.target.closest('[data-ce-edit-table]');
+                        if (!button) return;
+                        const id = button.dataset.ceEditTable;
+                        if (!id) return;
+                        try {
+                            const item = await loadLeadForEdit(id);
+                            openLeadModal(item);
+                        } catch (error) {
+                            alert(error.message || 'Falha ao carregar o registro');
+                        }
                     });
                 }
 
@@ -1630,7 +2434,16 @@ include 'includes/header.php';
                     element.addEventListener('change', applyFilters);
                 });
 
-                updateCounts();
+                setKanbanCompact((() => {
+                    try { return localStorage.getItem('ceKanbanCompact') === '1'; } catch (e) { return false; }
+                })());
+                setKanbanOnly((() => {
+                    try { return localStorage.getItem('ceKanbanOnly') === '1'; } catch (e) { return false; }
+                })());
+                setViewMode((() => {
+                    try { return localStorage.getItem('ceViewMode') === 'table' ? 'table' : 'kanban'; } catch (e) { return 'kanban'; }
+                })());
+                applyFilters();
             })();
         </script>
     </main>
