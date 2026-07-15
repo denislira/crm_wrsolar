@@ -274,8 +274,16 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
   .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 .btn-funil-config,
   .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 a.btn,
   .filters-toggle-btn{
-    flex:1 1 calc(50% - 0.45rem);
+    flex:0 0 auto;
     min-width:0;
+  }
+
+  .container-fluid > .d-flex.justify-content-between.align-items-center.mb-4 .btn.mobile-icon-btn,
+  .filters-toggle-btn.mobile-icon-btn{
+    width:40px !important;
+    min-width:40px !important;
+    height:38px !important;
+    flex:0 0 40px !important;
   }
 
   .advanced-filters-shell{
@@ -300,33 +308,61 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
   }
 
   .kpi-row > [class*="col-"]{
-    flex:0 0 150px;
-    max-width:150px;
+    flex:0 0 138px;
+    max-width:138px;
     padding-left:0.25rem;
     padding-right:0.25rem;
   }
 
   #kpiRow .card{
     border-radius:12px;
-    padding:0.8rem !important;
-    min-height:86px;
+    padding:0.7rem !important;
+    min-height:78px;
   }
 
   #kpiRow .h4{
-    font-size:1.05rem;
+    font-size:0.98rem;
     overflow-wrap:anywhere;
+  }
+
+  #kpiRow .small{
+    font-size:0.58rem;
+    line-height:1.15;
+    letter-spacing:.04em;
+    text-transform:uppercase;
   }
 
   .d-flex.justify-content-between.align-items-center.mb-2 > .d-flex{
     justify-content:flex-start !important;
     overflow-x:auto;
     flex-wrap:nowrap !important;
+    gap:0.4rem !important;
     padding-bottom:0.35rem;
+    scrollbar-width:none;
+  }
+
+  .d-flex.justify-content-between.align-items-center.mb-2 > .d-flex::-webkit-scrollbar{
+    display:none;
   }
 
   .d-flex.justify-content-between.align-items-center.mb-2 .btn{
     flex:0 0 auto;
-    min-height:36px;
+    min-height:38px;
+  }
+
+  .d-flex.justify-content-between.align-items-center.mb-2 .btn.mobile-icon-btn{
+    width:38px;
+    min-width:38px !important;
+    height:38px;
+    border-radius:10px;
+  }
+
+  #toggleSemStatusBtn,
+  #toggleAnunciosBtn,
+  #toggleIndicadosBtn,
+  #bulkActionsBtn,
+  #printSelectedBtn{
+    min-width:38px !important;
   }
 
   .kanban-top-scrollbar{

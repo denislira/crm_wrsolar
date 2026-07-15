@@ -150,6 +150,9 @@ include_once 'includes/permissions.php';
   <nav class="navbar navbar-light bg-white">
     <div class="container-fluid d-flex align-items-center">
       <div class="d-flex align-items-center">
+        <button id="mobileSidebarToggle" class="btn btn-outline-secondary d-inline-flex d-md-none me-2" type="button" title="Abrir menu" aria-label="Abrir menu">
+          <i class="fa-solid fa-bars"></i>
+        </button>
         <!-- navbar brand intentionally removed (logo moved to sidebar) -->
         <?php
             $reqHost = strtolower($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '');
@@ -197,6 +200,7 @@ include_once 'includes/permissions.php';
       <p class="mt-3 text-dark">Carregando página...</p>
     </div>
   </div>
+  <div id="mobileSidebarBackdrop" class="mobile-sidebar-backdrop" aria-hidden="true"></div>
 
   <style>
     /* Page loading overlay - limited to main content area so it doesn't cover sidebar/navbar */
@@ -398,6 +402,7 @@ include_once 'includes/permissions.php';
       display: inline-block;
       white-space: nowrap;
       overflow: hidden;
+      text-overflow: ellipsis;
       font-size: 0.92rem;
     }
     
@@ -517,6 +522,10 @@ include_once 'includes/permissions.php';
       overflow-x: hidden;
     }
 
+    body.sidebar-mobile-open {
+      overflow: hidden;
+    }
+
     .navbar,
     body.sidebar-collapsed .navbar {
       left: 0;
@@ -529,24 +538,47 @@ include_once 'includes/permissions.php';
       padding-right: 10px;
     }
 
-    .app-sidebar,
-    body.sidebar-collapsed .app-sidebar,
-    .app-sidebar.collapsed {
-      width: min(82vw, 300px) !important;
-      min-width: min(82vw, 300px) !important;
-      max-width: min(82vw, 300px) !important;
-      transform: translateX(0);
-      transition: width .24s ease, min-width .24s ease, max-width .24s ease;
-      z-index: 3000 !important;
-      box-shadow: 12px 0 28px rgba(15, 23, 42, 0.24);
+    #mobileSidebarToggle,
+    .navbar .btn {
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
     }
 
+    .navbar .dropdown .btn {
+      width: 40px;
+      min-width: 40px;
+    }
+
+    .navbar .dropdown-toggle::after {
+      display: none;
+    }
+
+    #reminderBellMenu {
+      min-width: min(92vw, 320px) !important;
+      max-width: calc(100vw - 16px);
+    }
+
+    .app-sidebar,
     body.sidebar-collapsed .app-sidebar,
+    .app-sidebar.collapsed,
     body.sidebar-collapsed .app-sidebar.collapsed {
-      width: 56px !important;
-      min-width: 56px !important;
-      max-width: 56px !important;
-      box-shadow: 4px 0 16px rgba(15, 23, 42, 0.12);
+      width: min(86vw, 320px) !important;
+      min-width: min(86vw, 320px) !important;
+      max-width: min(86vw, 320px) !important;
+      top: 48px;
+      height: calc(100dvh - 48px);
+      min-height: 0;
+      transform: translateX(-104%);
+      transition: transform .24s ease;
+      z-index: 3000 !important;
+      box-shadow: 18px 0 38px rgba(15, 23, 42, 0.28);
+      border-radius: 0 14px 14px 0;
     }
 
     main.flex-grow-1,
@@ -556,12 +588,6 @@ include_once 'includes/permissions.php';
       margin-left: 0;
       width: 100%;
       padding: 0.85rem !important;
-    }
-
-    body.sidebar-collapsed main.flex-grow-1,
-    body.sidebar-collapsed .main-content-scroll {
-      margin-left: 56px;
-      width: calc(100% - 56px);
     }
 
     .main-content-scroll > .container-fluid {
@@ -586,40 +612,80 @@ include_once 'includes/permissions.php';
     }
 
     .app-sidebar .nav-link .label,
-    .app-sidebar.collapsed .nav-link .label {
+    .app-sidebar.collapsed .nav-link .label,
+    body.sidebar-collapsed .app-sidebar .nav-link .label {
       display: inline-block !important;
       opacity: 1;
       visibility: visible;
       width: auto;
+      max-width: calc(86vw - 82px);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    body.sidebar-collapsed .app-sidebar .nav-link {
-      justify-content: center;
-      width: calc(100% + 1rem);
-      margin-left: -0.5rem;
-      margin-right: -0.5rem;
-      padding: 0.72rem 0;
-      border-radius: 0;
+    body.sidebar-mobile-open .app-sidebar {
+      transform: translateX(0);
     }
 
-    body.sidebar-collapsed .app-sidebar .nav-link .label {
-      display: none !important;
+    body.sidebar-mobile-open .mobile-sidebar-backdrop {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .mobile-sidebar-backdrop {
+      position: fixed;
+      inset: 48px 0 0 0;
+      z-index: 2990;
+      background: rgba(15, 23, 42, 0.48);
       opacity: 0;
-      visibility: hidden;
-      width: 0;
+      pointer-events: none;
+      transition: opacity .2s ease;
     }
 
+    .app-sidebar .brand .normal-logo,
     body.sidebar-collapsed .app-sidebar .brand .normal-logo {
+      display: block !important;
+    }
+
+    .app-sidebar .brand .brand-logo-collapsed,
+    body.sidebar-collapsed .app-sidebar .brand .brand-logo-collapsed {
       display: none !important;
     }
 
-    body.sidebar-collapsed .app-sidebar .brand .brand-logo-collapsed {
-      display: block !important;
+    .app-sidebar .sidebar-top {
+      justify-content: flex-end !important;
+    }
+
+    #sidebarToggle {
+      width: 36px;
+      height: 36px;
+      color: #fff;
     }
 
     .app-sidebar .nav-link::after,
     .app-sidebar.collapsed .nav-link::after {
       display: none;
+    }
+
+    .table-responsive {
+      border-radius: 10px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .card .card-body {
+      padding: 0.85rem;
+    }
+
+    .btn-group,
+    .btn-toolbar {
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .modal-dialog {
+      margin: 0.5rem;
     }
   }
   </style>
