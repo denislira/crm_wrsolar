@@ -308,27 +308,29 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
   }
 
   .kpi-row > [class*="col-"]{
-    flex:0 0 138px;
-    max-width:138px;
-    padding-left:0.25rem;
-    padding-right:0.25rem;
+    flex:0 0 112px;
+    max-width:112px;
+    padding-left:0.18rem;
+    padding-right:0.18rem;
   }
 
   #kpiRow .card{
-    border-radius:12px;
-    padding:0.7rem !important;
-    min-height:78px;
+    border-radius:9px;
+    padding:0.5rem 0.55rem !important;
+    min-height:64px;
   }
 
   #kpiRow .h4{
-    font-size:0.98rem;
+    font-size:0.66rem;
+    line-height:1.15;
+    margin-bottom:0;
     overflow-wrap:anywhere;
   }
 
   #kpiRow .small{
-    font-size:0.58rem;
-    line-height:1.15;
-    letter-spacing:.04em;
+    font-size:0.42rem;
+    line-height:1.1;
+    letter-spacing:.02em;
     text-transform:uppercase;
   }
 
