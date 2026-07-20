@@ -960,7 +960,10 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
         $stmt = $pdo->prepare('UPDATE leads SET status=?, stage_id=?, updated_at=NOW() WHERE id=?');
         $p0 = is_string($data['status']) ? ensure_utf8_local($data['status']) : $data['status'];
         $stmt->execute([$p0, $resolvedStageId, $data['id']]);
-        _log_lead_update($pdo, (int)$data['id'], $userId);
+        _log_lead_update($pdo, (int)$data['id'], $userId, 'status', $fromStatus, $p0);
+        if ((string)$fromStageId !== (string)$resolvedStageId) {
+            _log_lead_update($pdo, (int)$data['id'], $userId, 'stage_id', $fromStageId, $resolvedStageId);
+        }
 
         // Log immutable movement for audit & metrics (best-effort)
         try {
@@ -1138,7 +1141,18 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
         $leadStmt->execute([(int)$leadId]);
         $leadRow = $leadStmt->fetch(PDO::FETCH_ASSOC);
 
-        $m = $pdo->prepare('SELECT id, lead_id, from_stage_id, to_stage_id, from_status, to_status, changed_by, note, is_alert, created_at FROM lead_movements WHERE lead_id = ? ORDER BY created_at ASC');
+        $m = $pdo->prepare(
+            "SELECT lm.id, lm.lead_id, lm.from_stage_id, lm.to_stage_id,
+                    lm.from_status, lm.to_status, lm.changed_by, lm.user_id,
+                    lm.note, lm.is_alert, lm.created_at,
+                    fs_from.stage_name AS from_stage_name,
+                    fs_to.stage_name AS to_stage_name
+             FROM lead_movements lm
+             LEFT JOIN funil_stages fs_from ON fs_from.id = lm.from_stage_id
+             LEFT JOIN funil_stages fs_to ON fs_to.id = lm.to_stage_id
+             WHERE lm.lead_id = ?
+             ORDER BY lm.created_at ASC"
+        );
         $m->execute([$leadId]);
         $rows = $m->fetchAll(PDO::FETCH_ASSOC);
 

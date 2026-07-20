@@ -2272,18 +2272,37 @@
                         alert('Este lead já possui projeto e não pode mais ser movimentado.');
                         return;
                     }
+                    // Move the card immediately while the server update is running.
+                    const movingCard = Array.from(document.querySelectorAll('.lead-card[data-id]'))
+                        .find(card => String(card.dataset.id) === String(id));
+                    const sourceColumn = movingCard ? movingCard.closest('.kanban-column') : null;
+                    const sourceStageId = sourceColumn?.dataset?.stageId || null;
+                    if (movingCard && colContent && sourceColumn !== colWrap) {
+                        colContent.appendChild(movingCard);
+                        const sourceCount = sourceStageId ? document.getElementById('count-' + sourceStageId) : null;
+                        const targetCount = document.getElementById('count-' + stageId);
+                        if (sourceCount) sourceCount.textContent = String(Math.max(0, Number(sourceCount.textContent || 0) - 1));
+                        if (targetCount) targetCount.textContent = String(Number(targetCount.textContent || 0) + 1);
+                    }
+
                     await updateStatus(id, stageName, { stage_id: stageId });
                     const item = allLeads.find(x=>String(x.id)===String(id)); if (item) { item.status = stageName; item.stage_id = stageId; item.updated_at = (new Date()).toISOString(); }
                     const dragging = document.querySelector('.lead-card.dragging');
                     if (dragging) {
-                        const newColor = container?.dataset?.color || '#6c757d';
+                        const newColor = colWrap?.dataset?.color || '#6c757d';
                         dragging.style.borderLeft = '6px solid ' + newColor;
                         dragging.dataset._prevBorder = '';
                     }
-                    renderAll();
+                    // Re-read the persisted lead so the Kanban is rebuilt in the
+                    // destination column immediately, including lazy-loaded columns.
+                    await fetchLeads();
                     flashFeedback(colContent, true);
                 }
-            } catch(err){ flashFeedback(colContent, false); console.error(err); }
+            } catch(err){
+                flashFeedback(colContent, false);
+                console.error(err);
+                try { await fetchLeads(); } catch (_) {}
+            }
         });
 
         // cleanup
@@ -2611,10 +2630,12 @@
                 const txt = document.createElement('div');
                 // main movement text: if there is a from/to status show arrow, otherwise show only note
                 let main = '';
-                const hasFromTo = (m.from_status && String(m.from_status).trim() !== '') || (m.to_status && String(m.to_status).trim() !== '');
+                const fromMovementLabel = m.from_stage_name || m.from_status || (m.from_stage_id ? ('Etapa #' + m.from_stage_id) : '');
+                const toMovementLabel = m.to_stage_name || m.to_status || (m.to_stage_id ? ('Etapa #' + m.to_stage_id) : '');
+                const hasFromTo = (fromMovementLabel && String(fromMovementLabel).trim() !== '') || (toMovementLabel && String(toMovementLabel).trim() !== '');
                 if (hasFromTo) {
-                    const toLabel = m.to_stage_name || m.to_status || '—';
-                    const fromLabel = m.from_status || '—';
+                    const toLabel = toMovementLabel || '—';
+                    const fromLabel = fromMovementLabel || '—';
                     main = `${fromLabel} → ${toLabel}`;
                 }
                 // include note if present

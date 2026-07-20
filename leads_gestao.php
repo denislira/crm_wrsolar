@@ -526,6 +526,6 @@ include 'includes/header.php';
     });
     </script>
 
-    <script src="assets/js/leads_gestao.js"></script>
+    <script src="assets/js/leads_gestao.js?v=<?php echo (int)@filemtime(__DIR__ . '/assets/js/leads_gestao.js'); ?>"></script>
     <?php include 'includes/footer.php'; ?>
 

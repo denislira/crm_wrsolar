@@ -185,6 +185,7 @@ $timelineTypes = [];
 $avgDaysToClose = null;
 $avgTicket = null;
 $sources = [];
+$sourceFilterOptions = [];
 $timeDistribution = array_fill(1, 7, 0);
 $trendSeries = [];
 
@@ -242,29 +243,59 @@ try {
         $fsColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
         $fsCols = $fsColsStmt->fetchAll(PDO::FETCH_COLUMN);
         $hasIsConversionStage = in_array('is_conversion', $fsCols, true);
+        $leadAliasDelCond = $hasDeleted ? " AND l.deleted = 0" : "";
+        $leadAliasSrcCond = '';
+        if (!empty($filterSources)) {
+                $leadAliasSrcCond = " AND COALESCE(NULLIF(l.source,''),'') IN (" . implode(',', array_fill(0, count($filterSources), '?')) . ")";
+        }
+        $closedMovementParams = array_merge([$reportMonthsStart->format('Y-m-d H:i:s'), $reportMonthsEnd->format('Y-m-d H:i:s')], $srcParams);
 
         if ($hasIsConversionStage) {
-                // PRIMARY: leads cujo stage está marcado como is_conversion = 1 no funil
+                // PRIMARY: leads moved into a conversion stage, grouped by the movement/closing date.
                 $mc = $pdo->prepare(
-                        "SELECT DATE_FORMAT(l.{$dateCol}, '%Y-%m') as ym, COUNT(*) as cnt
+                        "SELECT DATE_FORMAT(MAX(lm.created_at), '%Y-%m') as ym, COUNT(DISTINCT l.id) as cnt
                          FROM leads l
                          INNER JOIN funil_stages fs ON fs.id = l.stage_id AND fs.is_conversion = 1
-                         WHERE l.{$dateCol} >= ? AND l.{$dateCol} <= ?{$baseDelCond}{$srcCond}
-                         GROUP BY ym ORDER BY ym ASC"
+                         INNER JOIN lead_movements lm ON lm.lead_id = l.id AND lm.to_stage_id = fs.id
+                         WHERE lm.created_at >= ? AND lm.created_at <= ?{$leadAliasDelCond}{$leadAliasSrcCond}
+                         GROUP BY l.id
+                         ORDER BY ym ASC"
                 );
-                $mc->execute($reportMonthsParams);
-                $monthsClosedRows = $mc->fetchAll(PDO::FETCH_ASSOC);
+                $mc->execute($closedMovementParams);
+                $closedLeadRows = $mc->fetchAll(PDO::FETCH_ASSOC);
+                $closedByMonth = [];
+                foreach ($closedLeadRows as $row) {
+                        $ym = (string)($row['ym'] ?? '');
+                        if ($ym === '') continue;
+                        if (!isset($closedByMonth[$ym])) $closedByMonth[$ym] = 0;
+                        $closedByMonth[$ym] += (int)($row['cnt'] ?? 0);
+                }
+                foreach ($closedByMonth as $ym => $cnt) {
+                        $monthsClosedRows[] = ['ym' => $ym, 'cnt' => $cnt];
+                }
         } elseif (in_array('final_type', $fsCols, true)) {
                 // fallback: considerar final_type=won como conversão para funil de conversão
                 $mc = $pdo->prepare(
-                        "SELECT DATE_FORMAT(l.{$dateCol}, '%Y-%m') as ym, COUNT(*) as cnt
+                        "SELECT DATE_FORMAT(MAX(lm.created_at), '%Y-%m') as ym, COUNT(DISTINCT l.id) as cnt
                          FROM leads l
                          INNER JOIN funil_stages fs ON fs.id = l.stage_id AND fs.final_type = 'won'
-                         WHERE l.{$dateCol} >= ? AND l.{$dateCol} <= ?{$baseDelCond}{$srcCond}
-                         GROUP BY ym ORDER BY ym ASC"
+                         INNER JOIN lead_movements lm ON lm.lead_id = l.id AND lm.to_stage_id = fs.id
+                         WHERE lm.created_at >= ? AND lm.created_at <= ?{$leadAliasDelCond}{$leadAliasSrcCond}
+                         GROUP BY l.id
+                         ORDER BY ym ASC"
                 );
-                $mc->execute($reportMonthsParams);
-                $monthsClosedRows = $mc->fetchAll(PDO::FETCH_ASSOC);
+                $mc->execute($closedMovementParams);
+                $closedLeadRows = $mc->fetchAll(PDO::FETCH_ASSOC);
+                $closedByMonth = [];
+                foreach ($closedLeadRows as $row) {
+                        $ym = (string)($row['ym'] ?? '');
+                        if ($ym === '') continue;
+                        if (!isset($closedByMonth[$ym])) $closedByMonth[$ym] = 0;
+                        $closedByMonth[$ym] += (int)($row['cnt'] ?? 0);
+                }
+                foreach ($closedByMonth as $ym => $cnt) {
+                        $monthsClosedRows[] = ['ym' => $ym, 'cnt' => $cnt];
+                }
         } elseif ($hasClosedAt || $hasIsConversation) {
                 // FALLBACK: closed_at ou is_conversation
                 $closedDateExpr = $hasClosedAt ? 'COALESCE(l.closed_at, l.created_at)' : "l.{$dateCol}";
@@ -362,6 +393,39 @@ try {
                 }
         }
 } catch (Exception $e) { /* ignore */ }
+
+try {
+        $leadColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
+        $leadColsForSourceOptions = $leadColsStmt->fetchAll(PDO::FETCH_COLUMN);
+        $sourceOptionsCol = null;
+        foreach (['source','origem','lead_source'] as $sc) {
+                if (in_array($sc, $leadColsForSourceOptions, true)) { $sourceOptionsCol = $sc; break; }
+        }
+        if ($sourceOptionsCol) {
+                $sourceOptionsWhere = "{$dateCol} >= ? AND {$dateCol} <= ?{$baseDelCond}";
+                $sourceOptionsStmt = $pdo->prepare(
+                        "SELECT COALESCE(NULLIF({$sourceOptionsCol},''),'') AS value,
+                                COALESCE(NULLIF({$sourceOptionsCol},''),'Sem origem') AS source,
+                                COUNT(*) AS cnt
+                         FROM leads
+                         WHERE {$sourceOptionsWhere}
+                         GROUP BY value, source
+                         ORDER BY source ASC"
+                );
+                $sourceOptionsStmt->execute([$fStartStr, $fEndStr]);
+                $sourceFilterOptions = $sourceOptionsStmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        foreach ($filterSources as $selectedSource) {
+                $selectedSource = (string)$selectedSource;
+                $exists = false;
+                foreach ($sourceFilterOptions as $option) {
+                        if ((string)($option['value'] ?? $option['source'] ?? '') === $selectedSource) { $exists = true; break; }
+                }
+                if (!$exists) $sourceFilterOptions[] = ['value' => $selectedSource, 'source' => ($selectedSource === '' ? 'Sem origem' : $selectedSource), 'cnt' => 0];
+        }
+} catch (Exception $e) {
+        $sourceFilterOptions = $sources;
+}
 
 // --- Temporal analysis heuristics (automated insights) ---
 $temporalInsights = [];
@@ -617,12 +681,17 @@ try {
 $movementsByUser = [];
 $dateUpdatesByUser = [];
 try {
+    $mvSrcCond = !empty($filterSources)
+        ? " AND COALESCE(NULLIF(l.source,''),'') IN (" . implode(',', array_fill(0, count($filterSources), '?')) . ")"
+        : '';
+    $mvDelCond = $hasDeleted ? " AND COALESCE(l.deleted, 0) = 0" : "";
     $mvStmt = $pdo->prepare("SELECT COALESCE(u.username, '(desconhecido)') AS username, COUNT(*) AS cnt
         FROM lead_movements lm
         LEFT JOIN users u ON u.id = lm.user_id
-        WHERE lm.created_at >= ? AND lm.created_at <= ?
+        LEFT JOIN leads l ON l.id = lm.lead_id
+        WHERE lm.created_at >= ? AND lm.created_at <= ?{$mvDelCond}{$mvSrcCond}
         GROUP BY lm.user_id ORDER BY cnt DESC LIMIT 20");
-    $mvStmt->execute([$fStartStr, $fEndStr]);
+    $mvStmt->execute(array_merge([$fStartStr, $fEndStr], $srcParams));
     $movementsByUser = $mvStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $hasLeadUpdateLogs = false;
@@ -830,20 +899,16 @@ try {
 
     // Leads without contact in > 24h (alert list)
     $threshold24 = (new DateTime())->modify('-24 hours')->format('Y-m-d H:i:s');
-    $alertCond = $hasFirstContact
-        ? "first_contact_at IS NULL AND {$slaDateCol} < ?"
-        : ($hasUltimoCtato ? "(ultimo_contato IS NULL OR ultimo_contato < ?) AND {$slaDateCol} < ?" : "{$slaDateCol} < ?");
-
     $alertCols = "id, name, COALESCE(NULLIF(source,''),'Sem origem') AS source, COALESCE(NULLIF(status,''),'Sem status') AS status, {$slaDateCol} AS created_at";
     if ($hasFirstContact) {
-        $alertStmt = $pdo->prepare("SELECT {$alertCols} FROM leads WHERE first_contact_at IS NULL AND {$slaDateCol} < ?{$slaDelBase} ORDER BY {$slaDateCol} ASC LIMIT 50");
-        $alertStmt->execute([$threshold24]);
+        $alertStmt = $pdo->prepare("SELECT {$alertCols} FROM leads WHERE first_contact_at IS NULL AND {$slaDateCol} >= ? AND {$slaDateCol} <= ? AND {$slaDateCol} < ?{$slaDelBase}{$srcCond} ORDER BY {$slaDateCol} ASC LIMIT 50");
+        $alertStmt->execute(array_merge([$fStartStr, $fEndStr, $threshold24], $srcParams));
     } elseif ($hasUltimoCtato) {
-        $alertStmt = $pdo->prepare("SELECT {$alertCols} FROM leads WHERE (ultimo_contato IS NULL OR ultimo_contato < ?) AND {$slaDateCol} < ?{$slaDelBase} ORDER BY {$slaDateCol} ASC LIMIT 50");
-        $alertStmt->execute([$threshold24, $threshold24]);
+        $alertStmt = $pdo->prepare("SELECT {$alertCols} FROM leads WHERE {$slaDateCol} >= ? AND {$slaDateCol} <= ? AND (ultimo_contato IS NULL OR ultimo_contato < ?) AND {$slaDateCol} < ?{$slaDelBase}{$srcCond} ORDER BY {$slaDateCol} ASC LIMIT 50");
+        $alertStmt->execute(array_merge([$fStartStr, $fEndStr, $threshold24, $threshold24], $srcParams));
     } else {
-        $alertStmt = $pdo->prepare("SELECT {$alertCols} FROM leads WHERE {$slaDateCol} < ?{$slaDelBase} ORDER BY {$slaDateCol} ASC LIMIT 50");
-        $alertStmt->execute([$threshold24]);
+        $alertStmt = $pdo->prepare("SELECT {$alertCols} FROM leads WHERE {$slaDateCol} >= ? AND {$slaDateCol} <= ? AND {$slaDateCol} < ?{$slaDelBase}{$srcCond} ORDER BY {$slaDateCol} ASC LIMIT 50");
+        $alertStmt->execute(array_merge([$fStartStr, $fEndStr, $threshold24], $srcParams));
     }
     $slaAlertLeads = $alertStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1160,8 +1225,8 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(59,130
                             <span>Todos</span>
                         </label>
                         <div class="source-dropdown-divider"></div>
-                        <?php foreach ($sources as $s): 
-                            $val = (string)($s['source'] ?? '');
+                        <?php foreach ($sourceFilterOptions as $s): 
+                            $val = (string)($s['value'] ?? $s['source'] ?? '');
                             $label = (string)($s['source'] ?? 'Sem origem');
                             $checked = in_array($val, $filterSources, true) ? 'checked' : '';
                         ?>
@@ -2123,6 +2188,24 @@ function buildSeriesMonths(series) {
     return { labels, values };
 }
 
+function buildAlignedMonthSeries(...seriesLists) {
+    const monthSet = new Set();
+    seriesLists.forEach(series => {
+        (Array.isArray(series) ? series : []).forEach(row => {
+            if (row && row.ym) monthSet.add(row.ym);
+        });
+    });
+    const labels = Array.from(monthSet).sort();
+    const values = seriesLists.map(series => {
+        const byMonth = new Map();
+        (Array.isArray(series) ? series : []).forEach(row => {
+            if (row && row.ym) byMonth.set(row.ym, Number(row.cnt) || 0);
+        });
+        return labels.map(month => byMonth.get(month) || 0);
+    });
+    return { labels, values };
+}
+
 function getMonthName(ym) {
     const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
     const parts = ym.split('-');
@@ -2333,11 +2416,10 @@ function renderLeadsMonthlyChart() {
     if (!ctx) return;
     
     destroyChart('chartLeadsMonthly');
-    const createdSeries = buildSeriesMonths(REPORT_MONTHS);
-    const closedSeries = buildSeriesMonths(REPORT_MONTHS_CLOSED);
-    const labels = createdSeries.labels.length > 0 ? createdSeries.labels : closedSeries.labels;
-    const createdData = labels.map((m, i) => createdSeries.values[i] || 0);
-    const closedData = labels.map((m, i) => closedSeries.values[i] || 0);
+    const alignedSeries = buildAlignedMonthSeries(REPORT_MONTHS, REPORT_MONTHS_CLOSED);
+    const labels = alignedSeries.labels;
+    const createdData = alignedSeries.values[0] || [];
+    const closedData = alignedSeries.values[1] || [];
     const maxValue = Math.max(...createdData, ...closedData, 1);
     const desiredLines = 12;
     const stepSize = Math.max(1, Math.ceil(maxValue / desiredLines));
@@ -2525,11 +2607,10 @@ function renderCreatedClosedChart() {
     if (!ctx) return;
     
     destroyChart('chartCreatedClosed');
-    const createdSeries = buildSeriesMonths(REPORT_MONTHS);
-    const closedSeries = buildSeriesMonths(REPORT_MONTHS_CLOSED);
-    const labels = createdSeries.labels.length > 0 ? createdSeries.labels : closedSeries.labels;
-    const createdData = labels.map((m, i) => createdSeries.values[i] || 0);
-    const closedData = labels.map((m, i) => closedSeries.values[i] || 0);
+    const alignedSeries = buildAlignedMonthSeries(REPORT_MONTHS, REPORT_MONTHS_CLOSED);
+    const labels = alignedSeries.labels;
+    const createdData = alignedSeries.values[0] || [];
+    const closedData = alignedSeries.values[1] || [];
     
     chartInstances['chartCreatedClosed'] = new Chart(ctx, { 
         type:'bar', 

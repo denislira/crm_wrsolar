@@ -156,7 +156,7 @@ body.sidebar-collapsed .brand .brand-logo-collapsed { display: block !important;
             <?php if (function_exists('hasPermission') ? hasPermission('relatorios') : true): ?>
             <li class="nav-item">
                 <a href="relatorios.php" class="nav-link <?php echo $current=='relatorios.php' ? 'active':''; ?>" data-tooltip="Relatórios">
-                    <span class="icon"><i class="fa-regular fa-chart-bar"></i></span>
+                    <span class="icon"><i class="fa-solid fa-chart-line"></i></span>
                     <span class="label">Relatórios</span>
                 </a>
             </li>
