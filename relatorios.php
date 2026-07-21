@@ -243,59 +243,28 @@ try {
         $fsColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
         $fsCols = $fsColsStmt->fetchAll(PDO::FETCH_COLUMN);
         $hasIsConversionStage = in_array('is_conversion', $fsCols, true);
-        $leadAliasDelCond = $hasDeleted ? " AND l.deleted = 0" : "";
-        $leadAliasSrcCond = '';
-        if (!empty($filterSources)) {
-                $leadAliasSrcCond = " AND COALESCE(NULLIF(l.source,''),'') IN (" . implode(',', array_fill(0, count($filterSources), '?')) . ")";
-        }
-        $closedMovementParams = array_merge([$reportMonthsStart->format('Y-m-d H:i:s'), $reportMonthsEnd->format('Y-m-d H:i:s')], $srcParams);
-
         if ($hasIsConversionStage) {
-                // PRIMARY: leads moved into a conversion stage, grouped by the movement/closing date.
+                // PRIMARY: leads created in the selected period whose current stage is marked as conversion.
                 $mc = $pdo->prepare(
-                        "SELECT DATE_FORMAT(MAX(lm.created_at), '%Y-%m') as ym, COUNT(DISTINCT l.id) as cnt
+                        "SELECT DATE_FORMAT(l.{$dateCol}, '%Y-%m') as ym, COUNT(*) as cnt
                          FROM leads l
                          INNER JOIN funil_stages fs ON fs.id = l.stage_id AND fs.is_conversion = 1
-                         INNER JOIN lead_movements lm ON lm.lead_id = l.id AND lm.to_stage_id = fs.id
-                         WHERE lm.created_at >= ? AND lm.created_at <= ?{$leadAliasDelCond}{$leadAliasSrcCond}
-                         GROUP BY l.id
-                         ORDER BY ym ASC"
+                         WHERE l.{$dateCol} >= ? AND l.{$dateCol} <= ?{$baseDelCond}{$srcCond}
+                         GROUP BY ym ORDER BY ym ASC"
                 );
-                $mc->execute($closedMovementParams);
-                $closedLeadRows = $mc->fetchAll(PDO::FETCH_ASSOC);
-                $closedByMonth = [];
-                foreach ($closedLeadRows as $row) {
-                        $ym = (string)($row['ym'] ?? '');
-                        if ($ym === '') continue;
-                        if (!isset($closedByMonth[$ym])) $closedByMonth[$ym] = 0;
-                        $closedByMonth[$ym] += (int)($row['cnt'] ?? 0);
-                }
-                foreach ($closedByMonth as $ym => $cnt) {
-                        $monthsClosedRows[] = ['ym' => $ym, 'cnt' => $cnt];
-                }
+                $mc->execute($reportMonthsParams);
+                $monthsClosedRows = $mc->fetchAll(PDO::FETCH_ASSOC);
         } elseif (in_array('final_type', $fsCols, true)) {
                 // fallback: considerar final_type=won como conversão para funil de conversão
                 $mc = $pdo->prepare(
-                        "SELECT DATE_FORMAT(MAX(lm.created_at), '%Y-%m') as ym, COUNT(DISTINCT l.id) as cnt
+                        "SELECT DATE_FORMAT(l.{$dateCol}, '%Y-%m') as ym, COUNT(*) as cnt
                          FROM leads l
                          INNER JOIN funil_stages fs ON fs.id = l.stage_id AND fs.final_type = 'won'
-                         INNER JOIN lead_movements lm ON lm.lead_id = l.id AND lm.to_stage_id = fs.id
-                         WHERE lm.created_at >= ? AND lm.created_at <= ?{$leadAliasDelCond}{$leadAliasSrcCond}
-                         GROUP BY l.id
-                         ORDER BY ym ASC"
+                         WHERE l.{$dateCol} >= ? AND l.{$dateCol} <= ?{$baseDelCond}{$srcCond}
+                         GROUP BY ym ORDER BY ym ASC"
                 );
-                $mc->execute($closedMovementParams);
-                $closedLeadRows = $mc->fetchAll(PDO::FETCH_ASSOC);
-                $closedByMonth = [];
-                foreach ($closedLeadRows as $row) {
-                        $ym = (string)($row['ym'] ?? '');
-                        if ($ym === '') continue;
-                        if (!isset($closedByMonth[$ym])) $closedByMonth[$ym] = 0;
-                        $closedByMonth[$ym] += (int)($row['cnt'] ?? 0);
-                }
-                foreach ($closedByMonth as $ym => $cnt) {
-                        $monthsClosedRows[] = ['ym' => $ym, 'cnt' => $cnt];
-                }
+                $mc->execute($reportMonthsParams);
+                $monthsClosedRows = $mc->fetchAll(PDO::FETCH_ASSOC);
         } elseif ($hasClosedAt || $hasIsConversation) {
                 // FALLBACK: closed_at ou is_conversation
                 $closedDateExpr = $hasClosedAt ? 'COALESCE(l.closed_at, l.created_at)' : "l.{$dateCol}";
