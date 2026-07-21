@@ -32,12 +32,11 @@
         const getLeadDate = (lead) => String(lead?.data_inicio || '').slice(0, 10);
         // apply search
         if (CURRENT_SEARCH) {
-            const v = CURRENT_SEARCH.toLowerCase();
+            const v = normalizeText(CURRENT_SEARCH);
             const searchDigits = CURRENT_SEARCH.replace(/\D/g, '');
-            const norm = (value) => String(value || '').toLowerCase();
             const digitOnly = (value) => String(value || '').replace(/\D/g, '');
             filtered = filtered.filter(l => {
-                if (norm(l.name).includes(v) || norm(l.client_name).includes(v) || norm(l.company).includes(v) || norm(l.source).includes(v) || norm(l.phone).includes(v)) {
+                if (normalizeText(l.name).includes(v) || normalizeText(l.client_name).includes(v) || normalizeText(l.company).includes(v) || normalizeText(l.source).includes(v) || normalizeText(l.phone).includes(v)) {
                     return true;
                 }
                 if (searchDigits && digitOnly(l.phone).includes(searchDigits)) {
@@ -1961,8 +1960,8 @@
                             if (dtDateStr > toStr) return false;
                         }
                     } else {
-                        const val = (k === 'valor') ? String(toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0)).toLowerCase() : String((lead[k] || lead.source || lead.client_name || lead.company || '')).toLowerCase();
-                        if (!val.includes(String(f).toLowerCase())) return false;
+                        const val = (k === 'valor') ? normalizeText(toCurrency(lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0)) : normalizeText(lead[k] || lead.source || lead.client_name || lead.company || '');
+                        if (!val.includes(normalizeText(f))) return false;
                     }
                 }
             } catch(e){ return true }
@@ -3613,7 +3612,7 @@
         }
 
         $('#searchInput').addEventListener('input', (e)=>{
-            CURRENT_SEARCH = e.target.value.toLowerCase();
+            CURRENT_SEARCH = e.target.value;
             renderAll();
         });
 

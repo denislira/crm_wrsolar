@@ -145,7 +145,7 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
             echo json_encode([]); 
             exit; 
         }
-        $stmt = $pdo->prepare("SELECT id, name, email, phone FROM leads WHERE (name LIKE ? OR email LIKE ? OR phone LIKE ?) LIMIT 10");
+        $stmt = $pdo->prepare("SELECT id, name, email, phone FROM leads WHERE (name COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci OR email COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci OR phone LIKE ?) LIMIT 10");
         $like = '%' . $query . '%';
         $stmt->execute([$like, $like, $like]);
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
