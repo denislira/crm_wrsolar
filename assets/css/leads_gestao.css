@@ -2,6 +2,12 @@
 :root{--bg:#f8fafc;--card:#fff;--muted:#6b7280;--accent:#0b6ac1;--danger:#ef4444;--kanban-column-content-height:clamp(320px,calc(100vh - 320px),720px)}
 body{background:#e9eef5}
 
+body .main-content-scroll > .container-fluid{
+  width:100%;
+  max-width:none;
+  margin:0;
+}
+
 /* Full-page preloader for initial load + view switches */
 .leads-preloader{
   position:fixed;
@@ -145,7 +151,7 @@ body.dark-mode #leadsPreloaderText{
   border-color:#0d6efd !important;
   box-shadow:0 0 0 0.2rem rgba(13,110,253,.18) !important;
 }
-.kanban-wrap{display:flex;gap:16px;overflow:auto;padding:8px 2px}
+.kanban-wrap{display:flex;gap:16px;overflow:auto;padding:8px 2px;width:100%;max-width:none}
 .kanban-wrap.panel-open{margin-right:420px}
 .kanban-wrap.panel-open.panel-expanded{margin-right:820px}
 .kanban-skeleton{display:flex;gap:16px;min-width:max-content;width:100%}
