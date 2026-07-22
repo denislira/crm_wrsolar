@@ -47,6 +47,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/permissions.php';
+require_once __DIR__ . '/email_notifications.php';
 
 // Ensure FS_NAME_COL default (some installs use 'stage_name' column)
 if (!isset($FS_NAME_COL) || !$FS_NAME_COL) {
@@ -630,6 +631,7 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
             }
         } catch (Exception $e) { /* swallow errors - movement logging is best-effort */ }
 
+        wrcrm_notify_lead_created($pdo, $leadId, $userId);
         echo json_encode(['ok' => true, 'id' => $leadId]);
         exit;
     }
@@ -845,6 +847,8 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
             if ($fromStatus !== $resolvedStatus || $fromStageId !== $resolvedStageId) {
                 $changedBy = $_SESSION['user_id'] ?? null;
                 _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $resolvedStatus, $changedBy, 'Atualização via edit', 0);
+                wrcrm_notify_lead_stage_changed($pdo, (int)$data['id'], $changedBy ?: $userId, $fromStatus, $resolvedStatus);
+                wrcrm_notify_lead_sale_completed($pdo, (int)$data['id'], $changedBy ?: $userId, $resolvedStatus);
             }
         } catch (Exception $e) { /* swallow */ }
 
@@ -970,6 +974,10 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
             // use session user_id as changed_by if available
             $changedBy = $_SESSION['user_id'] ?? null;
             _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $data['status'], $changedBy, null, 0);
+            if ($fromStatus !== $p0 || (string)$fromStageId !== (string)$resolvedStageId) {
+                wrcrm_notify_lead_stage_changed($pdo, (int)$data['id'], $changedBy ?: $userId, $fromStatus, $p0);
+                wrcrm_notify_lead_sale_completed($pdo, (int)$data['id'], $changedBy ?: $userId, $p0);
+            }
         } catch (Exception $e) { /* swallow */ }
 
         // Auto-create task DISABLED - tasks should be created manually only
@@ -1367,6 +1375,7 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
             } catch (Exception $e) {
                 _leads_api_log('promote_anuncio: failed to update leads_anuncios id ' . $anId . ': ' . $e->getMessage());
             }
+            wrcrm_notify_lead_created($pdo, $newId, $userId);
             echo json_encode(['ok' => true, 'id' => $newId]);
             exit;
         } catch (Exception $e) {
@@ -1427,6 +1436,7 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
             $newId = $pdo->lastInsertId();
             $update = $pdo->prepare('UPDATE pos_venda_referrals SET transferred_to_kanban = 1, promoted_at = NOW() WHERE id = ? AND user_id = ?');
             $update->execute([$refId, $userId]);
+            wrcrm_notify_lead_created($pdo, $newId, $userId);
             echo json_encode(['ok' => true, 'id' => $newId]);
             exit;
         } catch (Exception $e) {

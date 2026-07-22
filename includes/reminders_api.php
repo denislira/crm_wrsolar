@@ -3,6 +3,7 @@ header('Content-Type: application/json');
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['user_id'])) { http_response_code(401); echo json_encode(['error'=>'Not authenticated']); exit; }
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/email_notifications.php';
 
 $userId = $_SESSION['user_id'];
 action:
@@ -43,6 +44,7 @@ try {
             $stmt->execute([$leadId, $message, $dt, $templateId, 'pending', $userId, $contactName ?: null, $contactPhone ?: null]);
         }
         $id = $pdo->lastInsertId();
+        wrcrm_notify_reminder_created($pdo, $id);
         echo json_encode(['ok'=>true,'id'=>$id]);
         exit;
     }

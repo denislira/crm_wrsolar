@@ -4,5 +4,45 @@
     "green": "#4bbf4b",
     "yellow": "#ffd24a",
     "logo_collapsed": "uploads\/custom_logo_collapsed.png",
-    "login_background": "uploads\/custom_login_background.jpg"
+    "login_background": "uploads\/custom_login_background.jpg",
+    "smtp": {
+        "host": "email-ssl.com.br",
+        "port": 465,
+        "secure": "ssl",
+        "user": "crm@wrsolare.com.br",
+        "pass": "Senhadeteste@77",
+        "from_email": "crm@wrsolare.com.br",
+        "from_name": "CRM WRSolare",
+        "auth": 0
+    },
+    "notifications": {
+        "events": {
+            "reminder_created": 1,
+            "task_created": 1,
+            "lead_created": 0,
+            "lead_sale_completed": 0,
+            "lead_stage_changed": 0
+        },
+        "recipients": {
+            "reminder_created": [
+                "creator",
+                "responsible"
+            ],
+            "task_created": [
+                "creator",
+                "responsible"
+            ],
+            "lead_created": [],
+            "lead_sale_completed": [],
+            "lead_stage_changed": []
+        },
+        "sale_stage_names": [
+            "Venda conclu\u00edda",
+            "Venda concluida",
+            "Conclu\u00eddo",
+            "Concluido",
+            "Ganho",
+            "Fechado"
+        ]
+    }
 }

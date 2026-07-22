@@ -2,6 +2,7 @@
 // API para CRUD de tarefas de equipe
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/permissions.php';
+require_once __DIR__ . '/email_notifications.php';
 session_start();
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
@@ -154,6 +155,7 @@ switch ($action) {
                 ]);
             }
             $newId = $pdo->lastInsertId();
+            wrcrm_notify_task_created($pdo, $newId, $userId);
             // log creation activity (best-effort)
             logTaskActivity($pdo, [
                 'task_id' => $newId,

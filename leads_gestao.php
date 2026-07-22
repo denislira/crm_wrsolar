@@ -32,8 +32,8 @@ include 'includes/header.php';
                         Filtros
                     </button>
                     <button id="newLeadBtn" class="btn btn-primary btn-sm" style="min-width:160px;">Novo lead</button>
-                    <a href="import_leads.php" class="btn btn-sm btn-outline-secondary" title="Importar leads via CSV">Importar CSV</a>
-                    <button id="funilConfigBtn" class="btn btn-sm btn-outline-primary btn-funil-config" title="Personalizar estágios do funil" onclick="location.href='funil_config.php'">Personalizar Funil</button>
+                    <a href="import_leads.php" class="btn btn-sm btn-outline-secondary" title="Importar leads via CSV" aria-label="Importar leads via CSV"><i class="fa fa-file-import" aria-hidden="true"></i></a>
+                    <button id="funilConfigBtn" class="btn btn-sm btn-outline-primary btn-funil-config" title="Personalizar estágios do funil" aria-label="Personalizar estágios do funil" onclick="location.href='funil_config.php'"><i class="fa fa-diagram-project" aria-hidden="true"></i></button>
                 </div>
             </div>
 

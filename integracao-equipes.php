@@ -510,7 +510,6 @@ body.theme-dark .status-Concluida {
                 <div class="btn-group" role="group" aria-label="view-tabs">
                     <button id="tabTarefas" type="button" class="btn btn-primary active">Tarefas de Equipe</button>
                     <button id="tabLembretesBtn" type="button" class="btn btn-outline-primary">Lembretes</button>
-                    <button id="tabMinhasIntegracoes" type="button" class="btn btn-outline-primary">Integrações</button>
                 </div>
             </div>
 

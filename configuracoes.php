@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -570,6 +570,15 @@ body.theme-dark .edit-user-modal .avatar-box {
 }
 </style>
 
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 2000;">
+    <div id="settingsToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="settingsToastBody">Salvo com sucesso.</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Fechar"></button>
+        </div>
+    </div>
+</div>
+
 <div class="d-flex">
     <?php include 'includes/sidebar.php'; ?>
     <main class="flex-grow-1 p-4 settings-page">
@@ -595,6 +604,9 @@ body.theme-dark .edit-user-modal .avatar-box {
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="smtp-tab" data-bs-toggle="tab" data-bs-target="#smtp" type="button" role="tab" aria-controls="smtp" aria-selected="false">SMTP</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="notifications-tab" data-bs-toggle="tab" data-bs-target="#notifications" type="button" role="tab" aria-controls="notifications" aria-selected="false">Notificações</button>
                 </li>
                 <!-- Adicionar mais abas aqui no futuro -->
             </ul>
@@ -894,6 +906,7 @@ body.theme-dark .edit-user-modal .avatar-box {
                                         <option value="">Personalizado</option>
                                         <option value="gmail_tls">Gmail (smtp.gmail.com, TLS 587)</option>
                                         <option value="gmail_ssl">Gmail (smtp.gmail.com, SSL 465)</option>
+                                        <option value="locaweb">Locaweb (email-ssl.com.br, SSL 465)</option>
                                         <option value="outlook">Outlook / Office365 (smtp.office365.com, TLS 587)</option>
                                         <option value="yahoo">Yahoo (smtp.mail.yahoo.com, SSL 465)</option>
                                         <option value="sendgrid">SendGrid (smtp.sendgrid.net, TLS 587)</option>
@@ -924,7 +937,8 @@ body.theme-dark .edit-user-modal .avatar-box {
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Senha</label>
-                                    <input type="password" id="smtp_pass" name="pass" class="form-control" autocomplete="new-password" />
+                                    <input type="text" id="smtp_pass" name="pass" class="form-control" autocomplete="new-password" placeholder="Digite uma nova senha ou mantenha em branco" />
+                                    <small id="smtp_pass_hint" class="text-muted d-block mt-1">Nenhuma senha carregada.</small>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">From Email</label>
@@ -944,6 +958,18 @@ body.theme-dark .edit-user-modal .avatar-box {
                         </form>
                         <div class="d-flex justify-content-end gap-2 mt-3">
                             <button id="btn_save_smtp" class="btn btn-primary btn-sm">Salvar SMTP</button>
+                        </div>
+
+                        <div class="border-top mt-3 pt-3">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-8">
+                                    <label class="form-label">Email para teste</label>
+                                    <input type="email" id="smtp_test_to" class="form-control form-control-sm" placeholder="email@dominio.com" />
+                                </div>
+                                <div class="col-md-4 d-grid">
+                                    <button id="btn_test_smtp" class="btn btn-outline-primary btn-sm" type="button">Enviar teste SMTP</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="mt-3">
@@ -1031,6 +1057,69 @@ body.theme-dark .edit-user-modal .avatar-box {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Aba Notificações -->
+                <div class="tab-pane fade" id="notifications" role="tabpanel" aria-labelledby="notifications-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h5 mb-0">Notificações por Email</h2>
+                    </div>
+                    <div class="card card-shadow p-3">
+                        <form id="notificationsForm">
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Evento</th>
+                                            <th style="width:120px;">Enviar</th>
+                                            <th style="width:160px;">Criador</th>
+                                            <th style="width:180px;">Responsável</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Criar lembrete</td>
+                                            <td><input class="form-check-input notification-event" type="checkbox" name="events[reminder_created]" data-event="reminder_created"></td>
+                                            <td><input class="form-check-input" type="checkbox" name="recipients[reminder_created][]" value="creator"></td>
+                                            <td><input class="form-check-input" type="checkbox" name="recipients[reminder_created][]" value="responsible"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Criar tarefa</td>
+                                            <td><input class="form-check-input notification-event" type="checkbox" name="events[task_created]" data-event="task_created"></td>
+                                            <td><input class="form-check-input" type="checkbox" name="recipients[task_created][]" value="creator"></td>
+                                            <td><input class="form-check-input" type="checkbox" name="recipients[task_created][]" value="responsible"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Criar lead</td>
+                                            <td><input class="form-check-input notification-event" type="checkbox" name="events[lead_created]" data-event="lead_created"></td>
+                                            <td><input class="form-check-input" type="checkbox" name="recipients[lead_created][]" value="creator"></td>
+                                            <td><input class="form-check-input" type="checkbox" name="recipients[lead_created][]" value="responsible"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Concluir venda de lead</td>
+                                            <td><input class="form-check-input notification-event" type="checkbox" name="events[lead_sale_completed]" data-event="lead_sale_completed"></td>
+                                            <td><input class="form-check-input" type="checkbox" name="recipients[lead_sale_completed][]" value="creator"></td>
+                                            <td><input class="form-check-input" type="checkbox" name="recipients[lead_sale_completed][]" value="responsible"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Mudar etapa do funil</td>
+                                            <td><input class="form-check-input notification-event" type="checkbox" name="events[lead_stage_changed]" data-event="lead_stage_changed"></td>
+                                            <td><input class="form-check-input" type="checkbox" name="recipients[lead_stage_changed][]" value="creator"></td>
+                                            <td><input class="form-check-input" type="checkbox" name="recipients[lead_stage_changed][]" value="responsible"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-3">
+                                <label class="form-label">Etapas que contam como venda concluída</label>
+                                <textarea id="sale_stage_names" name="sale_stage_names" class="form-control" rows="3" placeholder="Venda concluída, Ganho, Fechado"></textarea>
+                                <small class="text-muted">Separe por vírgula ou uma etapa por linha. O nome precisa bater com a etapa do funil.</small>
+                            </div>
+                        </form>
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button id="btn_default_notifications" class="btn btn-outline-secondary btn-sm" type="button">Voltar ao padrão</button>
+                            <button id="btn_save_notifications" class="btn btn-primary btn-sm">Salvar Notificações</button>
                         </div>
                     </div>
                 </div>
@@ -1457,6 +1546,20 @@ document.getElementById('changePasswordForm').addEventListener('submit', functio
 <?php include 'includes/footer.php'; ?>
 
 <script>
+(function(){
+    const settingsToastEl = document.getElementById('settingsToast');
+    const settingsToastBody = document.getElementById('settingsToastBody');
+    const settingsToast = settingsToastEl && window.bootstrap && bootstrap.Toast ? bootstrap.Toast.getOrCreateInstance(settingsToastEl, { delay: 2400 }) : null;
+
+    window.showSettingsToast = function(message, type) {
+        if (!settingsToastEl || !settingsToastBody) return;
+        settingsToastEl.classList.remove('text-bg-success', 'text-bg-danger', 'text-bg-warning', 'text-bg-info');
+        settingsToastEl.classList.add(type === 'danger' ? 'text-bg-danger' : (type === 'warning' ? 'text-bg-warning' : 'text-bg-success'));
+        settingsToastBody.textContent = message || 'Concluído.';
+        if (settingsToast) settingsToast.show();
+    };
+})();
+
 document.addEventListener('DOMContentLoaded', function(){
     const roleSelect = document.getElementById('perm_role_select');
     const permTbody = document.getElementById('permissions_tbody');
@@ -1687,7 +1790,7 @@ document.addEventListener('DOMContentLoaded', function(){
         for (const p of permissions) fd.append('permissions[]', p);
         const res = await fetch('api/save_role_permissions.php', { method: 'POST', body: fd });
         const data = await res.json();
-        alert(data.message || (data.success ? 'Salvo' : 'Erro'));
+        showSettingsToast(data.message || (data.success ? 'Salvo' : 'Erro'), data.success ? 'success' : 'danger');
         if (data.success) loadRolePermissions(roleId);
     });
 
@@ -1828,7 +1931,7 @@ document.addEventListener('DOMContentLoaded', function(){
             try{
                 const res = await fetch('api/save_appearance.php', { method: 'POST', body: fd });
                 const data = await res.json();
-                alert(data.message || (data.success ? 'Salvo' : 'Erro'));
+                showSettingsToast(data.message || (data.success ? 'Salvo' : 'Erro'), data.success ? 'success' : 'danger');
                 if (data.success) {
                     if (data.appearance && data.appearance.logo) currentLogo.src = data.appearance.logo + '?v=' + Date.now();
                     if (data.appearance && data.appearance.logo_collapsed) currentLogoCollapsed.src = data.appearance.logo_collapsed + '?v=' + Date.now();
@@ -1837,7 +1940,7 @@ document.addEventListener('DOMContentLoaded', function(){
                         else currentLoginBackground.src = 'assets/img/fundoplaca2.jpg';
                     }
                 }
-            }catch(e){ alert('Erro ao salvar aparência'); console.error(e); }
+            }catch(e){ showSettingsToast('Erro ao salvar aparência', 'danger'); console.error(e); }
             this.disabled = false;
         });
 
@@ -1868,12 +1971,22 @@ document.addEventListener('DOMContentLoaded', function(){
                 const res = await fetch('api/get_smtp.php');
                 const data = await res.json();
                 const s = data.smtp || {};
+                const hasPassword = !!data.has_password;
+                const passInput = document.getElementById('smtp_pass');
                 document.getElementById('smtp_host').value = s.host || '';
                 document.getElementById('smtp_port').value = s.port || '';
                 document.getElementById('smtp_secure').value = s.secure || '';
                 document.getElementById('smtp_user').value = s.user || '';
-                // do not pre-fill password for safety unless explicitly provided
-                document.getElementById('smtp_pass').value = s.pass || '';
+                if (passInput) {
+                    passInput.dataset.hasSavedPassword = hasPassword ? '1' : '0';
+                    passInput.dataset.maskedValue = '*****';
+                    passInput.type = 'text';
+                    passInput.value = hasPassword ? '*****' : '';
+                }
+                const passHint = document.getElementById('smtp_pass_hint');
+                if (passHint) {
+                    passHint.textContent = hasPassword ? 'Senha já salva. Deixe em branco para manter a atual.' : 'Nenhuma senha carregada.';
+                }
                 document.getElementById('smtp_from_email').value = s.from_email || '';
                 document.getElementById('smtp_from_name').value = s.from_name || '';
                 document.getElementById('smtp_auth').checked = !!s.auth;
@@ -1886,6 +1999,7 @@ document.addEventListener('DOMContentLoaded', function(){
                         const secure = (s.secure||'').toLowerCase();
                         if (host.indexOf('smtp.gmail.com') !== -1 && port === '587' && secure === 'tls') presetSelect.value = 'gmail_tls';
                         else if (host.indexOf('smtp.gmail.com') !== -1 && port === '465' && secure === 'ssl') presetSelect.value = 'gmail_ssl';
+                        else if (host.indexOf('email-ssl.com.br') !== -1 && port === '465' && secure === 'ssl') presetSelect.value = 'locaweb';
                         else if (host.indexOf('smtp.office365.com') !== -1) presetSelect.value = 'outlook';
                         else if (host.indexOf('smtp.mail.yahoo.com') !== -1) presetSelect.value = 'yahoo';
                         else if (host.indexOf('smtp.sendgrid.net') !== -1) presetSelect.value = 'sendgrid';
@@ -1898,20 +2012,57 @@ document.addEventListener('DOMContentLoaded', function(){
         document.getElementById('btn_save_smtp').addEventListener('click', async function(){
             const btn = this; btn.disabled = true;
             try{
-                const fd = new FormData(document.getElementById('smtpForm'));
+                const smtpForm = document.getElementById('smtpForm');
+                const fd = new FormData(smtpForm);
+                const passInput = document.getElementById('smtp_pass');
+                if (passInput && passInput.dataset.hasSavedPassword === '1' && passInput.value === (passInput.dataset.maskedValue || '*****')) {
+                    fd.delete('pass');
+                }
                 // ensure auth checkbox included
                 if (!fd.has('auth')) fd.append('auth', document.getElementById('smtp_auth').checked ? '1' : '0');
                 const res = await fetch('api/save_smtp.php', { method: 'POST', body: fd });
                 const data = await res.json();
-                alert(data.message || (data.success ? 'Salvo' : 'Erro'));
-            }catch(e){ alert('Erro ao salvar SMTP'); console.error(e); }
+                showSettingsToast(data.message || (data.success ? 'Salvo' : 'Erro'), data.success ? 'success' : 'danger');
+            }catch(e){ showSettingsToast('Erro ao salvar SMTP', 'danger'); console.error(e); }
             btn.disabled = false;
         });
+
+        const testBtn = document.getElementById('btn_test_smtp');
+        if (testBtn) {
+            testBtn.addEventListener('click', async function(){
+                const btn = this; btn.disabled = true;
+                try{
+                    const fd = new FormData();
+                    fd.append('to', document.getElementById('smtp_test_to').value || '');
+                    const res = await fetch('api/test_smtp.php', { method: 'POST', body: fd });
+                    const data = await res.json();
+                    showSettingsToast(data.message || (data.success ? 'Email enviado' : 'Erro no teste'), data.success ? 'success' : 'danger');
+                }catch(e){ showSettingsToast('Erro ao testar SMTP', 'danger'); console.error(e); }
+                btn.disabled = false;
+            });
+        }
+
+        const smtpPassInput = document.getElementById('smtp_pass');
+        if (smtpPassInput) {
+            smtpPassInput.addEventListener('focus', function(){
+                if (this.dataset.hasSavedPassword === '1' && this.value === (this.dataset.maskedValue || '*****')) {
+                    this.value = '';
+                    this.type = 'password';
+                }
+            });
+            smtpPassInput.addEventListener('blur', function(){
+                if (this.dataset.hasSavedPassword === '1' && this.value.trim() === '') {
+                    this.type = 'text';
+                    this.value = this.dataset.maskedValue || '*****';
+                }
+            });
+        }
 
         // preset definitions and handlers
         const smtpPresets = {
             'gmail_tls': { host: 'smtp.gmail.com', port: 587, secure: 'tls', auth: 1 },
             'gmail_ssl': { host: 'smtp.gmail.com', port: 465, secure: 'ssl', auth: 1 },
+            'locaweb': { host: 'email-ssl.com.br', port: 465, secure: 'ssl', user: 'crm@wrsolare.com.br', from_email: 'crm@wrsolare.com.br', from_name: 'WRSolare', auth: 1 },
             'outlook': { host: 'smtp.office365.com', port: 587, secure: 'tls', auth: 1 },
             'yahoo': { host: 'smtp.mail.yahoo.com', port: 465, secure: 'ssl', auth: 1 },
             'sendgrid': { host: 'smtp.sendgrid.net', port: 587, secure: 'tls', auth: 1 }
@@ -1934,6 +2085,7 @@ document.addEventListener('DOMContentLoaded', function(){
                     const collapseMap = {
                         'gmail_tls':'help_gmail_tls',
                         'gmail_ssl':'help_gmail_ssl',
+                        'locaweb':null,
                         'outlook':'help_outlook',
                         'yahoo':'help_yahoo',
                         'sendgrid':'help_sendgrid'
@@ -1957,6 +2109,87 @@ document.addEventListener('DOMContentLoaded', function(){
 
         // initial load when opening tab
         loadSmtp();
+
+        async function loadNotifications(){
+            try{
+                const res = await fetch('api/get_notifications.php');
+                const data = await res.json();
+                const n = data.notifications || {};
+                const events = n.events || {};
+                const recipients = n.recipients || {};
+                document.querySelectorAll('#notificationsForm .notification-event').forEach(function(input){
+                    input.checked = !!events[input.dataset.event];
+                });
+                document.querySelectorAll('#notificationsForm input[type="checkbox"][name^="recipients"]').forEach(function(input){
+                    const match = input.name.match(/^recipients\[(.+?)\]/);
+                    const event = match ? match[1] : '';
+                    input.checked = Array.isArray(recipients[event]) && recipients[event].indexOf(input.value) !== -1;
+                });
+                document.getElementById('sale_stage_names').value = Array.isArray(n.sale_stage_names) ? n.sale_stage_names.join('\n') : '';
+            }catch(e){ console.error('Erro ao carregar notificações', e); }
+        }
+
+        const saveNotificationsBtn = document.getElementById('btn_save_notifications');
+        const defaultNotificationsBtn = document.getElementById('btn_default_notifications');
+        const defaultNotificationState = {
+            events: {
+                reminder_created: true,
+                task_created: true,
+                lead_created: false,
+                lead_sale_completed: false,
+                lead_stage_changed: false
+            },
+            recipients: {
+                reminder_created: ['creator', 'responsible'],
+                task_created: ['creator', 'responsible'],
+                lead_created: [],
+                lead_sale_completed: [],
+                lead_stage_changed: []
+            },
+            sale_stage_names: ['Venda concluída', 'Venda concluida', 'Concluído', 'Concluido', 'Ganho', 'Fechado']
+        };
+
+        function applyNotificationDefaults(){
+            document.querySelectorAll('#notificationsForm .notification-event').forEach(function(input){
+                const eventKey = input.dataset.event || '';
+                input.checked = !!(defaultNotificationState.events && defaultNotificationState.events[eventKey]);
+            });
+
+            document.querySelectorAll('#notificationsForm input[type="checkbox"][name^="recipients"]').forEach(function(input){
+                const match = input.name.match(/^recipients\[(.+?)\]/);
+                const event = match ? match[1] : '';
+                const allowed = (defaultNotificationState.recipients && defaultNotificationState.recipients[event]) || [];
+                input.checked = allowed.indexOf(input.value) !== -1;
+            });
+
+            const saleStageField = document.getElementById('sale_stage_names');
+            if (saleStageField) {
+                saleStageField.value = (defaultNotificationState.sale_stage_names || []).join('\n');
+            }
+        }
+
+        if (defaultNotificationsBtn) {
+            defaultNotificationsBtn.addEventListener('click', function(){
+                if (!confirm('Restaurar os padrões de notificações? Isso só altera a tela até você salvar.')) return;
+                applyNotificationDefaults();
+            });
+        }
+
+        if (saveNotificationsBtn) {
+            saveNotificationsBtn.addEventListener('click', async function(){
+                const btn = this; btn.disabled = true;
+                try{
+                    const fd = new FormData(document.getElementById('notificationsForm'));
+                    const res = await fetch('api/save_notifications.php', { method: 'POST', body: fd });
+                    const data = await res.json();
+                    showSettingsToast(data.message || (data.success ? 'Salvo' : 'Erro'), data.success ? 'success' : 'danger');
+                    if (data.success) await loadNotifications();
+                }catch(e){ showSettingsToast('Erro ao salvar notificações', 'danger'); console.error(e); }
+                btn.disabled = false;
+            });
+        }
+
+        loadNotifications();
     });
     </script>
     <script>

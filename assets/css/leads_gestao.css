@@ -106,8 +106,11 @@ body.dark-mode #leadsPreloaderText{
 .advanced-filters-bar{
   margin-top:-4px;
   margin-bottom:18px;
+  width:100%;
 }
 .advanced-filters-shell{
+  width:100%;
+  box-sizing:border-box;
   background:linear-gradient(180deg,#ffffff 0%,#f4f8ff 100%);
   border:1px solid rgba(11,26,49,0.08);
   border-radius:18px;
@@ -132,9 +135,16 @@ body.dark-mode #leadsPreloaderText{
 }
 .advanced-filters-grid{
   display:grid;
-  grid-template-columns:1.4fr .7fr .9fr .9fr 1.4fr;
+  grid-template-columns:minmax(0,1.4fr) minmax(0,.7fr) minmax(0,.9fr) minmax(0,.9fr) minmax(0,1.4fr);
   gap:12px;
   align-items:end;
+}
+.advanced-filters-grid > div{
+  min-width:0;
+}
+.advanced-filters-grid .d-flex > .date-filter-input{
+  min-width:0;
+  width:100%;
 }
 #advancedFiltersBar .form-label{
   font-weight:700;

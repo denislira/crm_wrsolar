@@ -47,8 +47,9 @@ if ($host !== '') $smtp['host'] = $host; else $smtp['host'] = '';
 if ($port > 0) $smtp['port'] = $port; else $smtp['port'] = '';
 $smtp['secure'] = in_array($secure, ['ssl','tls']) ? $secure : '';
 $smtp['user'] = $user;
-// store password as provided (if empty, clear)
-$smtp['pass'] = $pass;
+if ($pass !== '') {
+    $smtp['pass'] = $pass;
+}
 $smtp['from_email'] = $from_email;
 $smtp['from_name'] = $from_name;
 $smtp['auth'] = $auth;
@@ -56,7 +57,9 @@ $smtp['auth'] = $auth;
 $settings['smtp'] = $smtp;
 
 if (file_put_contents($settingsPath, json_encode($settings, JSON_PRETTY_PRINT))) {
-    echo json_encode(['success' => true, 'message' => 'SMTP salvo com sucesso', 'smtp' => $smtp]);
+    $safeSmtp = $smtp;
+    if (!empty($safeSmtp['pass'])) $safeSmtp['pass'] = '';
+    echo json_encode(['success' => true, 'message' => 'SMTP salvo com sucesso', 'smtp' => $safeSmtp]);
 } else {
     echo json_encode(['success' => false, 'message' => 'Falha ao salvar configurações SMTP']);
 }
