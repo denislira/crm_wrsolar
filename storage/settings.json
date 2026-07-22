@@ -7,8 +7,8 @@
     "login_background": "uploads\/custom_login_background.jpg",
     "smtp": {
         "host": "email-ssl.com.br",
-        "port": 465,
-        "secure": "ssl",
+        "port": 587,
+        "secure": "tls",
         "user": "crm@wrsolare.com.br",
         "pass": "Crm#solare22#1411",
         "from_email": "crm@wrsolare.com.br",
@@ -35,9 +35,9 @@
             "lead_stage_changed": []
         },
         "sale_stage_names": [
-            "Venda concluída",
+            "Venda conclu\u00edda",
             "Venda concluida",
-            "Concluído",
+            "Conclu\u00eddo",
             "Concluido",
             "Ganho",
             "Fechado"

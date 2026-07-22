@@ -115,6 +115,22 @@ if (!function_exists('wrcrm_mail_simple')) {
 }
 
 if (!function_exists('wrcrm_send_email')) {
+    if (!function_exists('wrcrm_smtp_crypto_methods')) {
+        function wrcrm_smtp_crypto_methods() {
+            $methods = [];
+            foreach ([
+                'STREAM_CRYPTO_METHOD_TLS_CLIENT',
+                'STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT',
+                'STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT',
+                'STREAM_CRYPTO_METHOD_TLSv1_1_CLIENT',
+                'STREAM_CRYPTO_METHOD_TLSv1_0_CLIENT'
+            ] as $const) {
+                if (defined($const)) $methods[] = constant($const);
+            }
+            return $methods;
+        }
+    }
+
     function wrcrm_smtp_last_error($message = null) {
         static $lastError = '';
         if ($message !== null) $lastError = (string)$message;
@@ -139,6 +155,7 @@ if (!function_exists('wrcrm_send_email')) {
                 $context = stream_context_create([
                     'ssl' => [
                         'peer_name' => $host,
+                        'SNI_enabled' => true,
                         'verify_peer' => true,
                         'verify_peer_name' => true,
                         'allow_self_signed' => false
@@ -174,7 +191,15 @@ if (!function_exists('wrcrm_send_email')) {
                     if ($secure === 'tls') {
                         $starttls = $send('STARTTLS');
                         $expect($starttls, [220], 'STARTTLS');
-                        if (!@stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                        $cryptoMethods = wrcrm_smtp_crypto_methods();
+                        $enabled = false;
+                        $cryptoErrors = [];
+                        foreach ($cryptoMethods as $method) {
+                            $enabled = @stream_socket_enable_crypto($fp, true, $method);
+                            if ($enabled) break;
+                            $cryptoErrors[] = 'method ' . $method;
+                        }
+                        if (!$enabled) {
                             throw new RuntimeException('Falha ao iniciar a criptografia TLS');
                         } else {
                             $ehlo = $send('EHLO ' . (gethostname() ?: 'localhost'));
