@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS team_tasks (
   status VARCHAR(50) DEFAULT 'open',
   responsavel VARCHAR(255) DEFAULT NULL,
   responsavel_id INT DEFAULT NULL,
+  team_id INT DEFAULT NULL,
   data_vencimento DATE DEFAULT NULL,
   lead_id INT DEFAULT NULL,
   criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -250,6 +251,7 @@ CREATE TABLE IF NOT EXISTS reminders (
   contact_name VARCHAR(255) DEFAULT NULL,
   contact_phone VARCHAR(50) DEFAULT NULL,
   responsavel_id INT DEFAULT NULL,
+  team_id INT DEFAULT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

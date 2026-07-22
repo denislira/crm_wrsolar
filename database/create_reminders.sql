@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS reminders (
   template_id INT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'pending',
   created_by INT NULL,
+  team_id INT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   executed_at DATETIME NULL,
   INDEX (lead_id), INDEX (status), INDEX (remind_at)

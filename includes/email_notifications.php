@@ -234,6 +234,34 @@ if (!function_exists('wrcrm_user_emails')) {
     }
 }
 
+if (!function_exists('wrcrm_team_user_ids')) {
+    function wrcrm_team_user_ids(PDO $pdo, $teamId) {
+        $teamId = (int)$teamId;
+        if ($teamId <= 0) return [];
+        $stmt = $pdo->prepare('SELECT id FROM users WHERE team_id = ? AND email IS NOT NULL AND email <> ""');
+        $stmt->execute([$teamId]);
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+}
+
+if (!function_exists('wrcrm_send_team_email_notification')) {
+    function wrcrm_send_team_email_notification(PDO $pdo, $teamId, $subject, $html, $fromUserId = null) {
+        $users = wrcrm_user_emails($pdo, wrcrm_team_user_ids($pdo, $teamId));
+        $sentAny = false;
+        $seen = [];
+        $fromUserId = $fromUserId !== null ? (int)$fromUserId : null;
+        foreach ($users as $user) {
+            $email = strtolower(trim($user['email']));
+            if (!$email || isset($seen[$email])) continue;
+            if ($fromUserId !== null && (int)$user['id'] === $fromUserId) continue;
+            $seen[$email] = true;
+            $name = $user['nome_completo'] ?: $user['username'];
+            $sentAny = wrcrm_send_email($user['email'], $subject, $html, $name) || $sentAny;
+        }
+        return $sentAny;
+    }
+}
+
 if (!function_exists('wrcrm_send_event_notification')) {
     function wrcrm_send_event_notification(PDO $pdo, $event, $subject, $html, array $roleUserIds) {
         if (!wrcrm_notification_enabled($event)) return false;
@@ -260,19 +288,24 @@ if (!function_exists('wrcrm_send_event_notification')) {
 if (!function_exists('wrcrm_notify_reminder_created')) {
     function wrcrm_notify_reminder_created(PDO $pdo, $reminderId) {
         try {
-            $stmt = $pdo->prepare('SELECT r.*, l.name AS lead_name FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id WHERE r.id = ? LIMIT 1');
+            $stmt = $pdo->prepare('SELECT r.*, l.name AS lead_name, tm.name AS team_name FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id LEFT JOIN teams tm ON tm.id = r.team_id WHERE r.id = ? LIMIT 1');
             $stmt->execute([(int)$reminderId]);
             $r = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$r) return false;
             $subject = 'Novo lembrete criado';
             $html = '<p>Um novo lembrete foi criado no CRM.</p>'
                 . '<p><strong>Lead:</strong> ' . htmlspecialchars($r['lead_name'] ?: ('#' . $r['lead_id'])) . '<br>'
-                . '<strong>Quando:</strong> ' . htmlspecialchars($r['remind_at']) . '</p>'
+                . '<strong>Quando:</strong> ' . htmlspecialchars($r['remind_at']) . '<br>'
+                . '<strong>Equipe:</strong> ' . htmlspecialchars($r['team_name'] ?? '') . '</p>'
                 . '<div style="padding:12px;background:#f8fafc;border-radius:6px">' . nl2br(htmlspecialchars($r['message'])) . '</div>';
-            return wrcrm_send_event_notification($pdo, 'reminder_created', $subject, $html, [
+            $sent = wrcrm_send_event_notification($pdo, 'reminder_created', $subject, $html, [
                 'creator' => $r['created_by'] ?? null,
                 'responsible' => $r['responsavel_id'] ?? null
             ]);
+            if (!empty($r['team_id'])) {
+                $sent = wrcrm_send_team_email_notification($pdo, $r['team_id'], $subject, $html, $r['created_by'] ?? null) || $sent;
+            }
+            return $sent;
         } catch (Exception $e) { return false; }
     }
 }

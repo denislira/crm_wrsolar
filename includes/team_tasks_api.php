@@ -27,6 +27,19 @@ function columnExists($pdo, $table, $column) {
     }
 }
 
+function ensureTeamColumnExists($pdo) {
+    try {
+        if (!columnExists($pdo, 'team_tasks', 'team_id')) {
+            $pdo->exec("ALTER TABLE team_tasks ADD COLUMN team_id INT DEFAULT NULL AFTER equipe");
+            try {
+                $pdo->exec("ALTER TABLE team_tasks ADD INDEX idx_team_tasks_team_id (team_id)");
+            } catch (Exception $e) {}
+        }
+    } catch (Exception $e) {
+        // ignore
+    }
+}
+
 /**
  * Ensure activities table exists (silent on failure).
  */
@@ -69,6 +82,8 @@ function logTaskActivity($pdo, $data) {
 }
 
 $hasResponsavelId = columnExists($pdo, 'team_tasks', 'responsavel_id');
+ensureTeamColumnExists($pdo);
+$hasTeamId = columnExists($pdo, 'team_tasks', 'team_id');
 
 switch ($action) {
     case 'list':
@@ -109,12 +124,25 @@ switch ($action) {
         break;
     case 'add':
         $data = json_decode(file_get_contents('php://input'), true);
-        // force responsavel to current session username for security
+        $destino = $data['destino'] ?? 'responsavel';
         $responsavel = $_SESSION['username'] ?? '';
-        $responsavel_id = $userId; // Set responsavel_id to current user
+        $responsavel_id = $userId;
+        $team_id = null;
+        $team_name = trim((string)($data['team_name'] ?? ''));
 
-        // If responsavel_id is provided in the request, validate and use it
-        if (isset($data['responsavel_id']) && $data['responsavel_id'] !== '') {
+        if ($destino === 'team' && $hasTeamId) {
+            if (isset($data['team_id']) && $data['team_id'] !== '' && is_numeric($data['team_id'])) {
+                $teamStmt = $pdo->prepare('SELECT id, name FROM teams WHERE id = ? LIMIT 1');
+                $teamStmt->execute([(int)$data['team_id']]);
+                $teamRow = $teamStmt->fetch(PDO::FETCH_ASSOC);
+                if ($teamRow) {
+                    $team_id = (int)$teamRow['id'];
+                    $team_name = $teamRow['name'] ?? '';
+                    $responsavel = 'Equipe: ' . $team_name;
+                    $responsavel_id = null;
+                }
+            }
+        } elseif (isset($data['responsavel_id']) && $data['responsavel_id'] !== '') {
             if (is_numeric($data['responsavel_id'])) {
                 $uStmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
                 $uStmt->execute([$data['responsavel_id']]);
@@ -128,16 +156,30 @@ switch ($action) {
 
         $data_venc = (isset($data['data_vencimento']) && trim($data['data_vencimento']) !== '') ? $data['data_vencimento'] : null;
         try {
-            if ($hasResponsavelId) {
-                $stmt = $pdo->prepare("INSERT INTO team_tasks (user_id, equipe, titulo, descricao, status, responsavel, responsavel_id, data_vencimento, lead_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            if ($hasResponsavelId && $hasTeamId) {
+                $stmt = $pdo->prepare("INSERT INTO team_tasks (user_id, equipe, team_id, titulo, descricao, status, responsavel, responsavel_id, data_vencimento, lead_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([
                     $userId,
                     $data['equipe'] ?? null,
+                    $team_id,
                     $data['titulo'] ?? null,
                     $data['descricao'] ?? '',
                     $data['status'] ?? 'Pendente',
                     $responsavel,
                     $responsavel_id,
+                    $data_venc,
+                    $data['lead_id'] ?? null
+                ]);
+            } elseif ($hasTeamId) {
+                $stmt = $pdo->prepare("INSERT INTO team_tasks (user_id, equipe, team_id, titulo, descricao, status, responsavel, data_vencimento, lead_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([
+                    $userId,
+                    $data['equipe'] ?? null,
+                    $team_id,
+                    $data['titulo'] ?? null,
+                    $data['descricao'] ?? '',
+                    $data['status'] ?? 'Pendente',
+                    $responsavel,
                     $data_venc,
                     $data['lead_id'] ?? null
                 ]);
@@ -167,6 +209,18 @@ switch ($action) {
                 'titulo' => $data['titulo'] ?? null,
                 'responsavel' => $responsavel
             ]);
+            if (!empty($team_id) && wrcrm_notification_enabled('task_created')) {
+                $users = wrcrm_user_emails($pdo, wrcrm_team_user_ids($pdo, $team_id));
+                $subject = 'Nova tarefa criada: ' . ($data['titulo'] ?? 'Tarefa');
+                $html = '<p>Uma nova tarefa foi criada no módulo de Integrações de Equipes.</p>'
+                    . '<p><strong>Título:</strong> ' . htmlspecialchars($data['titulo'] ?? '') . '<br>'
+                    . '<strong>Equipe:</strong> ' . htmlspecialchars($team_name) . '<br>'
+                    . '<strong>Responsável:</strong> ' . htmlspecialchars($responsavel) . '</p>';
+                foreach ($users as $u) {
+                    if ((int)$u['id'] === (int)$userId) continue;
+                    wrcrm_send_email($u['email'], $subject, $html, $u['nome_completo'] ?: $u['username']);
+                }
+            }
             echo json_encode(['success'=>true, 'id'=>$newId]);
         } catch (Exception $e) {
             echo json_encode(['success'=>false, 'error'=>$e->getMessage()]);
@@ -184,8 +238,19 @@ switch ($action) {
         // Allow changing responsavel when provided (owner or current responsavel already checked above)
         $responsavel = $row['responsavel'] ?? null;
         $responsavel_id = $hasResponsavelId ? ($row['responsavel_id'] ?? null) : null;
+        $team_id = $hasTeamId ? ($row['team_id'] ?? null) : null;
         if (isset($data['responsavel']) && trim($data['responsavel']) !== '') {
             $responsavel = $data['responsavel'];
+        }
+        if ($hasTeamId && isset($data['destino']) && $data['destino'] === 'team') {
+            $team_id = isset($data['team_id']) && is_numeric($data['team_id']) ? (int)$data['team_id'] : null;
+            $responsavel_id = null;
+            if ($team_id) {
+                $teamStmt = $pdo->prepare('SELECT name FROM teams WHERE id = ? LIMIT 1');
+                $teamStmt->execute([$team_id]);
+                $team_name = $teamStmt->fetchColumn() ?: '';
+                $responsavel = 'Equipe: ' . $team_name;
+            }
         }
         if ($hasResponsavelId && isset($data['responsavel_id'])) {
             if ($data['responsavel_id'] === '') {
@@ -207,15 +272,28 @@ switch ($action) {
         foreach ($keys as $k) { $after[$k] = $data[$k] ?? ($row[$k] ?? null); }
 
         try {
-            if ($hasResponsavelId) {
-                $stmt = $pdo->prepare("UPDATE team_tasks SET equipe=?, titulo=?, descricao=?, status=?, responsavel=?, responsavel_id=?, data_vencimento=? WHERE id=?");
+            if ($hasResponsavelId && $hasTeamId) {
+                $stmt = $pdo->prepare("UPDATE team_tasks SET equipe=?, team_id=?, titulo=?, descricao=?, status=?, responsavel=?, responsavel_id=?, data_vencimento=? WHERE id=?");
                 $stmt->execute([
                     $data['equipe'] ?? null,
+                    $team_id,
                     $data['titulo'] ?? null,
                     $data['descricao'] ?? '',
                     $data['status'] ?? 'Pendente',
                     $responsavel,
                     $responsavel_id,
+                    $data_venc,
+                    $id
+                ]);
+            } elseif ($hasTeamId) {
+                $stmt = $pdo->prepare("UPDATE team_tasks SET equipe=?, team_id=?, titulo=?, descricao=?, status=?, responsavel=?, data_vencimento=? WHERE id=?");
+                $stmt->execute([
+                    $data['equipe'] ?? null,
+                    $team_id,
+                    $data['titulo'] ?? null,
+                    $data['descricao'] ?? '',
+                    $data['status'] ?? 'Pendente',
+                    $responsavel,
                     $data_venc,
                     $id
                 ]);

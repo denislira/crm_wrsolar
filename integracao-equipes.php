@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // Integração de Equipes - Centraliza informações e tarefas entre equipes
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
@@ -10,11 +10,15 @@ checkAccessOrRedirect('integracao-equipes');
 
 // Buscar equipes (preferencialmente da tabela `teams`) e responsáveis distintos para filtros
 $equipes = [];
+$teamsData = [];
 try {
-    $teamsStmt = $pdo->query('SELECT name FROM teams ORDER BY name');
+    $teamsStmt = $pdo->query('SELECT id, name FROM teams ORDER BY name');
     $rows = $teamsStmt->fetchAll(PDO::FETCH_ASSOC);
     if ($rows) {
-        foreach ($rows as $r) $equipes[] = $r['name'];
+        foreach ($rows as $r) {
+            $equipes[] = $r['name'];
+            $teamsData[] = $r;
+        }
     }
 } catch (Exception $e) {
     // tabela teams pode não existir em instalações antigas — fallback para lista estática
@@ -263,8 +267,12 @@ try {
 
 .task-avatar { overflow: hidden; }
 /* Card action buttons: manter semi-transparente por padrão e ficar totalmente opaco ao hover */
-#tasksList .btn-link { opacity: 0.5 !important; transition: opacity .12s ease; }
-#tasksList .btn-link:hover { opacity: 1 !important; }
+#tasksList .btn-link { opacity: 0 !important; transition: opacity .16s ease; }
+#tasksList .task-list-card:hover .btn-link,
+#tasksList .task-list-card:focus-within .btn-link { opacity: 1 !important; }
+@media (hover: none) {
+    #tasksList .task-list-card .btn-link { opacity: 1 !important; }
+}
 /* Integrações: cartão, avatar e itens suaves de atividades */
 .integration-card { transition: border-color .15s ease, transform .12s ease; }
 .integration-card:hover { border-color: var(--blue-700); transform: translateY(-4px); }
@@ -302,20 +310,35 @@ try {
 }
 .task-card-ribbon {
     position:absolute;
-    top:-10px;
-    left:18px;
-    padding:4px 10px;
+    top:-8px;
+    left:16px;
+    display:inline-flex;
+    align-items:center;
+    padding:2px 7px;
     border-radius:999px;
     background:#0d6efd;
     color:#fff;
-    font-size:0.68rem;
-    font-weight:800;
-    letter-spacing:0.04em;
+    font-size:0.5rem;
+    font-weight:700;
+    letter-spacing:0.02em;
     text-transform:uppercase;
-    box-shadow:0 6px 14px rgba(13,110,253,0.22);
+    box-shadow:0 4px 10px rgba(13,110,253,0.18);
 }
 .task-card-ribbon i {
-    font-size: 0.7rem;
+    font-size: 0.38rem;
+}
+.task-status-ribbon {
+    position: absolute;
+    top: -10px;
+    right: 18px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    box-shadow: 0 6px 14px rgba(15,23,42,0.16);
 }
 .task-card--featured h6 {
     font-size:1.02rem !important;
@@ -419,6 +442,113 @@ body.theme-dark .status-Concluida {
     border-color: rgba(255,255,255,0.08) !important;
 }
 
+/* Modal moderno de edicao de lembrete */
+#modalEditarLembrete .modal-dialog { max-width: 760px; }
+#modalEditarLembrete .modal-content {
+    overflow: hidden;
+    border: 0;
+    border-radius: 20px;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .22);
+}
+#modalEditarLembrete .modal-header {
+    position: relative;
+    padding: 22px 28px 20px;
+    border: 0;
+    color: #fff;
+    background: linear-gradient(120deg, #0756a5 0%, #0d6efd 58%, #38a3ff 100%);
+}
+#modalEditarLembrete .modal-header::after {
+    content: '';
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    right: -55px;
+    top: -100px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.12);
+}
+#modalEditarLembrete .modal-title { position: relative; z-index: 1; font-size: 1.15rem; font-weight: 700; }
+#modalEditarLembrete .modal-title i { color: #dbeafe !important; margin-right: 8px; }
+#modalEditarLembrete .btn-close { position: relative; z-index: 2; filter: brightness(0) invert(1); opacity: .9; }
+#modalEditarLembrete .modal-body { padding: 26px 28px 20px; background: #f8fbff; }
+#modalEditarLembrete .modal-body form { display: grid; gap: 16px; }
+#modalEditarLembrete .modal-body form > .mb-2,
+#modalEditarLembrete .modal-body form > .row { margin: 0 !important; }
+#modalEditarLembrete .form-label {
+    margin-bottom: 7px;
+    color: #334155;
+    font-size: .75rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+#modalEditarLembrete .form-control,
+#modalEditarLembrete .form-select {
+    min-height: 44px;
+    padding: 10px 13px;
+    border: 1px solid #d6e2f0;
+    border-radius: 10px;
+    background: #fff;
+    color: #172033;
+    box-shadow: 0 2px 5px rgba(15,23,42,.03);
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+#modalEditarLembrete textarea.form-control { min-height: 112px; resize: vertical; }
+#modalEditarLembrete .form-control:focus,
+#modalEditarLembrete .form-select:focus {
+    border-color: #2583ed;
+    box-shadow: 0 0 0 4px rgba(13,110,253,.12);
+}
+#modalEditarLembrete input[readonly] { background: #eef5fc; color: #52647a; }
+#modalEditarLembrete #editRem-team-block {
+    margin: 0 !important;
+    padding: 14px 16px !important;
+    border-color: #93c5fd !important;
+    border-radius: 12px !important;
+    background: linear-gradient(135deg, #eff7ff, #f8fbff) !important;
+}
+#modalEditarLembrete #editRem-team-block .fw-semibold { font-size: .88rem; }
+#modalEditarLembrete .modal-footer {
+    padding: 17px 28px;
+    border-top: 1px solid #e5edf6;
+    background: #fff;
+}
+#modalEditarLembrete .modal-footer .btn { min-height: 42px; border-radius: 10px; font-weight: 700; }
+#modalEditarLembrete #btnSalvarEdicaoLembrete { padding-inline: 20px; box-shadow: 0 7px 16px rgba(13,110,253,.2); }
+#modalEditarLembrete #btnExcluirLembrete { padding-inline: 15px; }
+body.theme-dark #modalEditarLembrete .modal-body { background: #111c2d; }
+body.theme-dark #modalEditarLembrete .modal-footer { background: #172235; border-color: rgba(255,255,255,.1); }
+body.theme-dark #modalEditarLembrete .form-label { color: #cbd5e1; }
+body.theme-dark #modalEditarLembrete .form-control,
+body.theme-dark #modalEditarLembrete .form-select { background: #1c2a3e; border-color: #33465f; color: #e6eef8; }
+body.theme-dark #modalEditarLembrete input[readonly] { background: #223249; color: #b9c8da; }
+body.theme-dark #modalEditarLembrete #editRem-team-block { background: linear-gradient(135deg, #142d4b, #172b43) !important; border-color: #2563eb !important; }
+
+/* Acabamento do modal de usuarios da equipe */
+#modalTeamUsers .modal-content {
+    overflow: hidden;
+    border: 1px solid #cbdcf0;
+    border-radius: 16px;
+    box-shadow: 0 22px 55px rgba(15, 23, 42, .24);
+}
+#modalTeamUsers .modal-header {
+    border-bottom: 1px solid #dbe7f3;
+}
+#modalTeamUsers .modal-body {
+    background: #f8fbff;
+}
+body.theme-dark #modalTeamUsers .modal-content {
+    border-color: #33465f !important;
+    box-shadow: 0 22px 55px rgba(0, 0, 0, .48) !important;
+}
+body.theme-dark #modalTeamUsers .modal-header,
+body.theme-dark #modalTeamUsers .modal-footer {
+    border-color: rgba(255,255,255,.1) !important;
+}
+body.theme-dark #modalTeamUsers .modal-body {
+    background: #111c2d !important;
+}
+
 </style>
 
 <div class="d-flex">
@@ -429,14 +559,14 @@ body.theme-dark .status-Concluida {
 <div class="modal fade" id="modalEditarLembrete" tabindex="-1" aria-labelledby="modalEditarLembreteLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header bg-light border-bottom">
+            <div class="modal-header">
                 <h5 class="modal-title" id="modalEditarLembreteLabel"><i class="fa fa-edit text-primary"></i> Editar Lembrete</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
                 <form id="formEditarLembrete">
                     <input type="hidden" id="editRem-id" name="id">
-                    <div class="mb-2">
+                    <div class="mb-2 p-3 rounded-3 border bg-white">
                         <label class="form-label">Lead</label>
                         <div class="row g-2">
                             <div class="col-md-6">
@@ -475,9 +605,14 @@ body.theme-dark .status-Concluida {
                         <label class="form-label">Modelo</label>
                         <select id="editRem-template" class="form-select form-select-sm"><option value="">(Nenhum)</option></select>
                     </div>
-                    <div class="mb-2">
+                    <div class="mb-2 p-3 rounded-3 border bg-white">
                         <label class="form-label">Mensagem</label>
                         <textarea id="editRem-message" class="form-control form-control-sm" rows="4"></textarea>
+                    </div>
+                    <div id="editRem-team-block" class="mb-2 p-2 rounded-3 border border-2" style="display:none; border-color:#0d6efd !important; background:#f8fbff;">
+                        <div class="fw-semibold mb-1" style="color:#0d6efd;">Destino da equipe</div>
+                        <div class="small text-muted">Equipe: <span id="editRem-team-name">-</span></div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnViewReminderTeamUsers">Ver usuários da equipe</button>
                     </div>
                     <div class="mb-2 position-relative">
                         <label class="form-label">Responsável</label>
@@ -693,11 +828,16 @@ body.theme-dark .status-Concluida {
                                                     <input type="hidden" name="equipe" id="edit-equipe" value="">
                                                 </div>
                                                     <div class="col-md-4">
-                                                        <div class="mb-3 text-center">
-                                                            <div id="edit-avatar" class="task-avatar mb-2">?</div>
-                                                            <div class="fw-semibold" id="edit-responsavel_name">&nbsp;</div>
-                                                            <div class="small text-muted">ID: <span id="edit-responsavel-id" class="text-muted">-</span></div>
-                                                        </div>
+                                                    <div class="mb-3 text-center">
+                                                        <div id="edit-avatar" class="task-avatar mb-2">?</div>
+                                                        <div class="fw-semibold" id="edit-responsavel_name">&nbsp;</div>
+                                                        <div class="small text-muted">ID: <span id="edit-responsavel-id" class="text-muted">-</span></div>
+                                                    </div>
+                                                    <div id="edit-task-team-block" class="mb-3 p-2 rounded-3 border border-2" style="display:none; border-color:#0d6efd !important; background:#f8fbff;">
+                                                        <div class="fw-semibold mb-1" style="color:#0d6efd;">Destino da tarefa</div>
+                                                        <div class="small text-muted">Equipe: <span id="edit-task-team-name">-</span></div>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnViewTaskTeamUsers">Ver usuários da equipe</button>
+                                                    </div>
                                                     <div class="mb-3">
                                                         <label class="form-label">Atribuir responsável</label>
                                                         <select name="responsavel" id="edit-responsavel" class="form-select" onchange="document.getElementById('edit-responsavel-id-hidden').value = this.options[this.selectedIndex].dataset.userId || '';">
@@ -887,7 +1027,7 @@ body.theme-dark .status-Concluida {
                                     <label class="form-label">Mensagem</label>
                                     <textarea name="message" id="rem-message" class="form-control form-control-sm" rows="3" required></textarea>
                                 </div>
-                                <div class="mb-2 position-relative">
+                                <div id="rem-responsavel-wrap" class="mb-2 position-relative">
                                     <label class="form-label">Responsável</label>
                                     <input type="text" name="responsavel" id="rem-responsavel" class="form-control form-control-sm" placeholder="Digite nome do responsável" autocomplete="off">
                                     <input type="hidden" name="responsavel_id" id="rem-responsavel-id" value="">
@@ -936,12 +1076,32 @@ body.theme-dark .status-Concluida {
     </main>
 </div>
 
+<!-- Modal Usuários da Equipe -->
+<div class="modal fade" id="modalTeamUsers" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-light border-bottom">
+                <h5 class="modal-title"><i class="fa fa-users text-primary me-1"></i> Usuários da Equipe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="small text-muted mb-2" id="teamUsersModalTeamName">-</div>
+                <div id="teamUsersModalList" class="list-group"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php include 'includes/footer.php'; ?>
 
 <script type="module">
 import { fetchTasks, addTask, updateTask, deleteTask, fetchRecentActivities } from './assets/js/team_tasks.js';
 
 const equipes = <?php echo json_encode($equipes); ?>;
+const teamsData = <?php echo json_encode($teamsData); ?>;
 const responsaveis = <?php echo json_encode($responsaveis); ?>;
 const userId = <?php echo json_encode($_SESSION['user_id']); ?>;
 const username = <?php echo json_encode($_SESSION['username'] ?? ''); ?>;
@@ -957,9 +1117,13 @@ const escapeHtml = escapeHtmlGlobal;
 
 // Estado do filtro "Minhas tarefas"
 let filtroMinhasAtivo = false;
+let taskEditOpenLoading = false;
+let reminderEditOpenLoading = false;
+let taskListRequestId = 0;
 
 // Funções para atualizar a lista de tarefas e a linha do tempo
 async function atualizarTarefas() {
+    const currentRequestId = ++taskListRequestId;
     const equipeFiltro = document.getElementById('filtroEquipe').value;
     const respFiltro = document.getElementById('filtroResp').value;
     const respOption = document.getElementById('filtroResp')?.selectedOptions?.[0] || null;
@@ -969,10 +1133,11 @@ async function atualizarTarefas() {
     const buscaFiltro = document.getElementById('filtroBusca').value;
 
     const list = document.getElementById('tasksList');
-    list.innerHTML = '';
+    list.innerHTML = '<div class="text-muted text-center py-4" style="font-size: 0.95rem;">Carregando tarefas...</div>';
     if (statusFiltro === 'Lembretes') {
         // load reminders instead of tasks
         try {
+            list.innerHTML = '<div class="text-muted text-center py-4" style="font-size: 0.95rem;">Carregando lembretes...</div>';
             const res = await fetch('includes/reminders_api.php?action=list');
             if (!res.ok) throw new Error('Falha ao carregar lembretes');
             const reminders = await res.json();
@@ -993,7 +1158,10 @@ async function atualizarTarefas() {
                 card.appendChild(content);
                 // make whole card clickable to edit
                 card.style.cursor = 'pointer';
-                card.addEventListener('click', () => openEditReminderModal(r.id));
+                card.addEventListener('click', () => {
+                    if (reminderEditOpenLoading) return;
+                    openEditReminderModal(r.id);
+                });
                 list.appendChild(card);
             });
         } catch (e) { console.error(e); list.innerHTML = '<div class="text-danger">Erro carregando lembretes</div>'; }
@@ -1006,7 +1174,19 @@ async function atualizarTarefas() {
         params.responsavel_id = respFiltro;
         if (respNomeFiltro) params.responsavel = respNomeFiltro;
     }
-    let tarefas = await fetchTasks(params);
+    list.innerHTML = '<div class="text-muted text-center py-4" style="font-size: 0.95rem;">Carregando tarefas...</div>';
+    let tarefas;
+    try {
+        tarefas = await fetchTasks(params);
+    } catch (e) {
+        console.error('Erro ao carregar tarefas:', e);
+        if (currentRequestId === taskListRequestId) {
+            list.innerHTML = '<div class="text-danger text-center py-4">Erro ao carregar tarefas.</div>';
+        }
+        return;
+    }
+    // Ignora respostas antigas quando o usuário alterou filtros rapidamente.
+    if (currentRequestId !== taskListRequestId) return;
     
     // Aplicar filtro de busca
     if (buscaFiltro && buscaFiltro.trim() !== '') {
@@ -1030,10 +1210,12 @@ async function atualizarTarefas() {
     if (!tarefas.length) {
         list.innerHTML = '<div class="text-muted text-center py-4" style="font-size: 0.9rem;">Nenhuma tarefa encontrada.</div>';
     } else {
+        // Remove o estado de carregamento antes de inserir os cards.
+        list.innerHTML = '';
         const featuredIndex = ordem === 'asc' ? tarefas.length - 1 : 0;
         tarefas.forEach((t, index) => {
             const card = document.createElement('div');
-            card.className = 'mb-3 p-3 rounded-3 d-flex align-items-start gap-3 bg-white position-relative';
+            card.className = 'task-list-card mb-3 p-3 rounded-3 d-flex align-items-start gap-3 bg-white position-relative';
             card.style.cssText = 'border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.3s ease; cursor: pointer;';
             if (index === featuredIndex) {
                 card.classList.add('task-card--featured');
@@ -1056,7 +1238,15 @@ async function atualizarTarefas() {
                 try { card.style.border = '1px solid #cbd5e1'; } catch(e){}
             });
             // clicar no card abre o modal de edição
-            card.addEventListener('click', () => { openEditModal(t); });
+            card.addEventListener('click', () => {
+                if (taskEditOpenLoading) return;
+                openEditModal(t);
+            });
+            const statusRibbon = document.createElement('div');
+            statusRibbon.className = 'task-status-ribbon';
+            statusRibbon.style.background = statusColor(t.status);
+            statusRibbon.textContent = t.status || 'Pendente';
+            card.appendChild(statusRibbon);
             // Avatar composto: criador sobre responsável (metade sobreposta)
             const avatarWrap = document.createElement('div');
             avatarWrap.className = 'me-2';
@@ -1122,7 +1312,6 @@ async function atualizarTarefas() {
             content.innerHTML = `<div class="d-flex align-items-center gap-2 mb-2">
                 <h6 class="mb-0 fw-semibold" style="color: #1e293b; font-size: 0.95rem;">${escapeHtml(t.titulo)}</h6>
                 <span class="badge rounded-pill" style="background:${equipeColor(t.equipe)};color:#fff;padding:0.35em 0.75em;font-size:0.7rem;font-weight:500;">${escapeHtml(t.equipe)}</span>
-                <span class="badge rounded-pill" style="background:${statusColor(t.status)};color:#fff;padding:0.35em 0.75em;font-size:0.7rem;font-weight:500;">${escapeHtml(t.status)}</span>
             </div>
             <div class="d-flex align-items-center gap-3 mb-2" style="font-size: 0.8rem;">
                 ${responsavelNome ? '<div class="text-muted"><i class="fa fa-user me-1" style="opacity:0.6;"></i><span>' + escapeHtml(responsavelNome) + '</span></div>' : ''}
@@ -1132,7 +1321,7 @@ async function atualizarTarefas() {
             card.appendChild(content);
             // Ações (concluir se for responsável, editar, excluir)
             const actions = document.createElement('div');
-            actions.className = 'd-flex gap-2 position-absolute';
+            actions.className = 'task-card-actions d-flex gap-2 position-absolute';
             actions.style.cssText = 'top: 12px; right: 12px;';
 
             // verificar se usuário logado é responsável
@@ -1215,6 +1404,88 @@ function showNotification(msg, tipo='success') {
   el.textContent = msg;
   el.className = tipo === 'success' ? 'alert alert-success mt-2' : 'alert alert-danger mt-2';
   setTimeout(()=>{el.textContent='';el.className='';}, 3000);
+}
+
+function setLoadingState(formOrButton, loading, message = 'Salvando...') {
+    const root = formOrButton && formOrButton.tagName === 'FORM' ? formOrButton : (formOrButton?.closest('form') || null);
+    const btn = formOrButton && formOrButton.tagName === 'BUTTON' ? formOrButton : (root ? root.querySelector('button[type="submit"], button.btn-primary, button.btn-success') : null);
+    let overlay = root ? root.querySelector('.wrcrm-loading-overlay') : null;
+    if (!overlay && root) {
+        root.style.position = root.style.position || 'relative';
+        overlay = document.createElement('div');
+        overlay.className = 'wrcrm-loading-overlay';
+        overlay.style.cssText = 'display:none; position:absolute; inset:0; z-index:30; background:rgba(255,255,255,.75); backdrop-filter: blur(1px); align-items:center; justify-content:center; border-radius:12px;';
+        overlay.innerHTML = '<div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill bg-white shadow-sm border"><div class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></div><div class="fw-semibold text-primary">' + message + '</div></div>';
+        root.appendChild(overlay);
+    }
+    if (overlay) {
+        overlay.style.display = loading ? 'flex' : 'none';
+        const label = overlay.querySelector('.fw-semibold');
+        if (label) label.textContent = message;
+    }
+    if (btn) {
+        btn.disabled = !!loading;
+        btn.dataset.originalText = btn.dataset.originalText || btn.innerHTML;
+        if (loading) {
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>' + message;
+        } else if (btn.dataset.originalText) {
+            btn.innerHTML = btn.dataset.originalText;
+        }
+    }
+}
+
+function setModalLoading(modalId, loading, message = 'Carregando...') {
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl) return;
+    let overlay = modalEl.querySelector('.wrcrm-modal-loading-overlay');
+    if (!overlay && loading) {
+        const body = modalEl.querySelector('.modal-content');
+        if (!body) return;
+        body.style.position = body.style.position || 'relative';
+        overlay = document.createElement('div');
+        overlay.className = 'wrcrm-modal-loading-overlay';
+        overlay.style.cssText = 'display:none; position:absolute; inset:0; z-index:60; background:rgba(255,255,255,.8); backdrop-filter: blur(1px); align-items:center; justify-content:center; border-radius:12px;';
+        overlay.innerHTML = '<div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill bg-white shadow-sm border"><div class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></div><div class="fw-semibold text-primary">' + message + '</div></div>';
+        body.appendChild(overlay);
+    }
+    if (overlay) {
+        overlay.style.display = loading ? 'flex' : 'none';
+        const label = overlay.querySelector('.fw-semibold');
+        if (label) label.textContent = message;
+    }
+}
+
+async function showTeamUsers(teamId, teamName) {
+    const modalEl = document.getElementById('modalTeamUsers');
+    const listEl = document.getElementById('teamUsersModalList');
+    const teamNameEl = document.getElementById('teamUsersModalTeamName');
+    if (!modalEl || !listEl || !teamNameEl) return;
+    teamNameEl.textContent = teamName ? `Equipe: ${teamName}` : 'Equipe';
+    listEl.innerHTML = '<div class="text-muted">Carregando...</div>';
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+    try {
+        const res = await fetch(`api/get_team_users.php?team_id=${encodeURIComponent(teamId)}`);
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.users) || !data.users.length) {
+            listEl.innerHTML = '<div class="text-muted">Nenhum usuário encontrado nesta equipe.</div>';
+            return;
+        }
+        listEl.innerHTML = '';
+        data.users.forEach(u => {
+            const row = document.createElement('div');
+            row.className = 'list-group-item d-flex align-items-center gap-2';
+            row.innerHTML = `
+                <div class="rounded-circle d-flex align-items-center justify-content-center bg-primary text-white fw-semibold" style="width:36px;height:36px;">${escapeHtmlGlobal((u.username || '?').charAt(0).toUpperCase())}</div>
+                <div class="flex-grow-1">
+                    <div class="fw-semibold">${escapeHtmlGlobal(u.username || '')}</div>
+                    <div class="small text-muted">${escapeHtmlGlobal(u.email || '')}</div>
+                </div>`;
+            listEl.appendChild(row);
+        });
+    } catch (e) {
+        listEl.innerHTML = '<div class="text-danger">Erro ao carregar usuários da equipe.</div>';
+    }
 }
 
 // Estado dos filtros de atividades
@@ -1383,6 +1654,9 @@ function formatDate(ts) {
 
 // Funções para editar e excluir tarefas
 function openEditModal(task) {
+    if (taskEditOpenLoading) return;
+    taskEditOpenLoading = true;
+    setModalLoading('modalEditarTarefa', true, 'Carregando tarefa...');
     document.getElementById('edit-id').value = task.id;
     document.getElementById('edit-equipe').value = task.equipe;
     // set select value (responsável)
@@ -1409,6 +1683,18 @@ function openEditModal(task) {
     document.getElementById('edit-status').value = task.status;
     document.getElementById('edit-data-vencimento').value = task.data_vencimento;
     document.getElementById('edit-descricao').value = task.descricao;
+    const editTaskTeamBlock = document.getElementById('edit-task-team-block');
+    const editTaskTeamName = document.getElementById('edit-task-team-name');
+    const hasTaskTeam = !!(task.team_id || task.team_name);
+    if (editTaskTeamBlock && editTaskTeamName) {
+        if (hasTaskTeam) {
+            editTaskTeamName.textContent = task.team_name || task.equipe || 'Equipe';
+            editTaskTeamBlock.style.display = 'block';
+        } else {
+            editTaskTeamBlock.style.display = 'none';
+            editTaskTeamName.textContent = '-';
+        }
+    }
     // fill avatar/name area using usersMap if available
     try {
         const nameEl = document.getElementById('edit-responsavel_name');
@@ -1442,8 +1728,18 @@ function openEditModal(task) {
             modalHeader.style.borderBottom = '1px solid rgba(0,0,0,0.06)';
         }
     } catch(e){ console.warn('avatar fill error',e); }
+    const editRespWrap = document.getElementById('edit-responsavel')?.closest('.mb-3');
+    if (editRespWrap) editRespWrap.style.display = hasTaskTeam ? 'none' : 'block';
+    if (hasTaskTeam && editRespIdHidden) editRespIdHidden.value = '';
+    const taskTeamBtn = document.getElementById('btnViewTaskTeamUsers');
+    if (taskTeamBtn) {
+        taskTeamBtn.style.display = hasTaskTeam ? 'inline-flex' : 'none';
+        taskTeamBtn.onclick = () => showTeamUsers(task.team_id || '', task.team_name || task.equipe || '');
+    }
     const modal = new bootstrap.Modal(document.getElementById('modalEditarTarefa'));
     modal.show();
+    setModalLoading('modalEditarTarefa', false);
+    taskEditOpenLoading = false;
 }
 
 async function deleteTaskConfirm(id) {
@@ -1720,25 +2016,65 @@ document.addEventListener('DOMContentLoaded', () => {
     // Evento de submissão do formulário de nova tarefa
     const formNovaTarefa = document.getElementById('formNovaTarefa');
     if (formNovaTarefa) {
+        if (!document.getElementById('quick-new-destino')) {
+            const destinoWrap = document.createElement('div');
+            destinoWrap.className = 'mb-2 p-2 rounded-3 border border-2';
+            destinoWrap.style.borderColor = '#0d6efd';
+            destinoWrap.style.background = '#f8fbff';
+            const teamOptions = (teamsData || []).map(t => `<option value="${t.id}">${escapeHtmlGlobal(t.name || '')}</option>`).join('');
+            destinoWrap.innerHTML = `
+                <div class="fw-semibold mb-2" style="color:#0d6efd;">Destino</div>
+                <select name="destino" id="quick-new-destino" class="form-select form-select-sm">
+                    <option value="responsavel" selected>Responsável</option>
+                    <option value="team">Equipe inteira</option>
+                </select>
+                <div id="quick-team-wrap" style="display:none; margin-top:8px;">
+                    <label class="form-label small">Equipe</label>
+                    <select name="team_id" id="quick-new-team-id" class="form-select form-select-sm">
+                        <option value="">Selecione</option>
+                        ${teamOptions}
+                    </select>
+                </div>`;
+            formNovaTarefa.insertBefore(destinoWrap, formNovaTarefa.firstChild);
+        }
+        const quickDestino = document.getElementById('quick-new-destino');
+        const quickTeamWrap = document.getElementById('quick-team-wrap');
+        if (quickDestino && quickTeamWrap) {
+            const syncQuickDestino = () => {
+                quickTeamWrap.style.display = quickDestino.value === 'team' ? 'block' : 'none';
+            };
+            quickDestino.addEventListener('change', syncQuickDestino);
+            syncQuickDestino();
+        }
         formNovaTarefa.addEventListener('submit', async function(e) {
             e.preventDefault();
-            const formData = new FormData(this);
-            const novaTarefa = Object.fromEntries(formData);
-            // Initialize responsavel_id from select element
-            const responsavelSelect = document.getElementById('quick-new-responsavel');
-            if (responsavelSelect) {
-                const selectedOption = responsavelSelect.options[responsavelSelect.selectedIndex];
-                const userId_resp = selectedOption.dataset.userId || '';
-                novaTarefa.responsavel_id = userId_resp;
-            }
-            novaTarefa.user_id = userId;
-            const resposta = await addTask(novaTarefa);
-            if (resposta.success) {
-                showNotification('Tarefa criada com sucesso!','success');
-                this.reset();
-                atualizarTarefas();
-            } else {
-                showNotification('Erro ao criar tarefa','danger');
+            setLoadingState(formNovaTarefa, true, 'Salvando tarefa...');
+            try {
+                const formData = new FormData(this);
+                const novaTarefa = Object.fromEntries(formData);
+                novaTarefa.destino = document.getElementById('quick-new-destino')?.value || 'responsavel';
+                if (novaTarefa.destino === 'team') {
+                    novaTarefa.team_id = document.getElementById('quick-new-team-id')?.value || '';
+                    novaTarefa.responsavel_id = '';
+                }
+                // Initialize responsavel_id from select element
+                const responsavelSelect = document.getElementById('quick-new-responsavel');
+                if (responsavelSelect) {
+                    const selectedOption = responsavelSelect.options[responsavelSelect.selectedIndex];
+                    const userId_resp = selectedOption.dataset.userId || '';
+                    if (novaTarefa.destino !== 'team') novaTarefa.responsavel_id = userId_resp;
+                }
+                novaTarefa.user_id = userId;
+                const resposta = await addTask(novaTarefa);
+                if (resposta.success) {
+                    showNotification('Tarefa criada com sucesso!','success');
+                    this.reset();
+                    atualizarTarefas();
+                } else {
+                    showNotification('Erro ao criar tarefa','danger');
+                }
+            } finally {
+                setLoadingState(formNovaTarefa, false);
             }
         });
     }
@@ -1761,29 +2097,106 @@ document.addEventListener('DOMContentLoaded', () => {
     // Submissão do formulário do modal
     const btnSalvarNovaModal = document.getElementById('btnSalvarNovaModal');
     if (btnSalvarNovaModal) {
+        const formModalNova = document.getElementById('formModalNovaTarefa');
+        if (formModalNova && !document.getElementById('modal-new-destino')) {
+            const destinoWrap = document.createElement('div');
+            destinoWrap.className = 'mb-2 p-2 rounded-3 border border-2';
+            destinoWrap.style.borderColor = '#0d6efd';
+            destinoWrap.style.background = '#f8fbff';
+            const teamOptions = (teamsData || []).map(t => `<option value="${t.id}">${escapeHtmlGlobal(t.name || '')}</option>`).join('');
+            destinoWrap.innerHTML = `
+                <div class="fw-semibold mb-2" style="color:#0d6efd;">Destino</div>
+                <select name="destino" id="modal-new-destino" class="form-select form-select-sm">
+                    <option value="responsavel" selected>Responsável</option>
+                    <option value="team">Equipe inteira</option>
+                </select>
+                <div id="modal-team-wrap" style="display:none; margin-top:8px;">
+                    <label class="form-label small">Equipe</label>
+                    <select name="team_id" id="modal-new-team-id" class="form-select form-select-sm">
+                        <option value="">Selecione</option>
+                        ${teamOptions}
+                    </select>
+                </div>`;
+            formModalNova.insertBefore(destinoWrap, formModalNova.firstChild);
+            const modalDestino = document.getElementById('modal-new-destino');
+            const modalTeamWrap = document.getElementById('modal-team-wrap');
+            if (modalDestino && modalTeamWrap) {
+                const syncModalDestino = () => { modalTeamWrap.style.display = modalDestino.value === 'team' ? 'block' : 'none'; };
+                modalDestino.addEventListener('change', syncModalDestino);
+                syncModalDestino();
+            }
+        }
         btnSalvarNovaModal.addEventListener('click', async function() {
             const form = document.getElementById('formModalNovaTarefa');
-            const formData = new FormData(form);
-            const data = Object.fromEntries(formData);
-            data.user_id = userId;
-            const resp = await addTask(data);
-            if (resp.success) {
-                document.getElementById('novaTarefaModalMsg').innerHTML = '<div class="alert alert-success">Tarefa criada com sucesso!</div>';
-                setTimeout(()=>{
-                    const modal = bootstrap.Modal.getInstance(modalNovaEl);
-                    if (modal) modal.hide();
-                    document.getElementById('novaTarefaModalMsg').innerHTML = '';
-                    form.reset();
-                    atualizarTarefas();
-                }, 700);
-            } else {
-                document.getElementById('novaTarefaModalMsg').innerHTML = '<div class="alert alert-danger">Erro ao criar tarefa</div>';
+            setLoadingState(btnSalvarNovaModal, true, 'Salvando...');
+            try {
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData);
+                data.destino = document.getElementById('modal-new-destino')?.value || 'responsavel';
+                if (data.destino === 'team') {
+                    data.team_id = document.getElementById('modal-new-team-id')?.value || '';
+                    data.responsavel_id = '';
+                }
+                data.user_id = userId;
+                const resp = await addTask(data);
+                if (resp.success) {
+                    document.getElementById('novaTarefaModalMsg').innerHTML = '<div class="alert alert-success">Tarefa criada com sucesso!</div>';
+                    setTimeout(()=>{
+                        const modal = bootstrap.Modal.getInstance(modalNovaEl);
+                        if (modal) modal.hide();
+                        document.getElementById('novaTarefaModalMsg').innerHTML = '';
+                        form.reset();
+                        atualizarTarefas();
+                    }, 700);
+                } else {
+                    document.getElementById('novaTarefaModalMsg').innerHTML = '<div class="alert alert-danger">Erro ao criar tarefa</div>';
+                }
+            } finally {
+                setLoadingState(btnSalvarNovaModal, false);
             }
         });
     }
     // submissão do novo lembrete
     const formNovoLembrete = document.getElementById('formNovoLembrete');
     if (formNovoLembrete) {
+        if (!document.getElementById('rem-destino')) {
+            const destinoWrap = document.createElement('div');
+            destinoWrap.className = 'mb-2 p-2 rounded-3 border border-2';
+            destinoWrap.style.borderColor = '#0d6efd';
+            destinoWrap.style.background = '#f8fbff';
+            const teamOptions = (teamsData || []).map(t => `<option value="${t.id}">${escapeHtmlGlobal(t.name || '')}</option>`).join('');
+            destinoWrap.innerHTML = `
+                <div class="fw-semibold mb-2" style="color:#0d6efd;">Destino</div>
+                <select name="destino" id="rem-destino" class="form-select form-select-sm mb-2">
+                    <option value="responsavel" selected>Responsável</option>
+                    <option value="team">Equipe inteira</option>
+                </select>
+                <div id="rem-team-wrap" style="display:none; margin-top:8px;">
+                    <label class="form-label small">Equipe</label>
+                    <select name="team_id" id="rem-team-id" class="form-select form-select-sm">
+                        <option value="">Selecione</option>
+                        ${teamOptions}
+                    </select>
+                </div>`;
+            formNovoLembrete.insertBefore(destinoWrap, formNovoLembrete.firstChild);
+        }
+        const remDestino = document.getElementById('rem-destino');
+        const remTeamWrap = document.getElementById('rem-team-wrap');
+        const remRespWrap = document.getElementById('rem-responsavel-wrap');
+        if (remDestino && remTeamWrap && remRespWrap) {
+            const syncRemDestino = () => {
+                const isTeam = remDestino.value === 'team';
+                remTeamWrap.style.display = isTeam ? 'block' : 'none';
+                remRespWrap.style.display = isTeam ? 'none' : 'block';
+                if (isTeam) {
+                    document.getElementById('rem-responsavel-id').value = '';
+                } else {
+                    document.getElementById('rem-team-id').value = '';
+                }
+            };
+            remDestino.addEventListener('change', syncRemDestino);
+            syncRemDestino();
+        }
         // toggle between lead search and manual contact
         const remTypeRadios = document.querySelectorAll('input[name="rem_type"]');
         function updateRemTypeUI() {
@@ -1809,32 +2222,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
         formNovoLembrete.addEventListener('submit', async function(e){
             e.preventDefault();
-            const remType = document.querySelector('input[name="rem_type"]:checked')?.value || 'lead';
-            const leadIdRaw = document.getElementById('rem-lead-id').value.trim();
-            const leadId = leadIdRaw && !isNaN(Number(leadIdRaw)) ? Number(leadIdRaw) : null;
-            const contactName = document.getElementById('rem-contact-name') ? document.getElementById('rem-contact-name').value.trim() : '';
-            const contactPhone = document.getElementById('rem-contact-phone') ? document.getElementById('rem-contact-phone').value.trim() : '';
-            if (!document.getElementById('rem-message').value.trim()) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Mensagem obrigatória</div>'; return; }
-            if (!document.getElementById('rem-date').value || !document.getElementById('rem-time').value) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Data e hora obrigatórias</div>'; return; }
-            if (remType === 'lead' && !leadId) { document.getElementById('remMsg').innerHTML = '<div class="text-warning">Recomenda-se selecionar um lead válido ou mudar para "Contato livre".</div>'; }
-            if (remType === 'contact' && (!contactName || !contactPhone)) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Nome e telefone do contato são obrigatórios para contato livre.</div>'; return; }
-            const datetime = document.getElementById('rem-date').value + ' ' + document.getElementById('rem-time').value;
-            const responsavelId = document.getElementById('rem-responsavel-id') ? document.getElementById('rem-responsavel-id').value.trim() : '';
-            const payload = new URLSearchParams();
-            payload.append('action','add');
-            payload.append('datetime', datetime);
-            payload.append('message', document.getElementById('rem-message').value.trim());
-            payload.append('template_id', document.getElementById('rem-template').value || '');
-            payload.append('lead_ident', document.getElementById('rem-lead-ident').value.trim());
-            if (responsavelId) payload.append('responsavel_id', responsavelId);
-            if (remType === 'lead') {
-                if (leadId) payload.append('lead_id', String(leadId)); else payload.append('lead_id','0');
-            } else {
-                payload.append('lead_id','0');
-                payload.append('contact_name', contactName);
-                payload.append('contact_phone', contactPhone);
-            }
+            setLoadingState(formNovoLembrete, true, 'Salvando lembrete...');
             try {
+                const remType = document.querySelector('input[name="rem_type"]:checked')?.value || 'lead';
+                const leadIdRaw = document.getElementById('rem-lead-id').value.trim();
+                const leadId = leadIdRaw && !isNaN(Number(leadIdRaw)) ? Number(leadIdRaw) : null;
+                const contactName = document.getElementById('rem-contact-name') ? document.getElementById('rem-contact-name').value.trim() : '';
+                const contactPhone = document.getElementById('rem-contact-phone') ? document.getElementById('rem-contact-phone').value.trim() : '';
+                if (!document.getElementById('rem-message').value.trim()) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Mensagem obrigatória</div>'; return; }
+                if (!document.getElementById('rem-date').value || !document.getElementById('rem-time').value) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Data e hora obrigatórias</div>'; return; }
+                if (remType === 'lead' && !leadId) { document.getElementById('remMsg').innerHTML = '<div class="text-warning">Recomenda-se selecionar um lead válido ou mudar para "Contato livre".</div>'; }
+                if (remType === 'contact' && (!contactName || !contactPhone)) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Nome e telefone do contato são obrigatórios para contato livre.</div>'; return; }
+                const datetime = document.getElementById('rem-date').value + ' ' + document.getElementById('rem-time').value;
+                const responsavelId = document.getElementById('rem-responsavel-id') ? document.getElementById('rem-responsavel-id').value.trim() : '';
+                const destino = document.getElementById('rem-destino')?.value || 'responsavel';
+                const payload = new URLSearchParams();
+                payload.append('action','add');
+                payload.append('datetime', datetime);
+                payload.append('message', document.getElementById('rem-message').value.trim());
+                payload.append('template_id', document.getElementById('rem-template').value || '');
+                payload.append('lead_ident', document.getElementById('rem-lead-ident').value.trim());
+                payload.append('destino', destino);
+                if (destino === 'team') {
+                    payload.append('team_id', document.getElementById('rem-team-id')?.value || '');
+                } else if (responsavelId) payload.append('responsavel_id', responsavelId);
+                if (remType === 'lead') {
+                    if (leadId) payload.append('lead_id', String(leadId)); else payload.append('lead_id','0');
+                } else {
+                    payload.append('lead_id','0');
+                    payload.append('contact_name', contactName);
+                    payload.append('contact_phone', contactPhone);
+                }
                 const res = await fetch('includes/reminders_api.php', { method: 'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: payload.toString() });
                 const data = await res.json();
                 if (data.ok) {
@@ -1847,6 +2265,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('remMsg').innerHTML = '<div class="text-danger">Erro ao salvar</div>';
                 }
             } catch (e) { document.getElementById('remMsg').innerHTML = '<div class="text-danger">Erro ao salvar</div>'; }
+            finally {
+                setLoadingState(formNovoLembrete, false);
+            }
         });
     }
 
@@ -2040,6 +2461,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Reminders: edit/delete helpers and modal handling ---
 async function openEditReminderModal(id) {
+    if (reminderEditOpenLoading) return;
+    reminderEditOpenLoading = true;
+    setModalLoading('modalEditarLembrete', true, 'Carregando lembrete...');
     try {
         const res = await fetch(`includes/reminders_api.php?action=get&id=${id}`);
         if (!res.ok) throw new Error('Erro ao buscar lembrete');
@@ -2055,6 +2479,18 @@ async function openEditReminderModal(id) {
         document.getElementById('editRem-message').value = r.message || '';
         document.getElementById('editRem-responsavel').value = r.responsavel_name || '';
         document.getElementById('editRem-responsavel-id').value = r.responsavel_id || '';
+        const editRemTeamBlock = document.getElementById('editRem-team-block');
+        const editRemTeamName = document.getElementById('editRem-team-name');
+        const hasRemTeam = !!(r.team_id || r.team_name);
+        if (editRemTeamBlock && editRemTeamName) {
+            if (hasRemTeam) {
+                editRemTeamName.textContent = r.team_name || 'Equipe';
+                editRemTeamBlock.style.display = 'block';
+            } else {
+                editRemTeamBlock.style.display = 'none';
+                editRemTeamName.textContent = '-';
+            }
+        }
         // load templates and set value
         const templates = await fetchReminderTemplates();
         const sel = document.getElementById('editRem-template');
@@ -2080,6 +2516,17 @@ async function openEditReminderModal(id) {
             document.getElementById('editRem-lead-id').value = '';
             document.getElementById('editRem-lead-phone').value = '';
         }
+        const remRespWrap = document.getElementById('editRem-responsavel')?.closest('.mb-2');
+        if (remRespWrap) remRespWrap.style.display = hasRemTeam ? 'none' : 'block';
+        if (hasRemTeam) {
+            const remRespId = document.getElementById('editRem-responsavel-id');
+            if (remRespId) remRespId.value = '';
+        }
+        const remTeamBtn = document.getElementById('btnViewReminderTeamUsers');
+        if (remTeamBtn) {
+            remTeamBtn.style.display = hasRemTeam ? 'inline-flex' : 'none';
+            remTeamBtn.onclick = () => showTeamUsers(r.team_id || '', r.team_name || 'Equipe');
+        }
         // reuse existing instance when possible to avoid duplicate backdrops
         let modal = bootstrap.Modal.getInstance ? bootstrap.Modal.getInstance(modalEl) : null;
         if (!modal) {
@@ -2089,6 +2536,9 @@ async function openEditReminderModal(id) {
     } catch (e) {
         console.error(e);
         alert('Erro ao carregar lembrete para edição');
+    } finally {
+        setModalLoading('modalEditarLembrete', false);
+        reminderEditOpenLoading = false;
     }
 }
 

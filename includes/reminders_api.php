@@ -8,6 +8,27 @@ require_once __DIR__ . '/email_notifications.php';
 $userId = $_SESSION['user_id'];
 action:
 $action = $_POST['action'] ?? $_GET['action'] ?? null;
+
+function reminders_team_column_exists($pdo) {
+    try {
+        $checkStmt = $pdo->query("SHOW COLUMNS FROM reminders LIKE 'team_id'");
+        return $checkStmt->rowCount() > 0;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+function reminders_ensure_team_column($pdo) {
+    try {
+        if (!reminders_team_column_exists($pdo)) {
+            $pdo->exec('ALTER TABLE reminders ADD COLUMN team_id INT DEFAULT NULL AFTER responsavel_id');
+            try { $pdo->exec('ALTER TABLE reminders ADD INDEX idx_reminders_team_id (team_id)'); } catch (Exception $e) {}
+        }
+    } catch (Exception $e) {}
+}
+
+reminders_ensure_team_column($pdo);
+$hasTeamId = reminders_team_column_exists($pdo);
 try {
     if ($action === 'add') {
         $leadId = $_POST['lead_id'] ?? null;
@@ -18,6 +39,8 @@ try {
         $contactName = trim($_POST['contact_name'] ?? '');
         $contactPhone = trim($_POST['contact_phone'] ?? '');
         $responsavelId = isset($_POST['responsavel_id']) && $_POST['responsavel_id'] !== '' ? (int)$_POST['responsavel_id'] : null;
+        $destino = $_POST['destino'] ?? 'responsavel';
+        $teamId = ($hasTeamId && isset($_POST['team_id']) && $_POST['team_id'] !== '' && is_numeric($_POST['team_id'])) ? (int)$_POST['team_id'] : null;
         // allow lead_id numeric; if not provided try to resolve by lead_ident, otherwise fallback to 0
         if (!$leadId && $leadIdent) {
             $s = $pdo->prepare('SELECT id FROM leads WHERE name LIKE ? LIMIT 1');
@@ -29,29 +52,48 @@ try {
         if (!$message || !$datetime) { http_response_code(400); echo json_encode(['error'=>'Missing fields']); exit; }
         // validate datetime
         $dt = date('Y-m-d H:i:s', strtotime($datetime));
-        // Check if responsavel_id column exists
         $hasResponsavelId = false;
         try {
             $checkStmt = $pdo->query("SHOW COLUMNS FROM reminders LIKE 'responsavel_id'");
             $hasResponsavelId = $checkStmt->rowCount() > 0;
         } catch (Exception $e) {}
-        // insert including optional contact fields (contact_name, contact_phone) and responsavel_id
-        if ($hasResponsavelId) {
+        if ($destino === 'team') {
+            $responsavelId = null;
+        }
+        if ($hasResponsavelId && $hasTeamId) {
+            $stmt = $pdo->prepare('INSERT INTO reminders (lead_id, message, remind_at, template_id, status, created_by, contact_name, contact_phone, responsavel_id, team_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$leadId, $message, $dt, $templateId, 'pending', $userId, $contactName ?: null, $contactPhone ?: null, $responsavelId, $teamId]);
+        } elseif ($hasResponsavelId) {
             $stmt = $pdo->prepare('INSERT INTO reminders (lead_id, message, remind_at, template_id, status, created_by, contact_name, contact_phone, responsavel_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
             $stmt->execute([$leadId, $message, $dt, $templateId, 'pending', $userId, $contactName ?: null, $contactPhone ?: null, $responsavelId]);
+        } elseif ($hasTeamId) {
+            $stmt = $pdo->prepare('INSERT INTO reminders (lead_id, message, remind_at, template_id, status, created_by, contact_name, contact_phone, team_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$leadId, $message, $dt, $templateId, 'pending', $userId, $contactName ?: null, $contactPhone ?: null, $teamId]);
         } else {
             $stmt = $pdo->prepare('INSERT INTO reminders (lead_id, message, remind_at, template_id, status, created_by, contact_name, contact_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
             $stmt->execute([$leadId, $message, $dt, $templateId, 'pending', $userId, $contactName ?: null, $contactPhone ?: null]);
         }
         $id = $pdo->lastInsertId();
         wrcrm_notify_reminder_created($pdo, $id);
+        if (!empty($teamId) && wrcrm_notification_enabled('reminder_created')) {
+            $teamUsers = wrcrm_user_emails($pdo, wrcrm_team_user_ids($pdo, $teamId));
+            $subject = 'Novo lembrete criado';
+            $html = '<p>Um novo lembrete foi criado no CRM.</p>'
+                . '<p><strong>Quando:</strong> ' . htmlspecialchars($dt) . '<br>'
+                . '<strong>Equipe:</strong> ' . htmlspecialchars((string)$teamId) . '</p>'
+                . '<div style="padding:12px;background:#f8fafc;border-radius:6px">' . nl2br(htmlspecialchars($message)) . '</div>';
+            foreach ($teamUsers as $u) {
+                if ((int)$u['id'] === (int)$userId) continue;
+                wrcrm_send_email($u['email'], $subject, $html, $u['nome_completo'] ?: $u['username']);
+            }
+        }
         echo json_encode(['ok'=>true,'id'=>$id]);
         exit;
     }
     if ($action === 'list') {
         $status = $_GET['status'] ?? null;
         $leadId = $_GET['lead_id'] ?? null;
-        $sql = 'SELECT r.id, r.lead_id, r.message, r.remind_at, r.status, r.template_id, r.created_by, r.created_at, l.name AS lead_name, l.phone AS lead_phone, r.contact_name, r.contact_phone, r.responsavel_id, u.username AS responsavel_name FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id LEFT JOIN users u ON u.id = r.responsavel_id';
+        $sql = 'SELECT r.id, r.lead_id, r.message, r.remind_at, r.status, r.template_id, r.created_by, r.created_at, l.name AS lead_name, l.phone AS lead_phone, r.contact_name, r.contact_phone, r.responsavel_id, r.team_id, u.username AS responsavel_name, tm.name AS team_name FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id LEFT JOIN users u ON u.id = r.responsavel_id LEFT JOIN teams tm ON tm.id = r.team_id';
         $w = [];
         $params = [];
         if ($status) { $w[] = 'r.status = ?'; $params[] = $status; }
@@ -68,7 +110,7 @@ try {
     if ($action === 'get') {
         $id = $_GET['id'] ?? null;
         if (!$id) { http_response_code(400); echo json_encode(['error'=>'Missing id']); exit; }
-        $stmt = $pdo->prepare('SELECT r.*, l.name AS lead_name, l.phone AS lead_phone, r.contact_name, r.contact_phone, u.username AS responsavel_name FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id LEFT JOIN users u ON u.id = r.responsavel_id WHERE r.id = ? LIMIT 1');
+        $stmt = $pdo->prepare('SELECT r.*, l.name AS lead_name, l.phone AS lead_phone, r.contact_name, r.contact_phone, u.username AS responsavel_name, tm.name AS team_name FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id LEFT JOIN users u ON u.id = r.responsavel_id LEFT JOIN teams tm ON tm.id = r.team_id WHERE r.id = ? LIMIT 1');
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         echo json_encode($row ?: []);
@@ -85,6 +127,8 @@ try {
         $contactName = trim($_POST['contact_name'] ?? '');
         $contactPhone = trim($_POST['contact_phone'] ?? '');
         $responsavelId = isset($_POST['responsavel_id']) && $_POST['responsavel_id'] !== '' ? (int)$_POST['responsavel_id'] : null;
+        $destino = $_POST['destino'] ?? 'responsavel';
+        $teamId = ($hasTeamId && isset($_POST['team_id']) && $_POST['team_id'] !== '' && is_numeric($_POST['team_id'])) ? (int)$_POST['team_id'] : null;
         // optionally update lead association when provided
         $leadIdParam = array_key_exists('lead_id', $_POST) ? ($_POST['lead_id'] !== '' ? (int)$_POST['lead_id'] : 0) : null;
         if (!$id || !$message || !$datetime) { http_response_code(400); echo json_encode(['error'=>'Missing fields']); exit; }
@@ -98,16 +142,23 @@ try {
         } else {
             $leadToSave = $leadIdParam;
         }
-        // Check if responsavel_id column exists
         $hasResponsavelId = false;
         try {
             $checkStmt = $pdo->query("SHOW COLUMNS FROM reminders LIKE 'responsavel_id'");
             $hasResponsavelId = $checkStmt->rowCount() > 0;
         } catch (Exception $e) {}
-        // Update with or without responsavel_id depending on column existence
-        if ($hasResponsavelId) {
+        if ($destino === 'team') {
+            $responsavelId = null;
+        }
+        if ($hasResponsavelId && $hasTeamId) {
+            $stmt = $pdo->prepare('UPDATE reminders SET message = ?, remind_at = ?, template_id = ?, status = ?, contact_name = ?, contact_phone = ?, lead_id = ?, responsavel_id = ?, team_id = ? WHERE id = ?');
+            $stmt->execute([$message, $dt, $templateId, $statusNew ?: 'pending', $contactName ?: null, $contactPhone ?: null, $leadToSave, $responsavelId, $teamId, $id]);
+        } elseif ($hasResponsavelId) {
             $stmt = $pdo->prepare('UPDATE reminders SET message = ?, remind_at = ?, template_id = ?, status = ?, contact_name = ?, contact_phone = ?, lead_id = ?, responsavel_id = ? WHERE id = ?');
             $stmt->execute([$message, $dt, $templateId, $statusNew ?: 'pending', $contactName ?: null, $contactPhone ?: null, $leadToSave, $responsavelId, $id]);
+        } elseif ($hasTeamId) {
+            $stmt = $pdo->prepare('UPDATE reminders SET message = ?, remind_at = ?, template_id = ?, status = ?, contact_name = ?, contact_phone = ?, lead_id = ?, team_id = ? WHERE id = ?');
+            $stmt->execute([$message, $dt, $templateId, $statusNew ?: 'pending', $contactName ?: null, $contactPhone ?: null, $leadToSave, $teamId, $id]);
         } else {
             $stmt = $pdo->prepare('UPDATE reminders SET message = ?, remind_at = ?, template_id = ?, status = ?, contact_name = ?, contact_phone = ?, lead_id = ? WHERE id = ?');
             $stmt->execute([$message, $dt, $templateId, $statusNew ?: 'pending', $contactName ?: null, $contactPhone ?: null, $leadToSave, $id]);

@@ -25,21 +25,19 @@
         },
         "recipients": {
             "reminder_created": [
-                "creator",
-                "responsible"
+                "creator"
             ],
             "task_created": [
-                "creator",
-                "responsible"
+                "creator"
             ],
             "lead_created": [],
             "lead_sale_completed": [],
             "lead_stage_changed": []
         },
         "sale_stage_names": [
-            "Venda conclu\u00edda",
+            "Venda concluída",
             "Venda concluida",
-            "Conclu\u00eddo",
+            "Concluído",
             "Concluido",
             "Ganho",
             "Fechado"

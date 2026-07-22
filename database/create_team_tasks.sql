@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS team_tasks (
   descricao TEXT,
   status VARCHAR(30) DEFAULT 'Pendente',
   responsavel VARCHAR(100),
+  team_id INT DEFAULT NULL,
   data_vencimento DATE,
   criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
   atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

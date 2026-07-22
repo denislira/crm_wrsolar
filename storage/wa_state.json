@@ -1,9 +1,9 @@
 {
   "connected": false,
-  "info": "servico encerrado",
+  "info": "desconectado do Baileys",
   "qr_data": null,
   "last_action": "renew_qr",
   "service_running": true,
-  "service_pid": 24724,
-  "service_heartbeat_at": "2026-06-26T20:53:31.244Z"
+  "service_pid": 33728,
+  "service_heartbeat_at": "2026-07-22T20:26:04.826Z"
 }
