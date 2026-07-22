@@ -5,6 +5,27 @@ if (!function_exists('wrcrm_settings_path')) {
     }
 }
 
+if (!function_exists('wrcrm_mime_header_encode')) {
+    function wrcrm_mime_header_encode($value, $charset = 'UTF-8') {
+        $value = (string)$value;
+        if ($value === '') return '';
+        if (function_exists('mb_encode_mimeheader')) {
+            return mb_encode_mimeheader($value, $charset);
+        }
+        if (function_exists('iconv_mime_encode')) {
+            $encoded = @iconv_mime_encode('X', $value, [
+                'scheme' => 'B',
+                'input-charset' => $charset,
+                'output-charset' => $charset,
+            ]);
+            if (is_string($encoded) && strpos($encoded, 'X: ') === 0) {
+                return substr($encoded, 3);
+            }
+        }
+        return $value;
+    }
+}
+
 if (!function_exists('wrcrm_read_settings')) {
     function wrcrm_read_settings() {
         $path = wrcrm_settings_path();
@@ -58,7 +79,7 @@ if (!function_exists('wrcrm_mail_simple')) {
     function wrcrm_mail_simple($to, $subject, $html, $fromName = null, $fromEmail = null) {
         $headers = [];
         if ($fromName && $fromEmail) {
-            $headers[] = 'From: ' . mb_encode_mimeheader($fromName) . " <{$fromEmail}>";
+            $headers[] = 'From: ' . wrcrm_mime_header_encode($fromName) . " <{$fromEmail}>";
         } elseif ($fromEmail) {
             $headers[] = 'From: ' . $fromEmail;
         }
@@ -102,10 +123,10 @@ if (!function_exists('wrcrm_send_email')) {
                         $send(base64_encode($smtpUser));
                         $send(base64_encode($smtpPass));
                     }
-                    $encodedSubject = mb_encode_mimeheader($subject, 'UTF-8');
+                    $encodedSubject = wrcrm_mime_header_encode($subject, 'UTF-8');
                     $headers = [
-                        'From: ' . mb_encode_mimeheader($fromName, 'UTF-8') . " <{$fromEmail}>",
-                        'To: ' . ($toName ? mb_encode_mimeheader($toName, 'UTF-8') . " <{$to}>" : $to),
+                        'From: ' . wrcrm_mime_header_encode($fromName, 'UTF-8') . " <{$fromEmail}>",
+                        'To: ' . ($toName ? wrcrm_mime_header_encode($toName, 'UTF-8') . " <{$to}>" : $to),
                         'Subject: ' . $encodedSubject,
                         'MIME-Version: 1.0',
                         'Content-Type: text/html; charset=UTF-8'

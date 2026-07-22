@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 header('Content-Type: application/json');
 session_start();
 if (!isset($_SESSION['user_id'])) {
@@ -24,9 +24,18 @@ if (!$to || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
     exit;
 }
 
-$html = '<p>Teste de SMTP do WRCRM realizado em ' . htmlspecialchars(date('d/m/Y H:i:s')) . '.</p>';
-$sent = wrcrm_send_email($to, 'Teste de SMTP - WRCRM', $html);
-echo json_encode([
-    'success' => (bool)$sent,
-    'message' => $sent ? 'Email de teste enviado' : 'Não foi possível enviar o email de teste'
-]);
+try {
+    $html = '<p>Teste de SMTP do WRCRM realizado em ' . htmlspecialchars(date('d/m/Y H:i:s')) . '.</p>';
+    $sent = wrcrm_send_email($to, 'Teste de SMTP - WRCRM', $html);
+    echo json_encode([
+        'success' => (bool)$sent,
+        'message' => $sent ? 'Email de teste enviado' : 'Nao foi possivel enviar o email de teste'
+    ]);
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Erro inesperado ao testar SMTP',
+        'error' => $e->getMessage()
+    ]);
+}
