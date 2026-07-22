@@ -7,10 +7,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnDisconnect = document.getElementById('btnDisconnectWa');
     let lastStatus = { connected: false };
 
-    const baseRoot = '/' + (window.location.pathname.split('/')[1] || '');
+    const integrationScript = Array.from(document.scripts).find((script) =>
+        /\/assets\/js\/wa_integration\.js(?:\?|$)/.test(script.src)
+    );
+    const scriptPath = integrationScript ? new URL(integrationScript.src, window.location.href).pathname : '';
+    const baseRoot = scriptPath ? scriptPath.replace(/\/assets\/js\/wa_integration\.js$/, '') : '';
     const apiPath = (p) => baseRoot + '/api/' + p;
+    let statusErrorShown = false;
 
     console.log('wa_integration: loaded');
+
+    async function fetchJson(url, options = {}) {
+        const res = await fetch(url, options);
+        const body = await res.text();
+        let data;
+        try {
+            data = JSON.parse(body);
+        } catch (e) {
+            throw new Error('Resposta inválida da API (HTTP ' + res.status + ') em ' + url);
+        }
+        if (!res.ok) throw new Error(data.message || ('HTTP ' + res.status));
+        return data;
+    }
 
     // fetch a URL as blob and set to the QR image element. Returns true on success.
     async function fetchAndSetImage(url) {
@@ -35,9 +53,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function loadStatus() {
         try {
-            const res = await fetch(apiPath('wa_status.php'));
-            const data = await res.json();
+            const data = await fetchJson(apiPath('wa_status.php'), { cache: 'no-store' });
             lastStatus = data;
+            statusErrorShown = false;
             console.log('wa_status:', data);
             if (data.connected) {
                 statusEl.innerText = 'Conectado - ' + (data.info || 'online');
@@ -88,16 +106,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         } catch (e) {
-            statusEl.innerText = 'Erro ao obter status';
-            console.error(e);
+            statusEl.innerText = 'WhatsApp indisponível: ' + e.message;
+            if (!statusErrorShown) console.error('wa_integration:', e);
+            statusErrorShown = true;
         }
     }
 
     async function generateQr() {
         btnGenerate.disabled = true;
         try {
-            const res = await fetch(apiPath('wa_generate_qr.php'), { method: 'POST' });
-            const data = await res.json();
+            const data = await fetchJson(apiPath('wa_generate_qr.php'), { method: 'POST' });
             if (!data.success) {
                 alert(data.message || 'Não foi possível obter o QRCODE');
                 await loadStatus();
@@ -125,8 +143,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!confirm('Desconectar WhatsApp?')) return;
         btnDisconnect.disabled = true;
         try {
-            const res = await fetch(apiPath('wa_disconnect.php'), { method: 'POST' });
-            const data = await res.json();
+            const data = await fetchJson(apiPath('wa_disconnect.php'), { method: 'POST' });
             alert(data.message || 'Desconectado');
             await loadStatus();
         } catch (e) {

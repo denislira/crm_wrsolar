@@ -907,6 +907,7 @@ body.theme-dark .edit-user-modal .avatar-box {
                                         <option value="gmail_tls">Gmail (smtp.gmail.com, TLS 587)</option>
                                         <option value="gmail_ssl">Gmail (smtp.gmail.com, SSL 465)</option>
                                         <option value="locaweb">Locaweb (email-ssl.com.br, SSL 465)</option>
+                                        <option value="locaweb_tls">Locaweb alternativa (email-ssl.com.br, TLS 587)</option>
                                         <option value="outlook">Outlook / Office365 (smtp.office365.com, TLS 587)</option>
                                         <option value="yahoo">Yahoo (smtp.mail.yahoo.com, SSL 465)</option>
                                         <option value="sendgrid">SendGrid (smtp.sendgrid.net, TLS 587)</option>
@@ -2000,6 +2001,7 @@ document.addEventListener('DOMContentLoaded', function(){
                         if (host.indexOf('smtp.gmail.com') !== -1 && port === '587' && secure === 'tls') presetSelect.value = 'gmail_tls';
                         else if (host.indexOf('smtp.gmail.com') !== -1 && port === '465' && secure === 'ssl') presetSelect.value = 'gmail_ssl';
                         else if (host.indexOf('email-ssl.com.br') !== -1 && port === '465' && secure === 'ssl') presetSelect.value = 'locaweb';
+                        else if (host.indexOf('email-ssl.com.br') !== -1 && port === '587' && secure === 'tls') presetSelect.value = 'locaweb_tls';
                         else if (host.indexOf('smtp.office365.com') !== -1) presetSelect.value = 'outlook';
                         else if (host.indexOf('smtp.mail.yahoo.com') !== -1) presetSelect.value = 'yahoo';
                         else if (host.indexOf('smtp.sendgrid.net') !== -1) presetSelect.value = 'sendgrid';
@@ -2071,6 +2073,7 @@ document.addEventListener('DOMContentLoaded', function(){
             'gmail_tls': { host: 'smtp.gmail.com', port: 587, secure: 'tls', auth: 1 },
             'gmail_ssl': { host: 'smtp.gmail.com', port: 465, secure: 'ssl', auth: 1 },
             'locaweb': { host: 'email-ssl.com.br', port: 465, secure: 'ssl', user: 'crm@wrsolare.com.br', from_email: 'crm@wrsolare.com.br', from_name: 'WRSolare', auth: 1 },
+            'locaweb_tls': { host: 'email-ssl.com.br', port: 587, secure: 'tls', user: 'crm@wrsolare.com.br', from_email: 'crm@wrsolare.com.br', from_name: 'WRSolare', auth: 1 },
             'outlook': { host: 'smtp.office365.com', port: 587, secure: 'tls', auth: 1 },
             'yahoo': { host: 'smtp.mail.yahoo.com', port: 465, secure: 'ssl', auth: 1 },
             'sendgrid': { host: 'smtp.sendgrid.net', port: 587, secure: 'tls', auth: 1 }
@@ -2097,6 +2100,7 @@ document.addEventListener('DOMContentLoaded', function(){
                         'gmail_tls':'help_gmail_tls',
                         'gmail_ssl':'help_gmail_ssl',
                         'locaweb':null,
+                        'locaweb_tls':null,
                         'outlook':'help_outlook',
                         'yahoo':'help_yahoo',
                         'sendgrid':'help_sendgrid'
