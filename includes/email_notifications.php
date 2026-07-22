@@ -71,7 +71,32 @@ if (!function_exists('wrcrm_get_notification_settings')) {
         $settings = wrcrm_read_settings();
         $defaults = wrcrm_default_notification_settings();
         $saved = isset($settings['notifications']) && is_array($settings['notifications']) ? $settings['notifications'] : [];
-        return array_replace_recursive($defaults, $saved);
+        $merged = $defaults;
+
+        foreach ($saved as $key => $value) {
+            if ($key === 'events' && is_array($value)) {
+                $merged['events'] = array_replace($merged['events'], $value);
+                continue;
+            }
+
+            if ($key === 'recipients' && is_array($value)) {
+                foreach ($value as $event => $eventRecipients) {
+                    if (is_array($eventRecipients)) {
+                        $merged['recipients'][$event] = $eventRecipients;
+                    }
+                }
+                continue;
+            }
+
+            if ($key === 'sale_stage_names') {
+                $merged['sale_stage_names'] = is_array($value) ? array_values($value) : [];
+                continue;
+            }
+
+            $merged[$key] = $value;
+        }
+
+        return $merged;
     }
 }
 

@@ -33,10 +33,12 @@ function start_wa_service($root_dir, $logs_dir) {
     $script = $root_dir . DIRECTORY_SEPARATOR . 'wa-service' . DIRECTORY_SEPARATOR . 'index.js';
     if (!file_exists($script)) return false;
 
+    $debugEnabled = getenv('WA_DEBUG') === '1';
     $log = $logs_dir . DIRECTORY_SEPARATOR . 'wa-service.log';
 
     if (stripos(PHP_OS_FAMILY, 'Windows') !== false) {
-        $cmd = 'start /B "" node ' . escapeshellarg($script) . ' > ' . escapeshellarg($log) . ' 2>&1';
+        $redirect = $debugEnabled ? (' > ' . escapeshellarg($log) . ' 2>&1') : ' > NUL 2>&1';
+        $cmd = 'start /B "" node ' . escapeshellarg($script) . $redirect;
         $handle = @popen($cmd, 'r');
         if (is_resource($handle)) {
             @pclose($handle);
@@ -45,7 +47,8 @@ function start_wa_service($root_dir, $logs_dir) {
         return false;
     }
 
-    $cmd = 'node ' . escapeshellarg($script) . ' > ' . escapeshellarg($log) . ' 2>&1 &';
+    $redirect = $debugEnabled ? (' > ' . escapeshellarg($log) . ' 2>&1') : ' > /dev/null 2>&1';
+    $cmd = 'node ' . escapeshellarg($script) . $redirect . ' &';
     $handle = @popen($cmd, 'r');
     if (is_resource($handle)) {
         @pclose($handle);
@@ -54,6 +57,7 @@ function start_wa_service($root_dir, $logs_dir) {
     return false;
 }
 
+$state_exists = file_exists($state_file);
 $state = read_wa_json($state_file, ['connected' => false]);
 
 if (!empty($state['connected'])) {
@@ -79,13 +83,15 @@ $command = [
 ];
 file_put_contents($command_file, json_encode($command, JSON_PRETTY_PRINT));
 
-$state['connected'] = false;
-unset($state['qr_data']);
-$state['info'] = $started
-    ? 'Servico Baileys iniciado. Gerando QR real...'
-    : 'Solicitando novo QR real ao servico Baileys...';
-$state['qr_requested_at'] = date('c');
-file_put_contents($state_file, json_encode($state, JSON_PRETTY_PRINT));
+if ($state_exists || !empty($started)) {
+    $state['connected'] = false;
+    unset($state['qr_data']);
+    $state['info'] = $started
+        ? 'Servico Baileys iniciado. Gerando QR real...'
+        : 'Solicitando novo QR real ao servico Baileys...';
+    $state['qr_requested_at'] = date('c');
+    file_put_contents($state_file, json_encode($state, JSON_PRETTY_PRINT));
+}
 
 echo json_encode([
     'success' => true,

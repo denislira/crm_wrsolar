@@ -1120,7 +1120,7 @@ body.theme-dark .edit-user-modal .avatar-box {
                         </form>
                         <div class="d-flex justify-content-end gap-2 mt-3">
                             <button id="btn_default_notifications" class="btn btn-outline-secondary btn-sm" type="button">Voltar ao padrão</button>
-                            <button id="btn_save_notifications" class="btn btn-primary btn-sm">Salvar Notificações</button>
+                            <button id="btn_save_notifications" class="btn btn-primary btn-sm" type="button">Salvar Notificações</button>
                         </div>
                     </div>
                 </div>

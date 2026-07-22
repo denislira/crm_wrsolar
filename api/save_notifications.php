@@ -25,7 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $events = ['reminder_created', 'lead_created', 'task_created', 'lead_sale_completed', 'lead_stage_changed'];
 $roles = ['creator', 'responsible'];
-$notifications = wrcrm_default_notification_settings();
+
+$settings = wrcrm_read_settings();
+$notifications = isset($settings['notifications']) && is_array($settings['notifications'])
+    ? $settings['notifications']
+    : wrcrm_default_notification_settings();
 
 foreach ($events as $event) {
     $notifications['events'][$event] = isset($_POST['events'][$event]) ? 1 : 0;
@@ -37,13 +41,12 @@ foreach ($events as $event) {
     }
 }
 
-$saleNamesRaw = trim($_POST['sale_stage_names'] ?? '');
-$saleNames = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n|,/', $saleNamesRaw))));
-if ($saleNames) {
+$saleNamesRaw = array_key_exists('sale_stage_names', $_POST) ? trim((string)$_POST['sale_stage_names']) : null;
+if ($saleNamesRaw !== null) {
+    $saleNames = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n|,/', $saleNamesRaw))));
     $notifications['sale_stage_names'] = $saleNames;
 }
 
-$settings = wrcrm_read_settings();
 $settings['notifications'] = $notifications;
 
 if (wrcrm_write_settings($settings)) {

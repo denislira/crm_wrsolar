@@ -73,7 +73,7 @@ if (!useSingleFileAuthState) {
     };
   };
 }
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+const logger = pino({ level: process.env.WA_DEBUG === '1' ? (process.env.LOG_LEVEL || 'info') : 'silent' });
 
 const defaultStoragePath = path.join(__dirname, '..', 'storage', 'wa_state.json');
 const STORAGE_PATH = process.env.STORAGE_PATH || defaultStoragePath;
@@ -239,7 +239,6 @@ function pollCommand() {
   handleCommand(command).catch((err) => logger.error({ err }, 'Erro ao processar comando'));
 }
 
-setInterval(() => writeState({}), 10000);
 setInterval(pollCommand, 1500);
 
 process.on('SIGINT', () => {

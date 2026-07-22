@@ -51,11 +51,13 @@ if ($img === false && function_exists('curl_version')) {
     if ($httpCode !== 200) $img = false;
 }
 if ($img === false) {
-    // log the failure for debugging
-    $logdir = __DIR__ . '/../logs';
-    if (!is_dir($logdir)) @mkdir($logdir, 0755, true);
-    $msg = date('c') . " - failed to fetch external QR for " . substr($qr_text, 0, 80) . "\n";
-    @file_put_contents($logdir . '/wa_qr_image_fetch.log', $msg, FILE_APPEND | LOCK_EX);
+    // Keep this endpoint quiet by default. Enable WA_DEBUG=1 to restore diagnostics.
+    if (getenv('WA_DEBUG') === '1') {
+        $logdir = __DIR__ . '/../logs';
+        if (!is_dir($logdir)) @mkdir($logdir, 0755, true);
+        $msg = date('c') . " - failed to fetch external QR for " . substr($qr_text, 0, 80) . "\n";
+        @file_put_contents($logdir . '/wa_qr_image_fetch.log', $msg, FILE_APPEND | LOCK_EX);
+    }
     // return an SVG placeholder so the frontend always receives an image
     header('Content-Type: image/svg+xml');
     header('Cache-Control: no-cache, no-store, must-revalidate');
