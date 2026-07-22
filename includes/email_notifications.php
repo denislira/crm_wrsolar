@@ -90,39 +90,70 @@ if (!function_exists('wrcrm_mail_simple')) {
 }
 
 if (!function_exists('wrcrm_send_email')) {
+    function wrcrm_smtp_last_error($message = null) {
+        static $lastError = '';
+        if ($message !== null) $lastError = (string)$message;
+        return $lastError;
+    }
+
     function wrcrm_send_email($to, $subject, $html, $toName = null) {
         $settings = wrcrm_read_settings();
         $smtp = isset($settings['smtp']) && is_array($settings['smtp']) ? $settings['smtp'] : [];
         $fromEmail = trim($smtp['from_email'] ?? '') ?: trim($smtp['user'] ?? '') ?: ('no-reply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
         $fromName = trim($smtp['from_name'] ?? '') ?: 'WRCRM';
         $sent = false;
-        $lastError = null;
+        $lastError = '';
+        wrcrm_smtp_last_error('');
 
         if (!empty($smtp['host'])) {
             try {
-                $host = $smtp['host'];
+                $host = trim((string)$smtp['host']);
                 $port = isset($smtp['port']) ? (int)$smtp['port'] : 25;
                 $secure = strtolower($smtp['secure'] ?? '');
                 $target = ($secure === 'ssl' ? 'ssl://' : '') . $host . ':' . $port;
-                $fp = @stream_socket_client($target, $errno, $errstr, 15);
-                if ($fp) {
+                $context = stream_context_create([
+                    'ssl' => [
+                        'peer_name' => $host,
+                        'verify_peer' => true,
+                        'verify_peer_name' => true,
+                        'allow_self_signed' => false
+                    ]
+                ]);
+                $fp = @stream_socket_client($target, $errno, $errstr, 20, STREAM_CLIENT_CONNECT, $context);
+                if (!$fp) {
+                    $lastError = 'Conexao recusada por ' . $host . ':' . $port . ' (' . $errno . ') ' . $errstr;
+                } else {
                     stream_set_timeout($fp, 15);
                     $read = function() use ($fp) {
-                        $line = fgets($fp, 1024);
-                        return $line === false ? '' : $line;
+                        $response = '';
+                        while (($line = fgets($fp, 2048)) !== false) {
+                            $response .= $line;
+                            if (strlen($line) < 4 || $line[3] !== '-') break;
+                        }
+                        return trim($response);
                     };
                     $send = function($cmd) use ($fp, $read) {
-                        fwrite($fp, $cmd . "\r\n");
+                        if (fwrite($fp, $cmd . "\r\n") === false) return '';
                         return $read();
                     };
+                    $expect = function($response, array $codes, $step) {
+                        $code = (int)substr((string)$response, 0, 3);
+                        if (!in_array($code, $codes, true)) {
+                            throw new RuntimeException($step . ': ' . ($response ?: 'servidor nao respondeu'));
+                        }
+                    };
                     $banner = $read();
+                    $expect($banner, [220], 'Conexao SMTP');
                     $ehlo = $send('EHLO ' . (gethostname() ?: 'localhost'));
+                    $expect($ehlo, [250], 'EHLO');
                     if ($secure === 'tls') {
                         $starttls = $send('STARTTLS');
+                        $expect($starttls, [220], 'STARTTLS');
                         if (!@stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
-                            $lastError = 'Falha ao iniciar TLS';
+                            throw new RuntimeException('Falha ao iniciar a criptografia TLS');
                         } else {
                             $ehlo = $send('EHLO ' . (gethostname() ?: 'localhost'));
+                            $expect($ehlo, [250], 'EHLO apos STARTTLS');
                         }
                     }
                     $smtpUser = trim($smtp['user'] ?? '');
@@ -130,8 +161,11 @@ if (!function_exists('wrcrm_send_email')) {
                     $shouldAuth = !empty($smtp['auth']) || ($smtpUser !== '' && $smtpPass !== '');
                     if ($shouldAuth && $smtpUser !== '') {
                         $authResp = $send('AUTH LOGIN');
+                        $expect($authResp, [334], 'Inicio da autenticacao');
                         $userResp = $send(base64_encode($smtpUser));
+                        $expect($userResp, [334], 'Usuario SMTP');
                         $passResp = $send(base64_encode($smtpPass));
+                        $expect($passResp, [235], 'Senha SMTP');
                     }
                     $encodedSubject = wrcrm_mime_header_encode($subject, 'UTF-8');
                     $headers = [
@@ -141,31 +175,40 @@ if (!function_exists('wrcrm_send_email')) {
                         'MIME-Version: 1.0',
                         'Content-Type: text/html; charset=UTF-8'
                     ];
-                    $send('MAIL FROM:<' . $fromEmail . '>');
-                    $send('RCPT TO:<' . $to . '>');
-                    $send('DATA');
-                    fwrite($fp, implode("\r\n", $headers) . "\r\n\r\n" . $html . "\r\n.\r\n");
+                    $mailResp = $send('MAIL FROM:<' . $fromEmail . '>');
+                    $expect($mailResp, [250], 'Remetente');
+                    $rcptResp = $send('RCPT TO:<' . $to . '>');
+                    $expect($rcptResp, [250, 251], 'Destinatario');
+                    $dataStartResp = $send('DATA');
+                    $expect($dataStartResp, [354], 'Inicio da mensagem');
+                    $safeHtml = preg_replace('/(?m)^\./', '..', (string)$html);
+                    if (fwrite($fp, implode("\r\n", $headers) . "\r\n\r\n" . $safeHtml . "\r\n.\r\n") === false) {
+                        throw new RuntimeException('Falha ao transmitir o conteudo do email');
+                    }
                     $dataResp = $read();
+                    $expect($dataResp, [250], 'Entrega da mensagem');
                     $send('QUIT');
                     fclose($fp);
                     $sent = true;
-                    if ($lastError) {
-                        $sent = false;
-                    }
                 }
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 $sent = false;
                 $lastError = $e->getMessage();
+                if (isset($fp) && is_resource($fp)) fclose($fp);
             }
         }
 
-        if (!$sent && !$lastError && !empty($smtp['host'])) {
-            $lastError = 'Falha ao enviar via SMTP sem mensagem detalhada';
+        if (!$sent && empty($smtp['host'])) {
+            $sent = wrcrm_mail_simple($to, $subject, $html, $fromName, $fromEmail);
+            if (!$sent) $lastError = 'SMTP nao configurado e a funcao mail() do servidor falhou';
+        } elseif (!$sent && !$lastError) {
+            $lastError = 'Falha ao enviar via SMTP sem resposta detalhada';
         }
         if ($lastError) {
+            wrcrm_smtp_last_error($lastError);
             error_log('[WRCRM SMTP] ' . $lastError . ' host=' . ($smtp['host'] ?? '') . ' port=' . ($smtp['port'] ?? '') . ' secure=' . ($smtp['secure'] ?? '') . ' auth=' . (!empty($smtp['auth']) ? '1' : '0'));
         }
-        return $sent ?: wrcrm_mail_simple($to, $subject, $html, $fromName, $fromEmail);
+        return $sent;
     }
 }
 

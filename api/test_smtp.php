@@ -27,9 +27,11 @@ if (!$to || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
 try {
     $html = '<p>Teste de SMTP do WRCRM realizado em ' . htmlspecialchars(date('d/m/Y H:i:s')) . '.</p>';
     $sent = wrcrm_send_email($to, 'Teste de SMTP - WRCRM', $html);
+    $detail = function_exists('wrcrm_smtp_last_error') ? wrcrm_smtp_last_error() : '';
+    if (!$sent) http_response_code(422);
     echo json_encode([
         'success' => (bool)$sent,
-        'message' => $sent ? 'Email de teste enviado' : 'Nao foi possivel enviar o email de teste'
+        'message' => $sent ? 'Email de teste enviado' : ('Falha no SMTP: ' . ($detail ?: 'erro desconhecido'))
     ]);
 } catch (Throwable $e) {
     http_response_code(500);

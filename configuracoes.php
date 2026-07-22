@@ -2035,9 +2035,17 @@ document.addEventListener('DOMContentLoaded', function(){
                     const fd = new FormData();
                     fd.append('to', document.getElementById('smtp_test_to').value || '');
                     const res = await fetch('api/test_smtp.php', { method: 'POST', body: fd });
-                    const data = await res.json();
+                    const responseText = await res.text();
+                    let data;
+                    try {
+                        data = JSON.parse(responseText);
+                    } catch (parseError) {
+                        throw new Error(responseText
+                            ? 'Servidor retornou uma pagina de erro (HTTP ' + res.status + '). Consulte o log PHP da hospedagem.'
+                            : 'Servidor não retornou resposta (HTTP ' + res.status + ').');
+                    }
                     showSettingsToast(data.message || (data.success ? 'Email enviado' : 'Erro no teste'), data.success ? 'success' : 'danger');
-                }catch(e){ showSettingsToast('Erro ao testar SMTP', 'danger'); console.error(e); }
+                }catch(e){ showSettingsToast(e.message || 'Erro ao testar SMTP', 'danger'); console.error(e); }
                 btn.disabled = false;
             });
         }
@@ -2079,6 +2087,9 @@ document.addEventListener('DOMContentLoaded', function(){
                     document.getElementById('smtp_port').value = p.port;
                     document.getElementById('smtp_secure').value = p.secure;
                     document.getElementById('smtp_auth').checked = !!p.auth;
+                    if (p.user) document.getElementById('smtp_user').value = p.user;
+                    if (p.from_email) document.getElementById('smtp_from_email').value = p.from_email;
+                    if (p.from_name) document.getElementById('smtp_from_name').value = p.from_name;
                 }
                 // abrir o painel de ajuda correspondente (accordion)
                 try {
