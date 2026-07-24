@@ -564,6 +564,13 @@ include 'includes/header.php';
             .ce-column-title i {
                 color: var(--accent, #64748b);
             }
+            .ce-column-stats {
+                display: inline-flex;
+                flex-direction: column;
+                align-items: flex-end;
+                gap: .18rem;
+                flex-shrink: 0;
+            }
             .ce-column-count {
                 min-width: 26px;
                 height: 24px;
@@ -576,6 +583,12 @@ include 'includes/header.php';
                 color: #475569;
                 font-size: .78rem;
                 font-weight: 700;
+            }
+            .ce-column-total {
+                font-size: .76rem;
+                font-weight: 700;
+                color: #16a34a;
+                white-space: nowrap;
             }
             .ce-card-list {
                 display: flex;
@@ -708,34 +721,145 @@ include 'includes/header.php';
                 margin-top: .2rem;
             }
             .ce-lead-modal-content {
-                border-radius: 14px;
+                border: 0;
+                border-radius: 18px;
                 overflow: hidden;
-                box-shadow: 0 24px 60px rgba(11, 26, 49, 0.12);
+                background: linear-gradient(180deg, #f8fbff 0%, #f2f7fb 100%);
+                box-shadow: 0 28px 70px rgba(11, 26, 49, 0.18);
             }
             .ce-lead-modal-content .modal-header {
-                background: transparent;
-                padding: 18px 22px;
-                border-bottom: none;
+                background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(20,184,166,0.10));
+                padding: 18px 24px;
+                border-bottom: 1px solid rgba(37,99,235,0.14);
                 font-weight: 700;
             }
+            .ce-lead-modal-content .modal-title {
+                color: #16324f;
+                font-weight: 800;
+            }
+            .ce-lead-modal-content .modal-title i {
+                width: 34px;
+                height: 34px;
+                border-radius: 10px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                background: #2563eb;
+                color: #fff !important;
+                box-shadow: 0 10px 22px rgba(37,99,235,0.22);
+            }
             .ce-lead-modal-content .modal-body {
-                padding: 20px;
-                background: transparent;
+                padding: 22px;
+                background:
+                    radial-gradient(circle at 8% 10%, rgba(37,99,235,0.06), transparent 28%),
+                    radial-gradient(circle at 96% 18%, rgba(16,185,129,0.06), transparent 30%);
             }
             .ce-lead-modal-content .modal-footer {
-                padding: 14px 22px;
-                border-top: none;
+                padding: 16px 24px;
+                background: rgba(255,255,255,0.78);
+                border-top: 1px solid rgba(37,99,235,0.12);
+            }
+            .ce-lead-modal-content .card {
+                border: 1px solid rgba(37,99,235,0.14);
+                border-top: 4px solid #2563eb;
+                border-radius: 16px;
+                background: rgba(255,255,255,0.92);
+                box-shadow: 0 14px 34px rgba(15,23,42,0.08);
+            }
+            .ce-lead-modal-content .col-lg-5 .card {
+                border-top-color: #14b8a6;
             }
             .ce-lead-modal-content .form-control,
             .ce-lead-modal-content .form-select {
-                border-radius: 10px;
+                border-radius: 11px;
                 padding: 10px 12px;
-                border: 1px solid rgba(11, 26, 49, 0.08);
-                box-shadow: none;
+                border: 1.5px solid #b8d4f2;
+                background-color: #fbfdff;
+                box-shadow: 0 1px 0 rgba(15,23,42,0.02);
+                transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+            }
+            .ce-lead-modal-content .form-control:hover,
+            .ce-lead-modal-content .form-select:hover {
+                border-color: #60a5fa;
+                background-color: #fff;
+            }
+            .ce-lead-modal-content .form-control:focus,
+            .ce-lead-modal-content .form-select:focus {
+                border-color: #2563eb;
+                box-shadow: 0 0 0 .22rem rgba(37,99,235,0.13);
+                background-color: #fff;
+            }
+            .ce-lead-modal-content .form-control:disabled {
+                border-color: #c7d2fe;
+                background: linear-gradient(135deg, #eef2ff, #f8fafc);
+                color: #475569;
+            }
+            .ce-lead-modal-content .input-group-text {
+                border: 1.5px solid #b8d4f2;
+                border-right: 0;
+                border-radius: 11px 0 0 11px;
+                background: linear-gradient(135deg, #e0f2fe, #ecfdf5);
+                color: #0f766e;
+                font-weight: 800;
+            }
+            .ce-lead-modal-content .input-group .form-control {
+                border-left: 0;
+                border-radius: 0 11px 11px 0;
             }
             .ce-lead-modal-content label {
                 font-weight: 600;
                 font-size: .9rem;
+                color: #284462;
+            }
+            .ce-lead-modal-content .form-text {
+                color: #64748b;
+            }
+            .ce-lead-modal-content .badge {
+                border-color: #bfdbfe !important;
+                background: #eff6ff !important;
+                color: #1d4ed8 !important;
+            }
+            #ceAnexosDropzone {
+                border: 2px dashed #60a5fa !important;
+                border-radius: 14px !important;
+                padding: 22px !important;
+                text-align: center;
+                cursor: pointer;
+                transition: border-color .2s ease, background .2s ease, transform .2s ease, box-shadow .2s ease;
+                background: linear-gradient(135deg, rgba(219,234,254,0.75), rgba(236,253,245,0.72));
+                box-shadow: inset 0 0 0 1px rgba(255,255,255,0.65);
+            }
+            #ceAnexosDropzone:hover {
+                border-color: #14b8a6 !important;
+                background: linear-gradient(135deg, rgba(219,234,254,0.95), rgba(204,251,241,0.85));
+                transform: translateY(-1px);
+                box-shadow: 0 12px 26px rgba(15,23,42,0.08);
+            }
+            #ceAnexosDropzone .fa-cloud-upload {
+                color: #2563eb !important;
+            }
+            #ceAnexosFileNames {
+                color: #0f766e;
+                font-weight: 600;
+            }
+            #ceLeadModal .card-body > .mb-3,
+            #ceLeadModal .card-body > .row {
+                position: relative;
+            }
+            #ceLeadModal textarea.form-control {
+                min-height: 116px;
+            }
+            #ceLeadModal .btn-primary {
+                border: 0;
+                background: linear-gradient(135deg, #2563eb, #14b8a6);
+                box-shadow: 0 12px 26px rgba(37,99,235,0.22);
+                font-weight: 700;
+            }
+            #ceLeadModal .btn-secondary {
+                background: #e2e8f0;
+                border-color: #cbd5e1;
+                color: #334155;
+                font-weight: 700;
             }
             body.theme-dark .ce-shell {
                 background: linear-gradient(180deg, rgba(15,23,42,0.96) 0%, rgba(15,23,42,0.88) 100%);
@@ -1066,7 +1190,10 @@ include 'includes/header.php';
                                 <i class="fa-solid <?php echo htmlspecialchars($meta['icon'], ENT_QUOTES, 'UTF-8'); ?>"></i>
                                 <span><?php echo htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8'); ?></span>
                             </div>
-                            <span class="ce-column-count" data-count-for="<?php echo htmlspecialchars($stageKey, ENT_QUOTES, 'UTF-8'); ?>"><?php echo count($groupedCards[$stageKey]); ?></span>
+                            <div class="ce-column-stats">
+                                <span class="ce-column-count" data-count-for="<?php echo htmlspecialchars($stageKey, ENT_QUOTES, 'UTF-8'); ?>"><?php echo count($groupedCards[$stageKey]); ?></span>
+                                <span class="ce-column-total" data-total-for="<?php echo htmlspecialchars($stageKey, ENT_QUOTES, 'UTF-8'); ?>">R$ 0,00</span>
+                            </div>
                         </div>
                         <?php if (!empty($meta['export_to_internal_queue'])): ?>
                             <div class="mb-2"><span class="badge bg-success">Exporta para fila interna</span></div>
@@ -1173,7 +1300,7 @@ include 'includes/header.php';
 
         <div class="modal fade" id="ceLeadModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-xl modal-dialog-centered">
-                <div class="modal-content">
+                <div class="modal-content ce-lead-modal-content">
                     <div class="modal-header bg-light border-bottom">
                         <h5 class="modal-title d-flex align-items-center gap-2" id="ceLeadModalTitle">
                             <i class="fa-regular fa-user-plus text-primary"></i> <span>Cadastrar Registro</span>
@@ -1210,18 +1337,18 @@ include 'includes/header.php';
                                                     <div class="col-md-6 mb-3">
                                                         <label class="form-label">Cidade</label>
                                                         <div class="position-relative">
-                                                            <input id="ceLeadCity" class="form-control" placeholder="Cidade">
+                                                            <input id="ceLeadCity" class="form-control" placeholder="Cidade-UF">
                                                             <div id="ceLeadCitySuggestions" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index:1080; max-height: 240px; overflow-y: auto;"></div>
                                                         </div>
                                                         <div class="form-text d-flex justify-content-between align-items-center">
-                                                            <span>Digite a cidade para ver sugestões com UF.</span>
+                                                            <span>Digite a cidade e selecione para salvar como Cidade-UF.</span>
                                                             <span id="ceLeadCityState" class="badge bg-light text-dark border">UF</span>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Anexar Arquivos</label>
-                                                    <div id="ceAnexosDropzone" style="border:2px dashed #adb5bd;border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;" onclick="document.getElementById('ceLeadAnexos').click()">
+                                                    <div id="ceAnexosDropzone" onclick="document.getElementById('ceLeadAnexos').click()">
                                                         <i class="fa fa-cloud-upload fa-2x text-muted mb-2"></i>
                                                         <div class="text-muted small">Arraste e solte arquivos aqui ou <span style="color:#0d6efd;text-decoration:underline;">clique para selecionar</span></div>
                                                         <div class="form-text mt-1">PDF, DOC, DOCX, CSV, XLS, XLSX, XML, TXT, RTF, ODT, PPTX, JPG, JPEG, PNG, GIF, BMP, WEBP, JFIF (max 10MB cada)</div>
@@ -1410,6 +1537,7 @@ include 'includes/header.php';
                 const clearFiltersBtn = document.getElementById('ceClearFilters');
                 const cards = Array.from(document.querySelectorAll('[data-card]'));
                 const countBadges = Array.from(document.querySelectorAll('[data-count-for]'));
+                const totalBadges = Array.from(document.querySelectorAll('[data-total-for]'));
                 const summaryValues = Array.from(document.querySelectorAll('[data-summary-stage]'));
                 const kpiTotal = document.getElementById('ceKpiTotal');
                 const kpiValue = document.getElementById('ceKpiValue');
@@ -1443,6 +1571,8 @@ include 'includes/header.php';
                 const leadCityState = document.getElementById('ceLeadCityState');
                 const leadAnexosInput = document.getElementById('ceLeadAnexos');
                 const leadAnexosNames = document.getElementById('ceAnexosFileNames');
+                const leadAnexosDropzone = document.getElementById('ceAnexosDropzone');
+                const leadUploadAnexosNow = document.getElementById('ceUploadAnexosNow');
                 const leadAttachmentsContainer = document.getElementById('ceLeadAttachments');
                 const leadSourceInput = document.getElementById('ceLeadSource');
                 const leadSourceDisplay = <?php echo json_encode($displayName, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
@@ -1468,6 +1598,9 @@ include 'includes/header.php';
                 const stageDeleteBtn = document.getElementById('ceStageDeleteBtn');
                 const newStageBtn = document.getElementById('ceNewStageBtn');
                 const tableFilters = {};
+                let ceCityDataCache = null;
+                let ceCityDataLoading = null;
+                let ceCitySuggestionTimer = null;
                 function getModalInstance(modalEl) {
                     if (!modalEl) return null;
                     if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
@@ -1509,6 +1642,14 @@ include 'includes/header.php';
                         const stage = badge.dataset.countFor;
                         const visibleCount = cards.filter((card) => card.dataset.stage === stage && card.style.display !== 'none').length;
                         badge.textContent = String(visibleCount);
+                    });
+
+                    totalBadges.forEach((badge) => {
+                        const stage = badge.dataset.totalFor;
+                        const visibleTotal = cards
+                            .filter((card) => card.dataset.stage === stage && card.style.display !== 'none')
+                            .reduce((sum, card) => sum + (Number(card.dataset.value || 0) || 0), 0);
+                        badge.textContent = formatMoney(visibleTotal);
                     });
 
                     summaryValues.forEach((summary) => {
@@ -1862,6 +2003,115 @@ include 'includes/header.php';
                     }
                 }
 
+                async function loadCeCityData() {
+                    if (Array.isArray(ceCityDataCache)) return ceCityDataCache;
+                    if (ceCityDataLoading) return ceCityDataLoading;
+                    ceCityDataLoading = fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios')
+                        .then((res) => {
+                            if (!res.ok) throw new Error('Falha ao carregar municipios');
+                            return res.json();
+                        })
+                        .then((rows) => {
+                            ceCityDataCache = (rows || []).map((row) => ({
+                                name: row?.nome || '',
+                                uf: row?.microrregiao?.mesorregiao?.UF?.sigla || '',
+                                state: row?.microrregiao?.mesorregiao?.UF?.nome || ''
+                            })).filter((item) => item.name && item.uf);
+                            return ceCityDataCache;
+                        })
+                        .catch((err) => {
+                            console.warn('loadCeCityData failed', err);
+                            ceCityDataCache = [];
+                            return ceCityDataCache;
+                        })
+                        .finally(() => { ceCityDataLoading = null; });
+                    return ceCityDataLoading;
+                }
+
+                function splitCeCityUf(value) {
+                    const raw = String(value || '').trim();
+                    const match = raw.match(/^(.+?)[\s-]+([A-Z]{2})$/i);
+                    return match ? { city: match[1].trim(), uf: match[2].toUpperCase() } : { city: raw, uf: '' };
+                }
+
+                function hideCeCitySuggestions() {
+                    const box = document.getElementById('ceLeadCitySuggestions');
+                    if (!box) return;
+                    box.innerHTML = '';
+                    box.classList.add('d-none');
+                }
+
+                function setCeCityStateBadge(uf, stateName = '') {
+                    if (!leadCityState) return;
+                    leadCityState.textContent = uf ? `${uf}${stateName ? ' - ' + stateName : ''}` : 'UF';
+                }
+
+                function renderCeCitySuggestions(items) {
+                    const box = document.getElementById('ceLeadCitySuggestions');
+                    if (!box) return;
+                    box.innerHTML = '';
+                    if (!items.length) {
+                        box.classList.add('d-none');
+                        return;
+                    }
+                    items.slice(0, 8).forEach((item) => {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.className = 'list-group-item list-group-item-action';
+                        button.innerHTML = `<strong>${escapeHtml(item.name)}</strong><span class="text-muted ms-2">${escapeHtml(item.uf)}</span>`;
+                        button.addEventListener('click', () => {
+                            if (leadCityInput) leadCityInput.value = `${item.name}-${item.uf}`;
+                            setCeCityStateBadge(item.uf, item.state);
+                            hideCeCitySuggestions();
+                        });
+                        box.appendChild(button);
+                    });
+                    box.classList.remove('d-none');
+                }
+
+                async function suggestCeCities(query) {
+                    const parsed = splitCeCityUf(query);
+                    const normalizedQuery = normalize(parsed.city || query);
+                    if (normalizedQuery.length < 2) {
+                        hideCeCitySuggestions();
+                        setCeCityStateBadge('');
+                        return;
+                    }
+                    const cities = await loadCeCityData();
+                    renderCeCitySuggestions(cities
+                        .filter((item) => normalize(item.name).includes(normalizedQuery))
+                        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+                }
+
+                async function normalizeCeCityValue() {
+                    if (!leadCityInput) return '';
+                    const value = leadCityInput.value.trim();
+                    if (!value) {
+                        setCeCityStateBadge('');
+                        return '';
+                    }
+                    const parsed = splitCeCityUf(value);
+                    if (!parsed.uf && !Array.isArray(ceCityDataCache)) {
+                        await loadCeCityData();
+                    }
+                    const match = Array.isArray(ceCityDataCache)
+                        ? ceCityDataCache.find((item) => normalize(item.name) === normalize(parsed.city))
+                        : null;
+                    const uf = match?.uf || parsed.uf || '';
+                    const city = match?.name || parsed.city || value;
+                    setCeCityStateBadge(uf, match?.state || '');
+                    leadCityInput.value = uf ? `${city}-${uf}` : city.charAt(0).toUpperCase() + city.slice(1);
+                    return leadCityInput.value.trim();
+                }
+
+                function updateCeAnexosNames() {
+                    if (!leadAnexosInput || !leadAnexosNames) return;
+                    const files = Array.from(leadAnexosInput.files || []);
+                    leadAnexosNames.innerHTML = files.length
+                        ? files.map((file) => `<div><i class="fa fa-paperclip me-1"></i>${escapeHtml(file.name)}</div>`).join('')
+                        : '';
+                }
+
                 function resetLeadModal() {
                     if (!leadForm) return;
                     leadForm.reset();
@@ -1882,6 +2132,10 @@ include 'includes/header.php';
                     if (leadConsumoInput) leadConsumoInput.value = '';
                     if (leadEstimativaInput) leadEstimativaInput.value = '';
                     if (leadFormaPagamentoInput) leadFormaPagamentoInput.value = '';
+                    if (leadAnexosInput) leadAnexosInput.value = '';
+                    if (leadAnexosNames) leadAnexosNames.innerHTML = '';
+                    hideCeCitySuggestions();
+                    setCeCityStateBadge('');
                     if (leadAttachmentsContainer) {
                         leadAttachmentsContainer.innerHTML = '<div class="text-muted small">Nenhum anexo carregado.</div>';
                     }
@@ -1899,16 +2153,51 @@ include 'includes/header.php';
                         const row = document.createElement('div');
                         row.className = 'border rounded p-2 bg-light d-flex justify-content-between align-items-center gap-3';
                         const sizeLabel = attachment.file_size ? `${(Number(attachment.file_size) / 1024).toFixed(1)} KB` : '';
+                        const isInternal = attachment.origin === 'internal' || attachment.demand_id;
+                        const downloadUrl = isInternal
+                            ? `includes/consultoria_interna_demandas_api.php?action=download_attachment&attachment_id=${encodeURIComponent(attachment.attachment_id)}`
+                            : `${apiBase}?action=download_attachment&attachment_id=${encodeURIComponent(attachment.attachment_id)}${apiConsultorQuery}`;
                         row.innerHTML = `
                             <div class="min-w-0">
-                                <div class="fw-semibold text-truncate">${attachment.filename || 'Anexo'}</div>
+                                <div class="fw-semibold text-truncate">${escapeHtml(attachment.filename || 'Anexo')}</div>
                                 <div class="small text-muted">${attachment.created_at || ''}${sizeLabel ? ` • ${sizeLabel}` : ''}</div>
                             </div>
-                            <a class="btn btn-sm btn-outline-primary flex-shrink-0" href="includes/consultoria_interna_demandas_api.php?action=download_attachment&attachment_id=${encodeURIComponent(attachment.attachment_id)}" target="_blank" rel="noopener">
-                                <i class="fa fa-download me-1"></i>Baixar
-                            </a>
+                            <div class="d-flex gap-2 flex-shrink-0">
+                                <a class="btn btn-sm btn-outline-primary" href="${downloadUrl}" target="_blank" rel="noopener">
+                                    <i class="fa fa-download me-1"></i>Baixar
+                                </a>
+                                ${isInternal ? '' : `<button type="button" class="btn btn-sm btn-outline-danger" data-ce-delete-attachment="${encodeURIComponent(attachment.attachment_id)}"><i class="fa fa-trash me-1"></i>Excluir</button>`}
+                            </div>
                         `;
                         leadAttachmentsContainer.appendChild(row);
+                    });
+                }
+
+                if (leadAttachmentsContainer) {
+                    leadAttachmentsContainer.addEventListener('click', async (event) => {
+                        const button = event.target.closest('[data-ce-delete-attachment]');
+                        if (!button) return;
+                        const attachmentId = decodeURIComponent(button.dataset.ceDeleteAttachment || '');
+                        const leadId = String(leadIdInput.value || '').trim();
+                        if (!attachmentId || !leadId) return;
+                        if (!confirm('Excluir este anexo? O arquivo tambem sera removido da pasta.')) return;
+
+                        const originalHtml = button.innerHTML;
+                        button.disabled = true;
+                        button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Excluindo...';
+                        try {
+                            const payload = new FormData();
+                            payload.set('attachment_id', attachmentId);
+                            const res = await fetch(`${apiBase}?action=delete_attachment${apiConsultorQuery}`, { method: 'POST', body: payload });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok || data.error) throw new Error(data.error || 'Falha ao excluir anexo');
+                            const refreshed = await loadLeadForEdit(leadId);
+                            renderLeadAttachments(Array.isArray(refreshed.attachments) ? refreshed.attachments : []);
+                        } catch (error) {
+                            alert(error.message || 'Erro ao excluir anexo');
+                            button.disabled = false;
+                            button.innerHTML = originalHtml;
+                        }
                     });
                 }
 
@@ -1925,6 +2214,10 @@ include 'includes/header.php';
                         leadPhoneInput.value = card.phone || '';
                         if (leadCpfInput) leadCpfInput.value = card.cpf_cnpj || '';
                         leadCityInput.value = card.cidade || '';
+                        if (card.cidade) {
+                            const parsedCity = splitCeCityUf(card.cidade);
+                            setCeCityStateBadge(parsedCity.uf || '');
+                        }
                         if (leadSourceInput) leadSourceInput.value = card.source || leadSourceDisplay;
                         if (leadStageInput) leadStageInput.value = String(card.stage_id || '');
                         ensureSelectOption(leadStatusInput, card.status || '');
@@ -1955,12 +2248,12 @@ include 'includes/header.php';
                 async function saveLeadForm(event) {
                     event.preventDefault();
                     const id = String(leadIdInput.value || '').trim();
-                    const payload = new URLSearchParams();
+                    const payload = new FormData();
                     payload.set('name', leadNameInput.value.trim());
                     payload.set('email', leadEmailInput ? leadEmailInput.value.trim() : '');
                     payload.set('phone', leadPhoneInput.value.trim());
                     payload.set('cpf_cnpj', leadCpfInput ? leadCpfInput.value.trim() : '');
-                    payload.set('cidade', leadCityInput.value.trim());
+                    payload.set('cidade', await normalizeCeCityValue());
                     payload.set('source', leadSourceDisplay);
                     if (leadStageInput) payload.set('stage_id', leadStageInput.value.trim());
                     payload.set('status', leadStatusInput.value.trim());
@@ -1974,6 +2267,9 @@ include 'includes/header.php';
                     if (id) {
                         payload.set('id', id);
                     }
+                    if (leadAnexosInput && leadAnexosInput.files && leadAnexosInput.files.length) {
+                        Array.from(leadAnexosInput.files).forEach((file) => payload.append('anexos[]', file));
+                    }
 
                     leadSaveBtn.disabled = true;
                     const originalText = leadSaveBtn.textContent;
@@ -1982,8 +2278,7 @@ include 'includes/header.php';
                         const action = id ? 'update' : 'add';
                         const res = await fetch(`${apiBase}?action=${action}${apiConsultorQuery}`, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                            body: payload.toString()
+                            body: payload
                         });
                         const data = await res.json().catch(() => ({}));
                         if (!res.ok || data.error) {
@@ -2424,6 +2719,100 @@ include 'includes/header.php';
 
                 if (leadForm) {
                     leadForm.addEventListener('submit', saveLeadForm);
+                }
+
+                if (leadCityInput) {
+                    leadCityInput.setAttribute('autocomplete', 'off');
+                    leadCityInput.addEventListener('input', () => {
+                        clearTimeout(ceCitySuggestionTimer);
+                        ceCitySuggestionTimer = setTimeout(() => suggestCeCities(leadCityInput.value), 220);
+                    });
+                    leadCityInput.addEventListener('focus', () => {
+                        if ((leadCityInput.value || '').trim().length >= 2) suggestCeCities(leadCityInput.value);
+                    });
+                    leadCityInput.addEventListener('blur', () => {
+                        setTimeout(() => {
+                            normalizeCeCityValue();
+                            hideCeCitySuggestions();
+                        }, 160);
+                    });
+                    leadCityInput.addEventListener('keydown', (event) => {
+                        if (event.key === 'Escape') hideCeCitySuggestions();
+                    });
+                }
+
+                document.addEventListener('click', (event) => {
+                    const box = document.getElementById('ceLeadCitySuggestions');
+                    if (!leadCityInput || !box) return;
+                    if (leadCityInput.contains(event.target) || box.contains(event.target)) return;
+                    hideCeCitySuggestions();
+                });
+
+                if (leadAnexosInput) {
+                    leadAnexosInput.addEventListener('change', updateCeAnexosNames);
+                }
+
+                if (leadAnexosDropzone && leadAnexosInput) {
+                    ['dragenter', 'dragover'].forEach((eventName) => {
+                        leadAnexosDropzone.addEventListener(eventName, (event) => {
+                            event.preventDefault();
+                            leadAnexosDropzone.style.borderColor = '#0d6efd';
+                            leadAnexosDropzone.style.background = 'rgba(13,110,253,0.05)';
+                        });
+                    });
+                    ['dragleave', 'drop'].forEach((eventName) => {
+                        leadAnexosDropzone.addEventListener(eventName, (event) => {
+                            event.preventDefault();
+                            leadAnexosDropzone.style.borderColor = '#adb5bd';
+                            leadAnexosDropzone.style.background = '';
+                        });
+                    });
+                    leadAnexosDropzone.addEventListener('drop', (event) => {
+                        const files = event.dataTransfer && event.dataTransfer.files ? event.dataTransfer.files : null;
+                        if (!files || !files.length) return;
+                        try {
+                            const transfer = new DataTransfer();
+                            Array.from(files).forEach((file) => transfer.items.add(file));
+                            leadAnexosInput.files = transfer.files;
+                            updateCeAnexosNames();
+                        } catch (e) {
+                            alert('Seu navegador nao permitiu anexar por arrastar. Use o clique para selecionar.');
+                        }
+                    });
+                }
+
+                if (leadUploadAnexosNow) {
+                    leadUploadAnexosNow.addEventListener('click', async () => {
+                        const id = String(leadIdInput.value || '').trim();
+                        if (!id) {
+                            alert('Salve o registro antes de enviar anexos avulsos.');
+                            return;
+                        }
+                        if (!leadAnexosInput || !leadAnexosInput.files || !leadAnexosInput.files.length) {
+                            alert('Selecione ao menos um arquivo.');
+                            return;
+                        }
+                        const payload = new FormData();
+                        payload.set('id', id);
+                        Array.from(leadAnexosInput.files).forEach((file) => payload.append('anexos[]', file));
+                        const originalHtml = leadUploadAnexosNow.innerHTML;
+                        leadUploadAnexosNow.disabled = true;
+                        leadUploadAnexosNow.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Enviando...';
+                        try {
+                            const res = await fetch(`${apiBase}?action=upload_attachment${apiConsultorQuery}`, { method: 'POST', body: payload });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok || data.error) throw new Error(data.error || 'Falha ao enviar anexo');
+                            const refreshed = await loadLeadForEdit(id);
+                            renderLeadAttachments(Array.isArray(refreshed.attachments) ? refreshed.attachments : []);
+                            leadAnexosInput.value = '';
+                            if (leadAnexosNames) leadAnexosNames.innerHTML = '';
+                        } catch (error) {
+                            alert(error.message || 'Erro ao enviar anexos');
+                        } finally {
+                            leadUploadAnexosNow.disabled = false;
+                            leadUploadAnexosNow.innerHTML = originalHtml;
+                        }
+                    });
                 }
 
                 [searchInput, typeFilter, stageFilter, cityFilter].forEach((element) => {
