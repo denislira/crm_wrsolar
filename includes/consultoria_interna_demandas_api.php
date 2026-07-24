@@ -221,6 +221,53 @@ try {
         }
     }
 
+    if ($action === 'delete') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) {
+            throw new Exception('ID invalido');
+        }
+
+        $stmt = $pdo->prepare('SELECT id FROM consultoria_interna_demandas WHERE id = ? LIMIT 1');
+        $stmt->execute([$id]);
+        if (!$stmt->fetchColumn()) {
+            throw new Exception('Demanda nao encontrada');
+        }
+
+        $stmt = $pdo->prepare('SELECT file_path FROM consultoria_interna_demandas_attachments WHERE demand_id = ?');
+        $stmt->execute([$id]);
+        $attachments = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $pdo->beginTransaction();
+        try {
+            $del = $pdo->prepare('DELETE FROM consultoria_interna_demandas WHERE id = ? LIMIT 1');
+            $del->execute([$id]);
+
+            foreach ($attachments as $filePath) {
+                $path = dirname(__DIR__) . '/' . ltrim((string)$filePath, '/\\');
+                if ($path && is_file($path)) {
+                    @unlink($path);
+                }
+            }
+
+            $dir = dirname(__DIR__) . '/uploads/demandas/' . $id;
+            if (is_dir($dir)) {
+                $files = @scandir($dir);
+                if (is_array($files) && !array_diff($files, ['.', '..'])) {
+                    @rmdir($dir);
+                }
+            }
+
+            $pdo->commit();
+            echo json_encode(['ok' => true]);
+            exit;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
     if ($action === 'accept') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id <= 0) {

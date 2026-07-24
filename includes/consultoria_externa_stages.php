@@ -93,6 +93,22 @@ function ce_ensure_stage_tables(PDO $pdo): void {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+    $pdo->exec("CREATE TABLE IF NOT EXISTS consultoria_externa_attachments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        item_id INT NOT NULL,
+        user_id INT NOT NULL,
+        filename VARCHAR(255) NOT NULL,
+        stored_name VARCHAR(255) NOT NULL,
+        file_path VARCHAR(500) NOT NULL,
+        mimetype VARCHAR(120) DEFAULT NULL,
+        file_size INT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ce_item_attachment_item (item_id),
+        INDEX idx_ce_item_attachment_user (user_id),
+        FOREIGN KEY (item_id) REFERENCES consultoria_externa_itens(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
     $demandCols = [];
     try {
         $demandCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'consultoria_interna_demandas'")->fetchAll(PDO::FETCH_COLUMN);

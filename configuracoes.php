@@ -255,14 +255,16 @@ body.theme-dark .text-muted {
 }
 
 .settings-page .form-control,
-.settings-page .form-select {
+.settings-page .form-select,
+.settings-page .form-check-input {
     border-radius: 10px;
-    border-color: #d5e2f3;
+    border-color: #8fa6c1;
 }
 
 .settings-page .form-control:focus,
-.settings-page .form-select:focus {
-    border-color: #84b4f8;
+.settings-page .form-select:focus,
+.settings-page .form-check-input:focus {
+    border-color: #4f7fb8;
     box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
 }
 
@@ -355,9 +357,10 @@ body.theme-dark .settings-page .table-striped tbody tr:hover {
 }
 
 body.theme-dark .settings-page .form-control,
-body.theme-dark .settings-page .form-select {
+body.theme-dark .settings-page .form-select,
+body.theme-dark .settings-page .form-check-input {
     background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.32);
     color: #e6eef8;
 }
 
@@ -380,6 +383,40 @@ body.theme-dark .settings-page #appearance #appearancePreview {
     border-color: rgba(255, 255, 255, 0.1) !important;
     background: linear-gradient(155deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.03) 100%) !important;
     box-shadow: none;
+}
+
+#addUserModal .form-control,
+#addUserModal .form-select,
+#addTeamModal .form-control,
+#addTeamModal .form-select,
+#editTeamModal .form-control,
+#editTeamModal .form-select,
+#changePasswordModal .form-control,
+#changePasswordModal .form-select {
+    border-color: #8fa6c1;
+}
+
+#addUserModal .form-control:focus,
+#addUserModal .form-select:focus,
+#addTeamModal .form-control:focus,
+#addTeamModal .form-select:focus,
+#editTeamModal .form-control:focus,
+#editTeamModal .form-select:focus,
+#changePasswordModal .form-control:focus,
+#changePasswordModal .form-select:focus {
+    border-color: #4f7fb8;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
+}
+
+body.theme-dark #addUserModal .form-control,
+body.theme-dark #addUserModal .form-select,
+body.theme-dark #addTeamModal .form-control,
+body.theme-dark #addTeamModal .form-select,
+body.theme-dark #editTeamModal .form-control,
+body.theme-dark #editTeamModal .form-select,
+body.theme-dark #changePasswordModal .form-control,
+body.theme-dark #changePasswordModal .form-select {
+    border-color: rgba(255, 255, 255, 0.32);
 }
 
 @media (max-width: 991px) {
@@ -461,13 +498,13 @@ body.theme-dark .settings-page #appearance #appearancePreview {
 .edit-user-modal .form-control,
 .edit-user-modal .form-select {
     border-radius: 10px;
-    border-color: #d9e6f6;
+    border-color: #8fa6c1;
     min-height: 42px;
 }
 
 .edit-user-modal .form-control:focus,
 .edit-user-modal .form-select:focus {
-    border-color: #7eb4ff;
+    border-color: #4f7fb8;
     box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
 }
 
@@ -525,7 +562,7 @@ body.theme-dark .edit-user-modal .form-label {
 body.theme-dark .edit-user-modal .form-control,
 body.theme-dark .edit-user-modal .form-select {
     background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.32);
     color: #e6eef8;
 }
 

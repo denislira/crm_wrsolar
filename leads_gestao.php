@@ -275,7 +275,7 @@ include 'includes/header.php';
     <!-- Modals: lead + reminder (placed outside main content to avoid nesting issues) -->
     <div class="modal fade" id="leadModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-centered">
-            <div class="modal-content">
+            <div class="modal-content lead-modal-content">
                 <div class="modal-header bg-light border-bottom">
                     <h5 class="modal-title d-flex align-items-center gap-2" id="leadModalTitle">
                         <i class="fa-regular fa-user-plus text-primary"></i> <span>Novo Lead</span>
@@ -323,7 +323,7 @@ include 'includes/header.php';
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Anexar Arquivos</label>
-                                                <div id="anexos-dropzone" style="border:2px dashed #adb5bd;border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;" onclick="document.getElementById('lead-anexos').click()">
+                                                <div id="anexos-dropzone" onclick="document.getElementById('lead-anexos').click()">
                                                     <i class="fa fa-cloud-upload fa-2x text-muted mb-2"></i>
                                                     <div class="text-muted small">Arraste e solte arquivos aqui ou <span style="color:#0d6efd;text-decoration:underline;">clique para selecionar</span></div>
                                                     <div class="form-text mt-1">PDF, DOC, DOCX, CSV, XLS, XLSX, XML, TXT, RTF, ODT, PPTX, JPG, JPEG, PNG, GIF, BMP, WEBP, JFIF (max 10MB cada)</div>

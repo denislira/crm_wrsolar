@@ -246,6 +246,28 @@ include 'includes/header.php';
                 background: #ffe4e6;
                 color: #e11d48;
             }
+            .dm-card-actions {
+                display: inline-flex;
+                align-items: center;
+                gap: .35rem;
+                flex-shrink: 0;
+            }
+            .dm-card-delete {
+                width: 28px;
+                height: 28px;
+                border: 0;
+                border-radius: 8px;
+                background: transparent;
+                color: #94a3b8;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0;
+            }
+            .dm-card-delete:hover {
+                background: #fee2e2;
+                color: #b91c1c;
+            }
             .dm-card-meta {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
@@ -700,8 +722,9 @@ include 'includes/header.php';
                     }
 
                     listEl.innerHTML = list.map((row) => `
-                        <button
-                            type="button"
+                        <div
+                            role="button"
+                            tabindex="0"
                             class="dm-card ${String(row.demand_id) === String(selectedId) ? 'active' : ''}"
                             data-select-demand="${escapeHtml(row.demand_id)}"
                         >
@@ -710,7 +733,10 @@ include 'includes/header.php';
                                     <div class="dm-id">ID #${escapeHtml(row.external_item_id)}</div>
                                     <h2 class="dm-card-title">${escapeHtml(row.external_consultor || 'Consultor externo')}</h2>
                                 </div>
-                                <span class="dm-priority ${priorityClass(row)}">${priorityLabel(row)}</span>
+                                <span class="dm-card-actions">
+                                    <span class="dm-priority ${priorityClass(row)}">${priorityLabel(row)}</span>
+                                    <button type="button" class="dm-card-delete" data-action="delete" data-id="${escapeHtml(row.demand_id)}" title="Excluir demanda" aria-label="Excluir demanda"><i class="fa-solid fa-trash-can"></i></button>
+                                </span>
                             </div>
                             <div class="dm-card-meta">
                                 <span><i class="fa-solid fa-user-plus"></i>${escapeHtml(row.client_name || 'Registro sem nome')}</span>
@@ -718,22 +744,30 @@ include 'includes/header.php';
                                 <span><i class="fa-solid fa-chart-simple"></i><strong>${money(row.value)}</strong></span>
                                 <span><i class="fa-solid fa-layer-group"></i>${escapeHtml(row.stage_name || 'Sem coluna')}</span>
                             </div>
-                        </button>
+                        </div>
                     `).join('');
                 }
 
                 function actionButtons(row) {
                     const id = escapeHtml(row.demand_id);
+                    const deleteButton = `<button class="btn btn-outline-danger" data-action="delete" data-id="${id}"><i class="fa-solid fa-trash-can me-1"></i>Excluir</button>`;
                     if (row.demand_status === 'done') {
-                        return `<button class="btn btn-outline-secondary" data-action="reopen" data-id="${id}">Reabrir demanda</button>`;
+                        return `
+                            <button class="btn btn-outline-secondary" data-action="reopen" data-id="${id}">Reabrir demanda</button>
+                            ${deleteButton}
+                        `;
                     }
                     if (row.demand_status === 'accepted') {
                         return `
                             <button class="btn btn-success" data-action="complete" data-id="${id}">Concluir</button>
                             <button class="btn btn-outline-secondary" data-action="reopen" data-id="${id}">Voltar para fila</button>
+                            ${deleteButton}
                         `;
                     }
-                    return `<button class="btn btn-primary" data-action="accept" data-id="${id}">Assumir demanda</button>`;
+                    return `
+                        <button class="btn btn-primary" data-action="accept" data-id="${id}">Assumir demanda</button>
+                        ${deleteButton}
+                    `;
                 }
 
                 function renderEmptyDetail() {
@@ -937,7 +971,31 @@ include 'includes/header.php';
                     });
                 });
 
-                listEl.addEventListener('click', (event) => {
+                listEl.addEventListener('keydown', (event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    const card = event.target.closest('[data-select-demand]');
+                    if (!card || event.target.closest('[data-action]')) return;
+                    event.preventDefault();
+                    selectedId = card.dataset.selectDemand;
+                    renderList();
+                    renderDetail(rows.find((row) => String(row.demand_id) === String(selectedId)));
+                });
+
+                listEl.addEventListener('click', async (event) => {
+                    const deleteBtn = event.target.closest('[data-action="delete"][data-id]');
+                    if (deleteBtn) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!window.confirm('Excluir esta demanda da fila? O card da consultoria externa nao sera apagado.')) return;
+                        deleteBtn.disabled = true;
+                        try {
+                            await postAction('delete', deleteBtn.dataset.id);
+                        } catch (error) {
+                            alert(error.message || 'Falha ao excluir demanda');
+                            deleteBtn.disabled = false;
+                        }
+                        return;
+                    }
                     const card = event.target.closest('[data-select-demand]');
                     if (!card) return;
                     selectedId = card.dataset.selectDemand;
@@ -973,6 +1031,9 @@ include 'includes/header.php';
                     }
                     const button = event.target.closest('[data-action][data-id]');
                     if (!button) return;
+                    if (button.dataset.action === 'delete' && !window.confirm('Excluir esta demanda da fila? O card da consultoria externa nao sera apagado.')) {
+                        return;
+                    }
                     button.disabled = true;
                     try {
                         await postAction(button.dataset.action, button.dataset.id);

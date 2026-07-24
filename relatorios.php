@@ -29,7 +29,7 @@ $tabAliases = ['sql' => 'qualificacao', 'speed-to-lead' => 'sla'];
 if (isset($tabAliases[$activeTab])) {
     $activeTab = $tabAliases[$activeTab];
 }
-$allowedTabs = ['overview','funnel','temporal','consultores','consultores_externos','sources','daily','qualificacao','sla','financeiro'];
+$allowedTabs = ['overview','funnel','temporal','consultores','consultores_externos','anuncios','sources','daily','qualificacao','sla','financeiro'];
 if (!in_array($activeTab, $allowedTabs, true)) $activeTab = 'overview';
 
 // Daily report (leads created on a specific day)
@@ -1147,6 +1147,181 @@ try {
     $externalConsultantsInsights = ['Nao foi possivel gerar a analise de consultores externos.'];
 }
 
+// ============================================================
+// Leads de Anuncios: WhatsApp clicks + leads_anuncios analytics
+// ============================================================
+$adsSummary = [
+    'clicks_7d' => 0,
+    'clicks_30d' => 0,
+    'leads_7d' => 0,
+    'leads_30d' => 0,
+    'conv_7d' => 0,
+    'conv_30d' => 0,
+    'pending_leads' => 0,
+    'promoted_leads' => 0,
+];
+$adsDailyRows = [];
+$adsTopButtons = [];
+$adsTopCampaigns = [];
+$adsRecentLeads = [];
+$adsWarnings = [];
+
+try {
+    $adsTablesStmt = $pdo->prepare("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('whatsapp_click_events','leads_anuncios')");
+    $adsTablesStmt->execute();
+    $adsTables = $adsTablesStmt->fetchAll(PDO::FETCH_COLUMN);
+    $hasClicksTable = in_array('whatsapp_click_events', $adsTables, true);
+    $hasAdsLeadsTable = in_array('leads_anuncios', $adsTables, true);
+
+    $clickDateCol = null;
+    $clickSourceCol = null;
+    if ($hasClicksTable) {
+        $clickCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'whatsapp_click_events'")->fetchAll(PDO::FETCH_COLUMN);
+        foreach (['clicked_at','created_at'] as $candidate) {
+            if (in_array($candidate, $clickCols, true)) { $clickDateCol = $candidate; break; }
+        }
+        foreach (['button_source','event','button_text'] as $candidate) {
+            if (in_array($candidate, $clickCols, true)) { $clickSourceCol = $candidate; break; }
+        }
+        if ($clickDateCol) {
+            $clickSummaryStmt = $pdo->query("
+                SELECT
+                    SUM(CASE WHEN {$clickDateCol} >= NOW() - INTERVAL 7 DAY THEN 1 ELSE 0 END) AS clicks_7d,
+                    SUM(CASE WHEN {$clickDateCol} >= NOW() - INTERVAL 30 DAY THEN 1 ELSE 0 END) AS clicks_30d
+                FROM whatsapp_click_events
+            ");
+            $clickSummary = $clickSummaryStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $adsSummary['clicks_7d'] = (int)($clickSummary['clicks_7d'] ?? 0);
+            $adsSummary['clicks_30d'] = (int)($clickSummary['clicks_30d'] ?? 0);
+
+            if ($clickSourceCol) {
+                $topBtnStmt = $pdo->query("
+                    SELECT COALESCE(NULLIF({$clickSourceCol},''),'unknown') AS label, COUNT(*) AS total
+                    FROM whatsapp_click_events
+                    WHERE {$clickDateCol} >= NOW() - INTERVAL 30 DAY
+                    GROUP BY label
+                    ORDER BY total DESC
+                    LIMIT 10
+                ");
+                $adsTopButtons = $topBtnStmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+        } else {
+            $adsWarnings[] = 'Tabela whatsapp_click_events sem coluna de data reconhecida.';
+        }
+    } else {
+        $adsWarnings[] = 'Tabela whatsapp_click_events nao encontrada.';
+    }
+
+    $adsLeadDateCol = null;
+    $adsLeadCols = [];
+    if ($hasAdsLeadsTable) {
+        $adsLeadCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads_anuncios'")->fetchAll(PDO::FETCH_COLUMN);
+        foreach (['created_at','data_cadastro','data_criacao','createdon','created'] as $candidate) {
+            if (in_array($candidate, $adsLeadCols, true)) { $adsLeadDateCol = $candidate; break; }
+        }
+        if ($adsLeadDateCol) {
+            $leadSummaryStmt = $pdo->query("
+                SELECT
+                    SUM(CASE WHEN {$adsLeadDateCol} >= NOW() - INTERVAL 7 DAY THEN 1 ELSE 0 END) AS leads_7d,
+                    SUM(CASE WHEN {$adsLeadDateCol} >= NOW() - INTERVAL 30 DAY THEN 1 ELSE 0 END) AS leads_30d
+                FROM leads_anuncios
+            ");
+            $leadSummary = $leadSummaryStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $adsSummary['leads_7d'] = (int)($leadSummary['leads_7d'] ?? 0);
+            $adsSummary['leads_30d'] = (int)($leadSummary['leads_30d'] ?? 0);
+        } else {
+            $adsWarnings[] = 'Tabela leads_anuncios sem coluna de data reconhecida.';
+        }
+
+        if (in_array('transferred_to_kanban', $adsLeadCols, true)) {
+            $transferStmt = $pdo->query("
+                SELECT
+                    SUM(CASE WHEN COALESCE(transferred_to_kanban,0) = 0 THEN 1 ELSE 0 END) AS pending_leads,
+                    SUM(CASE WHEN COALESCE(transferred_to_kanban,0) = 1 THEN 1 ELSE 0 END) AS promoted_leads
+                FROM leads_anuncios
+            ");
+            $transferRow = $transferStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $adsSummary['pending_leads'] = (int)($transferRow['pending_leads'] ?? 0);
+            $adsSummary['promoted_leads'] = (int)($transferRow['promoted_leads'] ?? 0);
+        }
+
+        $campaignCol = null;
+        foreach (['utm_campanha','utm_campaign','campaign','campanha','source'] as $candidate) {
+            if (in_array($candidate, $adsLeadCols, true)) { $campaignCol = $candidate; break; }
+        }
+        if ($campaignCol) {
+            $campaignWhere = $adsLeadDateCol ? "WHERE {$adsLeadDateCol} >= NOW() - INTERVAL 30 DAY" : "";
+            $campaignStmt = $pdo->query("
+                SELECT COALESCE(NULLIF({$campaignCol},''),'Sem campanha') AS label, COUNT(*) AS total
+                FROM leads_anuncios
+                {$campaignWhere}
+                GROUP BY label
+                ORDER BY total DESC
+                LIMIT 10
+            ");
+            $adsTopCampaigns = $campaignStmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        $nameExpr = "''";
+        foreach (['name','nome','contact_name'] as $candidate) {
+            if (in_array($candidate, $adsLeadCols, true)) { $nameExpr = $candidate; break; }
+        }
+        $phoneExpr = "''";
+        foreach (['phone','telefone','whatsapp'] as $candidate) {
+            if (in_array($candidate, $adsLeadCols, true)) { $phoneExpr = $candidate; break; }
+        }
+        $sourceExpr = in_array('source', $adsLeadCols, true) ? 'source' : ($campaignCol ?: "''");
+        $transferredExpr = in_array('transferred_to_kanban', $adsLeadCols, true) ? 'COALESCE(transferred_to_kanban,0)' : '0';
+        $recentDateExpr = $adsLeadDateCol ?: 'id';
+        $recentStmt = $pdo->query("
+            SELECT id, {$nameExpr} AS name, {$phoneExpr} AS phone, {$sourceExpr} AS source, {$transferredExpr} AS transferred_to_kanban, {$recentDateExpr} AS created_ref
+            FROM leads_anuncios
+            ORDER BY {$recentDateExpr} DESC
+            LIMIT 80
+        ");
+        $adsRecentLeads = $recentStmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $adsWarnings[] = 'Tabela leads_anuncios nao encontrada.';
+    }
+
+    if ($clickDateCol || $adsLeadDateCol) {
+        for ($i = 13; $i >= 0; $i--) {
+            $day = (new DateTime())->modify("-{$i} days")->format('Y-m-d');
+            $adsDailyRows[$day] = ['day_ref' => $day, 'clicks' => 0, 'leads' => 0];
+        }
+        if ($hasClicksTable && $clickDateCol) {
+            $clickDailyStmt = $pdo->query("
+                SELECT DATE({$clickDateCol}) AS day_ref, COUNT(*) AS clicks
+                FROM whatsapp_click_events
+                WHERE {$clickDateCol} >= CURDATE() - INTERVAL 13 DAY
+                GROUP BY DATE({$clickDateCol})
+            ");
+            foreach ($clickDailyStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $day = (string)($row['day_ref'] ?? '');
+                if (isset($adsDailyRows[$day])) $adsDailyRows[$day]['clicks'] = (int)($row['clicks'] ?? 0);
+            }
+        }
+        if ($hasAdsLeadsTable && $adsLeadDateCol) {
+            $leadDailyStmt = $pdo->query("
+                SELECT DATE({$adsLeadDateCol}) AS day_ref, COUNT(*) AS leads
+                FROM leads_anuncios
+                WHERE {$adsLeadDateCol} >= CURDATE() - INTERVAL 13 DAY
+                GROUP BY DATE({$adsLeadDateCol})
+            ");
+            foreach ($leadDailyStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $day = (string)($row['day_ref'] ?? '');
+                if (isset($adsDailyRows[$day])) $adsDailyRows[$day]['leads'] = (int)($row['leads'] ?? 0);
+            }
+        }
+        $adsDailyRows = array_values($adsDailyRows);
+    }
+
+    $adsSummary['conv_7d'] = $adsSummary['clicks_7d'] > 0 ? round(($adsSummary['leads_7d'] / $adsSummary['clicks_7d']) * 100, 2) : 0;
+    $adsSummary['conv_30d'] = $adsSummary['clicks_30d'] > 0 ? round(($adsSummary['leads_30d'] / $adsSummary['clicks_30d']) * 100, 2) : 0;
+} catch (Exception $e) {
+    $adsWarnings[] = 'Nao foi possivel carregar metricas de anuncios: ' . $e->getMessage();
+}
+
 ?>
 
 
@@ -1606,6 +1781,11 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(59,130
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link <?php echo $activeTab==='anuncios'?'active':''; ?>" id="anuncios-tab" data-tab="anuncios" data-bs-toggle="pill" data-bs-target="#anuncios" type="button" role="tab">
+                        <i class="fa fa-rectangle-ad"></i> Leads Anuncios
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link <?php echo $activeTab==='sources'?'active':''; ?>" id="sources-tab" data-tab="sources" data-bs-toggle="pill" data-bs-target="#sources" type="button" role="tab">
                         <i class="fa fa-bullseye"></i> Fontes e Origem
                     </button>
@@ -1889,6 +2069,58 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(59,130
                             <div class="report-card">
                                 <div class="report-card-title"><i class="fa fa-clock-rotate-left"></i> Últimas movimentações dos consultores externos</div>
                                 <div id="tableExternalRecent"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Leads Anuncios Tab -->
+                <div class="tab-pane fade <?php echo $activeTab==='anuncios'?'show active':''; ?>" id="anuncios" role="tabpanel">
+                    <?php if (!empty($adsWarnings)): ?>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <?php foreach ($adsWarnings as $warning): ?>
+                                <div class="alert alert-warning mb-2"><?php echo htmlspecialchars($warning, ENT_QUOTES, 'UTF-8'); ?></div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3"><div class="kpi-card blue"><div class="kpi-value"><?php echo (int)$adsSummary['clicks_7d']; ?></div><div class="kpi-label">Cliques WhatsApp 7 dias</div><i class="fa fa-computer-mouse kpi-icon"></i></div></div>
+                        <div class="col-md-3"><div class="kpi-card green"><div class="kpi-value"><?php echo (int)$adsSummary['leads_7d']; ?></div><div class="kpi-label">Leads de anuncios 7 dias</div><i class="fa fa-user-plus kpi-icon"></i></div></div>
+                        <div class="col-md-3"><div class="kpi-card"><div class="kpi-value"><?php echo number_format((float)$adsSummary['conv_7d'], 2, ',', '.'); ?>%</div><div class="kpi-label">Conversao clique -> lead</div><i class="fa fa-percent kpi-icon"></i></div></div>
+                        <div class="col-md-3"><div class="kpi-card orange"><div class="kpi-value"><?php echo (int)$adsSummary['pending_leads']; ?></div><div class="kpi-label">Pendentes para Kanban</div><i class="fa fa-inbox kpi-icon"></i></div></div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-lg-8">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-chart-line"></i> Cliques x leads dos anuncios - ultimos 14 dias</div>
+                                <div class="chart-container" style="height:320px;"><canvas id="chartAdsDaily"></canvas></div>
+                                <div id="tableAdsDaily" class="mt-3"></div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-bullseye"></i> Origem dos cliques WhatsApp</div>
+                                <div class="chart-container" style="height:300px;"><canvas id="chartAdsTopButtons"></canvas></div>
+                                <div id="tableAdsTopButtons" class="mt-3"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-lg-5">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-chart-simple"></i> Campanhas / UTM com mais leads</div>
+                                <div class="chart-container" style="height:300px;"><canvas id="chartAdsCampaigns"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="col-lg-7">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-list"></i> Leads recentes vindos dos anuncios</div>
+                                <div id="tableAdsRecentLeads"></div>
                             </div>
                         </div>
                     </div>
@@ -2450,6 +2682,12 @@ const REPORT_EXTERNAL_VALUE_BY_MONTH = <?php echo json_encode($externalConsultan
 const REPORT_EXTERNAL_BY_CITY = <?php echo json_encode($externalConsultantsByCity ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_EXTERNAL_BY_PAYMENT = <?php echo json_encode($externalConsultantsByPayment ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_EXTERNAL_RECENT = <?php echo json_encode($externalConsultantsRecent ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+// Ads landing analytics
+const REPORT_ADS_SUMMARY = <?php echo json_encode($adsSummary ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_ADS_DAILY = <?php echo json_encode($adsDailyRows ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_ADS_TOP_BUTTONS = <?php echo json_encode($adsTopButtons ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_ADS_TOP_CAMPAIGNS = <?php echo json_encode($adsTopCampaigns ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_ADS_RECENT_LEADS = <?php echo json_encode($adsRecentLeads ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 
 
 let chartInstances = {};
@@ -3969,6 +4207,100 @@ function renderExternalConsultantsCharts() {
     }
 }
 
+function renderAdsReports() {
+    const dailyEl = document.getElementById('chartAdsDaily');
+    if (dailyEl) {
+        destroyChart('chartAdsDaily');
+        const rows = Array.isArray(REPORT_ADS_DAILY) ? REPORT_ADS_DAILY : [];
+        const labels = rows.map(r => {
+            const day = String(r.day_ref || '');
+            return day.length >= 10 ? day.substring(8, 10) + '/' + day.substring(5, 7) : day;
+        });
+        const clicks = rows.map(r => Number(r.clicks || 0));
+        const leads = rows.map(r => Number(r.leads || 0));
+        chartInstances['chartAdsDaily'] = new Chart(dailyEl, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Cliques WhatsApp', data: clicks, backgroundColor: 'rgba(59,130,246,0.72)', borderRadius: 6 },
+                    { label: 'Leads', data: leads, backgroundColor: 'rgba(16,185,129,0.78)', borderRadius: 6 },
+                    { label: 'Conversao %', data: rows.map(r => Number(r.clicks || 0) > 0 ? ((Number(r.leads || 0) / Number(r.clicks || 0)) * 100).toFixed(2) : 0), type: 'line', borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)', yAxisID: 'y1', tension: 0.35 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 } },
+                    y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } }
+                }
+            }
+        });
+    }
+
+    const buttonsEl = document.getElementById('chartAdsTopButtons');
+    if (buttonsEl) {
+        destroyChart('chartAdsTopButtons');
+        const rows = Array.isArray(REPORT_ADS_TOP_BUTTONS) ? REPORT_ADS_TOP_BUTTONS : [];
+        chartInstances['chartAdsTopButtons'] = new Chart(buttonsEl, {
+            type: 'doughnut',
+            data: { labels: rows.map(r => r.label || 'unknown'), datasets: [{ data: rows.map(r => Number(r.total || 0)), backgroundColor: rows.map((_, i) => defaultPalette(i)), borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    const campaignsEl = document.getElementById('chartAdsCampaigns');
+    if (campaignsEl) {
+        destroyChart('chartAdsCampaigns');
+        const rows = Array.isArray(REPORT_ADS_TOP_CAMPAIGNS) ? REPORT_ADS_TOP_CAMPAIGNS : [];
+        chartInstances['chartAdsCampaigns'] = new Chart(campaignsEl, {
+            type: 'bar',
+            data: { labels: rows.map(r => r.label || 'Sem campanha'), datasets: [{ label: 'Leads', data: rows.map(r => Number(r.total || 0)), backgroundColor: rows.map((_, i) => defaultPalette(i + 2)), borderRadius: 6 }] },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }
+        });
+    }
+
+    const dailyTable = document.getElementById('tableAdsDaily');
+    if (dailyTable) {
+        const rows = Array.isArray(REPORT_ADS_DAILY) ? REPORT_ADS_DAILY : [];
+        let html = '<div class="table-responsive"><table class="data-table"><thead><tr><th>Data</th><th>Cliques WhatsApp</th><th>Leads</th><th>Conversao</th></tr></thead><tbody>';
+        rows.forEach(r => {
+            const clicks = Number(r.clicks || 0);
+            const leads = Number(r.leads || 0);
+            const conv = clicks > 0 ? ((leads / clicks) * 100).toFixed(2) : '0.00';
+            html += `<tr><td>${escapeHtml(r.day_ref || '')}</td><td>${formatNumber(clicks)}</td><td>${formatNumber(leads)}</td><td>${conv}%</td></tr>`;
+        });
+        if (rows.length === 0) html += '<tr><td colspan="4" class="text-center text-muted py-4">Sem dados diarios.</td></tr>';
+        html += '</tbody></table></div>';
+        dailyTable.innerHTML = html;
+    }
+
+    const buttonsTable = document.getElementById('tableAdsTopButtons');
+    if (buttonsTable) {
+        const rows = Array.isArray(REPORT_ADS_TOP_BUTTONS) ? REPORT_ADS_TOP_BUTTONS : [];
+        let html = '<div class="table-responsive"><table class="data-table"><thead><tr><th>Origem</th><th>Total</th></tr></thead><tbody>';
+        rows.forEach(r => { html += `<tr><td><strong>${escapeHtml(r.label || 'unknown')}</strong></td><td>${formatNumber(r.total || 0)}</td></tr>`; });
+        if (rows.length === 0) html += '<tr><td colspan="2" class="text-center text-muted py-4">Sem cliques registrados.</td></tr>';
+        html += '</tbody></table></div>';
+        buttonsTable.innerHTML = html;
+    }
+
+    const recentTable = document.getElementById('tableAdsRecentLeads');
+    if (recentTable) {
+        const rows = Array.isArray(REPORT_ADS_RECENT_LEADS) ? REPORT_ADS_RECENT_LEADS : [];
+        let html = '<div class="table-responsive" style="max-height:420px; overflow:auto;"><table class="data-table"><thead><tr><th>ID</th><th>Nome</th><th>Telefone</th><th>Origem/Campanha</th><th>Status</th><th>Data</th></tr></thead><tbody>';
+        rows.forEach(r => {
+            const transferred = Number(r.transferred_to_kanban || 0) === 1;
+            html += `<tr><td>${formatNumber(r.id || 0)}</td><td><strong>${escapeHtml(r.name || '')}</strong></td><td>${escapeHtml(r.phone || '')}</td><td>${escapeHtml(r.source || '')}</td><td>${transferred ? '<span class="badge bg-success">No Kanban</span>' : '<span class="badge bg-warning text-dark">Pendente</span>'}</td><td>${escapeHtml(r.created_ref || '')}</td></tr>`;
+        });
+        if (rows.length === 0) html += '<tr><td colspan="6" class="text-center text-muted py-4">Nenhum lead de anuncio encontrado.</td></tr>';
+        html += '</tbody></table></div>';
+        recentTable.innerHTML = html;
+    }
+}
+
 function renderReports(){
     try {
         applyChartThemeDefaults();
@@ -3996,6 +4328,7 @@ function renderReports(){
         renderSLACharts();
         renderFinanceiroCharts();
         renderExternalConsultantsCharts();
+        renderAdsReports();
     } catch(e) { 
         console.error('Render reports failed', e); 
     }
