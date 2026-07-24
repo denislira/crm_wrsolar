@@ -1316,31 +1316,14 @@ body.theme-dark .export-btn { background: #2563eb !important; }
     overflow: hidden;
 }
 .illustrated-funnel-visual { position: relative; min-height: 460px; display: flex; justify-content: center; align-items: center; }
-.illustrated-funnel-stack { width: min(390px, 78vw); display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 18px 24px rgba(15,23,42,0.22)); }
-.illustrated-funnel-row { display: grid; grid-template-columns: 96px 46px 1fr; align-items: center; width: 100%; gap: 0.75rem; margin: -1px 0; }
-.illustrated-funnel-percent { text-align: right; font-weight: 800; color: #1f2937; font-size: clamp(1.15rem, 2.4vw, 2.15rem); line-height: 1; }
-.illustrated-funnel-marker { width: 34px; height: 48px; transform: skew(22deg); border-radius: 2px; box-shadow: inset -8px 0 16px rgba(255,255,255,0.22); }
-.illustrated-funnel-segment {
-    height: var(--seg-h, 76px);
-    width: var(--seg-w, 100%);
-    background: linear-gradient(90deg, rgba(255,255,255,0.2), var(--seg-color), rgba(0,0,0,0.14));
-    clip-path: polygon(var(--top-left) 0, var(--top-right) 0, var(--bottom-right) 100%, var(--bottom-left) 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-weight: 800;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.35);
-}
-.illustrated-funnel-row:first-child .illustrated-funnel-segment { border-radius: 50% 50% 0 0 / 18px 18px 0 0; position: relative; }
-.illustrated-funnel-row:first-child .illustrated-funnel-segment::before {
-    content: '';
-    position: absolute;
-    inset: 10px 16% auto 16%;
-    height: 20px;
-    border-radius: 50%;
-    background: linear-gradient(90deg, rgba(15,23,42,0.48), rgba(255,255,255,0.72), rgba(15,23,42,0.30));
-}
+.illustrated-funnel-drawing { width: min(520px, 100%); height: auto; display: block; overflow: visible; filter: drop-shadow(0 22px 24px rgba(15,23,42,0.24)); }
+.illustrated-funnel-drawing text { font-family: Inter, Arial, sans-serif; }
+.illustrated-funnel-side-percent { font-size: 30px; font-weight: 900; fill: #1f2937; }
+.illustrated-funnel-side-marker { filter: drop-shadow(0 3px 3px rgba(15,23,42,0.22)); }
+.illustrated-funnel-main-text { font-size: 18px; font-weight: 900; fill: #ffffff; text-shadow: 0 1px 2px rgba(0,0,0,0.32); }
+.illustrated-funnel-main-count { font-size: 13px; font-weight: 800; fill: rgba(255,255,255,0.9); }
+.illustrated-funnel-rim { fill: url(#funnelRimGradient); opacity: 0.96; }
+.illustrated-funnel-rim-hole { fill: url(#funnelHoleGradient); }
 .illustrated-funnel-details { display: flex; flex-direction: column; gap: 1rem; }
 .illustrated-funnel-detail { display: grid; grid-template-columns: 86px 1fr; gap: 0.85rem; align-items: start; }
 .illustrated-funnel-flow { font-size: 0.78rem; font-weight: 700; padding-top: 0.18rem; color: #ef4444; position: relative; text-align: right; }
@@ -1351,14 +1334,14 @@ body.theme-dark .export-btn { background: #2563eb !important; }
 .illustrated-funnel-metric { color: #334155; font-weight: 700; font-size: 0.82rem; margin-top: 0.22rem; }
 body.theme-dark .illustrated-funnel { background: rgba(255,255,255,0.03) !important; border-color: rgba(255,255,255,0.08) !important; }
 body.theme-dark .illustrated-funnel-percent,
+body.theme-dark .illustrated-funnel-side-percent,
 body.theme-dark .illustrated-funnel-name,
 body.theme-dark .illustrated-funnel-metric { color: #e6eef8 !important; }
+body.theme-dark .illustrated-funnel-side-percent { fill: #e6eef8 !important; }
 body.theme-dark .illustrated-funnel-desc { color: #b8c7dc !important; }
 @media (max-width: 992px) {
     .illustrated-funnel { grid-template-columns: 1fr; padding: 1rem; }
     .illustrated-funnel-visual { min-height: 360px; }
-    .illustrated-funnel-row { grid-template-columns: 74px 34px 1fr; gap: 0.5rem; }
-    .illustrated-funnel-marker { width: 26px; height: 38px; }
     .illustrated-funnel-detail { grid-template-columns: 70px 1fr; }
     .illustrated-funnel-flow::after { width: 22px; }
 }
@@ -3210,22 +3193,81 @@ function renderIllustratedFunnel() {
         'Etapa adicional do processo comercial monitorada no periodo.'
     ];
 
-    const rowsHtml = visible.map((stage, idx) => {
+    const widthTop = 330;
+    const widthBottom = 72;
+    const centerX = 315;
+    const startY = 74;
+    const segmentHeight = visible.length >= 5 ? 68 : 78;
+    const gap = 0;
+    const funnelHeight = segmentHeight * visible.length;
+    const widthAt = (idx) => {
+        if (visible.length <= 1) return widthTop;
+        const t = idx / visible.length;
+        return widthTop - ((widthTop - widthBottom) * t);
+    };
+    const markerPoints = (x, y, color) => {
+        return `<polygon class="illustrated-funnel-side-marker" points="${x},${y + 11} ${x + 34},${y + 6} ${x + 54},${y + 56} ${x + 20},${y + 61}" fill="${color}"></polygon>`;
+    };
+
+    const segmentSvg = visible.map((stage, idx) => {
         const pct = idx === 0 ? 100 : Math.max(1, Math.round((stage.value / firstValue) * 100));
-        const topInset = Math.min(38, idx * 7);
-        const bottomInset = Math.min(48, (idx + 1) * 8);
-        const height = Math.max(52, 88 - (idx * 8));
         const color = stage.color || defaultPalette(idx);
+        const y = startY + (idx * (segmentHeight + gap));
+        const topW = widthAt(idx);
+        const bottomW = idx === visible.length - 1 ? widthBottom : widthAt(idx + 1);
+        const topLeft = centerX - (topW / 2);
+        const topRight = centerX + (topW / 2);
+        const bottomLeft = centerX - (bottomW / 2);
+        const bottomRight = centerX + (bottomW / 2);
+        const textY = y + (segmentHeight / 2) - 3;
+        const countY = textY + 18;
+        const leftY = y + Math.max(4, (segmentHeight - 60) / 2);
         return `
-            <div class="illustrated-funnel-row">
-                <div class="illustrated-funnel-percent">${pct}%</div>
-                <div class="illustrated-funnel-marker" style="background:${color};"></div>
-                <div class="illustrated-funnel-segment" style="--seg-color:${color}; --seg-h:${height}px; --top-left:${topInset}%; --top-right:${topInset}%; --bottom-left:${bottomInset}%; --bottom-right:${bottomInset}%;">
-                    ${formatNumber(stage.value)}
-                </div>
-            </div>
+            <text class="illustrated-funnel-side-percent" x="86" y="${y + (segmentHeight / 2) + 10}" text-anchor="end">${pct}%</text>
+            ${markerPoints(112, leftY, color)}
+            <polygon points="${topLeft},${y} ${topRight},${y} ${bottomRight},${y + segmentHeight} ${bottomLeft},${y + segmentHeight}"
+                fill="url(#segGrad${idx})" stroke="rgba(15,23,42,0.18)" stroke-width="1"></polygon>
+            <text class="illustrated-funnel-main-text" x="${centerX}" y="${textY}" text-anchor="middle">${escapeHtml(stage.label).slice(0, 24)}</text>
+            <text class="illustrated-funnel-main-count" x="${centerX}" y="${countY}" text-anchor="middle">${formatNumber(stage.value)} leads</text>
         `;
     }).join('');
+
+    const gradientDefs = visible.map((stage, idx) => {
+        const color = stage.color || defaultPalette(idx);
+        return `
+            <linearGradient id="segGrad${idx}" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="${color}" stop-opacity="0.90"></stop>
+                <stop offset="44%" stop-color="${color}" stop-opacity="1"></stop>
+                <stop offset="100%" stop-color="#0f172a" stop-opacity="0.22"></stop>
+            </linearGradient>
+        `;
+    }).join('');
+
+    const rimY = startY - 26;
+    const rimOuterW = widthTop + 48;
+    const rimInnerW = widthTop * 0.62;
+    const drawingHtml = `
+        <svg class="illustrated-funnel-drawing" viewBox="0 0 640 ${Math.max(450, startY + funnelHeight + 42)}" role="img" aria-label="Funil ilustrado por etapas">
+            <defs>
+                ${gradientDefs}
+                <linearGradient id="funnelRimGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#0284c7"></stop>
+                    <stop offset="32%" stop-color="#0ea5e9"></stop>
+                    <stop offset="74%" stop-color="#0369a1"></stop>
+                    <stop offset="100%" stop-color="#075985"></stop>
+                </linearGradient>
+                <linearGradient id="funnelHoleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#334155"></stop>
+                    <stop offset="25%" stop-color="#f8fafc"></stop>
+                    <stop offset="58%" stop-color="#cbd5e1"></stop>
+                    <stop offset="100%" stop-color="#0f172a"></stop>
+                </linearGradient>
+            </defs>
+            <ellipse class="illustrated-funnel-rim" cx="${centerX}" cy="${rimY}" rx="${rimOuterW / 2}" ry="28"></ellipse>
+            <ellipse class="illustrated-funnel-rim-hole" cx="${centerX}" cy="${rimY}" rx="${rimInnerW / 2}" ry="17"></ellipse>
+            ${segmentSvg}
+        </svg>
+    `;
 
     const detailsHtml = visible.map((stage, idx) => {
         const isLast = idx === visible.length - 1;
@@ -3247,7 +3289,7 @@ function renderIllustratedFunnel() {
     container.innerHTML = `
         <div class="illustrated-funnel">
             <div class="illustrated-funnel-visual">
-                <div class="illustrated-funnel-stack">${rowsHtml}</div>
+                ${drawingHtml}
             </div>
             <div class="illustrated-funnel-details">${detailsHtml}</div>
         </div>
