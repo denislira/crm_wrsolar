@@ -27,6 +27,20 @@ function reminders_ensure_team_column($pdo) {
     } catch (Exception $e) {}
 }
 
+function reminders_finish_json_response($payload) {
+    @ignore_user_abort(true);
+    echo json_encode($payload);
+    if (function_exists('session_write_close')) {
+        @session_write_close();
+    }
+    if (function_exists('fastcgi_finish_request')) {
+        @fastcgi_finish_request();
+        return;
+    }
+    @ob_flush();
+    @flush();
+}
+
 reminders_ensure_team_column($pdo);
 $hasTeamId = reminders_team_column_exists($pdo);
 try {
@@ -74,20 +88,24 @@ try {
             $stmt->execute([$leadId, $message, $dt, $templateId, 'pending', $userId, $contactName ?: null, $contactPhone ?: null]);
         }
         $id = $pdo->lastInsertId();
-        wrcrm_notify_reminder_created($pdo, $id);
-        if (!empty($teamId) && wrcrm_notification_enabled('reminder_created')) {
-            $teamUsers = wrcrm_user_emails($pdo, wrcrm_team_user_ids($pdo, $teamId));
-            $subject = 'Novo lembrete criado';
-            $html = '<p>Um novo lembrete foi criado no CRM.</p>'
-                . '<p><strong>Quando:</strong> ' . htmlspecialchars($dt) . '<br>'
-                . '<strong>Equipe:</strong> ' . htmlspecialchars((string)$teamId) . '</p>'
-                . '<div style="padding:12px;background:#f8fafc;border-radius:6px">' . nl2br(htmlspecialchars($message)) . '</div>';
-            foreach ($teamUsers as $u) {
-                if ((int)$u['id'] === (int)$userId) continue;
-                wrcrm_send_email($u['email'], $subject, $html, $u['nome_completo'] ?: $u['username']);
+        reminders_finish_json_response(['ok'=>true,'id'=>$id]);
+        try {
+            wrcrm_notify_reminder_created($pdo, $id);
+            if (!empty($teamId) && wrcrm_notification_enabled('reminder_created')) {
+                $teamUsers = wrcrm_user_emails($pdo, wrcrm_team_user_ids($pdo, $teamId));
+                $subject = 'Novo lembrete criado';
+                $html = '<p>Um novo lembrete foi criado no CRM.</p>'
+                    . '<p><strong>Quando:</strong> ' . htmlspecialchars($dt) . '<br>'
+                    . '<strong>Equipe:</strong> ' . htmlspecialchars((string)$teamId) . '</p>'
+                    . '<div style="padding:12px;background:#f8fafc;border-radius:6px">' . nl2br(htmlspecialchars($message)) . '</div>';
+                foreach ($teamUsers as $u) {
+                    if ((int)$u['id'] === (int)$userId) continue;
+                    wrcrm_send_email($u['email'], $subject, $html, $u['nome_completo'] ?: $u['username']);
+                }
             }
+        } catch (Throwable $e) {
+            error_log('[WRCRM notifications] reminder_created background failed: ' . $e->getMessage());
         }
-        echo json_encode(['ok'=>true,'id'=>$id]);
         exit;
     }
     if ($action === 'list') {

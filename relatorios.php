@@ -29,7 +29,7 @@ $tabAliases = ['sql' => 'qualificacao', 'speed-to-lead' => 'sla'];
 if (isset($tabAliases[$activeTab])) {
     $activeTab = $tabAliases[$activeTab];
 }
-$allowedTabs = ['overview','funnel','temporal','consultores','sources','daily','qualificacao','sla','financeiro'];
+$allowedTabs = ['overview','funnel','temporal','consultores','consultores_externos','sources','daily','qualificacao','sla','financeiro'];
 if (!in_array($activeTab, $allowedTabs, true)) $activeTab = 'overview';
 
 // Daily report (leads created on a specific day)
@@ -961,6 +961,192 @@ try {
     $consultorComparison = $ccStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { $consultorComparison = []; }
 
+// ============================================================
+// Consultores Externos: full performance analytics
+// ============================================================
+$externalConsultantsSummary = [
+    'total_itens' => 0,
+    'consultores_ativos' => 0,
+    'valor_total' => 0,
+    'ticket_medio' => null,
+    'exportados' => 0,
+    'taxa_exportacao' => 0,
+    'tempo_medio_exportacao_horas' => null,
+    'sem_contato_7d' => 0,
+];
+$externalConsultantsRanking = [];
+$externalConsultantsByStage = [];
+$externalConsultantsByMonth = [];
+$externalConsultantsValueByMonth = [];
+$externalConsultantsByCity = [];
+$externalConsultantsByPayment = [];
+$externalConsultantsRecent = [];
+$externalConsultantsInsights = [];
+
+try {
+    $ceTableStmt = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'consultoria_externa_itens'");
+        $ceTableStmt->execute();
+        $hasExternalTable = (bool)$ceTableStmt->fetchColumn();
+
+    if ($hasExternalTable) {
+        $ceStagesTableStmt = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'consultoria_externa_stages'");
+        $ceStagesTableStmt->execute();
+        $hasExternalStagesTable = (bool)$ceStagesTableStmt->fetchColumn();
+        $cePaymentTableStmt = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_methods'");
+        $cePaymentTableStmt->execute();
+        $hasPaymentMethodsTable = (bool)$cePaymentTableStmt->fetchColumn();
+
+        $ceCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'consultoria_externa_itens'")->fetchAll(PDO::FETCH_COLUMN);
+        $ceDateCol = in_array('created_entry_at', $ceCols, true) ? 'COALESCE(cei.created_entry_at, cei.created_at)' : 'cei.created_at';
+        $ceDeletedCond = in_array('deleted', $ceCols, true) ? " AND COALESCE(cei.deleted, 0) = 0" : "";
+        $ceValueExpr = in_array('value', $ceCols, true) ? 'COALESCE(cei.value, 0)' : '0';
+        $ceExportedExpr = in_array('exported_to_internal_queue', $ceCols, true) ? 'COALESCE(cei.exported_to_internal_queue, 0)' : '0';
+        $ceExportedAtExpr = in_array('exported_at', $ceCols, true) ? 'cei.exported_at' : 'NULL';
+        $ceUltimoContatoExpr = in_array('ultimo_contato', $ceCols, true) ? 'cei.ultimo_contato' : 'NULL';
+        $cePaymentExpr = in_array('forma_pagamento_id', $ceCols, true) ? 'cei.forma_pagamento_id' : 'NULL';
+        $ceCityExpr = in_array('cidade', $ceCols, true) ? "COALESCE(NULLIF(cei.cidade,''),'Sem cidade')" : "'Sem cidade'";
+        $ceStageJoin = (in_array('stage_id', $ceCols, true) && $hasExternalStagesTable) ? 'LEFT JOIN consultoria_externa_stages ces ON ces.id = cei.stage_id' : '';
+        $ceStageLabelExpr = $hasExternalStagesTable ? "COALESCE(NULLIF(ces.name,''), NULLIF(cei.status,''), NULLIF(cei.stage_key,''), 'Sem etapa')" : "COALESCE(NULLIF(cei.status,''), NULLIF(cei.stage_key,''), 'Sem etapa')";
+
+        $ceWhere = "{$ceDateCol} >= ? AND {$ceDateCol} <= ?{$ceDeletedCond}";
+        $ceParams = [$fStartStr, $fEndStr];
+
+        $ceSummaryStmt = $pdo->prepare("
+            SELECT
+                COUNT(*) AS total_itens,
+                COUNT(DISTINCT cei.user_id) AS consultores_ativos,
+                SUM({$ceValueExpr}) AS valor_total,
+                AVG(NULLIF({$ceValueExpr}, 0)) AS ticket_medio,
+                SUM(CASE WHEN {$ceExportedExpr} = 1 THEN 1 ELSE 0 END) AS exportados,
+                AVG(CASE WHEN {$ceExportedAtExpr} IS NOT NULL THEN TIMESTAMPDIFF(HOUR, cei.created_at, {$ceExportedAtExpr}) ELSE NULL END) AS tempo_export_h,
+                SUM(CASE WHEN ({$ceUltimoContatoExpr} IS NULL OR {$ceUltimoContatoExpr} < DATE_SUB(CURDATE(), INTERVAL 7 DAY)) THEN 1 ELSE 0 END) AS sem_contato_7d
+            FROM consultoria_externa_itens cei
+            WHERE {$ceWhere}
+        ");
+        $ceSummaryStmt->execute($ceParams);
+        $ceSummaryRow = $ceSummaryStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $externalConsultantsSummary['total_itens'] = (int)($ceSummaryRow['total_itens'] ?? 0);
+        $externalConsultantsSummary['consultores_ativos'] = (int)($ceSummaryRow['consultores_ativos'] ?? 0);
+        $externalConsultantsSummary['valor_total'] = round((float)($ceSummaryRow['valor_total'] ?? 0), 2);
+        $externalConsultantsSummary['ticket_medio'] = $ceSummaryRow['ticket_medio'] !== null ? round((float)$ceSummaryRow['ticket_medio'], 2) : null;
+        $externalConsultantsSummary['exportados'] = (int)($ceSummaryRow['exportados'] ?? 0);
+        $externalConsultantsSummary['taxa_exportacao'] = $externalConsultantsSummary['total_itens'] > 0 ? round(($externalConsultantsSummary['exportados'] / $externalConsultantsSummary['total_itens']) * 100, 1) : 0;
+        $externalConsultantsSummary['tempo_medio_exportacao_horas'] = $ceSummaryRow['tempo_export_h'] !== null ? round((float)$ceSummaryRow['tempo_export_h'], 1) : null;
+        $externalConsultantsSummary['sem_contato_7d'] = (int)($ceSummaryRow['sem_contato_7d'] ?? 0);
+
+        $ceRankingStmt = $pdo->prepare("
+            SELECT
+                u.id,
+                COALESCE(NULLIF(u.username,''), CONCAT('Consultor #', cei.user_id)) AS username,
+                COUNT(*) AS total_itens,
+                SUM({$ceValueExpr}) AS valor_total,
+                AVG(NULLIF({$ceValueExpr}, 0)) AS ticket_medio,
+                SUM(CASE WHEN {$ceExportedExpr} = 1 THEN 1 ELSE 0 END) AS exportados,
+                SUM(CASE WHEN ({$ceUltimoContatoExpr} IS NULL OR {$ceUltimoContatoExpr} < DATE_SUB(CURDATE(), INTERVAL 7 DAY)) THEN 1 ELSE 0 END) AS sem_contato_7d,
+                MAX(cei.updated_at) AS ultima_atividade
+            FROM consultoria_externa_itens cei
+            LEFT JOIN users u ON u.id = cei.user_id
+            WHERE {$ceWhere}
+            GROUP BY cei.user_id, u.id, u.username
+            ORDER BY exportados DESC, valor_total DESC, total_itens DESC
+            LIMIT 30
+        ");
+        $ceRankingStmt->execute($ceParams);
+        $externalConsultantsRanking = $ceRankingStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $ceStageStmt = $pdo->prepare("
+            SELECT {$ceStageLabelExpr} AS label, COUNT(*) AS cnt, SUM({$ceValueExpr}) AS valor_total
+            FROM consultoria_externa_itens cei
+            {$ceStageJoin}
+            WHERE {$ceWhere}
+            GROUP BY label
+            ORDER BY cnt DESC
+        ");
+        $ceStageStmt->execute($ceParams);
+        $externalConsultantsByStage = $ceStageStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $ceMonthStmt = $pdo->prepare("
+            SELECT DATE_FORMAT({$ceDateCol}, '%Y-%m') AS ym, COUNT(*) AS cnt
+            FROM consultoria_externa_itens cei
+            WHERE {$ceWhere}
+            GROUP BY ym
+            ORDER BY ym ASC
+        ");
+        $ceMonthStmt->execute($ceParams);
+        $externalConsultantsByMonth = $ceMonthStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $ceValueMonthStmt = $pdo->prepare("
+            SELECT DATE_FORMAT({$ceDateCol}, '%Y-%m') AS ym, SUM({$ceValueExpr}) AS valor
+            FROM consultoria_externa_itens cei
+            WHERE {$ceWhere}
+            GROUP BY ym
+            ORDER BY ym ASC
+        ");
+        $ceValueMonthStmt->execute($ceParams);
+        $externalConsultantsValueByMonth = $ceValueMonthStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $ceCityStmt = $pdo->prepare("
+            SELECT {$ceCityExpr} AS label, COUNT(*) AS cnt, SUM({$ceValueExpr}) AS valor_total
+            FROM consultoria_externa_itens cei
+            WHERE {$ceWhere}
+            GROUP BY label
+            ORDER BY cnt DESC
+            LIMIT 12
+        ");
+        $ceCityStmt->execute($ceParams);
+        $externalConsultantsByCity = $ceCityStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($cePaymentExpr !== 'NULL' && $hasPaymentMethodsTable) {
+            $cePaymentStmt = $pdo->prepare("
+                SELECT COALESCE(NULLIF(pm.name,''), CONCAT('Forma #', {$cePaymentExpr}), 'Nao informado') AS label, COUNT(*) AS cnt, SUM({$ceValueExpr}) AS valor_total
+                FROM consultoria_externa_itens cei
+                LEFT JOIN payment_methods pm ON pm.id = {$cePaymentExpr}
+                WHERE {$ceWhere}
+                GROUP BY label
+                ORDER BY cnt DESC
+                LIMIT 10
+            ");
+            $cePaymentStmt->execute($ceParams);
+            $externalConsultantsByPayment = $cePaymentStmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        $ceRecentStmt = $pdo->prepare("
+            SELECT cei.id, cei.client_name, COALESCE(u.username, 'Consultor') AS username,
+                   {$ceStageLabelExpr} AS stage_label, {$ceValueExpr} AS value,
+                   {$ceCityExpr} AS cidade, {$ceExportedExpr} AS exported_to_internal_queue,
+                   cei.created_at, cei.updated_at
+            FROM consultoria_externa_itens cei
+            LEFT JOIN users u ON u.id = cei.user_id
+            {$ceStageJoin}
+            WHERE {$ceWhere}
+            ORDER BY cei.updated_at DESC, cei.id DESC
+            LIMIT 80
+        ");
+        $ceRecentStmt->execute($ceParams);
+        $externalConsultantsRecent = $ceRecentStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($externalConsultantsSummary['total_itens'] === 0) {
+            $externalConsultantsInsights[] = 'Nenhum item de consultoria externa no periodo selecionado.';
+        } else {
+            if ($externalConsultantsSummary['taxa_exportacao'] < 40) {
+                $externalConsultantsInsights[] = 'Baixa conversao para fila interna: apenas ' . $externalConsultantsSummary['taxa_exportacao'] . '% dos itens foram enviados.';
+            }
+            if ($externalConsultantsSummary['sem_contato_7d'] > 0) {
+                $externalConsultantsInsights[] = $externalConsultantsSummary['sem_contato_7d'] . ' itens sem contato recente. Priorize retomada dos consultores externos.';
+            }
+            if ($externalConsultantsSummary['tempo_medio_exportacao_horas'] !== null && $externalConsultantsSummary['tempo_medio_exportacao_horas'] > 48) {
+                $externalConsultantsInsights[] = 'Tempo medio ate envio interno acima de 48h. Revise etapas entre captacao e repasse.';
+            }
+            if (!empty($externalConsultantsRanking)) {
+                $top = $externalConsultantsRanking[0];
+                $externalConsultantsInsights[] = 'Maior produtor no periodo: ' . ($top['username'] ?? 'Consultor') . ' com ' . (int)($top['total_itens'] ?? 0) . ' itens.';
+            }
+        }
+    }
+} catch (Exception $e) {
+    $externalConsultantsInsights = ['Nao foi possivel gerar a analise de consultores externos.'];
+}
+
 ?>
 
 
@@ -1116,6 +1302,66 @@ body.theme-dark .export-btn { background: #2563eb !important; }
 .funnel-compact .funnel-stage .funnel-value { font-size: 0.95rem; }
 .funnel-compact .funnel-stage .funnel-percent { font-size: 0.6rem; gap: 0.35rem; }
 .funnel-compact .funnel-stage div[style*="font-weight: 600"] { font-size: 0.7rem !important; }
+.illustrated-funnel {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.95fr) minmax(280px, 1.05fr);
+    gap: 2rem;
+    align-items: center;
+    padding: 1.5rem;
+    border-radius: 12px;
+    background:
+        radial-gradient(circle at 22% 20%, rgba(59,130,246,0.10), transparent 34%),
+        linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+.illustrated-funnel-visual { position: relative; min-height: 460px; display: flex; justify-content: center; align-items: center; }
+.illustrated-funnel-stack { width: min(390px, 78vw); display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 18px 24px rgba(15,23,42,0.22)); }
+.illustrated-funnel-row { display: grid; grid-template-columns: 96px 46px 1fr; align-items: center; width: 100%; gap: 0.75rem; margin: -1px 0; }
+.illustrated-funnel-percent { text-align: right; font-weight: 800; color: #1f2937; font-size: clamp(1.15rem, 2.4vw, 2.15rem); line-height: 1; }
+.illustrated-funnel-marker { width: 34px; height: 48px; transform: skew(22deg); border-radius: 2px; box-shadow: inset -8px 0 16px rgba(255,255,255,0.22); }
+.illustrated-funnel-segment {
+    height: var(--seg-h, 76px);
+    width: var(--seg-w, 100%);
+    background: linear-gradient(90deg, rgba(255,255,255,0.2), var(--seg-color), rgba(0,0,0,0.14));
+    clip-path: polygon(var(--top-left) 0, var(--top-right) 0, var(--bottom-right) 100%, var(--bottom-left) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 800;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.35);
+}
+.illustrated-funnel-row:first-child .illustrated-funnel-segment { border-radius: 50% 50% 0 0 / 18px 18px 0 0; position: relative; }
+.illustrated-funnel-row:first-child .illustrated-funnel-segment::before {
+    content: '';
+    position: absolute;
+    inset: 10px 16% auto 16%;
+    height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(90deg, rgba(15,23,42,0.48), rgba(255,255,255,0.72), rgba(15,23,42,0.30));
+}
+.illustrated-funnel-details { display: flex; flex-direction: column; gap: 1rem; }
+.illustrated-funnel-detail { display: grid; grid-template-columns: 86px 1fr; gap: 0.85rem; align-items: start; }
+.illustrated-funnel-flow { font-size: 0.78rem; font-weight: 700; padding-top: 0.18rem; color: #ef4444; position: relative; text-align: right; }
+.illustrated-funnel-flow.revenue { color: #10b981; }
+.illustrated-funnel-flow::after { content: ''; position: absolute; top: 0.78rem; left: calc(100% + 0.5rem); width: 46px; border-top: 1px dashed currentColor; opacity: 0.75; }
+.illustrated-funnel-name { font-size: 1.05rem; font-weight: 800; color: #1f2937; margin-bottom: 0.12rem; }
+.illustrated-funnel-desc { color: #64748b; font-size: 0.9rem; line-height: 1.25; }
+.illustrated-funnel-metric { color: #334155; font-weight: 700; font-size: 0.82rem; margin-top: 0.22rem; }
+body.theme-dark .illustrated-funnel { background: rgba(255,255,255,0.03) !important; border-color: rgba(255,255,255,0.08) !important; }
+body.theme-dark .illustrated-funnel-percent,
+body.theme-dark .illustrated-funnel-name,
+body.theme-dark .illustrated-funnel-metric { color: #e6eef8 !important; }
+body.theme-dark .illustrated-funnel-desc { color: #b8c7dc !important; }
+@media (max-width: 992px) {
+    .illustrated-funnel { grid-template-columns: 1fr; padding: 1rem; }
+    .illustrated-funnel-visual { min-height: 360px; }
+    .illustrated-funnel-row { grid-template-columns: 74px 34px 1fr; gap: 0.5rem; }
+    .illustrated-funnel-marker { width: 26px; height: 38px; }
+    .illustrated-funnel-detail { grid-template-columns: 70px 1fr; }
+    .illustrated-funnel-flow::after { width: 22px; }
+}
 .funnel-stage-wrapper:nth-child(1) { animation-delay: 0.1s; }
 .funnel-stage-wrapper:nth-child(2) { animation-delay: 0.2s; }
 .funnel-stage-wrapper:nth-child(3) { animation-delay: 0.3s; }
@@ -1367,17 +1613,22 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(59,130
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?php echo $activeTab==='consultores'?'active':''; ?>" id="consultores-tab" data-bs-toggle="pill" data-bs-target="#consultores" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='consultores'?'active':''; ?>" id="consultores-tab" data-tab="consultores" data-bs-toggle="pill" data-bs-target="#consultores" type="button" role="tab">
                         <i class="fa fa-users"></i> Consultores
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?php echo $activeTab==='sources'?'active':''; ?>" id="sources-tab" data-bs-toggle="pill" data-bs-target="#sources" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='consultores_externos'?'active':''; ?>" id="consultores-externos-tab" data-tab="consultores_externos" data-bs-toggle="pill" data-bs-target="#consultores_externos" type="button" role="tab">
+                        <i class="fa fa-user-tie"></i> Consultores Externos
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link <?php echo $activeTab==='sources'?'active':''; ?>" id="sources-tab" data-tab="sources" data-bs-toggle="pill" data-bs-target="#sources" type="button" role="tab">
                         <i class="fa fa-bullseye"></i> Fontes e Origem
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?php echo $activeTab==='daily'?'active':''; ?>" id="daily-tab" data-bs-toggle="pill" data-bs-target="#daily" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='daily'?'active':''; ?>" id="daily-tab" data-tab="daily" data-bs-toggle="pill" data-bs-target="#daily" type="button" role="tab">
                         <i class="fa fa-calendar-day"></i> Por Dia
                     </button>
                 </li>
@@ -1392,7 +1643,7 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(59,130
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?php echo $activeTab==='financeiro'?'active':''; ?>" id="financeiro-tab" data-bs-toggle="pill" data-bs-target="#financeiro" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='financeiro'?'active':''; ?>" id="financeiro-tab" data-tab="financeiro" data-bs-toggle="pill" data-bs-target="#financeiro" type="button" role="tab">
                         <i class="fa fa-dollar-sign"></i> Financeiro
                     </button>
                 </li>
@@ -1455,6 +1706,14 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(59,130
                                     <button id="btnCompactFunnel" class="btn btn-sm btn-outline-secondary" type="button" onclick="toggleCompactFunnel()">Compactar Funil</button>
                                 </div>
                                 <div id="chartFunnel" class="funnel-container"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-chart-simple"></i> Funil Ilustrado por Percentual</div>
+                                <div id="illustratedFunnel"></div>
                             </div>
                         </div>
                     </div>
@@ -1581,6 +1840,72 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(59,130
                                     <canvas id="chartConsultorComparison"></canvas>
                                 </div>
                                 <div id="tableConsultorComparison" style="margin-top: 1rem;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Consultores Externos Tab -->
+                <div class="tab-pane fade <?php echo $activeTab==='consultores_externos'?'show active':''; ?>" id="consultores_externos" role="tabpanel">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3"><div class="kpi-card blue"><div class="kpi-value"><?php echo number_format((int)$externalConsultantsSummary['total_itens'], 0, ',', '.'); ?></div><div class="kpi-label">Itens cadastrados</div><i class="fa fa-address-card kpi-icon"></i></div></div>
+                        <div class="col-md-3"><div class="kpi-card green"><div class="kpi-value"><?php echo number_format((float)$externalConsultantsSummary['taxa_exportacao'], 1, ',', '.'); ?>%</div><div class="kpi-label">Enviados para fila interna</div><i class="fa fa-paper-plane kpi-icon"></i></div></div>
+                        <div class="col-md-3"><div class="kpi-card"><div class="kpi-value"><?php echo 'R$' . number_format((float)$externalConsultantsSummary['valor_total'], 0, ',', '.'); ?></div><div class="kpi-label">Valor potencial</div><i class="fa fa-sack-dollar kpi-icon"></i></div></div>
+                        <div class="col-md-3"><div class="kpi-card orange"><div class="kpi-value"><?php echo (int)$externalConsultantsSummary['sem_contato_7d']; ?></div><div class="kpi-label">Sem contato recente</div><i class="fa fa-phone-slash kpi-icon"></i></div></div>
+                    </div>
+
+                    <?php if (!empty($externalConsultantsInsights)): ?>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-lightbulb"></i> Insights de consultoria externa</div>
+                                <div class="row g-2">
+                                    <?php foreach ($externalConsultantsInsights as $insight): ?>
+                                    <div class="col-lg-6"><div class="alert alert-info mb-0"><?php echo htmlspecialchars($insight, ENT_QUOTES, 'UTF-8'); ?></div></div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-lg-7">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-chart-line"></i> Evolução mensal: cadastros e valor</div>
+                                <div class="chart-container" style="height:320px;"><canvas id="chartExternalMonthly"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-layer-group"></i> Distribuição por etapa</div>
+                                <div class="chart-container" style="height:320px;"><canvas id="chartExternalStages"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-lg-7">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-ranking-star"></i> Ranking avançado por consultor externo</div>
+                                <div class="chart-container" style="height:300px;"><canvas id="chartExternalRanking"></canvas></div>
+                                <div id="tableExternalRanking" class="mt-3"></div>
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-map-location-dot"></i> Cidades e formas de pagamento</div>
+                                <div class="chart-container" style="height:220px;"><canvas id="chartExternalCities"></canvas></div>
+                                <div class="chart-container mt-3" style="height:220px;"><canvas id="chartExternalPayment"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-clock-rotate-left"></i> Últimas movimentações dos consultores externos</div>
+                                <div id="tableExternalRecent"></div>
                             </div>
                         </div>
                     </div>
@@ -2133,6 +2458,15 @@ const REPORT_SLA_ALERT_LEADS = <?php echo json_encode($slaAlertLeads ?? [], JSON
 const REPORT_STALE_LEADS = <?php echo json_encode($staleLeads ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 // Consultant comparison
 const REPORT_CONSULTOR_COMPARISON = <?php echo json_encode($consultorComparison ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+// External consultants
+const REPORT_EXTERNAL_SUMMARY = <?php echo json_encode($externalConsultantsSummary ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_EXTERNAL_RANKING = <?php echo json_encode($externalConsultantsRanking ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_EXTERNAL_BY_STAGE = <?php echo json_encode($externalConsultantsByStage ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_EXTERNAL_BY_MONTH = <?php echo json_encode($externalConsultantsByMonth ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_EXTERNAL_VALUE_BY_MONTH = <?php echo json_encode($externalConsultantsValueByMonth ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_EXTERNAL_BY_CITY = <?php echo json_encode($externalConsultantsByCity ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_EXTERNAL_BY_PAYMENT = <?php echo json_encode($externalConsultantsByPayment ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_EXTERNAL_RECENT = <?php echo json_encode($externalConsultantsRecent ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 
 
 let chartInstances = {};
@@ -2847,6 +3181,79 @@ function renderFunnel() {
     }
 }
 
+function renderIllustratedFunnel() {
+    const container = document.getElementById('illustratedFunnel');
+    if (!container) return;
+
+    const counts = REPORT_STAGE_COUNTS.map(c => Number(c) || 0);
+    const stages = REPORT_STAGES.map((s, i) => ({
+        label: s.name || 'Sem nome',
+        value: counts[i] || 0,
+        color: (s.color && s.color !== '') ? s.color : defaultPalette(i),
+        order: i
+    })).sort((a, b) => a.order - b.order);
+
+    if (stages.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center py-5">Nenhuma etapa cadastrada para montar o funil.</p>';
+        return;
+    }
+
+    const maxStages = 6;
+    const visible = stages.slice(0, maxStages);
+    const firstValue = Math.max(Number(visible[0]?.value || 0), 1);
+    const stageDescriptions = [
+        'Todos os leads que entraram no periodo filtrado e ainda aparecem na primeira camada do funil.',
+        'Contatos conhecidos que ja passaram por algum registro ou classificacao comercial.',
+        'Leads qualificados que receberam atendimento, diagnostico ou avancaram para negociacao.',
+        'Oportunidades com proposta, orcamento ou discussao ativa de fechamento.',
+        'Clientes convertidos ou etapa final equivalente no funil de vendas.',
+        'Etapa adicional do processo comercial monitorada no periodo.'
+    ];
+
+    const rowsHtml = visible.map((stage, idx) => {
+        const pct = idx === 0 ? 100 : Math.max(1, Math.round((stage.value / firstValue) * 100));
+        const topInset = Math.min(38, idx * 7);
+        const bottomInset = Math.min(48, (idx + 1) * 8);
+        const height = Math.max(52, 88 - (idx * 8));
+        const color = stage.color || defaultPalette(idx);
+        return `
+            <div class="illustrated-funnel-row">
+                <div class="illustrated-funnel-percent">${pct}%</div>
+                <div class="illustrated-funnel-marker" style="background:${color};"></div>
+                <div class="illustrated-funnel-segment" style="--seg-color:${color}; --seg-h:${height}px; --top-left:${topInset}%; --top-right:${topInset}%; --bottom-left:${bottomInset}%; --bottom-right:${bottomInset}%;">
+                    ${formatNumber(stage.value)}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    const detailsHtml = visible.map((stage, idx) => {
+        const isLast = idx === visible.length - 1;
+        const previous = idx > 0 ? Number(visible[idx - 1].value || 0) : firstValue;
+        const stepRate = idx === 0 ? 100 : (previous > 0 ? ((stage.value / previous) * 100).toFixed(1) : '0.0');
+        const flowLabel = isLast ? 'Receitas' : 'Despesas';
+        return `
+            <div class="illustrated-funnel-detail">
+                <div class="illustrated-funnel-flow ${isLast ? 'revenue' : ''}">${flowLabel}</div>
+                <div>
+                    <div class="illustrated-funnel-name">${escapeHtml(stage.label)}</div>
+                    <div class="illustrated-funnel-desc">${escapeHtml(stageDescriptions[idx] || stageDescriptions[stageDescriptions.length - 1])}</div>
+                    <div class="illustrated-funnel-metric">${formatNumber(stage.value)} leads${idx > 0 ? ` • ${stepRate}% da etapa anterior` : ' • entrada do funil'}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="illustrated-funnel">
+            <div class="illustrated-funnel-visual">
+                <div class="illustrated-funnel-stack">${rowsHtml}</div>
+            </div>
+            <div class="illustrated-funnel-details">${detailsHtml}</div>
+        </div>
+    `;
+}
+
 let isFunnelCompact = false;
 function toggleCompactFunnel() {
     const container = document.getElementById('chartFunnel');
@@ -3412,6 +3819,114 @@ function renderFinanceiroCharts() {
     }
 }
 
+function renderExternalConsultantsCharts() {
+    const monthlyEl = document.getElementById('chartExternalMonthly');
+    if (monthlyEl) {
+        destroyChart('chartExternalMonthly');
+        const aligned = buildAlignedMonthSeries(REPORT_EXTERNAL_BY_MONTH, REPORT_EXTERNAL_VALUE_BY_MONTH.map(r => ({ ym: r.ym, cnt: r.valor })));
+        chartInstances['chartExternalMonthly'] = new Chart(monthlyEl, {
+            type: 'bar',
+            data: {
+                labels: aligned.labels,
+                datasets: [
+                    { label: 'Cadastros', data: aligned.values[0] || [], backgroundColor: 'rgba(59,130,246,0.72)', borderRadius: 6, yAxisID: 'y' },
+                    { label: 'Valor potencial', data: aligned.values[1] || [], type: 'line', borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.12)', tension: 0.35, fill: true, yAxisID: 'y1' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => ctx.dataset.yAxisID === 'y1' ? `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` : `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)}` } } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 } },
+                    y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => 'R$' + formatNumber(v) } }
+                }
+            }
+        });
+    }
+
+    const stageEl = document.getElementById('chartExternalStages');
+    if (stageEl) {
+        destroyChart('chartExternalStages');
+        const rows = Array.isArray(REPORT_EXTERNAL_BY_STAGE) ? REPORT_EXTERNAL_BY_STAGE : [];
+        const labels = rows.map(r => r.label || 'Sem etapa');
+        const data = rows.map(r => Number(r.cnt || 0));
+        chartInstances['chartExternalStages'] = new Chart(stageEl, {
+            type: 'doughnut',
+            data: { labels, datasets: [{ data, backgroundColor: labels.map((_, i) => defaultPalette(i)), borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    const rankingEl = document.getElementById('chartExternalRanking');
+    if (rankingEl) {
+        destroyChart('chartExternalRanking');
+        const rows = (Array.isArray(REPORT_EXTERNAL_RANKING) ? REPORT_EXTERNAL_RANKING : []).slice(0, 10);
+        const labels = rows.map(r => r.username || 'Consultor');
+        chartInstances['chartExternalRanking'] = new Chart(rankingEl, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Itens', data: rows.map(r => Number(r.total_itens || 0)), backgroundColor: 'rgba(59,130,246,0.72)', borderRadius: 6 },
+                    { label: 'Exportados', data: rows.map(r => Number(r.exportados || 0)), backgroundColor: 'rgba(16,185,129,0.78)', borderRadius: 6 },
+                    { label: 'Sem contato 7d', data: rows.map(r => Number(r.sem_contato_7d || 0)), backgroundColor: 'rgba(245,158,11,0.78)', borderRadius: 6 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+        });
+    }
+
+    const cityEl = document.getElementById('chartExternalCities');
+    if (cityEl) {
+        destroyChart('chartExternalCities');
+        const rows = Array.isArray(REPORT_EXTERNAL_BY_CITY) ? REPORT_EXTERNAL_BY_CITY : [];
+        chartInstances['chartExternalCities'] = new Chart(cityEl, {
+            type: 'bar',
+            data: { labels: rows.map(r => r.label || 'Sem cidade'), datasets: [{ label: 'Itens por cidade', data: rows.map(r => Number(r.cnt || 0)), backgroundColor: rows.map((_, i) => defaultPalette(i)), borderRadius: 6 }] },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }
+        });
+    }
+
+    const payEl = document.getElementById('chartExternalPayment');
+    if (payEl) {
+        destroyChart('chartExternalPayment');
+        const rows = Array.isArray(REPORT_EXTERNAL_BY_PAYMENT) ? REPORT_EXTERNAL_BY_PAYMENT : [];
+        chartInstances['chartExternalPayment'] = new Chart(payEl, {
+            type: 'doughnut',
+            data: { labels: rows.map(r => r.label || 'Nao informado'), datasets: [{ data: rows.map(r => Number(r.cnt || 0)), backgroundColor: rows.map((_, i) => defaultPalette(i + 2)), borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    const rankTable = document.getElementById('tableExternalRanking');
+    if (rankTable) {
+        const rows = Array.isArray(REPORT_EXTERNAL_RANKING) ? REPORT_EXTERNAL_RANKING : [];
+        let html = '<div class="table-responsive"><table class="data-table"><thead><tr><th>Consultor externo</th><th>Itens</th><th>Exportados</th><th>Taxa</th><th>Valor</th><th>Ticket médio</th><th>Sem contato</th><th>Última atividade</th></tr></thead><tbody>';
+        rows.forEach(r => {
+            const total = Number(r.total_itens || 0);
+            const exp = Number(r.exportados || 0);
+            const taxa = total > 0 ? ((exp / total) * 100).toFixed(1) : '0.0';
+            html += `<tr><td><strong>${escapeHtml(r.username || 'Consultor')}</strong></td><td>${formatNumber(total)}</td><td style="color:#10b981;font-weight:700;">${formatNumber(exp)}</td><td>${taxa}%</td><td>${formatCurrency(r.valor_total || 0)}</td><td>${r.ticket_medio ? formatCurrency(r.ticket_medio) : '—'}</td><td style="color:${Number(r.sem_contato_7d || 0) > 0 ? '#f59e0b' : '#10b981'};font-weight:700;">${formatNumber(r.sem_contato_7d || 0)}</td><td>${escapeHtml(r.ultima_atividade || '—')}</td></tr>`;
+        });
+        if (rows.length === 0) html += '<tr><td colspan="8" class="text-center text-muted py-4">Nenhum dado de consultoria externa no período.</td></tr>';
+        html += '</tbody></table></div>';
+        rankTable.innerHTML = html;
+    }
+
+    const recentTable = document.getElementById('tableExternalRecent');
+    if (recentTable) {
+        const rows = Array.isArray(REPORT_EXTERNAL_RECENT) ? REPORT_EXTERNAL_RECENT : [];
+        let html = '<div class="table-responsive" style="max-height:420px; overflow:auto;"><table class="data-table"><thead><tr><th>ID</th><th>Cliente</th><th>Consultor</th><th>Etapa</th><th>Cidade</th><th>Valor</th><th>Fila interna</th><th>Atualizado</th></tr></thead><tbody>';
+        rows.forEach(r => {
+            html += `<tr><td>${formatNumber(r.id || 0)}</td><td><strong>${escapeHtml(r.client_name || '')}</strong></td><td>${escapeHtml(r.username || 'Consultor')}</td><td>${escapeHtml(r.stage_label || 'Sem etapa')}</td><td>${escapeHtml(r.cidade || 'Sem cidade')}</td><td>${formatCurrency(r.value || 0)}</td><td>${Number(r.exported_to_internal_queue || 0) === 1 ? '<span class="badge bg-success">Enviado</span>' : '<span class="badge bg-secondary">Pendente</span>'}</td><td>${escapeHtml(r.updated_at || '—')}</td></tr>`;
+        });
+        if (rows.length === 0) html += '<tr><td colspan="8" class="text-center text-muted py-4">Nenhuma movimentação encontrada.</td></tr>';
+        html += '</tbody></table></div>';
+        recentTable.innerHTML = html;
+    }
+}
+
 function renderReports(){
     try {
         applyChartThemeDefaults();
@@ -3424,6 +3939,7 @@ function renderReports(){
         renderTimeDistributionChart();
         renderTrendsChart();
         renderFunnel();
+        renderIllustratedFunnel();
         renderTopSourcesTable();
         renderStagesDetailTable();
         renderTopSellersChart();
@@ -3437,6 +3953,7 @@ function renderReports(){
         renderQualificationCharts();
         renderSLACharts();
         renderFinanceiroCharts();
+        renderExternalConsultantsCharts();
     } catch(e) { 
         console.error('Render reports failed', e); 
     }

@@ -137,6 +137,44 @@ if (!function_exists('wrcrm_send_email')) {
         return $lastError;
     }
 
+    function wrcrm_smtp_last_debug($debug = null) {
+        static $lastDebug = [];
+        if ($debug !== null) $lastDebug = is_array($debug) ? $debug : [];
+        return $lastDebug;
+    }
+
+    function wrcrm_smtp_mask($value) {
+        $value = (string)$value;
+        if ($value === '') return '';
+        if (strpos($value, '@') !== false) {
+            [$name, $domain] = array_pad(explode('@', $value, 2), 2, '');
+            return substr($name, 0, 2) . str_repeat('*', max(1, strlen($name) - 2)) . '@' . $domain;
+        }
+        return substr($value, 0, 2) . str_repeat('*', max(1, strlen($value) - 2));
+    }
+
+    function wrcrm_smtp_log_debug(array $debug) {
+        $dir = __DIR__ . '/../logs';
+        if (!is_dir($dir)) @mkdir($dir, 0755, true);
+        $path = $dir . '/smtp_debug.log';
+        $lines = [];
+        $lines[] = '================ SMTP TEST ' . ($debug['id'] ?? '-') . ' ================';
+        $lines[] = 'time=' . ($debug['time'] ?? date('c'));
+        $lines[] = 'result=' . (!empty($debug['sent']) ? 'success' : 'failure');
+        $lines[] = 'error=' . ($debug['error'] ?? '');
+        $lines[] = 'host=' . ($debug['host'] ?? '') . ' port=' . ($debug['port'] ?? '') . ' secure=' . ($debug['secure'] ?? '') . ' auth=' . ($debug['auth'] ?? '');
+        $lines[] = 'target=' . ($debug['target'] ?? '') . ' local_host=' . ($debug['local_host'] ?? '') . ' php=' . PHP_VERSION . ' os=' . PHP_OS;
+        $lines[] = 'dns_ips=' . (!empty($debug['dns_ips']) && is_array($debug['dns_ips']) ? implode(',', $debug['dns_ips']) : '');
+        $lines[] = 'from=' . ($debug['from'] ?? '') . ' to=' . ($debug['to'] ?? '') . ' user=' . ($debug['user'] ?? '');
+        $lines[] = 'transcript:';
+        foreach (($debug['transcript'] ?? []) as $entry) {
+            $lines[] = '  ' . $entry;
+        }
+        $lines[] = '';
+        @file_put_contents($path, implode(PHP_EOL, $lines), FILE_APPEND | LOCK_EX);
+        return $path;
+    }
+
     function wrcrm_send_email($to, $subject, $html, $toName = null) {
         $settings = wrcrm_read_settings();
         $smtp = isset($settings['smtp']) && is_array($settings['smtp']) ? $settings['smtp'] : [];
@@ -145,6 +183,24 @@ if (!function_exists('wrcrm_send_email')) {
         $sent = false;
         $lastError = '';
         wrcrm_smtp_last_error('');
+        $debug = [
+            'id' => date('YmdHis') . '-' . substr(bin2hex(random_bytes(4)), 0, 8),
+            'time' => date('c'),
+            'sent' => false,
+            'error' => '',
+            'host' => trim((string)($smtp['host'] ?? '')),
+            'port' => isset($smtp['port']) ? (int)$smtp['port'] : '',
+            'secure' => strtolower($smtp['secure'] ?? ''),
+            'auth' => !empty($smtp['auth']) ? '1' : '0',
+            'target' => '',
+            'local_host' => gethostname() ?: 'localhost',
+            'dns_ips' => [],
+            'from' => wrcrm_smtp_mask($fromEmail),
+            'to' => wrcrm_smtp_mask($to),
+            'user' => wrcrm_smtp_mask($smtp['user'] ?? ''),
+            'transcript' => []
+        ];
+        wrcrm_smtp_last_debug($debug);
 
         if (!empty($smtp['host'])) {
             try {
@@ -152,6 +208,9 @@ if (!function_exists('wrcrm_send_email')) {
                 $port = isset($smtp['port']) ? (int)$smtp['port'] : 25;
                 $secure = strtolower($smtp['secure'] ?? '');
                 $target = ($secure === 'ssl' ? 'ssl://' : '') . $host . ':' . $port;
+                $debug['target'] = $target;
+                $debug['dns_ips'] = @gethostbynamel($host) ?: [];
+                $debug['transcript'][] = 'CONNECT ' . $target . ' timeout=20';
                 $context = stream_context_create([
                     'ssl' => [
                         'peer_name' => $host,
@@ -164,17 +223,23 @@ if (!function_exists('wrcrm_send_email')) {
                 $fp = @stream_socket_client($target, $errno, $errstr, 20, STREAM_CLIENT_CONNECT, $context);
                 if (!$fp) {
                     $lastError = 'Conexao recusada por ' . $host . ':' . $port . ' (' . $errno . ') ' . $errstr;
+                    $debug['transcript'][] = 'CONNECT_ERROR errno=' . $errno . ' errstr=' . $errstr;
                 } else {
+                    $debug['transcript'][] = 'CONNECTED';
                     stream_set_timeout($fp, 15);
-                    $read = function() use ($fp) {
+                    $read = function($label = 'S') use ($fp, &$debug) {
                         $response = '';
                         while (($line = fgets($fp, 2048)) !== false) {
                             $response .= $line;
                             if (strlen($line) < 4 || $line[3] !== '-') break;
                         }
-                        return trim($response);
+                        $response = trim($response);
+                        $debug['transcript'][] = $label . ': ' . ($response ?: 'sem resposta');
+                        return $response;
                     };
-                    $send = function($cmd) use ($fp, $read) {
+                    $send = function($cmd) use ($fp, $read, &$debug) {
+                        $logCmd = preg_match('/^[A-Za-z0-9+\/=]{8,}$/', $cmd) ? '[base64 omitido]' : $cmd;
+                        $debug['transcript'][] = 'C: ' . $logCmd;
                         if (fwrite($fp, $cmd . "\r\n") === false) return '';
                         return $read();
                     };
@@ -184,7 +249,7 @@ if (!function_exists('wrcrm_send_email')) {
                             throw new RuntimeException($step . ': ' . ($response ?: 'servidor nao respondeu'));
                         }
                     };
-                    $banner = $read();
+                    $banner = $read('S banner');
                     $expect($banner, [220], 'Conexao SMTP');
                     $ehlo = $send('EHLO ' . (gethostname() ?: 'localhost'));
                     $expect($ehlo, [250], 'EHLO');
@@ -202,6 +267,7 @@ if (!function_exists('wrcrm_send_email')) {
                         if (!$enabled) {
                             throw new RuntimeException('Falha ao iniciar a criptografia TLS');
                         } else {
+                            $debug['transcript'][] = 'TLS_ENABLED method=' . $method;
                             $ehlo = $send('EHLO ' . (gethostname() ?: 'localhost'));
                             $expect($ehlo, [250], 'EHLO apos STARTTLS');
                         }
@@ -240,10 +306,12 @@ if (!function_exists('wrcrm_send_email')) {
                     $send('QUIT');
                     fclose($fp);
                     $sent = true;
+                    $debug['sent'] = true;
                 }
             } catch (Throwable $e) {
                 $sent = false;
                 $lastError = $e->getMessage();
+                $debug['transcript'][] = 'EXCEPTION ' . $lastError;
                 if (isset($fp) && is_resource($fp)) fclose($fp);
             }
         }
@@ -251,9 +319,16 @@ if (!function_exists('wrcrm_send_email')) {
         if (!$sent && empty($smtp['host'])) {
             $sent = wrcrm_mail_simple($to, $subject, $html, $fromName, $fromEmail);
             if (!$sent) $lastError = 'SMTP nao configurado e a funcao mail() do servidor falhou';
+            $debug['sent'] = (bool)$sent;
+            $debug['transcript'][] = 'MAIL_FUNCTION fallback=' . ($sent ? 'success' : 'failure');
         } elseif (!$sent && !$lastError) {
             $lastError = 'Falha ao enviar via SMTP sem resposta detalhada';
         }
+        $debug['sent'] = (bool)$sent;
+        $debug['error'] = $lastError;
+        $logPath = wrcrm_smtp_log_debug($debug);
+        $debug['log_path'] = $logPath;
+        wrcrm_smtp_last_debug($debug);
         if ($lastError) {
             wrcrm_smtp_last_error($lastError);
             error_log('[WRCRM SMTP] ' . $lastError . ' host=' . ($smtp['host'] ?? '') . ' port=' . ($smtp['port'] ?? '') . ' secure=' . ($smtp['secure'] ?? '') . ' auth=' . (!empty($smtp['auth']) ? '1' : '0'));

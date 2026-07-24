@@ -81,6 +81,20 @@ function logTaskActivity($pdo, $data) {
     }
 }
 
+function finishJsonResponse($payload) {
+    @ignore_user_abort(true);
+    echo json_encode($payload);
+    if (function_exists('session_write_close')) {
+        @session_write_close();
+    }
+    if (function_exists('fastcgi_finish_request')) {
+        @fastcgi_finish_request();
+        return;
+    }
+    @ob_flush();
+    @flush();
+}
+
 $hasResponsavelId = columnExists($pdo, 'team_tasks', 'responsavel_id');
 ensureTeamColumnExists($pdo);
 $hasTeamId = columnExists($pdo, 'team_tasks', 'team_id');
@@ -199,7 +213,13 @@ switch ($action) {
                 ]);
             }
             $newId = $pdo->lastInsertId();
-            wrcrm_notify_task_created($pdo, $newId, $userId);
+            finishJsonResponse(['success'=>true, 'id'=>$newId]);
+            try {
+                wrcrm_notify_task_created($pdo, $newId, $userId);
+            } catch (Throwable $e) {
+                error_log('[WRCRM notifications] task_created background failed: ' . $e->getMessage());
+            }
+            try {
             // log creation activity (best-effort)
             logTaskActivity($pdo, [
                 'task_id' => $newId,
@@ -223,7 +243,9 @@ switch ($action) {
                     wrcrm_send_email($u['email'], $subject, $html, $u['nome_completo'] ?: $u['username']);
                 }
             }
-            echo json_encode(['success'=>true, 'id'=>$newId]);
+            } catch (Throwable $e) {
+                error_log('[WRCRM notifications] task_created team delivery failed: ' . $e->getMessage());
+            }
         } catch (Exception $e) {
             echo json_encode(['success'=>false, 'error'=>$e->getMessage()]);
         }

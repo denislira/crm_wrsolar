@@ -28,9 +28,16 @@ try {
     $html = '<p>Teste de SMTP do WRCRM realizado em ' . htmlspecialchars(date('d/m/Y H:i:s')) . '.</p>';
     $sent = wrcrm_send_email($to, 'Teste de SMTP - WRCRM', $html);
     $detail = function_exists('wrcrm_smtp_last_error') ? wrcrm_smtp_last_error() : '';
+    $debug = function_exists('wrcrm_smtp_last_debug') ? wrcrm_smtp_last_debug() : [];
+    $logPath = $debug['log_path'] ?? (__DIR__ . '/../logs/smtp_debug.log');
+    $logId = $debug['id'] ?? '';
     echo json_encode([
         'success' => (bool)$sent,
-        'message' => $sent ? 'Email de teste enviado' : ('Falha no SMTP: ' . ($detail ?: 'erro desconhecido'))
+        'message' => $sent
+            ? 'Email de teste enviado. Log SMTP #' . $logId . ' salvo em logs/smtp_debug.log'
+            : ('Falha no SMTP: ' . ($detail ?: 'erro desconhecido') . '. Log #' . $logId . ' salvo em logs/smtp_debug.log'),
+        'smtp_log_id' => $logId,
+        'smtp_log_file' => basename($logPath)
     ]);
 } catch (Throwable $e) {
     http_response_code(500);
