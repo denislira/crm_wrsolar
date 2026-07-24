@@ -1302,20 +1302,24 @@ async function atualizarTarefas() {
             // Conteúdo
             const content = document.createElement('div');
             content.className = 'flex-grow-1';
-            const responsavelId = t.responsavel_id || t.user_id;
+            const responsavelId = t.responsavel_id || null;
             const responsavelInfo = (responsavelId && usersMap && usersMap[responsavelId]) ? usersMap[responsavelId] : null;
             const responsavelNome = responsavelInfo && responsavelInfo.username ? responsavelInfo.username : t.responsavel;
+            const teamName = t.team_name || (t.responsavel && String(t.responsavel).startsWith('Equipe: ') ? String(t.responsavel).replace(/^Equipe:\s*/, '') : '');
+            const isTeamTask = !!(t.team_id || teamName || (!t.responsavel_id && t.responsavel && String(t.responsavel).startsWith('Equipe: ')));
             // Criador da tarefa (user_id) — usar usersMap quando disponível
             const criadorId = t.user_id || null;
             const criadorInfo = (criadorId && usersMap && usersMap[criadorId]) ? usersMap[criadorId] : null;
             const criadorNome = criadorInfo && criadorInfo.username ? criadorInfo.username : (t.username || t.user || '');
-            content.innerHTML = `<div class="d-flex align-items-center gap-2 mb-2">
+            content.innerHTML = `<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                 <h6 class="mb-0 fw-semibold" style="color: #1e293b; font-size: 0.95rem;">${escapeHtml(t.titulo)}</h6>
                 <span class="badge rounded-pill" style="background:${equipeColor(t.equipe)};color:#fff;padding:0.35em 0.75em;font-size:0.7rem;font-weight:500;">${escapeHtml(t.equipe)}</span>
+                ${isTeamTask ? '<span class="badge rounded-pill" style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:0.35em 0.75em;font-size:0.7rem;font-weight:700;"><i class="fa fa-users me-1"></i>Para equipe: ' + escapeHtml(teamName || t.equipe || 'Equipe') + '</span>' : ''}
             </div>
             <div class="d-flex align-items-center gap-3 mb-2" style="font-size: 0.8rem;">
-                ${responsavelNome ? '<div class="text-muted"><i class="fa fa-user me-1" style="opacity:0.6;"></i><span>' + escapeHtml(responsavelNome) + '</span></div>' : ''}
-                ${t.data_vencimento ? '<div class="text-muted"><i class="fa fa-calendar me-1" style="opacity:0.6;"></i><span>' + t.data_vencimento + (criadorNome && criadorNome !== responsavelNome ? ' • Criado por: <b>' + escapeHtml(criadorNome) + '</b>' : '') + '</span></div>' : ''}
+                ${!isTeamTask && responsavelNome ? '<div class="text-muted"><i class="fa fa-user me-1" style="opacity:0.6;"></i><span>' + escapeHtml(responsavelNome) + '</span></div>' : ''}
+                ${t.data_vencimento ? '<div class="text-muted"><i class="fa fa-calendar me-1" style="opacity:0.6;"></i><span>' + escapeHtml(t.data_vencimento) + '</span></div>' : ''}
+                ${criadorNome ? '<div class="text-muted"><i class="fa fa-user-plus me-1" style="opacity:0.6;"></i><span>Criado por: <b>' + escapeHtml(criadorNome) + '</b></span></div>' : ''}
             </div>
             ${t.descricao ? '<div class="text-secondary" style="font-size: 0.85rem; line-height: 1.5; color: #64748b !important;">' + escapeHtml(t.descricao) + '</div>' : ''}`;
             card.appendChild(content);

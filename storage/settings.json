@@ -7,12 +7,12 @@
     "login_background": "uploads\/custom_login_background.jpg",
     "smtp": {
         "host": "email-ssl.com.br",
-        "port": 587,
-        "secure": "tls",
+        "port": 465,
+        "secure": "ssl",
         "user": "crm@wrsolare.com.br",
         "pass": "Crm#solare22#1411",
         "from_email": "crm@wrsolare.com.br",
-        "from_name": "CRM WRSolare",
+        "from_name": "WRSolare",
         "auth": 0
     },
     "notifications": {

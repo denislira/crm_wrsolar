@@ -114,7 +114,9 @@ switch ($action) {
             $w[] = 'status = ?';
             $params[] = $_GET['status'];
         }
-        $sql = 'SELECT * FROM team_tasks';
+        $sql = $hasTeamId
+            ? 'SELECT team_tasks.*, teams.name AS team_name FROM team_tasks LEFT JOIN teams ON teams.id = team_tasks.team_id'
+            : 'SELECT * FROM team_tasks';
         if (!empty($w)) $sql .= ' WHERE ' . implode(' AND ', $w);
         $sql .= ' ORDER BY data_vencimento ASC, criado_em DESC';
         $stmt = $pdo->prepare($sql);
