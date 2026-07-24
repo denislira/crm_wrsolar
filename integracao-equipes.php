@@ -270,6 +270,17 @@ try {
 #tasksList .btn-link { opacity: 0 !important; transition: opacity .16s ease; }
 #tasksList .task-list-card:hover .btn-link,
 #tasksList .task-list-card:focus-within .btn-link { opacity: 1 !important; }
+#tasksList .task-list-card {
+    min-width: 0;
+}
+#tasksList .task-list-card .flex-grow-1 {
+    min-width: 0;
+}
+#tasksList .task-description {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
 @media (hover: none) {
     #tasksList .task-list-card .btn-link { opacity: 1 !important; }
 }
@@ -1321,7 +1332,7 @@ async function atualizarTarefas() {
                 ${t.data_vencimento ? '<div class="text-muted"><i class="fa fa-calendar me-1" style="opacity:0.6;"></i><span>' + escapeHtml(t.data_vencimento) + '</span></div>' : ''}
                 ${criadorNome ? '<div class="text-muted"><i class="fa fa-user-plus me-1" style="opacity:0.6;"></i><span>Criado por: <b>' + escapeHtml(criadorNome) + '</b></span></div>' : ''}
             </div>
-            ${t.descricao ? '<div class="text-secondary" style="font-size: 0.85rem; line-height: 1.5; color: #64748b !important;">' + escapeHtml(t.descricao) + '</div>' : ''}`;
+            ${t.descricao ? '<div class="task-description text-secondary" style="font-size: 0.85rem; line-height: 1.5; color: #64748b !important;">' + escapeHtml(t.descricao) + '</div>' : ''}`;
             card.appendChild(content);
             // Ações (concluir se for responsável, editar, excluir)
             const actions = document.createElement('div');
