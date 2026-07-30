@@ -694,6 +694,17 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
   color:#334155;
   font-weight:700;
 }
+#leadModal .lead-modal-actions-inline{
+  align-items:center;
+  margin-top:12px;
+  padding-top:2px;
+}
+#leadModal .lead-modal-actions-inline .lead-modal-action-btn{
+  width:46px;
+  height:46px;
+  border-radius:12px;
+  font-size:1.2rem;
+}
 
 @media (max-width: 900px){
 	.modal-dialog.modal-lg{max-width:720px}

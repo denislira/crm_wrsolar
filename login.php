@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
   session_start();
 }
 include 'includes/config.php';
+include 'includes/email_notifications.php';
 
 function isConsultorRoleFromSessionOrUser($roleId) {
     // Only treat as external consultant when role is 'consultor_externo'
@@ -69,10 +70,13 @@ if (file_exists($settingsPath)) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'];
     $password = $_POST['password'];
-    $stmt = $pdo->prepare('SELECT id, username, password, role_id FROM users WHERE username = ?');
+    $stmt = $pdo->prepare('SELECT id, username, nome_completo, email, password, role_id FROM users WHERE username = ?');
     $stmt->execute([$username]);
     $user = $stmt->fetch();
     if ($user && password_verify($password, $user['password'])) {
+        unset($_SESSION['login_failed_attempts'][$user['username']]);
+        wrcrm_queue_login_security_notification($user, 'login_success', $_SERVER['REMOTE_ADDR'] ?? null);
+
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
         $_SESSION['role_id'] = $user['role_id'];
@@ -92,7 +96,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         header('Location: index.php'); exit;
-    } else { $error = 'Usuário ou senha incorretos!'; }
+    } else {
+        if ($user) {
+            if (!isset($_SESSION['login_failed_attempts']) || !is_array($_SESSION['login_failed_attempts'])) {
+                $_SESSION['login_failed_attempts'] = [];
+            }
+            $attemptKey = (string)$user['username'];
+            $_SESSION['login_failed_attempts'][$attemptKey] = (int)($_SESSION['login_failed_attempts'][$attemptKey] ?? 0) + 1;
+            if ($_SESSION['login_failed_attempts'][$attemptKey] === 3) {
+                wrcrm_queue_login_security_notification($user, 'login_failed_3', $_SERVER['REMOTE_ADDR'] ?? null);
+            }
+        }
+        $error = 'Usuário ou senha incorretos!';
+    }
 }
 ?>
 
@@ -335,6 +351,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
     
     <script src="assets/js/bootstrap.bundle.min.js"></script>
+    <?php if (!empty($_SESSION['pending_login_notifications'])): ?>
+    <script>
+        window.addEventListener('load', function(){
+            fetch('api/process_login_notifications.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                keepalive: true
+            }).catch(function(){});
+        });
+    </script>
+    <?php endif; ?>
     <script>
         (function(){
             const pwd = document.getElementById('password');

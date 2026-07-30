@@ -1717,28 +1717,6 @@
         left.appendChild(title);
         const quickActions = document.createElement('div');
         quickActions.className = 'lead-card-actions';
-        const cardReminderBtn = document.createElement('button');
-        cardReminderBtn.className = 'btn btn-sm btn-outline-info lead-card-icon-btn';
-        cardReminderBtn.type = 'button';
-        cardReminderBtn.title = 'Criar lembrete';
-        cardReminderBtn.setAttribute('aria-label', 'Criar lembrete');
-        cardReminderBtn.innerHTML = '<i class="fa fa-clock"></i>';
-        cardReminderBtn.addEventListener('click', (e)=>{
-            e.stopPropagation();
-            openReminderForLead(lead.id);
-        });
-        const cardTaskBtn = document.createElement('button');
-        cardTaskBtn.className = 'btn btn-sm btn-outline-warning lead-card-icon-btn';
-        cardTaskBtn.type = 'button';
-        cardTaskBtn.title = 'Criar tarefa';
-        cardTaskBtn.setAttribute('aria-label', 'Criar tarefa');
-        cardTaskBtn.innerHTML = '<i class="fa fa-tasks"></i>';
-        cardTaskBtn.addEventListener('click', (e)=>{
-            e.stopPropagation();
-            openTaskForLead(lead);
-        });
-        quickActions.appendChild(cardReminderBtn);
-        quickActions.appendChild(cardTaskBtn);
         
         // Add create project button in the header if stage allows it
         console.log('makeCard - Lead:', lead.id, lead.name, 'StageObj:', stageObj);

@@ -52,14 +52,18 @@ if (!function_exists('wrcrm_default_notification_settings')) {
                 'task_created' => 1,
                 'lead_created' => 0,
                 'lead_sale_completed' => 0,
-                'lead_stage_changed' => 0
+                'lead_stage_changed' => 0,
+                'login_success' => 0,
+                'login_failed_3' => 0
             ],
             'recipients' => [
                 'reminder_created' => ['creator', 'responsible'],
                 'task_created' => ['creator', 'responsible'],
                 'lead_created' => [],
                 'lead_sale_completed' => [],
-                'lead_stage_changed' => []
+                'lead_stage_changed' => [],
+                'login_success' => [],
+                'login_failed_3' => []
             ],
             'sale_stage_names' => ['Venda concluída', 'Venda concluida', 'Concluído', 'Concluido', 'Ganho', 'Fechado']
         ];
@@ -550,5 +554,88 @@ if (!function_exists('wrcrm_notify_lead_stage_changed')) {
                 'responsible' => $l['user_id'] ?? null
             ]);
         } catch (Exception $e) { return false; }
+    }
+}
+
+if (!function_exists('wrcrm_notify_login_security')) {
+    function wrcrm_notify_login_security(array $user, $event, $ipAddress = null) {
+        if (!wrcrm_notification_enabled($event)) return false;
+
+        $email = trim((string)($user['email'] ?? ''));
+        if ($email === '') return false;
+
+        $name = trim((string)($user['nome_completo'] ?? '')) ?: (string)($user['username'] ?? '');
+        $isSuccess = $event === 'login_success';
+        $subject = $isSuccess ? 'Novo login no WRCRM' : 'Alerta: 3 tentativas de senha incorreta';
+        $when = date('d/m/Y H:i:s');
+
+        $html = $isSuccess
+            ? '<p>Um login foi realizado com sucesso na sua conta do WRCRM.</p>'
+            : '<p>Detectamos 3 tentativas seguidas de senha incorreta na sua conta do WRCRM.</p>';
+
+        $html .= '<p><strong>Usuário:</strong> ' . htmlspecialchars((string)($user['username'] ?? ''), ENT_QUOTES, 'UTF-8') . '<br>'
+            . '<strong>Data/hora:</strong> ' . htmlspecialchars($when, ENT_QUOTES, 'UTF-8') . '<br>'
+            . '<strong>IP:</strong> ' . htmlspecialchars((string)($ipAddress ?: 'Não identificado'), ENT_QUOTES, 'UTF-8') . '</p>';
+
+        if (!$isSuccess) {
+            $html .= '<p>Se não foi você, recomenda-se alterar sua senha e avisar o administrador do sistema.</p>';
+        }
+
+        return wrcrm_send_email($email, $subject, $html, $name);
+    }
+}
+
+if (!function_exists('wrcrm_queue_login_security_notification')) {
+    function wrcrm_queue_login_security_notification(array $user, $event, $ipAddress = null) {
+        if (!wrcrm_notification_enabled($event)) return false;
+        if (empty($user['id']) || empty($user['email'])) return false;
+        if (!isset($_SESSION) || session_status() !== PHP_SESSION_ACTIVE) return false;
+
+        if (!isset($_SESSION['pending_login_notifications']) || !is_array($_SESSION['pending_login_notifications'])) {
+            $_SESSION['pending_login_notifications'] = [];
+        }
+
+        $_SESSION['pending_login_notifications'][] = [
+            'user_id' => (int)$user['id'],
+            'event' => (string)$event,
+            'ip' => (string)($ipAddress ?: ''),
+            'queued_at' => time()
+        ];
+
+        return true;
+    }
+}
+
+if (!function_exists('wrcrm_process_queued_login_security_notifications')) {
+    function wrcrm_process_queued_login_security_notifications(PDO $pdo) {
+        if (!isset($_SESSION) || session_status() !== PHP_SESSION_ACTIVE) return 0;
+        $queue = isset($_SESSION['pending_login_notifications']) && is_array($_SESSION['pending_login_notifications'])
+            ? $_SESSION['pending_login_notifications']
+            : [];
+        unset($_SESSION['pending_login_notifications']);
+        if (function_exists('session_write_close')) {
+            @session_write_close();
+        }
+        if (!$queue) return 0;
+
+        $sent = 0;
+        foreach ($queue as $item) {
+            $event = (string)($item['event'] ?? '');
+            if (!in_array($event, ['login_success', 'login_failed_3'], true)) continue;
+            $userId = (int)($item['user_id'] ?? 0);
+            if ($userId <= 0) continue;
+            try {
+                $stmt = $pdo->prepare('SELECT id, username, nome_completo, email FROM users WHERE id = ? LIMIT 1');
+                $stmt->execute([$userId]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($user && wrcrm_notify_login_security($user, $event, $item['ip'] ?? null)) {
+                    $sent++;
+                }
+            } catch (Throwable $e) {
+                error_log('[WRCRM notifications] login security background failed: ' . $e->getMessage());
+            }
+        }
+
+        return $sent;
     }
 }

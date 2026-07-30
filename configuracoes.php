@@ -1728,6 +1728,16 @@ body.theme-dark .edit-user-modal .avatar-box {
                                             <td><input class="form-check-input" type="checkbox" name="recipients[lead_stage_changed][]" value="creator"></td>
                                             <td><input class="form-check-input" type="checkbox" name="recipients[lead_stage_changed][]" value="responsible"></td>
                                         </tr>
+                                        <tr>
+                                            <td>Login realizado com sucesso</td>
+                                            <td><input class="form-check-input notification-event" type="checkbox" name="events[login_success]" data-event="login_success"></td>
+                                            <td colspan="2" class="text-muted small">Envia para o próprio e-mail do usuário</td>
+                                        </tr>
+                                        <tr>
+                                            <td>3 senhas incorretas seguidas no login</td>
+                                            <td><input class="form-check-input notification-event" type="checkbox" name="events[login_failed_3]" data-event="login_failed_3"></td>
+                                            <td colspan="2" class="text-muted small">Envia para o próprio e-mail do usuário</td>
+                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -2824,14 +2834,18 @@ document.addEventListener('DOMContentLoaded', function(){
                 task_created: true,
                 lead_created: false,
                 lead_sale_completed: false,
-                lead_stage_changed: false
+                lead_stage_changed: false,
+                login_success: false,
+                login_failed_3: false
             },
             recipients: {
                 reminder_created: ['creator', 'responsible'],
                 task_created: ['creator', 'responsible'],
                 lead_created: [],
                 lead_sale_completed: [],
-                lead_stage_changed: []
+                lead_stage_changed: [],
+                login_success: [],
+                login_failed_3: []
             },
             sale_stage_names: ['Venda concluída', 'Venda concluida', 'Concluído', 'Concluido', 'Ganho', 'Fechado']
         };

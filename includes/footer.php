@@ -285,6 +285,17 @@
   </script>
 
   <script src="assets/js/notifications.js"></script>
+  <?php if (!empty($_SESSION['pending_login_notifications'])): ?>
+  <script>
+    window.addEventListener('load', function(){
+      fetch('api/process_login_notifications.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true
+      }).catch(function(){});
+    });
+  </script>
+  <?php endif; ?>
   <?php if (empty($noNavbar) && !empty($_SESSION['user_id'])): ?>
   <script src="assets/js/internal_chat.js"></script>
   <?php endif; ?>

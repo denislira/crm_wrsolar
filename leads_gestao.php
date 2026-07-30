@@ -418,6 +418,10 @@ include 'includes/header.php';
                                             <div class="mb-3">
                                                 <label class="form-label">Fonte</label>
                                                 <input id="lead-source" class="form-control" placeholder="Ex: Facebook, Indicação">
+                                                <div class="lead-modal-actions-inline d-flex gap-2 mb-2">
+                                                    <button id="leadModalReminderBtn" type="button" class="btn btn-outline-info lead-modal-action-btn d-none" title="Criar lembrete" aria-label="Criar lembrete"><i class="fa fa-clock"></i></button>
+                                                    <button id="leadModalTaskBtn" type="button" class="btn btn-outline-warning lead-modal-action-btn d-none" title="Criar tarefa" aria-label="Criar tarefa"><i class="fa fa-tasks"></i></button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -428,8 +432,6 @@ include 'includes/header.php';
                     </form>
                 </div>
                 <div class="modal-footer d-flex justify-content-end gap-2">
-                    <button id="leadModalReminderBtn" type="button" class="btn btn-outline-info lead-modal-action-btn d-none" title="Criar lembrete" aria-label="Criar lembrete"><i class="fa fa-clock"></i></button>
-                    <button id="leadModalTaskBtn" type="button" class="btn btn-outline-warning lead-modal-action-btn d-none" title="Criar tarefa" aria-label="Criar tarefa"><i class="fa fa-tasks"></i></button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button id="save-lead" type="submit" form="leadForm" class="btn btn-primary"><i class="fa fa-save"></i> Salvar</button>
                 </div>

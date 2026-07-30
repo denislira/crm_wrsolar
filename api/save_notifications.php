@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$events = ['reminder_created', 'lead_created', 'task_created', 'lead_sale_completed', 'lead_stage_changed'];
+$events = ['reminder_created', 'lead_created', 'task_created', 'lead_sale_completed', 'lead_stage_changed', 'login_success', 'login_failed_3'];
 $roles = ['creator', 'responsible'];
 
 $settings = wrcrm_read_settings();
