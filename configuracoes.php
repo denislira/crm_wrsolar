@@ -150,8 +150,8 @@ body.theme-dark .text-muted {
     border-radius: 16px;
     color: #fff;
     letter-spacing: 0.2px;
-    background: linear-gradient(130deg, #0a58ca 0%, #0b8ada 48%, #27b09e 100%);
-    box-shadow: 0 18px 38px rgba(13, 88, 182, 0.24);
+    background: linear-gradient(130deg, var(--blue-900) 0%, var(--blue-700) 58%, var(--green) 100%);
+    box-shadow: 0 18px 38px rgba(var(--bs-primary-rgb), 0.24);
 }
 
 .settings-page .settings-tabs {
@@ -178,14 +178,14 @@ body.theme-dark .text-muted {
 
 .settings-page .settings-tabs .nav-link:hover {
     color: #21476f;
-    background: rgba(13, 110, 253, 0.08);
+    background: rgba(var(--bs-primary-rgb), 0.08);
     transform: translateY(-1px);
 }
 
 .settings-page .settings-tabs .nav-link.active {
     color: #fff;
-    background: linear-gradient(120deg, #0d6efd 0%, #1da6ff 100%);
-    box-shadow: 0 8px 20px rgba(13, 110, 253, 0.35);
+    background: linear-gradient(120deg, var(--blue-700) 0%, var(--blue-900) 100%);
+    box-shadow: 0 8px 20px rgba(var(--bs-primary-rgb), 0.35);
 }
 
 .settings-page .settings-tab-content {
@@ -236,10 +236,25 @@ body.theme-dark .text-muted {
     font-weight: 600;
 }
 
+.modal-header:not(.bg-danger) {
+    background: linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%);
+    border-bottom: 0;
+    color: #fff;
+}
+
+.modal-header:not(.bg-danger) .modal-title {
+    color: #fff;
+}
+
+.modal-header:not(.bg-danger) .btn-close {
+    filter: invert(1) grayscale(100%);
+    opacity: 0.9;
+}
+
 .settings-page .btn-primary {
-    background: linear-gradient(120deg, #0d6efd 0%, #1296ff 100%);
+    background: linear-gradient(120deg, var(--blue-700) 0%, var(--blue-900) 100%);
     border: 0;
-    box-shadow: 0 10px 20px rgba(13, 110, 253, 0.25);
+    box-shadow: 0 10px 20px rgba(var(--bs-primary-rgb), 0.25);
 }
 
 .settings-page .btn-primary:hover {
@@ -265,7 +280,7 @@ body.theme-dark .text-muted {
 .settings-page .form-select:focus,
 .settings-page .form-check-input:focus {
     border-color: #4f7fb8;
-    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.12);
 }
 
 .settings-page #waStatusCard,
@@ -329,7 +344,7 @@ body.theme-dark .settings-page .settings-tabs .nav-link:hover {
 
 body.theme-dark .settings-page .settings-tabs .nav-link.active {
     color: #fff !important;
-    background: linear-gradient(120deg, #0c7de0 0%, #18a2ff 100%);
+    background: linear-gradient(120deg, var(--blue-700) 0%, var(--blue-900) 100%);
 }
 
 body.theme-dark .settings-page .card.card-shadow {
@@ -405,7 +420,7 @@ body.theme-dark .settings-page #appearance #appearancePreview {
 #changePasswordModal .form-control:focus,
 #changePasswordModal .form-select:focus {
     border-color: #4f7fb8;
-    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.12);
 }
 
 body.theme-dark #addUserModal .form-control,
@@ -462,7 +477,7 @@ body.theme-dark #changePasswordModal .form-select {
 .edit-user-modal .modal-header {
     border-bottom: 0;
     padding: 1rem 1.25rem;
-    background: linear-gradient(120deg, #0d6efd 0%, #0b8ad9 50%, #1fa2ff 100%);
+    background: linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%);
     color: #fff;
 }
 
@@ -505,7 +520,7 @@ body.theme-dark #changePasswordModal .form-select {
 .edit-user-modal .form-control:focus,
 .edit-user-modal .form-select:focus {
     border-color: #4f7fb8;
-    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.15);
 }
 
 .edit-user-modal .avatar-box {
@@ -598,8 +613,8 @@ body.theme-dark .edit-user-modal .avatar-box {
     gap: .75rem;
 }
 .permission-role-item.active {
-    background: #0b6ac1 !important;
-    border-color: #0b6ac1 !important;
+    background: var(--blue-700) !important;
+    border-color: var(--blue-700) !important;
     color: #fff !important;
 }
 .permission-role-item.active small {

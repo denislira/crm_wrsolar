@@ -61,6 +61,13 @@ include_once 'includes/permissions.php';
         --blue-900: <?php echo $primaryDark; ?>; /* darker blue */
         --green: <?php echo $green; ?>;    /* leaf green */
         --yellow: <?php echo $yellow; ?>;   /* sun yellow */
+        --primary-500: var(--blue-700);
+        --primary-700: var(--blue-900);
+        --accent-500: var(--yellow);
+        --success-500: var(--green);
+        --accent: var(--blue-700);
+        --bs-primary: var(--blue-700);
+        --bs-primary-rgb: <?php echo sscanf($primary, '#%02x%02x%02x')[0] . ', ' . sscanf($primary, '#%02x%02x%02x')[1] . ', ' . sscanf($primary, '#%02x%02x%02x')[2]; ?>;
         --muted-bg: #e9eef5;
         --sidebar-w: 260px;
         --sidebar-collapsed-w: 64px;
@@ -273,7 +280,7 @@ include_once 'includes/permissions.php';
       overflow-y: auto; 
       overflow-x: hidden;
       z-index:1030; 
-      background: linear-gradient(180deg, #001f3f 0%, #003d7a 100%);
+      background: linear-gradient(180deg, var(--blue-900) 0%, var(--blue-700) 100%);
       box-shadow: 2px 0 12px rgba(0, 0, 0, 0.08);
       display: flex;
       flex-direction: column;
@@ -456,7 +463,7 @@ include_once 'includes/permissions.php';
     
     /* Scrollbar styling for sidebar */
     /* Scrollbar styling for sidebar (thinner + transparent) */
-    .app-sidebar::-webkit-scrollbar { width: 5px; }
+    .app-sidebar::-webkit-scrollbar { width: 1.5px; }
     .app-sidebar::-webkit-scrollbar-track { background: rgba(255,255,255,0.06); }
     .app-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.28); border-radius: 4px; }
     .app-sidebar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.36); }

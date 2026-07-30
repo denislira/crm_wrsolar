@@ -179,6 +179,14 @@
     }
 
     function escapeText(s){ return s==null? '': String(s); }
+    function escapeHtml(s){
+        return s == null ? '' : String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
 
     function sanitizeLeadNotesForDisplay(rawNotes){
         if (rawNotes == null) return '—';
@@ -1542,6 +1550,128 @@
         } catch(e) {}
     }
 
+    function openReminderForLead(leadId, options = {}){
+        if (!leadId) return;
+        const leadIdInput = document.getElementById('reminderLeadId'); if (leadIdInput) leadIdInput.value = leadId;
+        const reminderId = document.getElementById('reminderId'); if (reminderId) reminderId.value = '';
+        const reminderMessage = document.getElementById('reminderMessage'); if (reminderMessage) reminderMessage.value = '';
+        const reminderDate = document.getElementById('reminderDate'); if (reminderDate) reminderDate.value = options.today ? (new Date()).toISOString().slice(0,10) : '';
+        const reminderTime = document.getElementById('reminderTime'); if (reminderTime) reminderTime.value = options.now ? (new Date()).toTimeString().slice(0,5) : '';
+        const saveCb = document.getElementById('saveAsTemplateCheckbox'); if (saveCb) saveCb.checked = false;
+        const saveWrap = document.getElementById('saveTemplateNameWrap'); if (saveWrap) saveWrap.style.display = 'none';
+        const sel = document.getElementById('reminderTemplateSelect'); if (sel) sel.value = '';
+        if (options.closePanel) closePanel();
+        const modalEl = document.getElementById('reminderModal');
+        if (!modalEl) return;
+        try { if (modalEl.parentNode !== document.body) document.body.appendChild(modalEl); } catch(e){}
+        const showModal = () => new bootstrap.Modal(modalEl).show();
+        if (options.delay) setTimeout(showModal, options.delay); else showModal();
+        fetchReminderTemplates().then(()=>{
+            const templateSelect = document.getElementById('reminderTemplateSelect'); if (!templateSelect) return;
+            templateSelect.onchange = () => {
+                const id = templateSelect.value; if (!id) return;
+                const tmpl = REMINDER_TEMPLATES.find(x=>String(x.id)===String(id)); if (!tmpl) return;
+                const msgEl = document.getElementById('reminderMessage'); if (msgEl) msgEl.value = tmpl.message || '';
+                const days = Number(tmpl.default_days_offset || 0);
+                const dt = new Date(); dt.setDate(dt.getDate() + days);
+                const y = dt.getFullYear(); const mth = String(dt.getMonth()+1).padStart(2,'0'); const d = String(dt.getDate()).padStart(2,'0');
+                const dateEl = document.getElementById('reminderDate'); if (dateEl) dateEl.value = `${y}-${mth}-${d}`;
+                const timeEl = document.getElementById('reminderTime'); if (timeEl) timeEl.value = tmpl.default_time ? tmpl.default_time.substring(0,5) : '';
+            };
+        });
+    }
+
+    async function openTaskForLead(lead){
+        if (!lead || !lead.id) return;
+        let users = [];
+        try {
+            const res = await fetch('includes/leads_api.php?action=get_users');
+            users = await res.json();
+        } catch (err) {
+            console.error('Erro ao obter usuarios:', err);
+        }
+        const oldModal = document.getElementById('addTaskModal');
+        if (oldModal) oldModal.remove();
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = 'addTaskModal';
+        const options = users.map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.username)}</option>`).join('');
+        modal.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header" style="background-color: #0b6ac1; color: white;">
+                        <h5 class="modal-title">Adicionar Tarefa para Lead</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="addTaskForm">
+                            <div class="mb-3">
+                                <label for="taskTitle" class="form-label">Titulo</label>
+                                <input type="text" class="form-control" id="taskTitle" value="${escapeHtml((lead.name || 'Sem nome').charAt(0).toUpperCase() + (lead.name || 'Sem nome').slice(1) + ', ' + (lead.cidade || '') + ', ' + (lead.phone || ''))}" style="border-color: #0b6ac1;" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="taskDescription" class="form-label">Descricao</label>
+                                <textarea class="form-control" id="taskDescription" rows="3" style="border-color: #0b6ac1;"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="taskResponsavel" class="form-label">Responsavel</label>
+                                <select class="form-select" id="taskResponsavel" style="border-color: #0b6ac1;"><option value="">Selecione...</option>${options}</select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="taskDueDate" class="form-label">Data de Vencimento</label>
+                                <input type="date" class="form-control" id="taskDueDate" value="${new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0]}" style="border-color: #0b6ac1;" required>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" id="saveTaskBtn">Salvar Tarefa</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+        if (lead.responsavel_id) {
+            const select = document.getElementById('taskResponsavel');
+            if (select) select.value = String(lead.responsavel_id);
+        }
+        document.getElementById('saveTaskBtn').addEventListener('click', async () => {
+            const title = document.getElementById('taskTitle').value.trim();
+            const description = document.getElementById('taskDescription').value.trim();
+            const responsavelId = document.getElementById('taskResponsavel').value;
+            const dueDate = document.getElementById('taskDueDate').value;
+            if (!title || !dueDate) { alert('Preencha titulo e data de vencimento.'); return; }
+            if (!responsavelId) { alert('Selecione um responsavel.'); return; }
+            try {
+                let userId = window.userId;
+                if (!userId) {
+                    const res = await fetch('includes/leads_api.php?action=get_user_id');
+                    const json = await res.json();
+                    userId = json.user_id;
+                }
+                const { addTask } = await import('./team_tasks.js');
+                const selectedUser = users.find(u => String(u.id) === String(responsavelId));
+                const result = await addTask({
+                    user_id: userId,
+                    titulo: title,
+                    descricao: description,
+                    status: 'Pendente',
+                    responsavel: selectedUser ? selectedUser.username : '',
+                    responsavel_id: parseInt(responsavelId),
+                    data_vencimento: dueDate,
+                    lead_id: lead.id
+                });
+                if (result.success) { alert('Tarefa criada com sucesso!'); bsModal.hide(); modal.remove(); }
+                else { alert('Erro ao criar tarefa: ' + (result.error || 'Desconhecido')); }
+            } catch (err) {
+                console.error('Erro ao adicionar tarefa:', err);
+                alert('Erro ao adicionar tarefa.');
+            }
+        });
+        modal.addEventListener('hidden.bs.modal', () => modal.remove());
+    }
+
     function makeCard(lead, stageObj){
         const el = document.createElement('div'); el.className='lead-card'; el.draggable = true; el.dataset.id = lead.id;
         const isProjectLocked = leadHasProject(lead);
@@ -1585,6 +1715,30 @@
         const left = document.createElement('div'); left.className = 'd-flex align-items-center'; if (chk) left.appendChild(chk);
         const title = document.createElement('div'); title.className='title'; title.textContent = escapeText(lead.name || '(sem nome)');
         left.appendChild(title);
+        const quickActions = document.createElement('div');
+        quickActions.className = 'lead-card-actions';
+        const cardReminderBtn = document.createElement('button');
+        cardReminderBtn.className = 'btn btn-sm btn-outline-info lead-card-icon-btn';
+        cardReminderBtn.type = 'button';
+        cardReminderBtn.title = 'Criar lembrete';
+        cardReminderBtn.setAttribute('aria-label', 'Criar lembrete');
+        cardReminderBtn.innerHTML = '<i class="fa fa-clock"></i>';
+        cardReminderBtn.addEventListener('click', (e)=>{
+            e.stopPropagation();
+            openReminderForLead(lead.id);
+        });
+        const cardTaskBtn = document.createElement('button');
+        cardTaskBtn.className = 'btn btn-sm btn-outline-warning lead-card-icon-btn';
+        cardTaskBtn.type = 'button';
+        cardTaskBtn.title = 'Criar tarefa';
+        cardTaskBtn.setAttribute('aria-label', 'Criar tarefa');
+        cardTaskBtn.innerHTML = '<i class="fa fa-tasks"></i>';
+        cardTaskBtn.addEventListener('click', (e)=>{
+            e.stopPropagation();
+            openTaskForLead(lead);
+        });
+        quickActions.appendChild(cardReminderBtn);
+        quickActions.appendChild(cardTaskBtn);
         
         // Add create project button in the header if stage allows it
         console.log('makeCard - Lead:', lead.id, lead.name, 'StageObj:', stageObj);
@@ -1639,6 +1793,7 @@
         const owner = document.createElement('span'); owner.className='lead-owner'; owner.textContent = lead.responsavel || '';
         const score = document.createElement('span'); score.className = 'badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')); score.textContent = lead.score;
         meta.appendChild(value); meta.appendChild(owner); meta.appendChild(score);
+        meta.appendChild(quickActions);
         // Add paperclip download icon to the right of the badge-score when an attachment exists
         if (lead.anexos_files && lead.anexos_files.length) {
             const filenames = lead.anexos_files.map(f => f.filename).join(', ');
@@ -2407,38 +2562,7 @@
                 reminderBtn.title = 'Lembrete';
                 reminderBtn.addEventListener('click', (e)=>{
                     e.stopPropagation();
-                    const leadId = lead.id || '';
-                    const leadIdInput = document.getElementById('reminderLeadId'); if (leadIdInput) leadIdInput.value = leadId;
-                    const reminderMessage = document.getElementById('reminderMessage'); if (reminderMessage) reminderMessage.value = '';
-                    const reminderDate = document.getElementById('reminderDate'); if (reminderDate) reminderDate.value = '';
-                    const reminderTime = document.getElementById('reminderTime'); if (reminderTime) reminderTime.value = '';
-                    const saveCb = document.getElementById('saveAsTemplateCheckbox'); if (saveCb) { saveCb.checked = false; }
-                    const saveWrap = document.getElementById('saveTemplateNameWrap'); if (saveWrap) saveWrap.style.display = 'none';
-                    // close details panel first so modal appears on top
-                    closePanel();
-                    const modalEl = document.getElementById('reminderModal');
-                    const m = new bootstrap.Modal(modalEl);
-                    // ensure modal is a child of body to avoid stacking/z-index issues
-                    try { if (modalEl && modalEl.parentNode !== document.body) document.body.appendChild(modalEl); } catch(e){}
-                    // small delay to allow panel hide animation/remove stacking context
-                    setTimeout(()=>{ console.debug('Showing reminder modal'); m.show(); }, 120);
-                    // populate templates when opening
-                    fetchReminderTemplates().then(()=>{
-                        const sel = document.getElementById('reminderTemplateSelect'); if (!sel) return;
-                        sel.value = '';
-                        sel.addEventListener('change', ()=>{
-                            const id = sel.value; if (!id) return;
-                            const tmpl = REMINDER_TEMPLATES.find(x=>String(x.id)===String(id)); if (!tmpl) return;
-                            const msgEl = document.getElementById('reminderMessage'); if (msgEl) msgEl.value = tmpl.message || '';
-                            // compute default date
-                            const days = Number(tmpl.default_days_offset || 0);
-                            const dt = new Date(); dt.setDate(dt.getDate() + days);
-                            const y = dt.getFullYear(); const mth = String(dt.getMonth()+1).padStart(2,'0'); const d = String(dt.getDate()).padStart(2,'0');
-                            const time = tmpl.default_time ? tmpl.default_time.substring(0,5) : '';
-                            const dateEl = document.getElementById('reminderDate'); if (dateEl) dateEl.value = `${y}-${mth}-${d}`;
-                            const timeEl = document.getElementById('reminderTime'); if (timeEl) timeEl.value = time;
-                        }, {once:true});
-                    });
+                    openReminderForLead(lead.id || '', { closePanel: true, delay: 120 });
                 });
         const taskBtn = document.createElement('button');
         taskBtn.className = 'btn btn-sm btn-outline-warning';
@@ -2853,6 +2977,16 @@
         // reset file input
         const f = F('leadAnexos') || $('#leadAnexos'); if (f) f.value = '';
         const fileNames = document.getElementById('anexos-file-names'); if (fileNames) fileNames.innerHTML = '';
+        const modalReminderBtn = document.getElementById('leadModalReminderBtn');
+        const modalTaskBtn = document.getElementById('leadModalTaskBtn');
+        if (modalReminderBtn) {
+            modalReminderBtn.classList.remove('d-none');
+            modalReminderBtn.onclick = () => openReminderForLead(lead.id || '');
+        }
+        if (modalTaskBtn) {
+            modalTaskBtn.classList.remove('d-none');
+            modalTaskBtn.onclick = () => openTaskForLead(lead);
+        }
         // render existing attachments UI
         try { renderExistingAttachments(lead); } catch(e){ console.warn('Failed rendering attachments', e); }
         setLeadModalEditLocked(leadHasProject(lead));
@@ -2986,6 +3120,10 @@
             if (idEl) idEl.value = '';
             const fileInput = document.getElementById('lead-anexos'); if (fileInput) fileInput.value = '';
             const fileNames = document.getElementById('anexos-file-names'); if (fileNames) fileNames.innerHTML = '';
+            ['leadModalReminderBtn','leadModalTaskBtn'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) { btn.classList.add('d-none'); btn.onclick = null; }
+            });
             // Clear existing attachments display for new lead
             const prevWrap = document.getElementById('existingAnexosWrap'); if (prevWrap) prevWrap.remove();
             // Ensure Data de Entrada is editable for new leads and default to today

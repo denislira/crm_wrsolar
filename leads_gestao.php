@@ -164,6 +164,39 @@ include 'includes/header.php';
             <!-- Fixed hidden column for Anúncios removed (floating panel not needed) -->
 
             <!-- Modal: Leads Anúncios -->
+            <style>
+                #anunciosModal .modal-header,
+                #bulkModal .modal-header,
+                #statusModal .modal-header,
+                #trashedModal .modal-header,
+                #leadModal .modal-header,
+                #reminderModal .modal-header,
+                #paymentMethodsModal .modal-header {
+                    background: linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%) !important;
+                    border-bottom: 0 !important;
+                    color: #fff !important;
+                }
+                #anunciosModal .modal-header .modal-title,
+                #bulkModal .modal-header .modal-title,
+                #statusModal .modal-header .modal-title,
+                #trashedModal .modal-header .modal-title,
+                #leadModal .modal-header .modal-title,
+                #leadModal .modal-header .modal-title i,
+                #reminderModal .modal-header .modal-title,
+                #paymentMethodsModal .modal-header .modal-title {
+                    color: #fff !important;
+                }
+                #anunciosModal .modal-header .btn-close,
+                #bulkModal .modal-header .btn-close,
+                #statusModal .modal-header .btn-close,
+                #trashedModal .modal-header .btn-close,
+                #leadModal .modal-header .btn-close,
+                #reminderModal .modal-header .btn-close,
+                #paymentMethodsModal .modal-header .btn-close {
+                    filter: invert(1) grayscale(100%);
+                    opacity: .9;
+                }
+            </style>
             <div id="anunciosModal" class="modal fade" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-lg modal-dialog-centered">
                     <div class="modal-content">
@@ -276,7 +309,7 @@ include 'includes/header.php';
     <div class="modal fade" id="leadModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content lead-modal-content">
-                <div class="modal-header bg-light border-bottom">
+                <div class="modal-header">
                     <h5 class="modal-title d-flex align-items-center gap-2" id="leadModalTitle">
                         <i class="fa-regular fa-user-plus text-primary"></i> <span>Novo Lead</span>
                     </h5>
@@ -395,6 +428,8 @@ include 'includes/header.php';
                     </form>
                 </div>
                 <div class="modal-footer d-flex justify-content-end gap-2">
+                    <button id="leadModalReminderBtn" type="button" class="btn btn-outline-info lead-modal-action-btn d-none" title="Criar lembrete" aria-label="Criar lembrete"><i class="fa fa-clock"></i></button>
+                    <button id="leadModalTaskBtn" type="button" class="btn btn-outline-warning lead-modal-action-btn d-none" title="Criar tarefa" aria-label="Criar tarefa"><i class="fa fa-tasks"></i></button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button id="save-lead" type="submit" form="leadForm" class="btn btn-primary"><i class="fa fa-save"></i> Salvar</button>
                 </div>
@@ -464,6 +499,10 @@ include 'includes/header.php';
                 document.getElementById('leadForm').reset();
                 document.getElementById('lead-id').value = '';
                 document.getElementById('leadModalTitle').textContent = 'Novo Lead';
+                ['leadModalReminderBtn','leadModalTaskBtn'].forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) { btn.classList.add('d-none'); btn.onclick = null; }
+                });
                 // set current date for ultimo_contato
                 const now = new Date().toISOString().slice(0,10);
                 document.getElementById('lead-ultimo-contato').value = now;

@@ -1,8 +1,8 @@
 {
-    "primary_color": "#0b6ac1",
-    "primary_dark": "#073b6b",
-    "green": "#4bbf4b",
-    "yellow": "#ffd24a",
+    "primary_color": "#d9955e",
+    "primary_dark": "#073a69",
+    "green": "#ab7658",
+    "yellow": "#d9c382",
     "logo_collapsed": "uploads\/custom_logo_collapsed.png",
     "login_background": "uploads\/custom_login_background.jpg",
     "smtp": {
@@ -35,12 +35,13 @@
             "lead_stage_changed": []
         },
         "sale_stage_names": [
-            "Venda conclu\u00edda",
+            "VENDA CONCLUÍDA",
             "Venda concluida",
-            "Conclu\u00eddo",
+            "Concluído",
             "Concluido",
             "Ganho",
             "Fechado"
         ]
-    }
+    },
+    "logo": "uploads\/custom_logo.png"
 }

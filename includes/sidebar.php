@@ -24,8 +24,13 @@ $isConsultorExterno = strtolower((string)$roleName) === 'consultor_externo';
 
 <style>
 /* Sidebar visual inspired by provided image */
-.app-sidebar { width:230px; min-height:100vh; background:#0b6ac1; color:#fff; padding:8px 8px; box-sizing:border-box; border-radius:0; overflow:hidden; }
+.app-sidebar { width:230px; min-height:100vh; background:var(--blue-700); color:#fff; padding:8px 8px; box-sizing:border-box; border-radius:0; overflow:hidden; }
 .app-sidebar .sidebar-content { padding-top:4px; }
+.app-sidebar .sidebar-content::-webkit-scrollbar { width:0; }
+.app-sidebar .sidebar-content::-webkit-scrollbar-track { background:transparent; }
+.app-sidebar .sidebar-content::-webkit-scrollbar-thumb { background:var(--blue-700); border-radius:4px; }
+.app-sidebar .sidebar-content::-webkit-scrollbar-thumb:hover { background:var(--blue-900); }
+.app-sidebar .sidebar-content { scrollbar-width:none; scrollbar-color:var(--blue-700) transparent; }
 .app-sidebar .brand { display:flex; align-items:center; justify-content:center; padding:6px 0; margin:0 0 6px 0; position:sticky; top:8px; background:transparent; }
 .app-sidebar .brand img.brand-logo { height:44px; width:120px; object-fit:contain; display:block; }
 .app-sidebar .nav { gap:6px; }

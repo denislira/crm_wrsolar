@@ -1084,7 +1084,7 @@ include 'includes/header.php';
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, #2563eb 0%, #06b6d4 100%);
+    background: linear-gradient(90deg, var(--blue-700) 0%, var(--green) 100%);
 }
 .pv-kpi-row .pv-kpi:hover {
     transform: translateY(-2px);
@@ -1100,7 +1100,7 @@ include 'includes/header.php';
 .pv-kpi-row > div:nth-child(1) .pv-kpi::before { background: linear-gradient(90deg, #0ea5e9 0%, #22d3ee 100%); }
 .pv-kpi-row > div:nth-child(2) .pv-kpi::before { background: linear-gradient(90deg, #16a34a 0%, #22c55e 100%); }
 .pv-kpi-row > div:nth-child(3) .pv-kpi::before { background: linear-gradient(90deg, #f59e0b 0%, #f97316 100%); }
-.pv-kpi-row > div:nth-child(4) .pv-kpi::before { background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%); }
+.pv-kpi-row > div:nth-child(4) .pv-kpi::before { background: linear-gradient(90deg, var(--blue-900) 0%, var(--blue-700) 100%); }
 .pv-kpi-row .pv-kpi.pv-kpi-retention {
     background: linear-gradient(135deg, var(--bs-primary), var(--bs-secondary));
     border-color: transparent;
@@ -1132,7 +1132,7 @@ include 'includes/header.php';
 .pv-kanban-col-header {
     padding: 0.65rem 0.85rem 0.6rem 0.85rem;
     border-bottom: none;
-    background: linear-gradient(90deg, #3b82f6 80%, #2563eb 100%);
+    background: linear-gradient(90deg, var(--blue-700) 80%, var(--blue-900) 100%);
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -1152,7 +1152,7 @@ include 'includes/header.php';
     color: #fff !important;
 }
 .pv-kanban-col-body { padding:1rem; overflow-y:auto; min-height:400px; max-height:calc(100vh - 360px); flex:1 1 auto; background:#f8fafc; border-radius:0 0 14px 14px; }
-.pv-kanban-col-body.drop-target { border:2px dashed #0d6efd; background:#e7f1ff; }
+.pv-kanban-col-body.drop-target { border:2px dashed var(--blue-700); background:rgba(var(--bs-primary-rgb), .08); }
 .pv-kanban-card    { background:#fff; border-radius:12px; border:1px solid #e5e7eb; padding:0; margin-bottom:.75rem; cursor:grab; overflow:hidden; transition: box-shadow .18s; }
 .pv-kanban-card:active { cursor:grabbing; }
 .pv-kanban-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.10); }
@@ -1205,7 +1205,7 @@ body.theme-dark .pv-kanban-col {
     box-shadow: 0 10px 28px rgba(0,0,0,.35) !important;
 }
 body.theme-dark .pv-kanban-col-header {
-    background: linear-gradient(90deg, #3b82f6 80%, #2563eb 100%) !important;
+    background: linear-gradient(90deg, var(--blue-700) 80%, var(--blue-900) 100%) !important;
     border-color: rgba(255,255,255,.08) !important;
 }
 body.theme-dark .pv-kanban-col-body {
@@ -1280,6 +1280,35 @@ body.theme-dark .pv-kpi-row .fw-bold {
     background-color: var(--bs-primary);
     color: #fff;
 }
+#pvModal .modal-header,
+#pvFieldsModal .modal-header,
+#pvStagesModal .modal-header,
+#pvLinkModal .modal-header,
+#pvReferralsModal .modal-header,
+#pvLimpezaModal .modal-header {
+    background: linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%) !important;
+    border-bottom: 0 !important;
+    color: #fff !important;
+}
+#pvModal .modal-header .modal-title,
+#pvFieldsModal .modal-header .modal-title,
+#pvStagesModal .modal-header .modal-title,
+#pvLinkModal .modal-header .modal-title,
+#pvReferralsModal .modal-header .modal-title,
+#pvLimpezaModal .modal-header .modal-title,
+#pvLinkModal .modal-header i,
+#pvLimpezaModal .modal-header i {
+    color: #fff !important;
+}
+#pvModal .modal-header .btn-close,
+#pvFieldsModal .modal-header .btn-close,
+#pvStagesModal .modal-header .btn-close,
+#pvLinkModal .modal-header .btn-close,
+#pvReferralsModal .modal-header .btn-close,
+#pvLimpezaModal .modal-header .btn-close {
+    filter: invert(1) grayscale(100%);
+    opacity: .9;
+}
 #pvModal .tab-pane { min-height: 1px; }
 #pvModal .modal-body {
     max-height: calc(100vh - 220px);
@@ -1295,13 +1324,13 @@ body.theme-dark #pvModal .modal-header {
     border-color: rgba(255,255,255,0.1) !important;
 }
 body.theme-dark #pvModal .modal-header {
-    background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+    background: linear-gradient(135deg, var(--blue-700), var(--blue-900)) !important;
 }
 body.theme-dark #pvModal .nav-pills .nav-link {
     color: #cbd5e1 !important;
 }
 body.theme-dark #pvModal .nav-pills .nav-link.active {
-    background-color: rgba(59,130,246,0.9) !important;
+    background-color: rgba(var(--bs-primary-rgb),0.9) !important;
     color: #fff !important;
 }
 body.theme-dark #pvModal .form-control,
@@ -1316,8 +1345,8 @@ body.theme-dark #pvModal .form-select:focus,
 body.theme-dark #pvModal textarea:focus {
     background: rgba(255,255,255,0.08) !important;
     color: #e6eef8 !important;
-    border-color: rgba(59,130,246,0.6) !important;
-    box-shadow: 0 0 0 .2rem rgba(59,130,246,0.2) !important;
+    border-color: rgba(var(--bs-primary-rgb),0.6) !important;
+    box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb),0.2) !important;
 }
 body.theme-dark #pvModal .btn-outline-secondary,
 body.theme-dark #pvModal .btn-outline-primary {
@@ -1326,8 +1355,8 @@ body.theme-dark #pvModal .btn-outline-primary {
     background: transparent !important;
 }
 body.theme-dark #pvModal .btn-primary {
-    background: #2563eb !important;
-    border-color: #2563eb !important;
+    background: var(--blue-700) !important;
+    border-color: var(--blue-700) !important;
 }
 body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
     background: #0c172a !important;
@@ -1826,7 +1855,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
 <div class="modal fade" id="pvFieldsModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-secondary text-white py-2">
+            <div class="modal-header py-2">
                 <h5 class="modal-title fs-6">Configurar Campos de Cadastro</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
@@ -1865,7 +1894,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
 <div class="modal fade" id="pvStagesModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header bg-secondary text-white py-2">
+      <div class="modal-header py-2">
         <h5 class="modal-title fs-6">Colunas de Pós-venda</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
@@ -2340,7 +2369,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
             const col = document.createElement('div');
             col.className = 'pv-kanban-col';
             col.dataset.stage = stage.name;
-            const hdrBg = stage.color || '#3b82f6';
+            const hdrBg = stage.color || 'var(--blue-700)';
             col.innerHTML = `
                 <div class="pv-kanban-col-header" style="background:${hdrBg};">
                     <div style="flex:1; min-width:0;">
@@ -2382,7 +2411,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
                             <span class="label">Garantia / Assinatura</span>
                             <span class="value">${warranty.remainingDays > 0 ? `${warranty.remainingDays} dia${warranty.remainingDays !== 1 ? 's' : ''} restantes` : 'Vencido'}</span>
                         </div>
-                        <div class="pv-progress-bar"><span style="width:${Math.max(2, warranty.progressPct)}%; background:${warranty.progressPct >= 90 ? '#22c55e' : (warranty.progressPct >= 70 ? '#f59e0b' : '#3b82f6')}"></span></div>` : '';
+                        <div class="pv-progress-bar"><span style="width:${Math.max(2, warranty.progressPct)}%; background:${warranty.progressPct >= 90 ? '#22c55e' : (warranty.progressPct >= 70 ? '#f59e0b' : 'var(--blue-700)')}"></span></div>` : '';
                 card.innerHTML = `
                     <div class="pv-card-header-strip">
                         <div style="display:flex; align-items:center; gap:.45rem; min-width:0; flex-wrap:wrap;">
@@ -2777,7 +2806,7 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
         modal.innerHTML = `
             <div class="modal-dialog">
                 <div class="modal-content">
-                    <div class="modal-header" style="background-color:#0b6ac1;color:#fff;">
+                    <div class="modal-header" style="background-color:var(--blue-700);color:#fff;">
                         <h5 class="modal-title">Adicionar Tarefa para Pós-venda</h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>

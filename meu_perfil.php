@@ -118,14 +118,18 @@ try {
 
 
 // Carregar cor primária das configurações
-$primary_color = '#667eea';
+$primary_color = '#0b6ac1';
+$primary_dark = '#073b6b';
 $storageDir = __DIR__ . '/storage';
 $settingsPath = $storageDir . '/settings.json';
 if (file_exists($settingsPath)) {
     $raw = @file_get_contents($settingsPath);
     $settings = $raw ? json_decode($raw, true) : [];
-    if (!empty($settings['primary_color'])) {
+    if (!empty($settings['primary_color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $settings['primary_color'])) {
         $primary_color = $settings['primary_color'];
+    }
+    if (!empty($settings['primary_dark']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $settings['primary_dark'])) {
+        $primary_dark = $settings['primary_dark'];
     }
 }
 
@@ -135,7 +139,7 @@ include __DIR__ . '/includes/sidebar.php';
 ?>
 <style>
     .profile-header-gradient {
-        background: <?php echo htmlspecialchars($primary_color); ?>;
+        background: linear-gradient(135deg, <?php echo htmlspecialchars($primary_dark); ?> 0%, <?php echo htmlspecialchars($primary_color); ?> 100%);
         border-radius: 16px;
         padding: 2rem;
         color: white !important;
@@ -801,7 +805,7 @@ include __DIR__ . '/includes/sidebar.php';
     }
     /* Modal edit task styles */
     .task-avatar { width:56px; height:56px; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:1.25rem; color:#fff; background:#6c757d; }
-    .modal-header.colorful { background:#0b5ed7; color:#fff; }
+    .modal-header.colorful { background:linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%); color:#fff; }
     body.theme-dark .profile-header-gradient,
     body.theme-dark .profile-card,
     body.theme-dark .tasks-panel,
@@ -821,7 +825,7 @@ include __DIR__ . '/includes/sidebar.php';
         box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
     }
     body.theme-dark #modalEditarTarefa .modal-header.colorful {
-        background: rgba(37,99,235,0.9) !important;
+        background: linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%) !important;
         border-bottom: 1px solid rgba(255,255,255,0.12) !important;
     }
     body.theme-dark .modal-body .form-label,
@@ -838,7 +842,7 @@ include __DIR__ . '/includes/sidebar.php';
     body.theme-dark .modal-body .form-control:focus,
     body.theme-dark .modal-body .form-select:focus {
         background: rgba(255,255,255,0.07) !important;
-        box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.2) !important;
+        box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb),0.2) !important;
     }
     body.theme-dark .profile-header-gradient h2,
     body.theme-dark .profile-header-gradient p,

@@ -281,7 +281,7 @@ include 'includes/header.php';
             .btn-xs { font-size: 0.68rem; }
             .board-column.drop-target { border: 2px dashed #0d6efd; background: #e7f1ff; }
             .modal-content { border-radius: 1.2rem; overflow: hidden; box-shadow: 0 32px 100px rgba(15,23,42,.15); }
-            .modal-header { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border-bottom: none; }
+            .modal-header { background: linear-gradient(135deg, var(--blue-900), var(--blue-700)); color: #fff; border-bottom: none; }
             .modal-header .modal-title { color: #fff; font-weight: 700; letter-spacing: -.02em; }
             .modal-body { background: #f8fbff; padding: 1.75rem; }
             .modal-footer { background: #f8fbff; border-top: none; }
@@ -289,8 +289,8 @@ include 'includes/header.php';
             .modal-content .form-select,
             .modal-content textarea.form-control { border-radius: .9rem; border: 1px solid #dbe4f0; background: #ffffff; box-shadow: inset 0 1px 2px rgba(15,23,42,0.04); }
             .modal-content .form-label { font-weight: 600; color: #334155; }
-            .modal-content .btn-primary { background: #1d4ed8; border-color: #1d4ed8; }
-            .modal-content .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+            .modal-content .btn-primary { background: var(--blue-700); border-color: var(--blue-700); }
+            .modal-content .btn-primary:hover { background: var(--blue-900); border-color: var(--blue-900); }
             .modal-content .btn-secondary { background: #e2e8f0; color: #102a43; border-color: #cbd5e1; }
             body.theme-dark .modal-content,
             body.theme-dark .modal-body,
@@ -301,7 +301,7 @@ include 'includes/header.php';
                 box-shadow: 0 32px 100px rgba(0,0,0,0.35) !important;
             }
             body.theme-dark .modal-header {
-                background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+                background: linear-gradient(135deg, var(--blue-700), var(--blue-900)) !important;
                 color: #fff !important;
             }
             body.theme-dark .modal-content .form-control,
@@ -316,8 +316,8 @@ include 'includes/header.php';
             body.theme-dark .modal-content .form-select:focus,
             body.theme-dark .modal-content textarea.form-control:focus {
                 background: rgba(255,255,255,0.08) !important;
-                border-color: rgba(59,130,246,0.6) !important;
-                box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.2) !important;
+                border-color: rgba(var(--bs-primary-rgb),0.6) !important;
+                box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb),0.2) !important;
             }
             body.theme-dark .modal-content .form-label {
                 color: #cbd5e1 !important;

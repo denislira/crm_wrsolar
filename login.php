@@ -37,10 +37,26 @@ if (isset($_SESSION['user_id'])) {
 $noNavbar = true;
 
 $loginBackground = 'assets/img/fundoplaca2.jpg';
+$loginPrimary = '#0b6ac1';
+$loginPrimaryDark = '#073b6b';
+$loginGreen = '#4bbf4b';
+$loginYellow = '#ffd24a';
 $settingsPath = __DIR__ . '/storage/settings.json';
 if (file_exists($settingsPath)) {
     $rawAppearance = @file_get_contents($settingsPath);
     $appearanceSettings = $rawAppearance ? json_decode($rawAppearance, true) : [];
+    if (!empty($appearanceSettings['primary_color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $appearanceSettings['primary_color'])) {
+        $loginPrimary = $appearanceSettings['primary_color'];
+    }
+    if (!empty($appearanceSettings['primary_dark']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $appearanceSettings['primary_dark'])) {
+        $loginPrimaryDark = $appearanceSettings['primary_dark'];
+    }
+    if (!empty($appearanceSettings['green']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $appearanceSettings['green'])) {
+        $loginGreen = $appearanceSettings['green'];
+    }
+    if (!empty($appearanceSettings['yellow']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $appearanceSettings['yellow'])) {
+        $loginYellow = $appearanceSettings['yellow'];
+    }
     if (!empty($appearanceSettings['login_background'])) {
         $candidate = ltrim((string)$appearanceSettings['login_background'], '/\\');
         $fullPath = __DIR__ . '/' . $candidate;
@@ -90,10 +106,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <link href="assets/css/fontawesome.min.css" rel="stylesheet">
     <style>
         :root {
-            --blue-700: #0b6ac1;
-            --blue-900: #073b6b;
-            --green: #4bbf4b;
-            --yellow: #ffd24a;
+            --blue-700: <?php echo htmlspecialchars($loginPrimary, ENT_QUOTES, 'UTF-8'); ?>;
+            --blue-900: <?php echo htmlspecialchars($loginPrimaryDark, ENT_QUOTES, 'UTF-8'); ?>;
+            --green: <?php echo htmlspecialchars($loginGreen, ENT_QUOTES, 'UTF-8'); ?>;
+            --yellow: <?php echo htmlspecialchars($loginYellow, ENT_QUOTES, 'UTF-8'); ?>;
         }
         
         body, html {
@@ -107,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             height: 100vh;
             width: 100vw;
             background: 
-                linear-gradient(135deg, rgba(7, 59, 107, 0.7) 0%, rgba(11, 106, 193, 0.6) 50%, rgba(75, 191, 75, 0.5) 100%),
+                linear-gradient(135deg, <?php echo htmlspecialchars($loginPrimaryDark, ENT_QUOTES, 'UTF-8'); ?>b3 0%, <?php echo htmlspecialchars($loginPrimary, ENT_QUOTES, 'UTF-8'); ?>99 50%, <?php echo htmlspecialchars($loginGreen, ENT_QUOTES, 'UTF-8'); ?>80 100%),
                 url('<?php echo htmlspecialchars($loginBackground, ENT_QUOTES, 'UTF-8'); ?>');
             background-size: cover;
             background-position: center;

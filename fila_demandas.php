@@ -82,7 +82,7 @@ include 'includes/header.php';
             }
             .dm-count-pill {
                 background: #dbeafe;
-                color: #1d4ed8;
+                color: var(--blue-700);
                 border-radius: 999px;
                 padding: .3rem .65rem;
                 font-size: .72rem;
@@ -149,10 +149,10 @@ include 'includes/header.php';
                 box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
             }
             .dm-tab.active {
-                background: #ff6b18;
-                border-color: #ff6b18;
+                background: var(--blue-700);
+                border-color: var(--blue-700);
                 color: #fff;
-                box-shadow: 0 8px 18px rgba(255, 107, 24, .25);
+                box-shadow: 0 8px 18px rgba(var(--bs-primary-rgb), .25);
             }
             .dm-consultor-list {
                 display: grid;
@@ -190,7 +190,7 @@ include 'includes/header.php';
                 border-radius: 999px;
                 padding: .35rem .6rem;
                 background: #eff6ff;
-                color: #1d4ed8;
+                color: var(--blue-700);
                 font-size: .72rem;
                 font-weight: 900;
                 white-space: nowrap;
@@ -240,7 +240,7 @@ include 'includes/header.php';
                 font-weight: 900;
                 text-transform: uppercase;
                 background: #dbeafe;
-                color: #1d4ed8;
+                color: var(--blue-700);
             }
             .dm-priority.high {
                 background: #ffe4e6;
@@ -282,7 +282,7 @@ include 'includes/header.php';
                 min-width: 0;
             }
             .dm-card-meta i {
-                color: #ff6b18;
+                color: var(--blue-700);
                 width: 14px;
                 text-align: center;
             }
@@ -351,7 +351,7 @@ include 'includes/header.php';
                 white-space: nowrap;
             }
             .dm-status.pending { background: #fff7ed; color: #c2410c; }
-            .dm-status.accepted { background: #eff6ff; color: #1d4ed8; }
+            .dm-status.accepted { background: #eff6ff; color: var(--blue-700); }
             .dm-status.done { background: #ecfdf5; color: #047857; }
             .dm-detail-grid {
                 display: grid;
@@ -479,7 +479,7 @@ include 'includes/header.php';
             }
             body.theme-dark .dm-count-pill,
             body.dark-mode .dm-count-pill {
-                background: rgba(59,130,246,0.16);
+                background: rgba(var(--bs-primary-rgb),0.16);
                 color: #bfdbfe;
             }
             body.theme-dark .dm-bell,
@@ -526,8 +526,8 @@ include 'includes/header.php';
             }
             body.theme-dark .dm-tab.active,
             body.dark-mode .dm-tab.active {
-                background: #ff6b18;
-                border-color: #ff6b18;
+                background: var(--blue-700);
+                border-color: var(--blue-700);
                 color: #fff;
             }
             body.theme-dark .dm-card:hover,
@@ -564,7 +564,7 @@ include 'includes/header.php';
             }
             body.theme-dark .dm-status.accepted,
             body.dark-mode .dm-status.accepted {
-                background: rgba(59,130,246,0.14);
+                background: rgba(var(--bs-primary-rgb),0.14);
                 color: #93c5fd;
             }
             body.theme-dark .dm-status.done,

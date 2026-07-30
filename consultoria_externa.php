@@ -728,13 +728,14 @@ include 'includes/header.php';
                 box-shadow: 0 28px 70px rgba(11, 26, 49, 0.18);
             }
             .ce-lead-modal-content .modal-header {
-                background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(20,184,166,0.10));
+                background: linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%);
                 padding: 18px 24px;
-                border-bottom: 1px solid rgba(37,99,235,0.14);
+                border-bottom: 0;
                 font-weight: 700;
+                color: #fff;
             }
             .ce-lead-modal-content .modal-title {
-                color: #16324f;
+                color: #fff;
                 font-weight: 800;
             }
             .ce-lead-modal-content .modal-title i {
@@ -744,9 +745,23 @@ include 'includes/header.php';
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                background: #2563eb;
+                background: rgba(255,255,255,0.16);
                 color: #fff !important;
-                box-shadow: 0 10px 22px rgba(37,99,235,0.22);
+                box-shadow: 0 10px 22px rgba(0,0,0,0.16);
+            }
+            .ce-lead-modal-content .modal-header .btn-close,
+            #ceStagesModal .modal-header .btn-close {
+                filter: invert(1) grayscale(100%);
+                opacity: .9;
+            }
+            #ceStagesModal .modal-header {
+                background: linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%);
+                border-bottom: 0;
+                color: #fff;
+            }
+            #ceStagesModal .modal-header .modal-title,
+            #ceStagesModal .modal-header .text-muted {
+                color: #fff !important;
             }
             .ce-lead-modal-content .modal-body {
                 padding: 22px;
@@ -1301,7 +1316,7 @@ include 'includes/header.php';
         <div class="modal fade" id="ceLeadModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-xl modal-dialog-centered">
                 <div class="modal-content ce-lead-modal-content">
-                    <div class="modal-header bg-light border-bottom">
+                    <div class="modal-header">
                         <h5 class="modal-title d-flex align-items-center gap-2" id="ceLeadModalTitle">
                             <i class="fa-regular fa-user-plus text-primary"></i> <span>Cadastrar Registro</span>
                         </h5>

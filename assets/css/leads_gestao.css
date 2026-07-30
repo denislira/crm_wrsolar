@@ -1,6 +1,6 @@
 /* Minimal modern styles for Gestão de Leads */
-:root{--bg:#f8fafc;--card:#fff;--muted:#6b7280;--accent:#0b6ac1;--danger:#ef4444;--kanban-column-content-height:clamp(320px,calc(100vh - 320px),720px)}
-body{background:#e9eef5}
+:root{--bg:#f8fafc;--card:#fff;--muted:#6b7280;--accent:var(--blue-700,#0b6ac1);--danger:#ef4444;--kanban-column-content-height:clamp(320px,calc(100vh - 320px),720px)}
+body{background:var(--muted-bg,#e9eef5)}
 
 body .main-content-scroll > .container-fluid{
   width:100%;
@@ -99,9 +99,9 @@ body.dark-mode #leadsPreloaderText{
   border-radius:999px;
 }
 .filters-toggle-btn.active{
-  background:#0b6ac1;
+  background:var(--blue-700,#0b6ac1);
   color:#fff;
-  border-color:#0b6ac1;
+  border-color:var(--blue-700,#0b6ac1);
 }
 .advanced-filters-bar{
   margin-top:-4px;
@@ -152,14 +152,14 @@ body.dark-mode #leadsPreloaderText{
 }
 #topScrollbarContent{height:1px}
 .date-filter-input{
-  border:1px solid #0d6efd !important;
+  border:1px solid var(--blue-700,#0b6ac1) !important;
   color:#0f172a;
   background:#fff;
-  box-shadow:0 0 0 0.15rem rgba(13,110,253,.08);
+  box-shadow:0 0 0 0.15rem rgba(var(--bs-primary-rgb,11,106,193),.08);
 }
 .date-filter-input:focus{
-  border-color:#0d6efd !important;
-  box-shadow:0 0 0 0.2rem rgba(13,110,253,.18) !important;
+  border-color:var(--blue-700,#0b6ac1) !important;
+  box-shadow:0 0 0 0.2rem rgba(var(--bs-primary-rgb,11,106,193),.18) !important;
 }
 .kanban-wrap{display:flex;gap:16px;overflow:auto;padding:8px 2px;width:100%;max-width:none}
 .kanban-wrap.panel-open{margin-right:420px}
@@ -183,6 +183,9 @@ body.dark-mode #leadsPreloaderText{
 .lead-card .lead-select{transform:scale(1.05)}
 .lead-card.selected{outline:3px solid var(--selected-color,#6c757d);outline-offset:-3px}
 .lead-card .title{font-weight:600}
+.lead-card-actions{display:flex;align-items:center;gap:2px;margin-left:auto;flex:0 0 auto}
+.lead-card-icon-btn,.lead-modal-action-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1}
+.lead-card-icon-btn{width:18px;height:18px;font-size:.55rem;border-radius:4px;border-width:1px}
 .lead-meta{font-size:.85rem;color:var(--muted);display:flex;gap:8px;align-items:center;margin-top:6px}
 .badge-score{padding:2px 6px;border-radius:999px;font-weight:700;color:#fff;font-size:0.82rem;line-height:1}
 .badge-score.hot{background:#ef4444}
@@ -472,7 +475,7 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
     left:0;
     right:0;
     height:4px;
-    background:linear-gradient(90deg,#0b6ac1 0%,#22b8cf 100%);
+    background:linear-gradient(90deg,var(--blue-700,#0b6ac1) 0%,var(--green,#22b8cf) 100%);
 }
 
 #kpiRow .card:hover{
@@ -525,7 +528,7 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
 
 /* clip icon on cards */
 .lead-clip-icon{font-size:0.85rem;vertical-align:middle;display:inline-block}
-.lead-clip-icon:hover{color:#0b6ac1}
+.lead-clip-icon:hover{color:var(--blue-700,#0b6ac1)}
 
 /* lead detail attachment link */
 #leadDetailContent .anexo-link{color:var(--accent);text-decoration:none;font-weight:600}
@@ -539,7 +542,7 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
 .kanban-header .stage-filter-icon{display:inline-flex;align-items:center;justify-content:center}
 .stalled-icon{margin-left:6px;color:#f59e0b;font-size:0.9rem}
 .lead-card.stalled{outline:2px dashed rgba(245,158,11,0.08)}
-.largest-stage{border:2px solid rgba(11,106,193,0.08)}
+.largest-stage{border:2px solid rgba(var(--bs-primary-rgb,11,106,193),0.08)}
 
 .movement-row{padding:8px 0;border-bottom:1px dashed rgba(0,0,0,0.03);}
 .movement-row:last-child{border-bottom:none}
@@ -1199,15 +1202,15 @@ body.theme-dark #leadsTableContainer table.table-hover tbody tr:hover {
 #toggleSemStatusBtn.active,
 #toggleAnunciosBtn.active {
     color: #fff !important;
-    background-color: var(--bs-primary) !important;
-    border-color: var(--bs-primary) !important;
+    background-color: var(--blue-700,var(--bs-primary)) !important;
+    border-color: var(--blue-700,var(--bs-primary)) !important;
 }
 #stalledToggle.active:hover,
 #toggleSemStatusBtn.active:hover,
 #toggleAnunciosBtn.active:hover {
     color: #fff !important;
-    background-color: var(--bs-primary) !important;
-    border-color: var(--bs-primary) !important;
+    background-color: var(--blue-900,var(--bs-primary)) !important;
+    border-color: var(--blue-900,var(--bs-primary)) !important;
 }
 
 /* Kanban-only mode: hide other page chrome and make kanban fill available space */

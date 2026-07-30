@@ -131,9 +131,9 @@ try {
 ?>
 
 <style>
-.section-left-border { border-left: 6px solid #0b6ac1 !important; }
+.section-left-border { border-left: 6px solid var(--blue-700) !important; }
 .section-left-border.secondary { border-left-color: #6c757d !important; }
-.section-left-border.primary { border-left-color: #0d6efd !important; }
+.section-left-border.primary { border-left-color: var(--blue-700) !important; }
 .section-left-border.success { border-left-color: #198754 !important; }
 
 /* Estilos modernos para filtros */
@@ -161,8 +161,8 @@ try {
     background:#f1f5f9;
 }
 .integration-filter-chip.is-active {
-    background:#3b82f6;
-    border-color:#3b82f6;
+    background:var(--blue-700);
+    border-color:var(--blue-700);
     color:#fff;
 }
 .integration-filter-chip.is-active i {
@@ -170,7 +170,7 @@ try {
 }
 .integration-filter-chip i {
     font-size:0.78rem;
-    color:#3b82f6;
+    color:var(--blue-700);
 }
 .integration-select {
     width:auto;
@@ -189,8 +189,8 @@ try {
     border-color:#94a3b8 !important;
 }
 .integration-select:focus {
-    border-color:#3b82f6 !important;
-    box-shadow: 0 0 0 .18rem rgba(59,130,246,0.12) !important;
+    border-color:var(--blue-700) !important;
+    box-shadow: 0 0 0 .18rem rgba(var(--bs-primary-rgb),0.12) !important;
 }
 .integration-search-wrap {
     position:relative;
@@ -240,8 +240,8 @@ try {
 }
 
 .form-select:focus, .form-control:focus {
-    border-color: #3b82f6 !important;
-    box-shadow: 0 0 0 0.15rem rgba(59, 130, 246, 0.1) !important;
+    border-color: var(--blue-700) !important;
+    box-shadow: 0 0 0 0.15rem rgba(var(--bs-primary-rgb), 0.1) !important;
 }
 
 .form-select, .form-control {
@@ -296,7 +296,7 @@ try {
     border-color: rgba(11,106,193,0.30);
     box-shadow: 0 10px 24px rgba(11,26,50,0.08);
     background:
-        linear-gradient(180deg, rgba(13,110,253,0.10), rgba(13,110,253,0.04)),
+        linear-gradient(180deg, rgba(var(--bs-primary-rgb),0.10), rgba(var(--bs-primary-rgb),0.04)),
         #fff;
 }
 .integration-task-badge {
@@ -311,13 +311,13 @@ try {
     font-weight:800;
     letter-spacing:0.04em;
     text-transform:uppercase;
-    color:#0b6ac1;
-    background: rgba(13,110,253,0.12);
+    color:var(--blue-700);
+    background: rgba(var(--bs-primary-rgb),0.12);
 }
 .task-card--featured {
-    border-color: #0d6efd !important;
-    box-shadow: 0 10px 24px rgba(13,110,253,0.12) !important;
-    background: linear-gradient(180deg, rgba(13,110,253,0.05), rgba(255,255,255,1)) !important;
+    border-color: var(--blue-700) !important;
+    box-shadow: 0 10px 24px rgba(var(--bs-primary-rgb),0.12) !important;
+    background: linear-gradient(180deg, rgba(var(--bs-primary-rgb),0.05), rgba(255,255,255,1)) !important;
 }
 .task-card-ribbon {
     position:absolute;
@@ -327,13 +327,13 @@ try {
     align-items:center;
     padding:2px 7px;
     border-radius:999px;
-    background:#0d6efd;
+    background:var(--blue-700);
     color:#fff;
     font-size:0.5rem;
     font-weight:700;
     letter-spacing:0.02em;
     text-transform:uppercase;
-    box-shadow:0 4px 10px rgba(13,110,253,0.18);
+    box-shadow:0 4px 10px rgba(var(--bs-primary-rgb),0.18);
 }
 .task-card-ribbon i {
     font-size: 0.38rem;
@@ -358,7 +358,7 @@ try {
 .integration-task-item .task-title { font-weight:600; color:#0f172a; font-size:0.92rem; }
 .integration-task-item .task-meta { font-size:0.78rem; color:#475569; }
 .status-Pendente { background: linear-gradient(180deg, rgba(249,115,22,0.06), rgba(249,115,22,0.03)); border-color: rgba(249,115,22,0.12); }
-.status-Em\ andamento { background: linear-gradient(180deg, rgba(13,110,253,0.06), rgba(13,110,253,0.03)); border-color: rgba(13,110,253,0.12); }
+.status-Em\ andamento { background: linear-gradient(180deg, rgba(var(--bs-primary-rgb),0.06), rgba(var(--bs-primary-rgb),0.03)); border-color: rgba(var(--bs-primary-rgb),0.12); }
 .status-Conclu\00edda, .status-Concluida { background: linear-gradient(180deg, rgba(59,181,115,0.06), rgba(59,181,115,0.03)); border-color: rgba(59,181,115,0.12); }
 
 body.theme-dark .card.card-shadow,
@@ -381,8 +381,7 @@ body.theme-dark .card-body .bg-light,
 body.theme-dark .card-body .bg-white,
 body.theme-dark .card-body .rounded-3.p-3.mb-3,
 body.theme-dark .card-header.bg-white,
-body.theme-dark .card-header.bg-light,
-body.theme-dark .modal-header.bg-light {
+body.theme-dark .card-header.bg-light {
     background: rgba(255,255,255,0.04) !important;
     border-color: rgba(255,255,255,0.08) !important;
 }
@@ -416,21 +415,21 @@ body.theme-dark .integration-search {
     border-color: rgba(255,255,255,0.10) !important;
 }
 body.theme-dark .integration-task-item--featured {
-    background: linear-gradient(180deg, rgba(13,110,253,0.16), rgba(255,255,255,0.05)) !important;
-    border-color: rgba(59,130,246,0.22) !important;
+    background: linear-gradient(180deg, rgba(var(--bs-primary-rgb),0.16), rgba(255,255,255,0.05)) !important;
+    border-color: rgba(var(--bs-primary-rgb),0.22) !important;
     box-shadow: 0 12px 28px rgba(0,0,0,0.28) !important;
 }
 body.theme-dark .integration-task-badge {
     color: #93c5fd !important;
-    background: rgba(59,130,246,0.16) !important;
+    background: rgba(var(--bs-primary-rgb),0.16) !important;
 }
 body.theme-dark .task-card--featured {
-    background: linear-gradient(180deg, rgba(13,110,253,0.18), rgba(255,255,255,0.04)) !important;
-    border-color: rgba(59,130,246,0.28) !important;
+    background: linear-gradient(180deg, rgba(var(--bs-primary-rgb),0.18), rgba(255,255,255,0.04)) !important;
+    border-color: rgba(var(--bs-primary-rgb),0.28) !important;
     box-shadow: 0 14px 30px rgba(0,0,0,0.32) !important;
 }
 body.theme-dark .task-card-ribbon {
-    background: #2563eb !important;
+    background: var(--blue-700) !important;
     color: #fff !important;
 }
 body.theme-dark .integration-task-item .task-title,
@@ -466,7 +465,7 @@ body.theme-dark .status-Concluida {
     padding: 22px 28px 20px;
     border: 0;
     color: #fff;
-    background: linear-gradient(120deg, #0756a5 0%, #0d6efd 58%, #38a3ff 100%);
+    background: linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%);
 }
 #modalEditarLembrete .modal-header::after {
     content: '';
@@ -508,7 +507,7 @@ body.theme-dark .status-Concluida {
 #modalEditarLembrete .form-control:focus,
 #modalEditarLembrete .form-select:focus {
     border-color: #2583ed;
-    box-shadow: 0 0 0 4px rgba(13,110,253,.12);
+    box-shadow: 0 0 0 4px rgba(var(--bs-primary-rgb),.12);
 }
 #modalEditarLembrete input[readonly] { background: #eef5fc; color: #52647a; }
 #modalEditarLembrete #editRem-team-block {
@@ -525,7 +524,7 @@ body.theme-dark .status-Concluida {
     background: #fff;
 }
 #modalEditarLembrete .modal-footer .btn { min-height: 42px; border-radius: 10px; font-weight: 700; }
-#modalEditarLembrete #btnSalvarEdicaoLembrete { padding-inline: 20px; box-shadow: 0 7px 16px rgba(13,110,253,.2); }
+#modalEditarLembrete #btnSalvarEdicaoLembrete { padding-inline: 20px; box-shadow: 0 7px 16px rgba(var(--bs-primary-rgb),.2); }
 #modalEditarLembrete #btnExcluirLembrete { padding-inline: 15px; }
 body.theme-dark #modalEditarLembrete .modal-body { background: #111c2d; }
 body.theme-dark #modalEditarLembrete .modal-footer { background: #172235; border-color: rgba(255,255,255,.1); }
@@ -533,7 +532,7 @@ body.theme-dark #modalEditarLembrete .form-label { color: #cbd5e1; }
 body.theme-dark #modalEditarLembrete .form-control,
 body.theme-dark #modalEditarLembrete .form-select { background: #1c2a3e; border-color: #33465f; color: #e6eef8; }
 body.theme-dark #modalEditarLembrete input[readonly] { background: #223249; color: #b9c8da; }
-body.theme-dark #modalEditarLembrete #editRem-team-block { background: linear-gradient(135deg, #142d4b, #172b43) !important; border-color: #2563eb !important; }
+body.theme-dark #modalEditarLembrete #editRem-team-block { background: linear-gradient(135deg, #142d4b, #172b43) !important; border-color: var(--blue-700) !important; }
 
 /* Acabamento do modal de usuarios da equipe */
 #modalTeamUsers .modal-content {
@@ -543,7 +542,30 @@ body.theme-dark #modalEditarLembrete #editRem-team-block { background: linear-gr
     box-shadow: 0 22px 55px rgba(15, 23, 42, .24);
 }
 #modalTeamUsers .modal-header {
-    border-bottom: 1px solid #dbe7f3;
+    background: linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%) !important;
+    border-bottom: 0;
+    color: #fff;
+}
+#modalEditarLembrete .modal-header,
+#modalNovaTarefa .modal-header,
+#modalTeamUsers .modal-header {
+    background: linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%) !important;
+    border-bottom: 0 !important;
+    color: #fff !important;
+}
+#modalEditarLembrete .modal-header .modal-title,
+#modalEditarLembrete .modal-header .modal-title i,
+#modalNovaTarefa .modal-header .modal-title,
+#modalNovaTarefa .modal-header .modal-title i,
+#modalTeamUsers .modal-header .modal-title,
+#modalTeamUsers .modal-header .modal-title i {
+    color: #fff !important;
+}
+#modalEditarLembrete .modal-header .btn-close,
+#modalNovaTarefa .modal-header .btn-close,
+#modalTeamUsers .modal-header .btn-close {
+    filter: invert(1) grayscale(100%);
+    opacity: .9;
 }
 #modalTeamUsers .modal-body {
     background: #f8fbff;
@@ -620,8 +642,8 @@ body.theme-dark #modalTeamUsers .modal-body {
                         <label class="form-label">Mensagem</label>
                         <textarea id="editRem-message" class="form-control form-control-sm" rows="4"></textarea>
                     </div>
-                    <div id="editRem-team-block" class="mb-2 p-2 rounded-3 border border-2" style="display:none; border-color:#0d6efd !important; background:#f8fbff;">
-                        <div class="fw-semibold mb-1" style="color:#0d6efd;">Destino da equipe</div>
+                    <div id="editRem-team-block" class="mb-2 p-2 rounded-3 border border-2" style="display:none; border-color:var(--blue-700) !important; background:#f8fbff;">
+                        <div class="fw-semibold mb-1" style="color:var(--blue-700);">Destino da equipe</div>
                         <div class="small text-muted">Equipe: <span id="editRem-team-name">-</span></div>
                         <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnViewReminderTeamUsers">Ver usuários da equipe</button>
                     </div>
@@ -667,7 +689,7 @@ body.theme-dark #modalTeamUsers .modal-body {
                         <div class="card-header bg-white border-0 px-4 py-3">
                             <div class="d-flex justify-content-between align-items-center">
                                 <h6 class="mb-0 fw-semibold d-flex align-items-center gap-2" style="color: #1e293b; font-size: 1rem;">
-                                    <i class="fa fa-tasks" style="color: #3b82f6;"></i>
+                                    <i class="fa fa-tasks" style="color: var(--blue-700);"></i>
                                     Tarefas de Equipe
                                 </h6>
                                 <span id="taskCount" class="badge rounded-pill" style="background: #e0e7ff; color: #4f46e5; font-size: 0.75rem; padding: 0.35em 0.75em;">0 tarefas</span>
@@ -722,7 +744,7 @@ body.theme-dark #modalTeamUsers .modal-body {
                         <div class="modal fade" id="modalNovaTarefa" tabindex="-1" aria-labelledby="modalNovaTarefaLabel" aria-hidden="true">
                             <div class="modal-dialog modal-lg">
                                 <div class="modal-content">
-                                    <div class="modal-header bg-light border-bottom">
+                                    <div class="modal-header">
                                         <h5 class="modal-title" id="modalNovaTarefaLabel"><i class="fa fa-plus text-success"></i> Nova Tarefa de Equipe</h5>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                                     </div>
@@ -777,19 +799,19 @@ body.theme-dark #modalTeamUsers .modal-body {
                             .task-avatar { width:56px; height:56px; border-radius:50%; background:#e9ecef; display:inline-flex; align-items:center; justify-content:center; font-weight:600; color:#fff; box-shadow:0 2px 6px rgba(0,0,0,0.08); font-size:1.05rem; }
                             .task-meta-label { font-size:0.85rem; color:#6c757d; }
                             .modal-edit-left { border-right:1px solid #f1f3f5; }
-                            .modal-header.colorful { padding:18px 24px; border-bottom:0; background:#0d6efd; transition:background .18s ease; }
+                            .modal-header.colorful { padding:18px 24px; border-bottom:0; background:var(--blue-700); transition:background .18s ease; }
                             .modal-header.colorful .modal-title { color:#fff; }
                             .modal-header.colorful .btn-close { filter: invert(1) grayscale(1) contrast(150%); }
                             /* inputs and selects always show system blue borders */
                             .modal-content .form-control,
                             .modal-content .form-select {
-                                border-color: #0d6efd !important;
+                                border-color: var(--blue-700) !important;
                             }
                             /* focus styles for inputs/selects to match system blue */
                             .modal-content .form-control:focus,
                             .modal-content .form-select:focus {
-                                border-color: #0d6efd !important;
-                                box-shadow: 0 0 0 .15rem rgba(13,110,253,0.15) !important;
+                                border-color: var(--blue-700) !important;
+                                box-shadow: 0 0 0 .15rem rgba(var(--bs-primary-rgb),0.15) !important;
                                 outline: 0 !important;
                             }
                             .modal-header.colorful .text-muted { color:rgba(255,255,255,0.85); }
@@ -844,8 +866,8 @@ body.theme-dark #modalTeamUsers .modal-body {
                                                         <div class="fw-semibold" id="edit-responsavel_name">&nbsp;</div>
                                                         <div class="small text-muted">ID: <span id="edit-responsavel-id" class="text-muted">-</span></div>
                                                     </div>
-                                                    <div id="edit-task-team-block" class="mb-3 p-2 rounded-3 border border-2" style="display:none; border-color:#0d6efd !important; background:#f8fbff;">
-                                                        <div class="fw-semibold mb-1" style="color:#0d6efd;">Destino da tarefa</div>
+                                                    <div id="edit-task-team-block" class="mb-3 p-2 rounded-3 border border-2" style="display:none; border-color:var(--blue-700) !important; background:#f8fbff;">
+                                                        <div class="fw-semibold mb-1" style="color:var(--blue-700);">Destino da tarefa</div>
                                                         <div class="small text-muted">Equipe: <span id="edit-task-team-name">-</span></div>
                                                         <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnViewTaskTeamUsers">Ver usuários da equipe</button>
                                                     </div>
@@ -879,7 +901,7 @@ body.theme-dark #modalTeamUsers .modal-body {
                     <div class="card card-shadow border-0 rounded-3" style="box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                         <div class="card-header bg-white border-0 px-4 py-3">
                             <h6 class="mb-3 fw-semibold d-flex align-items-center gap-2" style="color: #1e293b; font-size: 1rem;">
-                                <i class="fa fa-clock-o" style="color: #3b82f6;"></i>
+                                <i class="fa fa-clock-o" style="color: var(--blue-700);"></i>
                                 Atividades Recentes
                             </h6>
                             <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -1091,7 +1113,7 @@ body.theme-dark #modalTeamUsers .modal-body {
 <div class="modal fade" id="modalTeamUsers" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-light border-bottom">
+            <div class="modal-header">
                 <h5 class="modal-title"><i class="fa fa-users text-primary me-1"></i> Usuários da Equipe</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
@@ -1156,14 +1178,14 @@ async function atualizarTarefas() {
             reminders.forEach(r => {
                 const card = document.createElement('div');
                 card.className = 'mb-2 p-2 border rounded d-flex align-items-center gap-3 bg-white';
-                const avatar = document.createElement('div'); avatar.className = 'rounded-circle d-flex align-items-center justify-content-center me-2'; avatar.style.width = '38px'; avatar.style.height = '38px'; avatar.style.background = '#0b6ac1'; avatar.style.color = '#fff'; avatar.style.fontWeight = 'bold'; avatar.style.fontSize = '1.1rem'; avatar.textContent = 'L';
+                const avatar = document.createElement('div'); avatar.className = 'rounded-circle d-flex align-items-center justify-content-center me-2'; avatar.style.width = '38px'; avatar.style.height = '38px'; avatar.style.background = 'var(--blue-700)'; avatar.style.color = '#fff'; avatar.style.fontWeight = 'bold'; avatar.style.fontSize = '1.1rem'; avatar.textContent = 'L';
                 card.appendChild(avatar);
                 const content = document.createElement('div'); content.className = 'flex-grow-1';
                 // prefer contact_name for free contacts when no lead_id is set
                 const reminderTitle = (r.lead_id && Number(r.lead_id) > 0)
                     ? (r.lead_name || ('Lead #' + r.lead_id))
                     : ((r.contact_name || 'Contato') + (r.contact_phone ? (' • ' + r.contact_phone) : ''));
-                content.innerHTML = `<div class="fw-semibold">${escapeHtml(reminderTitle)} <span class="badge ms-2" style="background:#0b6ac1;color:#fff;">Lembrete</span></div>
+                content.innerHTML = `<div class="fw-semibold">${escapeHtml(reminderTitle)} <span class="badge ms-2" style="background:var(--blue-700);color:#fff;">Lembrete</span></div>
                     <div class="small text-muted">Agendado: ${r.remind_at} • Status: ${escapeHtml(r.status)}</div>
                     <div class="mt-1">${escapeHtml(r.message || '')}</div>`;
                 card.appendChild(content);
@@ -1232,7 +1254,7 @@ async function atualizarTarefas() {
                 card.classList.add('task-card--featured');
                 card.style.paddingTop = '22px';
                 card.style.borderTopWidth = '3px';
-                card.style.borderTopColor = '#0d6efd';
+                card.style.borderTopColor = 'var(--blue-700)';
                 const ribbon = document.createElement('div');
                 ribbon.className = 'task-card-ribbon';
                 ribbon.innerHTML = '<i class="fa fa-star me-1"></i> Mais recente';
@@ -1400,7 +1422,7 @@ async function atualizarTarefas() {
         return nome.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2);
     }
     function equipeColor(eq) {
-        const map = {Marketing:'#3bb273',Vendas:'#0b6ac1',Atendimento:'#ffd24a',Técnica:'#7c3aed',Financeiro:'#ef4444'};
+        const map = {Marketing:'#3bb273',Vendas:'var(--blue-700)',Atendimento:'var(--yellow)',Técnica:'#7c3aed',Financeiro:'#ef4444'};
         return map[eq]||'#888';
     }
     function statusColor(st) {
@@ -1597,7 +1619,7 @@ function renderActivities(activities) {
                             <span class="fw-semibold" style="color: #1e293b; font-size: 0.9rem;">${escapeHtml(name)}</span>
                             <span class="text-muted" style="font-size: 0.85rem;"> ${actionText}</span>
                         </div>
-                        ${title ? '<div class="mb-1" style="color: #3b82f6; font-size: 0.85rem; font-weight: 500;">"' + escapeHtml(title) + '"</div>' : ''}
+                        ${title ? '<div class="mb-1" style="color: var(--blue-700); font-size: 0.85rem; font-weight: 500;">"' + escapeHtml(title) + '"</div>' : ''}
                         <div class="d-flex align-items-center gap-2">
                             ${equipe ? '<span class="badge rounded-pill" style="background: #e0e7ff; color: #4f46e5; font-size: 0.7rem; padding: 0.25em 0.6em;">' + escapeHtml(equipe) + '</span>' : ''}
                             <span class="text-muted" style="font-size: 0.75rem;"><i class="fa fa-clock-o me-1"></i>${formatDate(a.timestamp)}</span>
@@ -1723,7 +1745,7 @@ function openEditModal(task) {
             if (headerAvatar) headerAvatar.innerHTML = `<img src="${respInfo.avatar}?v=${Date.now()}" class="rounded-circle" style="width:56px;height:56px;object-fit:cover;">`;
         } else if (headerAvatar) {
             const initialsH = (respInfo && respInfo.username ? respInfo.username : (task.responsavel || '')).split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase() || '?';
-            headerAvatar.textContent = initialsH; headerAvatar.style.background = '#0d6efd'; headerAvatar.style.color = '#fff';
+            headerAvatar.textContent = initialsH; headerAvatar.style.background = 'var(--blue-700)'; headerAvatar.style.color = '#fff';
         }
         // Body: mostrar a foto e nome do CRIADOR (user_id) e prefixo "Criador por "
         const creatorId = task.user_id || null;
@@ -2034,11 +2056,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!document.getElementById('quick-new-destino')) {
             const destinoWrap = document.createElement('div');
             destinoWrap.className = 'mb-2 p-2 rounded-3 border border-2';
-            destinoWrap.style.borderColor = '#0d6efd';
+            destinoWrap.style.borderColor = 'var(--blue-700)';
             destinoWrap.style.background = '#f8fbff';
             const teamOptions = (teamsData || []).map(t => `<option value="${t.id}">${escapeHtmlGlobal(t.name || '')}</option>`).join('');
             destinoWrap.innerHTML = `
-                <div class="fw-semibold mb-2" style="color:#0d6efd;">Destino</div>
+                <div class="fw-semibold mb-2" style="color:var(--blue-700);">Destino</div>
                 <select name="destino" id="quick-new-destino" class="form-select form-select-sm">
                     <option value="responsavel" selected>Responsável</option>
                     <option value="team">Equipe inteira</option>
@@ -2116,11 +2138,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (formModalNova && !document.getElementById('modal-new-destino')) {
             const destinoWrap = document.createElement('div');
             destinoWrap.className = 'mb-2 p-2 rounded-3 border border-2';
-            destinoWrap.style.borderColor = '#0d6efd';
+            destinoWrap.style.borderColor = 'var(--blue-700)';
             destinoWrap.style.background = '#f8fbff';
             const teamOptions = (teamsData || []).map(t => `<option value="${t.id}">${escapeHtmlGlobal(t.name || '')}</option>`).join('');
             destinoWrap.innerHTML = `
-                <div class="fw-semibold mb-2" style="color:#0d6efd;">Destino</div>
+                <div class="fw-semibold mb-2" style="color:var(--blue-700);">Destino</div>
                 <select name="destino" id="modal-new-destino" class="form-select form-select-sm">
                     <option value="responsavel" selected>Responsável</option>
                     <option value="team">Equipe inteira</option>
@@ -2177,11 +2199,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!document.getElementById('rem-destino')) {
             const destinoWrap = document.createElement('div');
             destinoWrap.className = 'mb-2 p-2 rounded-3 border border-2';
-            destinoWrap.style.borderColor = '#0d6efd';
+            destinoWrap.style.borderColor = 'var(--blue-700)';
             destinoWrap.style.background = '#f8fbff';
             const teamOptions = (teamsData || []).map(t => `<option value="${t.id}">${escapeHtmlGlobal(t.name || '')}</option>`).join('');
             destinoWrap.innerHTML = `
-                <div class="fw-semibold mb-2" style="color:#0d6efd;">Destino</div>
+                <div class="fw-semibold mb-2" style="color:var(--blue-700);">Destino</div>
                 <select name="destino" id="rem-destino" class="form-select form-select-sm mb-2">
                     <option value="responsavel" selected>Responsável</option>
                     <option value="team">Equipe inteira</option>
