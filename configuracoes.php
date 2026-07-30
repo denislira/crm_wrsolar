@@ -317,6 +317,302 @@ body.theme-dark .text-muted {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 10px 22px rgba(18, 61, 108, 0.08);
 }
 
+.settings-page .color-section {
+    border: 1px solid #dbe8f7;
+    border-radius: 12px;
+    padding: 0.85rem;
+    margin-bottom: 0.85rem;
+    background: rgba(255, 255, 255, 0.58);
+}
+
+.settings-page .color-section-title {
+    color: #2a4968;
+    font-size: 0.82rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    text-transform: uppercase;
+}
+
+.settings-page .color-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.settings-page .color-field {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 0.7rem;
+    align-items: center;
+    min-width: 0;
+    padding: 0.65rem;
+    border: 1px solid #dfeaf7;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.72);
+}
+
+.settings-page .color-field .form-control-color {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0.18rem;
+}
+
+.settings-page .color-field .form-label {
+    margin-bottom: 0.12rem;
+    font-weight: 700;
+}
+
+.settings-page .color-field small {
+    display: block;
+    line-height: 1.25;
+}
+
+.settings-page .system-preview {
+    --preview-primary: var(--blue-700);
+    --preview-primary-dark: var(--blue-900);
+    --preview-green: var(--green);
+    --preview-yellow: var(--yellow);
+    --preview-sidebar-text: var(--sidebar-text-color);
+    --preview-navbar-bg: var(--navbar-bg-color);
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid rgba(20, 55, 92, 0.12);
+    background: #eef3f8;
+    font-size: 0.82rem;
+}
+
+.settings-page .system-preview-navbar {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.75rem;
+    background: var(--preview-navbar-bg);
+    border-bottom: 1px solid rgba(20, 55, 92, 0.1);
+}
+
+.settings-page .system-preview-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--preview-primary);
+}
+
+.settings-page .system-preview-nav-title {
+    min-width: 0;
+    color: #274562;
+    font-weight: 700;
+}
+
+.settings-page .system-preview-pill {
+    width: 66px;
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(var(--bs-primary-rgb), 0.16);
+}
+
+.settings-page .system-preview-body {
+    min-height: 300px;
+    display: grid;
+    grid-template-columns: 165px 1fr;
+}
+
+.settings-page .system-preview-sidebar {
+    padding: 0.85rem 0.65rem;
+    color: var(--preview-sidebar-text);
+    background: linear-gradient(180deg, var(--preview-primary-dark), var(--preview-primary));
+}
+
+.settings-page .system-preview-brand {
+    height: 22px;
+    margin-bottom: 0.9rem;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.14);
+}
+
+.settings-page .system-preview-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.44rem 0.5rem;
+    margin-bottom: 0.35rem;
+    border-radius: 8px;
+    color: var(--preview-sidebar-text);
+}
+
+.settings-page .system-preview-menu-item.active {
+    background: rgba(255,255,255,0.15);
+}
+
+.settings-page .system-preview-menu-icon {
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: #fff;
+    color: var(--preview-primary);
+    font-size: 0.68rem;
+}
+
+.settings-page .system-preview-content {
+    padding: 0.85rem;
+}
+
+.settings-page .system-preview-tabs {
+    display: flex;
+    gap: 0.35rem;
+    margin-bottom: 0.7rem;
+    overflow: hidden;
+}
+
+.settings-page .system-preview-tab {
+    padding: 0.35rem 0.55rem;
+    border-radius: 8px;
+    color: #516b89;
+    font-weight: 700;
+    background: #fff;
+    border: 1px solid #dce7f4;
+}
+
+.settings-page .system-preview-tab.active {
+    color: #fff;
+    background: linear-gradient(120deg, var(--preview-primary), var(--preview-primary-dark));
+    border-color: transparent;
+}
+
+.settings-page .system-preview-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+    margin-bottom: 0.7rem;
+}
+
+.settings-page .system-preview-kpi {
+    min-width: 0;
+    padding: 0.58rem;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #dce7f4;
+}
+
+.settings-page .system-preview-kpi-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    color: #fff;
+    background: var(--preview-primary);
+    margin-bottom: 0.45rem;
+}
+
+.settings-page .system-preview-kpi-icon.green {
+    background: var(--preview-green);
+    color: #153620;
+}
+
+.settings-page .system-preview-kpi-icon.yellow {
+    background: var(--preview-yellow);
+    color: #493c08;
+}
+
+.settings-page .system-preview-modal-head {
+    padding: 0.5rem 0.65rem;
+    border-radius: 8px 8px 0 0;
+    color: #fff;
+    font-weight: 700;
+    background: linear-gradient(120deg, var(--preview-primary-dark), var(--preview-primary));
+}
+
+.settings-page .system-preview-card {
+    border: 1px solid #dce7f4;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+    box-shadow: 0 8px 18px rgba(17, 52, 92, 0.08);
+}
+
+.settings-page .system-preview-card-body {
+    padding: 0.7rem;
+}
+
+.settings-page .system-preview-table-row {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr 70px;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid #edf2f8;
+}
+
+.settings-page .system-preview-table-row:last-child {
+    border-bottom: 0;
+}
+
+.settings-page .system-preview-line {
+    height: 9px;
+    border-radius: 999px;
+    background: #dce7f4;
+    margin-bottom: 0.45rem;
+}
+
+.settings-page .system-preview-line.primary {
+    background: var(--preview-primary);
+}
+
+.settings-page .system-preview-line.yellow {
+    width: 52%;
+    background: var(--preview-yellow);
+}
+
+.settings-page .system-preview-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.settings-page .system-preview-btn {
+    min-width: 74px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 700;
+    background: var(--preview-primary);
+}
+
+.settings-page .system-preview-btn.dark {
+    background: var(--preview-primary-dark);
+}
+
+.settings-page .system-preview-badge {
+    height: 28px;
+    min-width: 70px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: #153620;
+    font-size: 0.76rem;
+    font-weight: 700;
+    background: var(--preview-green);
+}
+
+.settings-page .system-preview-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-top: 0.7rem;
+}
+
 body.theme-dark .settings-page {
     background:
         radial-gradient(1000px 440px at -10% -20%, rgba(44, 120, 255, 0.22), transparent 62%),
@@ -400,6 +696,52 @@ body.theme-dark .settings-page #appearance #appearancePreview {
     box-shadow: none;
 }
 
+body.theme-dark .settings-page .color-section {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.theme-dark .settings-page .color-section-title {
+    color: #d3e2f2;
+}
+
+body.theme-dark .settings-page .color-field {
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.1);
+}
+
+body.theme-dark .settings-page .system-preview {
+    background: #101a29;
+    border-color: rgba(255,255,255,0.1);
+}
+
+body.theme-dark .settings-page .system-preview-navbar {
+    border-color: rgba(255,255,255,0.08);
+}
+
+body.theme-dark .settings-page .system-preview-nav-title {
+    color: #dce9f6;
+}
+
+body.theme-dark .settings-page .system-preview-tab,
+body.theme-dark .settings-page .system-preview-kpi,
+body.theme-dark .settings-page .system-preview-card {
+    background: #142338;
+    border-color: rgba(255,255,255,0.1);
+}
+
+body.theme-dark .settings-page .system-preview-tab {
+    color: #c8dbef;
+}
+
+body.theme-dark .settings-page .system-preview-line {
+    background: rgba(255,255,255,0.12);
+}
+
+body.theme-dark .settings-page .system-preview-table-row {
+    border-color: rgba(255,255,255,0.08);
+}
+
 #addUserModal .form-control,
 #addUserModal .form-select,
 #addTeamModal .form-control,
@@ -432,6 +774,125 @@ body.theme-dark #editTeamModal .form-select,
 body.theme-dark #changePasswordModal .form-control,
 body.theme-dark #changePasswordModal .form-select {
     border-color: rgba(255, 255, 255, 0.32);
+}
+
+@media (max-width: 1199px) {
+    .settings-page {
+        padding: 1rem !important;
+    }
+
+    .settings-page .settings-shell {
+        max-width: 100%;
+    }
+
+    .settings-page .settings-title {
+        margin-bottom: 0.85rem;
+        padding: 1rem;
+        border-radius: 12px;
+    }
+
+    .settings-page .settings-tabs {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        white-space: nowrap;
+        scrollbar-width: thin;
+        gap: 0.35rem;
+        padding: 0.25rem;
+        border-radius: 12px;
+    }
+
+    .settings-page .settings-tabs .nav-item {
+        flex: 0 0 auto;
+    }
+
+    .settings-page .settings-tabs .nav-link {
+        padding: 0.52rem 0.78rem;
+        font-size: 0.9rem;
+    }
+
+    .settings-page .tab-pane > .d-flex {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .settings-page .tab-pane > .d-flex .btn,
+    .settings-page .tab-pane > .d-flex .form-select,
+    .settings-page .tab-pane > .d-flex .form-control {
+        max-width: 100%;
+    }
+
+    .settings-page .card.card-shadow {
+        border-radius: 12px;
+        padding: 1rem !important;
+    }
+
+    .settings-page .table-responsive {
+        overflow-x: auto;
+    }
+
+    .settings-page .table {
+        min-width: 720px;
+    }
+
+    .settings-page #waStatusCard,
+    .settings-page #waHelpCard {
+        min-width: min(100%, 320px) !important;
+        max-width: 100% !important;
+        flex: 1 1 320px;
+    }
+
+    .settings-page #appearance .logo-preview-panel {
+        flex-wrap: wrap;
+    }
+
+    .settings-page #appearance .logo-preview-panel .preview-box {
+        min-width: 180px;
+    }
+
+    .settings-page #appearance .form-control-color {
+        width: 100%;
+        min-height: 42px;
+    }
+
+    .settings-page .color-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-page #appearance .card.card-shadow > .d-flex:last-child {
+        justify-content: flex-start !important;
+        flex-wrap: wrap;
+    }
+
+    .settings-page #appearance .card.card-shadow > .d-flex:last-child .btn {
+        flex: 1 1 180px;
+    }
+}
+
+@media (max-width: 720px) {
+    .settings-page .system-preview-body {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-page .system-preview-sidebar {
+        min-height: auto;
+    }
+
+    .settings-page .system-preview-brand {
+        width: 160px;
+    }
+
+    .settings-page .system-preview-content {
+        padding: 0.75rem;
+    }
+
+    .settings-page .system-preview-kpis {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-page .system-preview-table-row {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 991px) {
@@ -850,7 +1311,7 @@ body.theme-dark .edit-user-modal .avatar-box {
 
                     <div class="card card-shadow p-3">
                         <div class="row">
-                            <div class="col-md-5">
+                            <div class="col-12 col-xl-5 mb-3 mb-xl-0">
                                 <h6>Logos</h6>
                                 <button type="button" id="toggleLogoPreviewBg" class="btn btn-outline-secondary btn-sm logo-preview-toggle">Fundo escuro</button>
                                 <div class="logo-preview-panel mb-3">
@@ -887,35 +1348,140 @@ body.theme-dark .edit-user-modal .avatar-box {
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-7">
+                            <div class="col-12 col-xl-7">
                                 <h6>Paleta</h6>
-                                <div class="row gx-2 align-items-center">
-                                    <div class="col-6 mb-2">
-                                        <label class="form-label">Cor principal</label>
-                                        <input type="color" id="primary_color" class="form-control form-control-color" value="#0b6ac1" />
+                                <div class="color-section">
+                                    <div class="color-section-title">Estrutura principal</div>
+                                    <div class="color-grid">
+                                        <div class="color-field">
+                                            <input type="color" id="primary_color" class="form-control form-control-color" value="#0b6ac1" />
+                                            <div>
+                                                <label class="form-label" for="primary_color">Cor principal</label>
+                                                <small class="text-muted">Botões, links, ícones, abas e destaques.</small>
+                                            </div>
+                                        </div>
+                                        <div class="color-field">
+                                            <input type="color" id="primary_dark" class="form-control form-control-color" value="#073b6b" />
+                                            <div>
+                                                <label class="form-label" for="primary_dark">Cor principal escura</label>
+                                                <small class="text-muted">Gradientes, sidebar e cabeçalhos.</small>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="col-6 mb-2">
-                                        <label class="form-label">Cor principal (escura)</label>
-                                        <input type="color" id="primary_dark" class="form-control form-control-color" value="#073b6b" />
+                                </div>
+                                <div class="color-section">
+                                    <div class="color-section-title">Acentos e indicadores</div>
+                                    <div class="color-grid">
+                                        <div class="color-field">
+                                            <input type="color" id="green_color" class="form-control form-control-color" value="#4bbf4b" />
+                                            <div>
+                                                <label class="form-label" for="green_color">Verde</label>
+                                                <small class="text-muted">Status positivos, selos e indicadores.</small>
+                                            </div>
+                                        </div>
+                                        <div class="color-field">
+                                            <input type="color" id="yellow_color" class="form-control form-control-color" value="#ffd24a" />
+                                            <div>
+                                                <label class="form-label" for="yellow_color">Amarelo</label>
+                                                <small class="text-muted">Avisos, linhas de apoio e acentos visuais.</small>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="col-6 mb-2">
-                                        <label class="form-label">Verde (acento)</label>
-                                        <input type="color" id="green_color" class="form-control form-control-color" value="#4bbf4b" />
-                                    </div>
-                                    <div class="col-6 mb-2">
-                                        <label class="form-label">Amarelo (acento)</label>
-                                        <input type="color" id="yellow_color" class="form-control form-control-color" value="#ffd24a" />
+                                </div>
+                                <div class="color-section mb-0">
+                                    <div class="color-section-title">Navegação</div>
+                                    <div class="color-grid">
+                                        <div class="color-field">
+                                            <input type="color" id="sidebar_text_color" class="form-control form-control-color" value="#ffffff" />
+                                            <div>
+                                                <label class="form-label" for="sidebar_text_color">Texto da sidebar</label>
+                                                <small class="text-muted">Itens de menu, ícones e botão de recolher.</small>
+                                            </div>
+                                        </div>
+                                        <div class="color-field">
+                                            <input type="color" id="navbar_bg_color" class="form-control form-control-color" value="#ffffff" />
+                                            <div>
+                                                <label class="form-label" for="navbar_bg_color">Fundo da navbar</label>
+                                                <small class="text-muted">Barra superior fixa do sistema.</small>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div class="mt-3">
                                     <label class="form-label">Pré-visualização</label>
                                     <div class="p-3 rounded" id="appearancePreview" style="background:#fff; border:1px solid #eee;">
-                                        <div style="display:flex; align-items:center; gap:12px;">
-                                            <div style="width:56px; height:56px; background:var(--blue-700); border-radius:8px;"></div>
-                                            <div>
-                                                <div style="height:10px; width:200px; background:var(--blue-700); border-radius:6px;"></div>
-                                                <div style="height:8px; width:120px; background:var(--yellow); border-radius:6px; margin-top:6px;"></div>
+                                        <div class="system-preview">
+                                            <div class="system-preview-navbar">
+                                                <div class="d-flex align-items-center gap-2 min-w-0">
+                                                    <div class="system-preview-dot"></div>
+                                                    <div class="system-preview-nav-title">Configurações</div>
+                                                </div>
+                                                <div class="system-preview-pill"></div>
+                                            </div>
+                                            <div class="system-preview-body">
+                                                <div class="system-preview-sidebar">
+                                                    <div class="system-preview-brand"></div>
+                                                    <div class="system-preview-menu-item active">
+                                                        <span class="system-preview-menu-icon"><i class="fas fa-home"></i></span>
+                                                        <span>Dashboard</span>
+                                                    </div>
+                                                    <div class="system-preview-menu-item">
+                                                        <span class="system-preview-menu-icon"><i class="fas fa-user"></i></span>
+                                                        <span>Leads</span>
+                                                    </div>
+                                                    <div class="system-preview-menu-item">
+                                                        <span class="system-preview-menu-icon"><i class="fas fa-cog"></i></span>
+                                                        <span>Config.</span>
+                                                    </div>
+                                                </div>
+                                                <div class="system-preview-content">
+                                                    <div class="system-preview-tabs">
+                                                        <span class="system-preview-tab active">Usuários</span>
+                                                        <span class="system-preview-tab">Aparência</span>
+                                                        <span class="system-preview-tab">SMTP</span>
+                                                    </div>
+                                                    <div class="system-preview-kpis">
+                                                        <div class="system-preview-kpi">
+                                                            <div class="system-preview-kpi-icon"><i class="fas fa-user"></i></div>
+                                                            <div class="system-preview-line primary"></div>
+                                                            <div class="system-preview-line"></div>
+                                                        </div>
+                                                        <div class="system-preview-kpi">
+                                                            <div class="system-preview-kpi-icon green"><i class="fas fa-check"></i></div>
+                                                            <div class="system-preview-line"></div>
+                                                            <div class="system-preview-line"></div>
+                                                        </div>
+                                                        <div class="system-preview-kpi">
+                                                            <div class="system-preview-kpi-icon yellow"><i class="fas fa-bell"></i></div>
+                                                            <div class="system-preview-line yellow"></div>
+                                                            <div class="system-preview-line"></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="system-preview-card">
+                                                        <div class="system-preview-modal-head">Cabeçalho / Modal</div>
+                                                        <div class="system-preview-card-body">
+                                                            <div class="system-preview-table-row">
+                                                                <div class="system-preview-line primary mb-0"></div>
+                                                                <div class="system-preview-line mb-0"></div>
+                                                                <span class="system-preview-badge">Ativo</span>
+                                                            </div>
+                                                            <div class="system-preview-table-row">
+                                                                <div class="system-preview-line mb-0"></div>
+                                                                <div class="system-preview-line yellow mb-0"></div>
+                                                                <span class="system-preview-badge">Novo</span>
+                                                            </div>
+                                                            <div class="system-preview-actions">
+                                                                <span class="system-preview-btn">Salvar</span>
+                                                                <span class="system-preview-btn dark">Editar</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="system-preview-footer">
+                                                        <span class="system-preview-line primary flex-grow-1 mb-0"></span>
+                                                        <span class="system-preview-line yellow flex-grow-1 mb-0"></span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -939,6 +1505,7 @@ body.theme-dark .edit-user-modal .avatar-box {
                         </div>
 
                         <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button id="btn_download_appearance_backup" class="btn btn-outline-primary btn-sm">Baixar backup de cores</button>
                             <button id="btn_save_appearance" class="btn btn-primary btn-sm">Salvar Aparência</button>
                             <button id="btn_reset_appearance" class="btn btn-outline-secondary btn-sm">Restaurar Padrão</button>
                         </div>
@@ -1893,9 +2460,12 @@ document.addEventListener('DOMContentLoaded', function(){
         const primaryDarkInput = document.getElementById('primary_dark');
         const greenInput = document.getElementById('green_color');
         const yellowInput = document.getElementById('yellow_color');
+        const sidebarTextInput = document.getElementById('sidebar_text_color');
+        const navbarBgInput = document.getElementById('navbar_bg_color');
         const preview = document.getElementById('appearancePreview');
         const toggleLogoPreviewBg = document.getElementById('toggleLogoPreviewBg');
         const logoPreviewPanel = document.querySelector('.logo-preview-panel');
+        const colorBackupKeys = ['primary_color', 'primary_dark', 'green', 'yellow', 'sidebar_text_color', 'navbar_bg_color'];
 
         function updateLogoPreviewToggle(){
             if (!toggleLogoPreviewBg || !logoPreviewPanel) return;
@@ -1932,6 +2502,8 @@ document.addEventListener('DOMContentLoaded', function(){
                 if (s.primary_dark) primaryDarkInput.value = s.primary_dark;
                 if (s.green) greenInput.value = s.green;
                 if (s.yellow) yellowInput.value = s.yellow;
+                if (s.sidebar_text_color) sidebarTextInput.value = s.sidebar_text_color;
+                if (s.navbar_bg_color) navbarBgInput.value = s.navbar_bg_color;
                 applyPreviewColors();
             }catch(e){ console.error(e); }
         }
@@ -1941,24 +2513,29 @@ document.addEventListener('DOMContentLoaded', function(){
             const pd = primaryDarkInput.value || '#073b6b';
             const g = greenInput.value || '#4bbf4b';
             const y = yellowInput.value || '#ffd24a';
-            preview.querySelectorAll('div').forEach(d=>d.style.setProperty('--tmp', ''));
-            preview.style.setProperty('--tmp', '');
-            // apply inline preview colors
-            preview.querySelectorAll('div')[0].style.background = p;
-            const bars = preview.querySelectorAll('div')[1].querySelectorAll('div');
-            if (bars[0]) bars[0].style.background = p;
-            if (bars[1]) bars[1].style.background = y;
+            const sidebarText = sidebarTextInput.value || '#ffffff';
+            const navbarBg = navbarBgInput.value || '#ffffff';
+            preview.style.setProperty('--preview-primary', p);
+            preview.style.setProperty('--preview-primary-dark', pd);
+            preview.style.setProperty('--preview-green', g);
+            preview.style.setProperty('--preview-yellow', y);
+            preview.style.setProperty('--preview-sidebar-text', sidebarText);
+            preview.style.setProperty('--preview-navbar-bg', navbarBg);
             // also update document root for live preview
             document.documentElement.style.setProperty('--blue-700', p);
             document.documentElement.style.setProperty('--blue-900', pd);
             document.documentElement.style.setProperty('--green', g);
             document.documentElement.style.setProperty('--yellow', y);
+            document.documentElement.style.setProperty('--sidebar-text-color', sidebarText);
+            document.documentElement.style.setProperty('--navbar-bg-color', navbarBg);
         }
 
         primaryInput.addEventListener('input', applyPreviewColors);
         primaryDarkInput.addEventListener('input', applyPreviewColors);
         greenInput.addEventListener('input', applyPreviewColors);
         yellowInput.addEventListener('input', applyPreviewColors);
+        sidebarTextInput.addEventListener('input', applyPreviewColors);
+        navbarBgInput.addEventListener('input', applyPreviewColors);
 
         if (loginBgInput && currentLoginBackground) {
             loginBgInput.addEventListener('change', function(){
@@ -1980,6 +2557,8 @@ document.addEventListener('DOMContentLoaded', function(){
             fd.append('primary_dark', primaryDarkInput.value || '');
             fd.append('green', greenInput.value || '');
             fd.append('yellow', yellowInput.value || '');
+            fd.append('sidebar_text_color', sidebarTextInput.value || '');
+            fd.append('navbar_bg_color', navbarBgInput.value || '');
             this.disabled = true;
             try{
                 const res = await fetch('api/save_appearance.php', { method: 'POST', body: fd });
@@ -2006,12 +2585,53 @@ document.addEventListener('DOMContentLoaded', function(){
             fd.append('primary_dark', '#073b6b');
             fd.append('green', '#4bbf4b');
             fd.append('yellow', '#ffd24a');
+            fd.append('sidebar_text_color', '#ffffff');
+            fd.append('navbar_bg_color', '#ffffff');
             try{
                 const res = await fetch('api/save_appearance.php', { method: 'POST', body: fd });
                 const data = await res.json();
                 alert(data.message || (data.success ? 'Restaurado' : 'Erro'));
                 if (data.success) location.reload();
             }catch(e){ alert('Erro ao restaurar'); }
+        });
+
+        document.getElementById('btn_download_appearance_backup').addEventListener('click', async function(){
+            try{
+                const res = await fetch('api/get_appearance.php');
+                const data = await res.json();
+                const source = data.appearance || {};
+                const inputByKey = {
+                    primary_color: primaryInput,
+                    primary_dark: primaryDarkInput,
+                    green: greenInput,
+                    yellow: yellowInput,
+                    sidebar_text_color: sidebarTextInput,
+                    navbar_bg_color: navbarBgInput
+                };
+                const colors = {};
+                colorBackupKeys.forEach(key => {
+                    colors[key] = (inputByKey[key] && inputByKey[key].value) || source[key] || '';
+                });
+                const backup = {
+                    type: 'wrcrm_color_settings_backup',
+                    exported_at: new Date().toISOString(),
+                    colors
+                };
+                const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                const date = new Date().toISOString().slice(0, 10);
+                link.href = url;
+                link.download = `wrcrm-cores-${date}.json`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(url);
+                showSettingsToast('Backup de cores baixado', 'success');
+            }catch(e){
+                showSettingsToast('Erro ao baixar backup de cores', 'danger');
+                console.error(e);
+            }
         });
 
         loadAppearance();

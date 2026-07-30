@@ -1,6 +1,7 @@
 <?php 
 if (session_status() === PHP_SESSION_NONE) session_start(); 
 include_once 'includes/permissions.php';
+include_once 'includes/settings_storage.php';
 ?>
 <!doctype html>
 <html lang="pt-br">
@@ -42,17 +43,14 @@ include_once 'includes/permissions.php';
     <link rel="stylesheet" href="assets/css/internal_chat.css">
   <?php endif; ?>
   <?php
-    // Load appearance settings if available
-    $settingsPath = __DIR__ . '/../storage/settings.json';
-    $appearance = [];
-    if (file_exists($settingsPath)) {
-        $raw = @file_get_contents($settingsPath);
-        $appearance = $raw ? json_decode($raw, true) : [];
-    }
+    // Load appearance settings and create defaults when missing.
+    $appearance = wrcrm_load_settings(true);
     $primary = isset($appearance['primary_color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $appearance['primary_color']) ? $appearance['primary_color'] : '#0b6ac1';
     $primaryDark = isset($appearance['primary_dark']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $appearance['primary_dark']) ? $appearance['primary_dark'] : '#073b6b';
     $green = $appearance['green'] ?? '#4bbf4b';
     $yellow = $appearance['yellow'] ?? '#ffd24a';
+    $sidebarTextColor = isset($appearance['sidebar_text_color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $appearance['sidebar_text_color']) ? $appearance['sidebar_text_color'] : '#ffffff';
+    $navbarBgColor = isset($appearance['navbar_bg_color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $appearance['navbar_bg_color']) ? $appearance['navbar_bg_color'] : '#ffffff';
   ?>
   <style>
     /* Theme derived from WR Solare logo: blues, green and yellow accents */
@@ -61,6 +59,8 @@ include_once 'includes/permissions.php';
         --blue-900: <?php echo $primaryDark; ?>; /* darker blue */
         --green: <?php echo $green; ?>;    /* leaf green */
         --yellow: <?php echo $yellow; ?>;   /* sun yellow */
+        --sidebar-text-color: <?php echo $sidebarTextColor; ?>;
+        --navbar-bg-color: <?php echo $navbarBgColor; ?>;
         --primary-500: var(--blue-700);
         --primary-700: var(--blue-900);
         --accent-500: var(--yellow);
@@ -77,7 +77,7 @@ include_once 'includes/permissions.php';
     Add top padding so fixed navbar doesn't cover content. */
   body{ margin: 0; font-family: 'Segoe UI', 'Segoe UI Variable', system-ui, -apple-system, 'Inter', Roboto, 'Helvetica Neue', Arial; background:var(--muted-bg); overflow-x: hidden; padding-top:48px; }
   /* Keep navbar always visible: fixed at top and offset after sidebar */
-  .navbar { position: fixed; top: 0; left: var(--sidebar-w); z-index: 1040; width: calc(100% - var(--sidebar-w)); }
+  .navbar { position: fixed; top: 0; left: var(--sidebar-w); z-index: 1040; width: calc(100% - var(--sidebar-w)); background: var(--navbar-bg-color) !important; }
   /* Reduce the default container padding so brand sits closer to the left edge.
     Make the navbar flush with the viewport edges to maximize usable space. */
   html, body { width: 100%; }
@@ -94,9 +94,9 @@ include_once 'includes/permissions.php';
 .dashboard-modern-card:hover { transform: translateY(-2px); }
   .main-content-scroll { min-height: 100vh; overflow-y: auto; }
   /* slightly narrower sidebar for better proportion */
-  .app-sidebar{ width: var(--sidebar-w); min-width: var(--sidebar-w); max-width: var(--sidebar-w); flex: 0 0 var(--sidebar-w); box-sizing: border-box; background: linear-gradient(180deg,var(--blue-900),var(--blue-700)); color: #fff; min-height:100vh; }
-    .app-sidebar .nav-link{ color: rgba(255,255,255,0.95); }
-    .app-sidebar .nav-link.active, .app-sidebar .nav-link:hover{ background: rgba(255,255,255,0.06); color: #fff; }
+  .app-sidebar{ width: var(--sidebar-w); min-width: var(--sidebar-w); max-width: var(--sidebar-w); flex: 0 0 var(--sidebar-w); box-sizing: border-box; background: linear-gradient(180deg,var(--blue-900),var(--blue-700)); color: var(--sidebar-text-color); min-height:100vh; }
+    .app-sidebar .nav-link{ color: var(--sidebar-text-color); }
+    .app-sidebar .nav-link.active, .app-sidebar .nav-link:hover{ background: rgba(255,255,255,0.06); color: var(--sidebar-text-color); }
     .app-sidebar .me-2{ background:#fff;color:var(--blue-700); }
     .card-shadow{ box-shadow: 0 10px 30px rgba(7,59,107,0.08); }
     .kanban-card{ cursor: grab; }
@@ -116,7 +116,7 @@ include_once 'includes/permissions.php';
   #sidebarToggle {
     background: transparent !important;
     border: none !important;
-    color: rgba(255,255,255,0.95);
+    color: var(--sidebar-text-color);
     padding: .15rem .35rem;
     border-radius:6px;
     margin-left:0;
@@ -350,7 +350,7 @@ include_once 'includes/permissions.php';
       padding: 0.6rem 0.6rem; 
       margin: 0.15rem 0.25rem;
       border-radius: 8px;
-      color: rgba(255, 255, 255, 0.88);
+      color: var(--sidebar-text-color);
       text-decoration: none;
       transition: all 0.16s ease;
       position: relative;
@@ -360,13 +360,13 @@ include_once 'includes/permissions.php';
     
     .app-sidebar .nav-link:hover { 
       background: rgba(255, 255, 255, 0.1); 
-      color: #fff;
+      color: var(--sidebar-text-color);
       transform: translateX(4px);
     }
     
     .app-sidebar .nav-link.active { 
       background: rgba(255, 255, 255, 0.15); 
-      color: #fff;
+      color: var(--sidebar-text-color);
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
     }
     
@@ -479,24 +479,24 @@ include_once 'includes/permissions.php';
 
     /* Theme-aware sidebar overrides */
     body.theme-dark .app-sidebar {
-      background: linear-gradient(180deg,#071427 0%, #0b1220 100%) !important;
-      color: #e6eef8 !important;
+      background: linear-gradient(180deg,var(--blue-900),var(--blue-700)) !important;
+      color: var(--sidebar-text-color) !important;
       box-shadow: 2px 0 18px rgba(0,0,0,0.6) !important;
     }
-    body.theme-dark .app-sidebar .nav-link { color: rgba(230,238,248,0.95) !important; }
+    body.theme-dark .app-sidebar .nav-link { color: var(--sidebar-text-color) !important; }
     body.theme-dark .app-sidebar .nav-link:hover,
-    body.theme-dark .app-sidebar .nav-link.active { background: rgba(255,255,255,0.03) !important; color: #e6eef8 !important; }
+    body.theme-dark .app-sidebar .nav-link.active { background: rgba(255,255,255,0.03) !important; color: var(--sidebar-text-color) !important; }
     body.theme-dark .app-sidebar .me-2 { background: rgba(255,255,255,0.06) !important; color: var(--blue-700) !important; }
     body.theme-dark .sidebar-footer { border-top-color: rgba(255,255,255,0.06) !important; }
 
     body.theme-light .app-sidebar {
       background: linear-gradient(180deg,var(--blue-900),var(--blue-700)) !important;
-      color: #fff !important;
+      color: var(--sidebar-text-color) !important;
       box-shadow: 2px 0 12px rgba(7,59,107,0.08) !important;
     }
-    body.theme-light .app-sidebar .nav-link { color: rgba(255,255,255,0.95) !important; }
+    body.theme-light .app-sidebar .nav-link { color: var(--sidebar-text-color) !important; }
     body.theme-light .app-sidebar .nav-link:hover,
-    body.theme-light .app-sidebar .nav-link.active { background: rgba(255,255,255,0.06) !important; color: #fff !important; }
+    body.theme-light .app-sidebar .nav-link.active { background: rgba(255,255,255,0.06) !important; color: var(--sidebar-text-color) !important; }
     body.theme-light .app-sidebar .me-2 { background:#fff !important;color:var(--blue-700) !important; }
 
   /* Main content offset to avoid overlap with fixed sidebar */
@@ -667,7 +667,7 @@ include_once 'includes/permissions.php';
     #sidebarToggle {
       width: 36px;
       height: 36px;
-      color: #fff;
+      color: var(--sidebar-text-color);
     }
 
     .app-sidebar .nav-link::after,
