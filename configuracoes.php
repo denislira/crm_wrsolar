@@ -371,8 +371,8 @@ body.theme-dark .text-muted {
 .settings-page .system-preview {
     --preview-primary: var(--blue-700);
     --preview-primary-dark: var(--blue-900);
-    --preview-green: var(--green);
-    --preview-yellow: var(--yellow);
+    --preview-status: var(--green);
+    --preview-highlight: var(--yellow);
     --preview-sidebar-text: var(--sidebar-text-color);
     --preview-navbar-bg: var(--navbar-bg-color);
     overflow: hidden;
@@ -510,13 +510,13 @@ body.theme-dark .text-muted {
     margin-bottom: 0.45rem;
 }
 
-.settings-page .system-preview-kpi-icon.green {
-    background: var(--preview-green);
+.settings-page .system-preview-kpi-icon.status {
+    background: var(--preview-status);
     color: #153620;
 }
 
-.settings-page .system-preview-kpi-icon.yellow {
-    background: var(--preview-yellow);
+.settings-page .system-preview-kpi-icon.highlight {
+    background: var(--preview-highlight);
     color: #493c08;
 }
 
@@ -564,9 +564,9 @@ body.theme-dark .text-muted {
     background: var(--preview-primary);
 }
 
-.settings-page .system-preview-line.yellow {
+.settings-page .system-preview-line.highlight {
     width: 52%;
-    background: var(--preview-yellow);
+    background: var(--preview-highlight);
 }
 
 .settings-page .system-preview-actions {
@@ -603,7 +603,7 @@ body.theme-dark .text-muted {
     color: #153620;
     font-size: 0.76rem;
     font-weight: 700;
-    background: var(--preview-green);
+    background: var(--preview-status);
 }
 
 .settings-page .system-preview-footer {
@@ -1370,19 +1370,19 @@ body.theme-dark .edit-user-modal .avatar-box {
                                     </div>
                                 </div>
                                 <div class="color-section">
-                                    <div class="color-section-title">Acentos e indicadores</div>
+                                    <div class="color-section-title">Cores auxiliares</div>
                                     <div class="color-grid">
                                         <div class="color-field">
                                             <input type="color" id="green_color" class="form-control form-control-color" value="#4bbf4b" />
                                             <div>
-                                                <label class="form-label" for="green_color">Verde</label>
-                                                <small class="text-muted">Status positivos, selos e indicadores.</small>
+                                                <label class="form-label" for="green_color">Cor de status</label>
+                                                <small class="text-muted">Selos, indicadores e confirmações.</small>
                                             </div>
                                         </div>
                                         <div class="color-field">
                                             <input type="color" id="yellow_color" class="form-control form-control-color" value="#ffd24a" />
                                             <div>
-                                                <label class="form-label" for="yellow_color">Amarelo</label>
+                                                <label class="form-label" for="yellow_color">Cor de destaque</label>
                                                 <small class="text-muted">Avisos, linhas de apoio e acentos visuais.</small>
                                             </div>
                                         </div>
@@ -1448,13 +1448,13 @@ body.theme-dark .edit-user-modal .avatar-box {
                                                             <div class="system-preview-line"></div>
                                                         </div>
                                                         <div class="system-preview-kpi">
-                                                            <div class="system-preview-kpi-icon green"><i class="fas fa-check"></i></div>
+                                                            <div class="system-preview-kpi-icon status"><i class="fas fa-check"></i></div>
                                                             <div class="system-preview-line"></div>
                                                             <div class="system-preview-line"></div>
                                                         </div>
                                                         <div class="system-preview-kpi">
-                                                            <div class="system-preview-kpi-icon yellow"><i class="fas fa-bell"></i></div>
-                                                            <div class="system-preview-line yellow"></div>
+                                                            <div class="system-preview-kpi-icon highlight"><i class="fas fa-bell"></i></div>
+                                                            <div class="system-preview-line highlight"></div>
                                                             <div class="system-preview-line"></div>
                                                         </div>
                                                     </div>
@@ -1468,7 +1468,7 @@ body.theme-dark .edit-user-modal .avatar-box {
                                                             </div>
                                                             <div class="system-preview-table-row">
                                                                 <div class="system-preview-line mb-0"></div>
-                                                                <div class="system-preview-line yellow mb-0"></div>
+                                                                <div class="system-preview-line highlight mb-0"></div>
                                                                 <span class="system-preview-badge">Novo</span>
                                                             </div>
                                                             <div class="system-preview-actions">
@@ -1479,7 +1479,7 @@ body.theme-dark .edit-user-modal .avatar-box {
                                                     </div>
                                                     <div class="system-preview-footer">
                                                         <span class="system-preview-line primary flex-grow-1 mb-0"></span>
-                                                        <span class="system-preview-line yellow flex-grow-1 mb-0"></span>
+                                                        <span class="system-preview-line highlight flex-grow-1 mb-0"></span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2517,8 +2517,8 @@ document.addEventListener('DOMContentLoaded', function(){
             const navbarBg = navbarBgInput.value || '#ffffff';
             preview.style.setProperty('--preview-primary', p);
             preview.style.setProperty('--preview-primary-dark', pd);
-            preview.style.setProperty('--preview-green', g);
-            preview.style.setProperty('--preview-yellow', y);
+            preview.style.setProperty('--preview-status', g);
+            preview.style.setProperty('--preview-highlight', y);
             preview.style.setProperty('--preview-sidebar-text', sidebarText);
             preview.style.setProperty('--preview-navbar-bg', navbarBg);
             // also update document root for live preview
