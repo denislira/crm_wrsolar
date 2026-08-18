@@ -225,6 +225,66 @@ body.theme-dark .stages-row .stage-name { color: #e6eef8; }
 body.theme-dark .fc-page { background: #071427; }
 [data-theme="dark"] .fc-toggle-label,
 body.theme-dark .fc-toggle-label { color: #e6eef8; }
+[data-theme="dark"] .fc-panel-title,
+[data-theme="dark"] .fc-section-title,
+[data-theme="dark"] .fc-form-label,
+body.theme-dark .fc-panel-title,
+body.theme-dark .fc-section-title,
+body.theme-dark .fc-form-label { color: #c3d5ea !important; }
+[data-theme="dark"] .fc-toggle-desc,
+[data-theme="dark"] .stage-pos,
+[data-theme="dark"] .fc-preview-label,
+body.theme-dark .fc-toggle-desc,
+body.theme-dark .stage-pos,
+body.theme-dark .fc-preview-label { color: #91a6bd !important; }
+[data-theme="dark"] .fc-toggle-item:hover,
+[data-theme="dark"] .fc-toggle-item:has(input:checked),
+body.theme-dark .fc-toggle-item:hover,
+body.theme-dark .fc-toggle-item:has(input:checked) {
+  background: #14243a !important;
+  border-color: #315f8f !important;
+}
+[data-theme="dark"] .fc-toggle-item.type-conversion:has(input:checked),
+body.theme-dark .fc-toggle-item.type-conversion:has(input:checked) {
+  background: rgba(16,185,129,.11) !important;
+  border-color: rgba(52,211,153,.42) !important;
+}
+[data-theme="dark"] .fc-toggle-item.type-qualification:has(input:checked),
+body.theme-dark .fc-toggle-item.type-qualification:has(input:checked) {
+  background: rgba(37,99,235,.14) !important;
+  border-color: rgba(96,165,250,.44) !important;
+}
+[data-theme="dark"] .fc-report-section,
+body.theme-dark .fc-report-section {
+  background: linear-gradient(135deg,#102039,#0d1a2b) !important;
+  border-color: #29496b !important;
+}
+[data-theme="dark"] .fc-report-section > .fc-section-title,
+body.theme-dark .fc-report-section > .fc-section-title { color: #93c5fd !important; }
+[data-theme="dark"] .btn-edit-stage,
+body.theme-dark .btn-edit-stage {
+  background: rgba(37,99,235,.13) !important;
+  border-color: rgba(96,165,250,.32) !important;
+  color: #93c5fd !important;
+}
+[data-theme="dark"] .btn-edit-stage:hover,
+body.theme-dark .btn-edit-stage:hover { background: #2563eb !important; color: #fff !important; }
+[data-theme="dark"] .btn-fc-delete,
+body.theme-dark .btn-fc-delete {
+  background: rgba(239,68,68,.08) !important;
+  border-color: rgba(248,113,113,.35) !important;
+  color: #fca5a5 !important;
+}
+[data-theme="dark"] .fc-actions,
+body.theme-dark .fc-actions { border-top-color: rgba(230,238,248,.08); }
+[data-theme="dark"] .fc-form-control option,
+body.theme-dark .fc-form-control option { background: #0b1827; color: #e6eef8; }
+[data-theme="dark"] .stage-badge-won,
+body.theme-dark .stage-badge-won { background: rgba(16,185,129,.15) !important; color: #86efac !important; }
+[data-theme="dark"] .stage-badge-lost,
+body.theme-dark .stage-badge-lost { background: rgba(239,68,68,.15) !important; color: #fca5a5 !important; }
+[data-theme="dark"] .stage-badge-sql,
+body.theme-dark .stage-badge-sql { background: rgba(59,130,246,.16) !important; color: #bfdbfe !important; }
 </style>
 
 <div class="d-flex">
@@ -308,7 +368,7 @@ body.theme-dark .fc-toggle-label { color: #e6eef8; }
                     <div class="fc-section-title"><i class="fa fa-cog"></i> Configurações</div>
                     <div class="row g-3">
                       <div class="col-md-4">
-                        <label class="fc-form-label">SLA (dias)</label>
+                        <label class="fc-form-label">SLA (dias) <i class="fa fa-info-circle text-muted" data-bs-toggle="tooltip" title="Define a meta de tempo para o lead permanecer nesta etapa. Exemplo: SLA de 3 dias significa que o ideal é avançar ou concluir o lead em até 3 dias." aria-label="Define a meta de tempo para o lead permanecer nesta etapa. Exemplo: SLA de 3 dias significa que o ideal é avançar ou concluir o lead em até 3 dias." tabindex="0"></i></label>
                         <input id="stageSla" type="number" class="fc-form-control" min="0" placeholder="0">
                       </div>
                       <div class="col-md-4">
@@ -378,7 +438,7 @@ body.theme-dark .fc-toggle-label { color: #e6eef8; }
                   </div>
 
                   <!-- Relatórios -->
-                  <div class="fc-section" style="border-color:#dbeafe;background:linear-gradient(135deg,#f0f6ff,#fafbfd);">
+                  <div class="fc-section fc-report-section" style="border-color:#dbeafe;background:linear-gradient(135deg,#f0f6ff,#fafbfd);">
                     <div class="fc-section-title" style="color:#1d4ed8;"><i class="fa fa-chart-bar"></i> Comportamento nos Relatórios</div>
                     <div class="fc-toggle-grid">
 

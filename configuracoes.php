@@ -99,32 +99,106 @@ body.theme-dark .text-muted {
     color: #c3d5ea !important;
 }
 
+/* Integrações > IA para Relatórios */
+.ai-reports-shell { overflow:hidden; padding:0 !important; border:1px solid #dce8f5 !important; border-radius:20px !important; background:#f5f8fc !important; box-shadow:0 18px 48px rgba(30,58,95,.12) !important; }
+.ai-reports-hero { position:relative; display:flex; justify-content:space-between; align-items:center; gap:1.5rem; padding:1.45rem 1.65rem; overflow:hidden; color:#fff; background:linear-gradient(125deg,#102f50 0%,var(--blue-700) 58%,#0f9b8e 125%); }
+.ai-reports-hero::after { content:''; position:absolute; width:240px; height:240px; right:-85px; top:-125px; border-radius:50%; background:rgba(255,255,255,.10); }
+.ai-reports-hero-copy { position:relative; z-index:1; display:flex; align-items:center; gap:1rem; }
+.ai-reports-hero-icon { width:52px; height:52px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 52px; border-radius:15px; color:#fff; background:rgba(255,255,255,.14); box-shadow:inset 0 0 0 1px rgba(255,255,255,.18); }
+.ai-reports-hero-icon i { font-size:1.35rem; }
+.ai-reports-hero h5 { color:#fff !important; font-size:1.15rem; font-weight:800; }
+.ai-reports-hero p { color:rgba(255,255,255,.76) !important; max-width:720px; }
+.ai-reports-master-switch { position:relative; z-index:2; display:flex; align-items:center; gap:.65rem; margin:0; padding:.68rem .9rem; border:1px solid rgba(255,255,255,.22); border-radius:999px; background:rgba(5,25,44,.30); backdrop-filter:blur(8px); }
+.ai-reports-master-switch .form-check-label { color:#fff !important; font-size:.82rem; font-weight:800; }
+.ai-reports-master-switch .form-check-input { margin:0; }
+.ai-reports-form { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:1rem; padding:1.35rem; margin:0 !important; }
+.ai-reports-form > [class*="col-"] { grid-column:span 12; width:auto; max-width:none; padding:1rem; border:1px solid #e0e9f3; border-radius:14px; background:#fff; box-shadow:0 5px 16px rgba(30,58,95,.045); }
+.ai-reports-form .form-label { color:#294865; font-size:.79rem; font-weight:800; letter-spacing:.015em; }
+.ai-reports-form .form-control, .ai-reports-form .form-select { min-height:43px; border-color:#cbdbea; border-radius:10px; background-color:#fbfdff; }
+.ai-reports-form textarea.form-control { min-height:auto; line-height:1.5; }
+.ai-reports-form .form-control:focus, .ai-reports-form .form-select:focus { border-color:var(--blue-700); box-shadow:0 0 0 .2rem rgba(var(--bs-primary-rgb),.12); }
+.ai-reports-form small { line-height:1.45; }
+.ai-reports-form code { padding:.08rem .3rem; border-radius:5px; color:#1d4ed8; background:#eff6ff; }
+.ai-reports-form > .ai-automation-heading { padding:1.1rem 1.15rem; border-color:#bfdbfe; background:linear-gradient(135deg,#eff6ff,#f7fbff); }
+.ai-reports-form > .ai-automation-option { background:#f9fbfe; }
+.ai-reports-form > .ai-actions { position:sticky; bottom:0; z-index:3; justify-content:space-between !important; align-items:center; padding:.9rem 1rem; border-color:#d8e5f1; background:rgba(255,255,255,.94); backdrop-filter:blur(10px); }
+.ai-actions-note { color:#64748b; font-size:.78rem; }
+.ai-actions-buttons { display:flex; gap:.6rem; margin-left:auto; }
+.ai-actions .btn { min-height:40px; padding-inline:1rem; border-radius:10px; font-weight:700; }
+body.theme-dark .ai-reports-shell { background:#0b1523 !important; border-color:rgba(148,163,184,.14) !important; }
+body.theme-dark .ai-reports-form > [class*="col-"] { background:#111d2d !important; border-color:rgba(148,163,184,.13) !important; box-shadow:0 6px 20px rgba(0,0,0,.18) !important; }
+body.theme-dark .ai-reports-form > .ai-automation-heading { background:linear-gradient(135deg,rgba(37,99,235,.15),rgba(15,118,110,.09)) !important; border-color:rgba(96,165,250,.28) !important; }
+body.theme-dark .ai-reports-form > .ai-automation-option { background:#0e1a2a !important; }
+body.theme-dark .ai-reports-form > .ai-actions { background:rgba(15,25,39,.94) !important; }
+body.theme-dark .ai-reports-form .form-control, body.theme-dark .ai-reports-form .form-select { background-color:#0c1726 !important; border-color:#30445d !important; color:#e6eef8 !important; }
+body.theme-dark .ai-reports-form code { color:#bfdbfe; background:rgba(59,130,246,.14); }
+body.theme-dark .ai-actions-note { color:#91a6bd; }
+@media (min-width:768px) {
+    .ai-reports-form > .col-md-3 { grid-column:span 3; }
+    .ai-reports-form > .col-md-4 { grid-column:span 4; }
+    .ai-reports-form > .col-md-8 { grid-column:span 8; }
+}
+@media (min-width:992px) {
+    .ai-reports-form > .col-lg-3 { grid-column:span 3; }
+    .ai-reports-form > .col-lg-4 { grid-column:span 4; }
+    .ai-reports-form > .col-lg-5 { grid-column:span 5; }
+    .ai-reports-form > .col-lg-6 { grid-column:span 6; }
+}
+@media (max-width:767px) {
+    .ai-reports-hero { align-items:flex-start; flex-direction:column; padding:1.2rem; }
+    .ai-reports-master-switch { align-self:stretch; justify-content:center; }
+    .ai-reports-form { padding:.85rem; }
+    .ai-reports-form > [class*="col-"] { padding:.85rem; }
+    .ai-reports-form > .ai-actions { position:static; }
+    .ai-actions-note { display:none; }
+    .ai-actions-buttons { width:100%; }
+    .ai-actions-buttons .btn { flex:1; }
+}
+
 .settings-page .logo-preview-panel {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
-    align-items: flex-start;
+    align-items: stretch;
     margin-bottom: 1rem;
 }
 
 .settings-page .logo-preview-panel .preview-box {
-    flex: 1;
-    min-height: 120px;
+    min-width: 0;
     border-radius: 0.75rem;
-    background: #d0d0d0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.8rem;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.settings-page .logo-preview-canvas {
+    width: 100%;
+    min-height: 112px;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    padding: 0.85rem;
+    border-radius: 0.6rem;
+    background: var(--logo-preview-bg, #0b6ac1);
     transition: background 0.2s ease;
 }
 
-.settings-page .logo-preview-panel.dark .preview-box {
+.settings-page .logo-preview-panel.dark .logo-preview-canvas {
     background: #111;
 }
 
 .settings-page .logo-preview-panel .preview-box img {
     max-width: 160px;
     max-height: 80px;
+}
+
+.settings-page .logo-preview-panel .logo-file-button {
+    width: 100%;
+    margin-top: auto;
 }
 
 .settings-page .logo-preview-toggle {
@@ -922,6 +996,14 @@ body.theme-dark #changePasswordModal .form-select {
     .settings-page .card.card-shadow {
         padding: 0.95rem !important;
     }
+
+    .settings-page #appearance .logo-preview-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-page #appearance .logo-preview-panel .preview-box {
+        min-width: 0;
+    }
 }
 
 .edit-user-modal .modal-dialog {
@@ -1206,30 +1288,187 @@ body.theme-dark .edit-user-modal .avatar-box {
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h2 class="h5 mb-0">Integrações</h2>
                     </div>
-                    <div class="card card-shadow p-3">
-                        <p class="mb-2">Integrações externas — conecte seu WhatsApp (Baileys) para envio de mensagens a leads e usuários.</p>
-                        <div id="waIntegrationApp" class="d-flex gap-3 flex-wrap align-items-start">
-                            <div id="waStatusCard" class="p-3 rounded shadow-sm" style="min-width:320px; max-width:420px; background:#fff;">
-                                <h5 class="mb-2">WhatsApp</h5>
-                                <div id="waStatus" class="mb-2 text-muted">Carregando status...</div>
-                                <div id="waQrContainer" class="mb-2 d-none">
-                                    <img id="waQrImage" src="" alt="QR Code" style="width:260px; height:260px; object-fit:contain; border:1px solid #eee; padding:8px; background:#fafafa;"/>
+                    <ul class="nav nav-pills mb-3" id="integrationSubTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="whatsapp-subtab" data-bs-toggle="tab" data-bs-target="#integration-whatsapp" type="button" role="tab" aria-controls="integration-whatsapp" aria-selected="true">WhatsApp</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="ai_reports_subtab" data-bs-toggle="tab" data-bs-target="#integration-ai-reports" type="button" role="tab" aria-controls="integration-ai-reports" aria-selected="false">IA para Relatórios</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="integrationSubTabsContent">
+                        <div class="tab-pane fade show active" id="integration-whatsapp" role="tabpanel" aria-labelledby="whatsapp-subtab">
+                            <div class="card card-shadow p-3">
+                                <p class="mb-2">Integrações externas - conecte seu WhatsApp (Baileys) para envio de mensagens a leads e usuários.</p>
+                                <div id="waIntegrationApp" class="d-flex gap-3 flex-wrap align-items-start">
+                                    <div id="waStatusCard" class="p-3 rounded shadow-sm" style="min-width:320px; max-width:420px; background:#fff;">
+                                        <h5 class="mb-2">WhatsApp</h5>
+                                        <div id="waStatus" class="mb-2 text-muted">Carregando status...</div>
+                                        <div id="waQrContainer" class="mb-2 d-none">
+                                            <img id="waQrImage" src="" alt="QR Code" style="width:260px; height:260px; object-fit:contain; border:1px solid #eee; padding:8px; background:#fafafa;"/>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button id="btnGenerateQr" class="btn btn-primary btn-sm">Obter QR Code</button>
+                                            <button id="btnRefreshWa" class="btn btn-outline-secondary btn-sm">Atualizar/Renovar</button>
+                                            <button id="btnDisconnectWa" class="btn btn-danger btn-sm d-none">Desconectar</button>
+                                        </div>
+                                        <small class="d-block text-muted mt-2">O QR é gerado automaticamente pelo Baileys ao clicar em Obter QR Code ou Atualizar/Renovar.</small>
+                                    </div>
+                                    <div id="waHelpCard" class="p-3 rounded shadow-sm" style="min-width:320px; max-width:520px; background:#fff;">
+                                        <h6 class="mb-2">Instruções rápidas</h6>
+                                        <ol class="small mb-2">
+                                            <li>Clique em Obter QR Code para solicitar uma nova sessão ao Baileys.</li>
+                                            <li>Quando o Baileys gerar o QR real, ele será salvo e exibido aqui automaticamente.</li>
+                                            <li>Após ler o QR no WhatsApp, o serviço marca a sessão como conectada automaticamente.</li>
+                                        </ol>
+                                        <p class="small text-muted mb-0">Se o servidor permitir executar Node pelo PHP, o serviço será iniciado automaticamente.</p>
+                                    </div>
                                 </div>
-                                <div class="d-flex gap-2">
-                                    <button id="btnGenerateQr" class="btn btn-primary btn-sm">Obter QR Code</button>
-                                    <button id="btnRefreshWa" class="btn btn-outline-secondary btn-sm">Atualizar/Renovar</button>
-                                    <button id="btnDisconnectWa" class="btn btn-danger btn-sm d-none">Desconectar</button>
-                                </div>
-                                <small class="d-block text-muted mt-2">O QR é gerado automaticamente pelo Baileys ao clicar em Obter QR Code ou Atualizar/Renovar.</small>
                             </div>
-                            <div id="waHelpCard" class="p-3 rounded shadow-sm" style="min-width:320px; max-width:520px; background:#fff;">
-                                <h6 class="mb-2">Instruções rápidas</h6>
-                                <ol class="small mb-2">
-                                    <li>Clique em Obter QR Code para solicitar uma nova sessão ao Baileys.</li>
-                                    <li>Quando o Baileys gerar o QR real, ele será salvo e exibido aqui automaticamente.</li>
-                                    <li>Após ler o QR no WhatsApp, o serviço marca a sessão como conectada automaticamente.</li>
-                                </ol>
-                                <p class="small text-muted mb-0">Se o servidor permitir executar Node pelo PHP, o serviço será iniciado automaticamente.</p>
+                        </div>
+                        <div class="tab-pane fade" id="integration-ai-reports" role="tabpanel" aria-labelledby="ai_reports_subtab">
+                            <div class="card card-shadow ai-reports-shell">
+                                <div class="ai-reports-hero">
+                                    <div class="ai-reports-hero-copy">
+                                        <span class="ai-reports-hero-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                                        <div>
+                                        <h5 class="mb-1">IA para Relatórios</h5>
+                                        <p class="small mb-0">Configure o provedor, o comportamento das análises e os alertas inteligentes do CRM.</p>
+                                        </div>
+                                    </div>
+                                    <div class="form-check form-switch ai-reports-master-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="ai_enabled_reports">
+                                        <label class="form-check-label" for="ai_enabled_reports">Ativar IA</label>
+                                    </div>
+                                </div>
+                                <form id="aiSettingsFormReports" class="row g-3 ai-reports-form">
+                                    <div class="col-lg-3">
+                                        <label class="form-label d-flex align-items-center gap-2" for="ai_provider_reports">
+                                            <span>Provedor</span>
+                                            <i class="fa-solid fa-circle-info text-primary" title="Escolhe o serviço de IA. Ao trocar o provedor, a URL base e os modelos sugeridos mudam automaticamente."></i>
+                                        </label>
+                                        <select class="form-select" id="ai_provider_reports" name="provider">
+                                            <option value="openai_compatible">OpenAI compatível</option>
+                                            <option value="gemini">Gemini</option>
+                                            <option value="openrouter">OpenRouter</option>
+                                            <option value="groq">Groq</option>
+                                            <option value="deepseek">DeepSeek</option>
+                                            <option value="together">Together AI</option>
+                                            <option value="fireworks">Fireworks AI</option>
+                                            <option value="mistral">Mistral</option>
+                                            <option value="custom">Custom/OpenAI compatível</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-lg-5">
+                                        <label class="form-label d-flex align-items-center gap-2" for="ai_base_url_reports">
+                                            <span>URL base</span>
+                                            <i class="fa-solid fa-circle-info text-primary" title="Endereço da API do provedor. Normalmente já vem preenchido pelo preset do provedor escolhido."></i>
+                                        </label>
+                                        <input class="form-control" id="ai_base_url_reports" name="base_url" placeholder="https://api.openai.com/v1">
+                                        <small class="text-muted d-block mt-1">Endereço onde o WRCRM vai chamar a IA. Exemplo: <code>https://api.openai.com/v1</code>.</small>
+                                    </div>
+                                    <div class="col-lg-4">
+                                        <label class="form-label d-flex align-items-center gap-2" for="ai_model_reports">
+                                            <span>Modelo</span>
+                                            <i class="fa-solid fa-circle-info text-primary" title="Modelo principal que será tentado primeiro. Se falhar, os modelos de fallback são usados na ordem cadastrada."></i>
+                                        </label>
+                                        <input class="form-control" id="ai_model_reports" name="model" placeholder="gpt-4o-mini">
+                                        <small class="text-muted d-block mt-1">Este é o modelo principal. Se houver falha, a lista de backup será usada na ordem cadastrada.</small>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label d-flex align-items-center gap-2" for="ai_models_reports">
+                                            <span>Modelos de fallback</span>
+                                            <i class="fa-solid fa-circle-info text-primary" title="Lista de modelos alternativos. Quando o principal falha ou fica sem limite, o sistema tenta o próximo da lista."></i>
+                                        </label>
+                                        <textarea class="form-control" id="ai_models_reports" name="models" rows="3" placeholder="gpt-4o-mini\ngpt-4.1-mini\no3-mini"></textarea>
+                                        <small class="text-muted d-block mt-1">Um modelo por linha ou separado por vírgula. Deixe em branco para usar só o modelo principal.</small>
+                                    </div>
+                                    <div class="col-lg-6">
+                                        <label class="form-label d-flex align-items-center gap-2" for="ai_api_key_reports">
+                                            <span>API Key</span>
+                                            <i class="fa-solid fa-circle-info text-primary" title="Chave secreta do provedor. Fica salva com segurança e não é exibida depois de cadastrada."></i>
+                                        </label>
+                                        <input class="form-control" id="ai_api_key_reports" name="api_key" type="password" autocomplete="new-password" placeholder="Cole a chave para salvar ou trocar">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label d-flex align-items-center gap-2" for="ai_temperature_reports">
+                                            <span>Temperatura</span>
+                                            <i class="fa-solid fa-circle-info text-primary" title="Controla a criatividade da resposta. Valores baixos deixam a IA mais objetiva e previsível; valores altos deixam mais criativa."></i>
+                                        </label>
+                                        <input class="form-control" id="ai_temperature_reports" name="temperature" type="number" min="0" max="2" step="0.1" value="0.2">
+                                        <small class="text-muted d-block mt-1">0 = bem objetiva. 1 = mais equilibrada. 2 = mais criativa.</small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label d-flex align-items-center gap-2" for="ai_max_tokens_reports">
+                                            <span>Limite de resposta</span>
+                                            <i class="fa-solid fa-circle-info text-primary" title="Define o tamanho máximo da resposta. Quanto maior, mais texto a IA pode gerar."></i>
+                                        </label>
+                                        <input class="form-control" id="ai_max_tokens_reports" name="max_tokens" type="number" min="100" max="4000" step="50" value="900">
+                                        <small class="text-muted d-block mt-1">Quanto maior o valor, mais longa pode ser a resposta. Valores menores deixam a saída mais curta e rápida.</small>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label d-flex align-items-center gap-2" for="ai_prompt_reports">
+                                            <span>Prompt da análise</span>
+                                            <i class="fa-solid fa-circle-info text-primary" title="Instrução principal que define como a IA deve analisar os relatórios e o tom da resposta."></i>
+                                        </label>
+                                        <textarea class="form-control" id="ai_prompt_reports" name="prompt" rows="6"></textarea>
+                                        <small class="text-muted d-block mt-1">Aqui você define o comportamento da IA, por exemplo: mais analítica, mais resumida ou mais estratégica.</small>
+                                        <small id="ai_key_hint_reports" class="text-muted d-block mt-2"></small>
+                                    </div>
+                                    <div class="col-12 ai-automation-heading">
+                                        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                                            <div>
+                                                <h6 class="mb-1 d-flex align-items-center gap-2">
+                                                    <span>Interação automática no CRM</span>
+                                                    <i class="fa-solid fa-circle-info text-primary" title="Ativa análises automáticas em segundo plano no intervalo escolhido."></i>
+                                                </h6>
+                                                <p class="small text-muted mb-0">A IA analisa o CRM no intervalo definido e mostra balões discretos com alertas úteis.</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" role="switch" id="ai_proactive_enabled_reports" name="proactive_enabled">
+                                                <label class="form-check-label" for="ai_proactive_enabled_reports">Ativar</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 ai-automation-option">
+                                        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                                            <div>
+                                                <h6 class="mb-1 d-flex align-items-center gap-2">
+                                                    <span>Modo mover ícone</span>
+                                                    <i class="fa-solid fa-circle-info text-primary" title="Permite arrastar o ícone flutuante da IA para qualquer ponto da tela. A posição fica salva automaticamente."></i>
+                                                </h6>
+                                                <p class="small text-muted mb-0">Ative essa opção para arrastar o atalho da IA para onde preferir.</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" role="switch" id="ai_draggable_launcher_enabled_reports" name="draggable_launcher_enabled">
+                                                <label class="form-check-label" for="ai_draggable_launcher_enabled_reports">Ativar mover</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label d-flex align-items-center gap-2" for="ai_proactive_interval_reports">
+                                            <span>Intervalo (minutos)</span>
+                                            <i class="fa-solid fa-circle-info text-primary" title="Define de quanto em quanto tempo a IA fará a análise automática. O mínimo é 1 minuto."></i>
+                                        </label>
+                                        <input class="form-control" id="ai_proactive_interval_reports" name="proactive_interval_minutes" type="number" min="1" max="1440" step="1" value="30">
+                                        <small class="text-muted d-block mt-1">Menor valor permitido: 1 minuto.</small>
+                                    </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label d-flex align-items-center gap-2" for="ai_proactive_prompts_reports">
+                                            <span>O que analisar automaticamente</span>
+                                            <i class="fa-solid fa-circle-info text-primary" title="Lista de análises que a IA vai executar automaticamente, uma por linha."></i>
+                                        </label>
+                                        <textarea class="form-control" id="ai_proactive_prompts_reports" name="proactive_prompts" rows="4" placeholder="Uma análise por linha"></textarea>
+                                        <small class="text-muted">Cada linha vira uma análise. Exemplo: leads parados, funil, fontes, atividades da equipe.</small>
+                                    </div>
+                                    <div class="col-12 d-flex ai-actions">
+                                        <span class="ai-actions-note"><i class="fa-solid fa-shield-halved me-1"></i>A chave salva não é exibida novamente.</span>
+                                        <div class="ai-actions-buttons">
+                                            <button id="btn_test_ai_reports" type="button" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-plug-circle-check me-1"></i>Testar conexão</button>
+                                            <button id="btn_save_ai_reports" type="button" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk me-1"></i>Salvar configuração</button>
+                                        </div>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -1316,26 +1555,21 @@ body.theme-dark .edit-user-modal .avatar-box {
                                 <button type="button" id="toggleLogoPreviewBg" class="btn btn-outline-secondary btn-sm logo-preview-toggle">Fundo escuro</button>
                                 <div class="logo-preview-panel mb-3">
                                     <div class="preview-box text-center">
-                                        <div>
-                                            <div class="small text-muted mb-2">Logo padrão</div>
+                                        <div class="fw-semibold mb-2">Logo padrão</div>
+                                        <div class="logo-preview-canvas">
                                             <img id="currentLogo" src="assets/img/logo150-b.png" alt="Logo" />
                                         </div>
+                                        <label for="appearance_logo" class="btn btn-light btn-sm logo-file-button"><i class="fas fa-upload me-1"></i> Escolher logo padrão</label>
+                                        <input id="appearance_logo" type="file" accept="image/*" class="visually-hidden" />
                                     </div>
-                                    <div class="preview-box" style="width:120px; text-align:center;">
-                                        <div class="small text-muted">Logo encolhido</div>
-                                        <div class="p-2 rounded mt-2 compact-logo-wrapper" style="background:transparent; display:inline-block; border:none;">
+                                    <div class="preview-box text-center">
+                                        <div class="fw-semibold mb-2">Logo encolhido</div>
+                                        <div class="logo-preview-canvas compact-logo-wrapper">
                                             <img id="currentLogoCollapsed" src="assets/img/logo.png" alt="Logo encolhido" style="width:48px; height:48px; object-fit:contain; display:block;" />
                                         </div>
+                                        <label for="appearance_logo_collapsed" class="btn btn-light btn-sm logo-file-button"><i class="fas fa-upload me-1"></i> Escolher logo encolhido</label>
+                                        <input id="appearance_logo_collapsed" type="file" accept="image/*" class="visually-hidden" />
                                     </div>
-                                </div>
-
-                                <div class="mb-2">
-                                    <label class="form-label">Trocar logo (padrão)</label>
-                                    <input id="appearance_logo" type="file" accept="image/*" class="form-control form-control-sm" />
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label">Trocar logo (encolhido)</label>
-                                    <input id="appearance_logo_collapsed" type="file" accept="image/*" class="form-control form-control-sm" />
                                 </div>
                                 <div class="d-flex gap-3 mt-2">
                                     <div class="form-check">
@@ -1345,6 +1579,21 @@ body.theme-dark .edit-user-modal .avatar-box {
                                     <div class="form-check">
                                         <input type="checkbox" class="form-check-input" id="removeLogoCollapsedChk" />
                                         <label class="form-check-label" for="removeLogoCollapsedChk">Remover logo encolhido</label>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 pt-3 border-top login-background-section">
+                                    <h6>Fundo da tela de login</h6>
+                                    <div class="border rounded p-2 mb-2" style="background:#d0d0d0;">
+                                        <img id="currentLoginBackground" src="assets/img/fundoplaca2.jpg" alt="Fundo login" style="width:100%; max-height:150px; object-fit:cover; border-radius:8px; display:block;" />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label">Trocar fundo do login (papel de parede)</label>
+                                        <input id="appearance_login_background" type="file" accept="image/*" class="form-control form-control-sm" />
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="removeLoginBackgroundChk" />
+                                        <label class="form-check-label" for="removeLoginBackgroundChk">Remover fundo personalizado do login</label>
                                     </div>
                                 </div>
                             </div>
@@ -1487,20 +1736,6 @@ body.theme-dark .edit-user-modal .avatar-box {
                                     </div>
                                 </div>
 
-                                <div class="mt-3">
-                                    <h6>Fundo da tela de login</h6>
-                                    <div class="border rounded p-2 mb-2" style="background:#d0d0d0;">
-                                        <img id="currentLoginBackground" src="assets/img/fundoplaca2.jpg" alt="Fundo login" style="width:100%; max-height:150px; object-fit:cover; border-radius:8px; display:block;" />
-                                    </div>
-                                    <div class="mb-2">
-                                        <label class="form-label">Trocar fundo do login (papel de parede)</label>
-                                        <input id="appearance_login_background" type="file" accept="image/*" class="form-control form-control-sm" />
-                                    </div>
-                                    <div class="form-check">
-                                        <input type="checkbox" class="form-check-input" id="removeLoginBackgroundChk" />
-                                        <label class="form-check-label" for="removeLoginBackgroundChk">Remover fundo personalizado do login</label>
-                                    </div>
-                                </div>
                             </div>
                         </div>
 
@@ -1760,7 +1995,7 @@ body.theme-dark .edit-user-modal .avatar-box {
 
 <!-- Modal Adicionar Usuário -->
 <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="addUserModalLabel">Adicionar Usuário</h5>
@@ -1768,54 +2003,56 @@ body.theme-dark .edit-user-modal .avatar-box {
             </div>
             <form id="addUserForm">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Usuário</label>
-                        <input type="text" class="form-control" id="username" name="username" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="email" name="email">
-                    </div>
-                    <div class="mb-3">
-                        <label for="nome_completo" class="form-label">Nome completo</label>
-                        <input type="text" class="form-control" id="nome_completo" name="nome_completo">
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Senha</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="avatar" class="form-label">Foto de Perfil (Avatar)</label>
-                        <input type="file" class="form-control" id="add_user_avatar" name="avatar" accept="image/*" />
-                    </div>
-                    <div class="mb-3">
-                        <label for="role_id" class="form-label">Papel</label>
-                        <select class="form-select" id="role_id" name="role_id" required>
-                            <?php foreach ($roles as $role): ?>
-                                <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="team_id" class="form-label">Equipe</label>
-                        <select class="form-select" id="team_id" name="team_id">
-                            <option value="">(Nenhuma)</option>
-                            <?php foreach ($teams as $t): ?>
-                                <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="role_level" class="form-label">Nível (role_level)</label>
-                        <select class="form-select" id="role_level" name="role_level">
-                            <option value="0">0 - Usuário</option>
-                            <option value="1">1 - Gerente</option>
-                            <option value="2">2 - Administrador</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="biografia" class="form-label">Biografia</label>
-                        <textarea class="form-control" id="biografia" name="biografia" rows="3"></textarea>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="username" class="form-label">Usuário</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="nome_completo" class="form-label">Nome completo</label>
+                            <input type="text" class="form-control" id="nome_completo" name="nome_completo">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="password" class="form-label">Senha</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="role_id" class="form-label">Papel</label>
+                            <select class="form-select" id="role_id" name="role_id" required>
+                                <?php foreach ($roles as $role): ?>
+                                    <option value="<?php echo $role['id']; ?>"><?php echo htmlspecialchars($role['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="team_id" class="form-label">Equipe</label>
+                            <select class="form-select" id="team_id" name="team_id">
+                                <option value="">(Nenhuma)</option>
+                                <?php foreach ($teams as $t): ?>
+                                    <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="role_level" class="form-label">Nível (role_level)</label>
+                            <select class="form-select" id="role_level" name="role_level">
+                                <option value="0">0 - Usuário</option>
+                                <option value="1">1 - Gerente</option>
+                                <option value="2">2 - Administrador</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="add_user_avatar" class="form-label">Foto de Perfil (Avatar)</label>
+                            <input type="file" class="form-control" id="add_user_avatar" name="avatar" accept="image/*" />
+                        </div>
+                        <div class="col-12">
+                            <label for="biografia" class="form-label">Biografia</label>
+                            <textarea class="form-control" id="biografia" name="biografia" rows="3"></textarea>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -2531,6 +2768,9 @@ document.addEventListener('DOMContentLoaded', function(){
             preview.style.setProperty('--preview-highlight', y);
             preview.style.setProperty('--preview-sidebar-text', sidebarText);
             preview.style.setProperty('--preview-navbar-bg', navbarBg);
+            if (logoPreviewPanel) {
+                logoPreviewPanel.style.setProperty('--logo-preview-bg', p);
+            }
             // also update document root for live preview
             document.documentElement.style.setProperty('--blue-700', p);
             document.documentElement.style.setProperty('--blue-900', pd);
@@ -2546,6 +2786,18 @@ document.addEventListener('DOMContentLoaded', function(){
         yellowInput.addEventListener('input', applyPreviewColors);
         sidebarTextInput.addEventListener('input', applyPreviewColors);
         navbarBgInput.addEventListener('input', applyPreviewColors);
+
+        function bindLogoFilePreview(input, image){
+            if (!input || !image) return;
+            input.addEventListener('change', function(){
+                const file = this.files && this.files[0];
+                if (!file) return;
+                image.src = URL.createObjectURL(file);
+            });
+        }
+
+        bindLogoFilePreview(logoInput, currentLogo);
+        bindLogoFilePreview(logoCollapsedInput, currentLogoCollapsed);
 
         if (loginBgInput && currentLoginBackground) {
             loginBgInput.addEventListener('change', function(){
@@ -2806,6 +3058,183 @@ document.addEventListener('DOMContentLoaded', function(){
 
         // initial load when opening tab
         loadSmtp();
+
+        const aiProviderPresets = {
+            openai_compatible: {
+                base_url: 'https://api.openai.com/v1',
+                model: 'gpt-4o-mini',
+                models: ['gpt-4.1-mini', 'gpt-4o', 'o3-mini']
+            },
+            gemini: {
+                base_url: 'https://generativelanguage.googleapis.com/v1beta',
+                model: 'gemini-3.1-flash-lite',
+                models: ['gemini-3.1-flash', 'gemini-2.5-flash', 'gemini-2.5-pro']
+            },
+            openrouter: {
+                base_url: 'https://openrouter.ai/api/v1',
+                model: 'openai/gpt-4o-mini',
+                models: ['anthropic/claude-3.5-haiku', 'google/gemini-2.5-flash', 'openai/gpt-4.1-mini']
+            },
+            groq: {
+                base_url: 'https://api.groq.com/openai/v1',
+                model: 'llama-3.1-70b-versatile',
+                models: ['llama-3.1-8b-instant', 'qwen/qwen3-32b', 'gemma2-9b-it']
+            },
+            deepseek: {
+                base_url: 'https://api.deepseek.com/v1',
+                model: 'deepseek-chat',
+                models: ['deepseek-reasoner', 'deepseek-chat', 'deepseek-coder']
+            },
+            together: {
+                base_url: 'https://api.together.xyz/v1',
+                model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
+                models: ['meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', 'mistralai/Mixtral-8x7B-Instruct-v0.1', 'Qwen/Qwen2.5-72B-Instruct-Turbo']
+            },
+            fireworks: {
+                base_url: 'https://api.fireworks.ai/inference/v1',
+                model: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
+                models: ['accounts/fireworks/models/llama-v3p1-8b-instruct', 'accounts/fireworks/models/mixtral-8x7b-instruct', 'accounts/fireworks/models/qwen2p5-72b-instruct']
+            },
+            mistral: {
+                base_url: 'https://api.mistral.ai/v1',
+                model: 'mistral-small-latest',
+                models: ['mistral-large-latest', 'open-mistral-7b', 'codestral-latest']
+            },
+            custom: {
+                base_url: 'https://api.openai.com/v1',
+                model: 'gpt-4o-mini',
+                models: []
+            }
+        };
+
+        async function loadAiSettings(){
+            try{
+                const res = await fetch('api/get_ai_settings.php');
+                const data = await res.json();
+                if (!data.success) return;
+                const ai = data.ai || {};
+                const provider = ai.provider || 'gemini';
+                const preset = aiProviderPresets[provider] || aiProviderPresets.custom;
+                document.getElementById('ai_provider_reports').value = provider;
+                document.getElementById('ai_enabled_reports').checked = !!Number(ai.enabled || 0);
+                document.getElementById('ai_base_url_reports').value = ai.base_url || (preset.base_url || '');
+                document.getElementById('ai_model_reports').value = ai.model || (preset.model || '');
+                const models = Array.isArray(ai.models) ? ai.models.join('\n') : (ai.models || '');
+                document.getElementById('ai_models_reports').value = models || (preset.models || []).join('\n');
+                document.getElementById('ai_temperature_reports').value = ai.temperature ?? 0.2;
+                document.getElementById('ai_max_tokens_reports').value = ai.max_tokens || 900;
+                document.getElementById('ai_prompt_reports').value = ai.prompt || '';
+                document.getElementById('ai_proactive_enabled_reports').checked = !!Number(ai.proactive_enabled || 0);
+                document.getElementById('ai_draggable_launcher_enabled_reports').checked = !!Number(ai.draggable_launcher_enabled || 0);
+                document.getElementById('ai_proactive_interval_reports').value = ai.proactive_interval_minutes || 30;
+                document.getElementById('ai_proactive_prompts_reports').value = ai.proactive_prompts || '';
+                const keyInput = document.getElementById('ai_api_key_reports');
+                const hint = document.getElementById('ai_key_hint_reports');
+                keyInput.value = '';
+                keyInput.placeholder = ai.has_api_key ? 'Chave já cadastrada. Preencha apenas para trocar.' : 'Cole sua API key';
+                hint.textContent = ai.has_api_key ? 'Uma chave já está salva. Ela não é exibida por segurança.' : 'Nenhuma chave de IA cadastrada ainda.';
+            }catch(e){ console.error('Erro ao carregar IA', e); }
+        }
+
+        const aiToggleIds = [
+            'ai_enabled_reports',
+            'ai_proactive_enabled_reports',
+            'ai_draggable_launcher_enabled_reports'
+        ];
+
+        function buildAiSettingsFormData(){
+            const fd = new FormData(document.getElementById('aiSettingsFormReports'));
+            fd.set('enabled', document.getElementById('ai_enabled_reports').checked ? '1' : '0');
+            fd.set('proactive_enabled', document.getElementById('ai_proactive_enabled_reports').checked ? '1' : '0');
+            fd.set('draggable_launcher_enabled', document.getElementById('ai_draggable_launcher_enabled_reports').checked ? '1' : '0');
+            return fd;
+        }
+
+        async function saveAiSettings(){
+            const res = await fetch('api/save_ai_settings.php', {
+                method: 'POST',
+                body: buildAiSettingsFormData()
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || 'Erro ao salvar IA');
+            }
+            return data;
+        }
+
+        const saveAiBtn = document.getElementById('btn_save_ai_reports');
+        if (saveAiBtn) {
+            saveAiBtn.addEventListener('click', async function(){
+                const btn = this;
+                btn.disabled = true;
+                try{
+                    const data = await saveAiSettings();
+                    showSettingsToast(data.message || 'IA salva', 'success');
+                    loadAiSettings();
+                }catch(e){
+                    showSettingsToast(e.message || 'Erro ao salvar IA', 'danger');
+                    console.error(e);
+                }finally{
+                    btn.disabled = false;
+                }
+            });
+        }
+
+        aiToggleIds.forEach(function(toggleId){
+            const toggle = document.getElementById(toggleId);
+            if (!toggle) return;
+
+            toggle.addEventListener('change', async function(){
+                const changedToggle = this;
+                const previousValue = !changedToggle.checked;
+                aiToggleIds.forEach(function(id){
+                    const item = document.getElementById(id);
+                    if (item) item.disabled = true;
+                });
+
+                try{
+                    const data = await saveAiSettings();
+                    showSettingsToast(data.message || 'Configuração atualizada', 'success');
+                }catch(e){
+                    changedToggle.checked = previousValue;
+                    showSettingsToast(e.message || 'Erro ao atualizar configuração', 'danger');
+                    console.error(e);
+                }finally{
+                    aiToggleIds.forEach(function(id){
+                        const item = document.getElementById(id);
+                        if (item) item.disabled = false;
+                    });
+                }
+            });
+        });
+
+        const aiProviderSelect = document.getElementById('ai_provider_reports');
+        if (aiProviderSelect) {
+            aiProviderSelect.addEventListener('change', function(){
+                const provider = this.value;
+                const preset = aiProviderPresets[provider] || aiProviderPresets.custom;
+                if (preset) {
+                    document.getElementById('ai_base_url_reports').value = preset.base_url || '';
+                    document.getElementById('ai_model_reports').value = preset.model || '';
+                    document.getElementById('ai_models_reports').value = (preset.models || []).join('\n');
+                }
+            });
+        }
+
+        const testAiBtn = document.getElementById('btn_test_ai_reports');
+        if (testAiBtn) {
+            testAiBtn.addEventListener('click', async function(){
+                const btn = this; btn.disabled = true;
+                try{
+                    const res = await fetch('api/test_ai_settings.php', { method: 'POST' });
+                    const data = await res.json();
+                    showSettingsToast(data.message || (data.success ? 'IA conectada' : 'Erro no teste da IA'), data.success ? 'success' : 'danger');
+                }catch(e){ showSettingsToast('Erro ao testar IA', 'danger'); console.error(e); }
+                btn.disabled = false;
+            });
+        }
+
+        loadAiSettings();
 
         async function loadNotifications(){
             try{

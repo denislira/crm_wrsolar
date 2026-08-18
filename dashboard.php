@@ -346,7 +346,7 @@ body.theme-dark .consultant-row {
         <!-- Taxa SQL -->
         <div class="col-6 col-md-3 col-xl-2">
             <div class="dash-kpi <?= ($sqlRate !== null && $sqlRate < 30) ? 'accent-red' : 'accent-green' ?>">
-                <div class="d-flex align-items-center justify-content-between"><div class="kpi-label">Taxa SQL (30d)</div><span class="kpi-icon"><i class="fa fa-bullseye"></i></span></div>
+                <div class="d-flex align-items-center justify-content-between"><div class="kpi-label d-flex align-items-center">Taxa SQL (30d)<button type="button" class="metric-info-button" title="SQL significa Sales Qualified Lead. O CRM marca is_sql = 1 automaticamente quando o lead atinge uma etapa configurada como qualificação e mantém essa marca ao avançar ou voltar no funil. Fórmula: SQL dos últimos 30 dias ÷ novos leads dos últimos 30 dias × 100." aria-label="Explicação da Taxa SQL"><i class="fa-solid fa-circle-info"></i></button></div><span class="kpi-icon"><i class="fa fa-bullseye"></i></span></div>
                 <div class="kpi-value <?= ($sqlRate !== null && $sqlRate < 30) ? 'text-danger' : 'text-success' ?>"><?= $sqlRate !== null ? $sqlRate . '%' : '—' ?></div>
                 <div class="kpi-delta text-muted"><?= (int)$totalSql ?> qualificados</div>
             </div>
@@ -354,7 +354,7 @@ body.theme-dark .consultant-row {
         <!-- Speed-to-Lead -->
         <div class="col-6 col-md-3 col-xl-2">
             <div class="dash-kpi <?= ($speedToLeadAvg !== null && $speedToLeadAvg > 24) ? 'accent-red' : 'accent-amber' ?>">
-                <div class="d-flex align-items-center justify-content-between"><div class="kpi-label">Speed-to-Lead</div><span class="kpi-icon"><i class="fa fa-bolt"></i></span></div>
+                <div class="d-flex align-items-center justify-content-between"><div class="kpi-label d-flex align-items-center">Speed-to-Lead<button type="button" class="metric-info-button" title="Tempo médio entre a entrada do lead e o primeiro contato. Fórmula: média de first_contact_at − data_inicio (ou created_at), em horas, para leads dos últimos 30 dias. O resultado depende de first_contact_at estar preenchido; sem esse registro, o lead não entra na média." aria-label="Explicação do Speed-to-Lead"><i class="fa-solid fa-circle-info"></i></button></div><span class="kpi-icon"><i class="fa fa-bolt"></i></span></div>
                 <div class="kpi-value <?= ($speedToLeadAvg !== null && $speedToLeadAvg > 24) ? 'text-danger' : 'text-warning' ?>"><?= $speedToLeadAvg !== null ? $speedToLeadAvg . 'h' : '—' ?></div>
                 <div class="kpi-delta <?= ($slaNoContact > 0) ? 'trend-down' : 'trend-flat' ?>"><?= (int)$slaNoContact ?> sem contato >24h</div>
             </div>

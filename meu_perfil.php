@@ -6,10 +6,18 @@ if (empty($_SESSION['user_id'])) {
         exit;
 }
 $user_id = (int) $_SESSION['user_id'];
+try {
+    $colStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'ai_bot_mode'");
+    if (!$colStmt || !$colStmt->fetch()) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN ai_bot_mode VARCHAR(20) NOT NULL DEFAULT 'head'");
+    }
+} catch (Throwable $e) {
+    // The profile keeps working even if this optional preference column is unavailable.
+}
 // fetch user info (best-effort)
 $user = null;
 try {
-        $stmt = $pdo->prepare('SELECT id, username, email, nome_completo, biografia, avatar FROM users WHERE id = ? LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, username, email, nome_completo, biografia, avatar, ai_bot_mode FROM users WHERE id = ? LIMIT 1');
         $stmt->execute([$user_id]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($user) {
@@ -24,6 +32,13 @@ if ($profileNomeCompleto === '') $profileNomeCompleto = trim((string)($_SESSION[
 $profileEmail = trim((string)($user['email'] ?? ''));
 if ($profileEmail === '') $profileEmail = trim((string)($_SESSION['email'] ?? ''));
 $profileBiografia = (string)($user['biografia'] ?? '');
+$profileAiBotMode = (string)($user['ai_bot_mode'] ?? 'head');
+if ($profileAiBotMode === 'speech') {
+    $profileAiBotMode = 'body';
+}
+if (!in_array($profileAiBotMode, ['none', 'head', 'body'], true)) {
+    $profileAiBotMode = 'head';
+}
 
 // Server-side fetch of profile-related data as a reliable fallback
 $profile_leads = [];
@@ -1112,6 +1127,28 @@ include __DIR__ . '/includes/sidebar.php';
                                 <textarea class="form-control form-control-sm" name="biografia" rows="3"><?php echo htmlspecialchars($profileBiografia); ?></textarea>
                             </div>
                         </div>
+                        <div class="profile-info-item" data-field="ai_bot_mode">
+                            <div class="profile-info-label">
+                                <i class="fas fa-robot me-2"></i>Modo do bot
+                            </div>
+                            <div class="profile-info-value view-mode small">
+                                <?php
+                                    $modeLabels = [
+                                        'none' => 'Nenhum',
+                                        'head' => 'Só a cabeça',
+                                        'body' => 'Corpo inteiro',
+                                    ];
+                                    echo htmlspecialchars($modeLabels[$profileAiBotMode] ?? 'Só a cabeça');
+                                ?>
+                            </div>
+                            <div class="edit-mode d-none">
+                                <select class="form-select form-select-sm ai-bot-mode-select" name="ai_bot_mode">
+                                    <option value="none" <?php echo $profileAiBotMode === 'none' ? 'selected' : ''; ?>>Nenhum</option>
+                                    <option value="head" <?php echo $profileAiBotMode === 'head' ? 'selected' : ''; ?>>Só a cabeça</option>
+                                    <option value="body" <?php echo $profileAiBotMode === 'body' ? 'selected' : ''; ?>>Corpo inteiro</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1670,11 +1707,17 @@ include __DIR__ . '/includes/sidebar.php';
         const fullName = Object.prototype.hasOwnProperty.call(profile, 'nome_completo') ? (profile.nome_completo || '') : null;
         const email = Object.prototype.hasOwnProperty.call(profile, 'email') ? (profile.email || '') : null;
         const bio = Object.prototype.hasOwnProperty.call(profile, 'biografia') ? (profile.biografia || '') : null;
+        const botMode = Object.prototype.hasOwnProperty.call(profile, 'ai_bot_mode') ? (profile.ai_bot_mode || 'head') : null;
+        const botModeLabels = {
+            none: 'Nenhum',
+            head: 'Só a cabeça',
+            body: 'Corpo inteiro'
+        };
 
         document.querySelectorAll('.profile-info-item[data-field]').forEach(it => {
             const field = it.getAttribute('data-field');
             const view = it.querySelector('.view-mode');
-            const input = it.querySelector('.edit-mode input, .edit-mode textarea');
+            const input = it.querySelector('.edit-mode input, .edit-mode textarea, .edit-mode select');
             if (input && Object.prototype.hasOwnProperty.call(profile, field)) {
                 input.value = profile[field] || '';
             }
@@ -1685,6 +1728,8 @@ include __DIR__ . '/includes/sidebar.php';
                 view.textContent = fullName;
             } else if (field === 'email' && email !== null) {
                 view.textContent = email;
+            } else if (field === 'ai_bot_mode' && botMode !== null) {
+                view.textContent = botModeLabels[botMode] || botModeLabels.head;
             }
         });
 
@@ -1702,7 +1747,7 @@ include __DIR__ . '/includes/sidebar.php';
         document.querySelectorAll('.profile-info-item[data-field]').forEach(it => {
             const field = it.getAttribute('data-field');
             const view = it.querySelector('.view-mode');
-            const input = it.querySelector('.edit-mode input, .edit-mode textarea');
+            const input = it.querySelector('.edit-mode input, .edit-mode textarea, .edit-mode select');
             if (!field || !view || !input) return;
             if (field === 'biografia') {
                 input.value = (view.innerHTML || '').replace(/<br\s*\/?>/gi, '\n').replace(/&nbsp;/g, ' ').trim();
@@ -1719,7 +1764,7 @@ include __DIR__ . '/includes/sidebar.php';
         document.querySelectorAll('.profile-info-item[data-field]').forEach(it => {
             const field = it.getAttribute('data-field');
             const view = it.querySelector('.view-mode');
-            const input = it.querySelector('.edit-mode input, .edit-mode textarea');
+            const input = it.querySelector('.edit-mode input, .edit-mode textarea, .edit-mode select');
             if (!field || !view) return;
 
             const currentText = (view.textContent || '').trim();
@@ -1985,7 +2030,7 @@ include __DIR__ . '/includes/sidebar.php';
                 const fd = new FormData();
                 document.querySelectorAll('.profile-info-item[data-field]').forEach(it=>{
                     const name = it.getAttribute('data-field');
-                    const input = it.querySelector('.edit-mode input, .edit-mode textarea');
+                    const input = it.querySelector('.edit-mode input, .edit-mode textarea, .edit-mode select');
                     if (name && input) fd.append(name, input.value);
                 });
 

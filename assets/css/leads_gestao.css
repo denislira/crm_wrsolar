@@ -706,6 +706,101 @@ body.theme-dark #leadDetailContent .lead-col, body.dark-mode #leadDetailContent 
   font-size:1.2rem;
 }
 
+/* Editar/Novo Lead: superfícies próprias para o tema escuro. */
+body.theme-dark #leadModal .lead-modal-content,
+body.dark-mode #leadModal .lead-modal-content{
+  background:#0f1724 !important;
+  color:#e6eef8 !important;
+  border:1px solid rgba(148,163,184,.14) !important;
+  box-shadow:0 30px 80px rgba(0,0,0,.62) !important;
+}
+body.theme-dark #leadModal .lead-modal-content .modal-header,
+body.dark-mode #leadModal .lead-modal-content .modal-header{
+  background:linear-gradient(135deg,rgba(37,99,235,.22),rgba(20,184,166,.12)) !important;
+  border-bottom-color:rgba(148,163,184,.14) !important;
+}
+body.theme-dark #leadModal .lead-modal-content .modal-body,
+body.dark-mode #leadModal .lead-modal-content .modal-body{
+  background:#101824 !important;
+}
+body.theme-dark #leadModal .lead-modal-content .modal-footer,
+body.dark-mode #leadModal .lead-modal-content .modal-footer{
+  background:#151f2e !important;
+  border-top-color:rgba(148,163,184,.14) !important;
+}
+body.theme-dark #leadModal .lead-modal-content .card,
+body.dark-mode #leadModal .lead-modal-content .card{
+  background:#151e2b !important;
+  color:#e6eef8 !important;
+  border-color:rgba(96,165,250,.22) !important;
+  border-top-color:#3b82f6 !important;
+  box-shadow:0 12px 28px rgba(0,0,0,.28) !important;
+}
+body.theme-dark #leadModal .lead-modal-content .col-lg-5 .card,
+body.dark-mode #leadModal .lead-modal-content .col-lg-5 .card{
+  border-top-color:#2dd4bf !important;
+}
+body.theme-dark #leadModal .lead-modal-content label,
+body.theme-dark #leadModal .lead-modal-content .form-text,
+body.dark-mode #leadModal .lead-modal-content label,
+body.dark-mode #leadModal .lead-modal-content .form-text{
+  color:#c3d5ea !important;
+}
+body.theme-dark #leadModal .lead-modal-content .form-control,
+body.theme-dark #leadModal .lead-modal-content .form-select,
+body.dark-mode #leadModal .lead-modal-content .form-control,
+body.dark-mode #leadModal .lead-modal-content .form-select{
+  background-color:#111d2d !important;
+  color:#e6eef8 !important;
+  border-color:#334a66 !important;
+}
+body.theme-dark #leadModal .lead-modal-content .form-control:hover,
+body.theme-dark #leadModal .lead-modal-content .form-select:hover,
+body.dark-mode #leadModal .lead-modal-content .form-control:hover,
+body.dark-mode #leadModal .lead-modal-content .form-select:hover{
+  background-color:#162438 !important;
+  border-color:#4d6d91 !important;
+}
+body.theme-dark #leadModal .lead-modal-content .form-control:disabled,
+body.dark-mode #leadModal .lead-modal-content .form-control:disabled{
+  background:#1a2738 !important;
+  color:#93a8bf !important;
+  border-color:#33465f !important;
+}
+body.theme-dark #leadModal .lead-modal-content .input-group-text,
+body.dark-mode #leadModal .lead-modal-content .input-group-text{
+  background:#193047 !important;
+  color:#99f6e4 !important;
+  border-color:#334a66 !important;
+}
+body.theme-dark #leadModal .lead-modal-content .badge,
+body.dark-mode #leadModal .lead-modal-content .badge{
+  background:rgba(59,130,246,.16) !important;
+  color:#bfdbfe !important;
+  border-color:rgba(96,165,250,.34) !important;
+}
+body.theme-dark #leadModal #anexos-dropzone,
+body.dark-mode #leadModal #anexos-dropzone{
+  background:linear-gradient(135deg,rgba(30,64,175,.16),rgba(15,118,110,.12)) !important;
+  border-color:#3b82f6 !important;
+  box-shadow:inset 0 0 0 1px rgba(148,163,184,.08) !important;
+}
+body.theme-dark #leadModal #anexos-dropzone:hover,
+body.dark-mode #leadModal #anexos-dropzone:hover{
+  background:linear-gradient(135deg,rgba(30,64,175,.24),rgba(15,118,110,.18)) !important;
+  border-color:#2dd4bf !important;
+}
+body.theme-dark #leadModal #anexos-file-names,
+body.dark-mode #leadModal #anexos-file-names{
+  color:#99f6e4 !important;
+}
+body.theme-dark #leadModal .modal-footer .btn-secondary,
+body.dark-mode #leadModal .modal-footer .btn-secondary{
+  background:#26364a !important;
+  border-color:#3b506b !important;
+  color:#e6eef8 !important;
+}
+
 @media (max-width: 900px){
 	.modal-dialog.modal-lg{max-width:720px}
 }
@@ -717,13 +812,14 @@ body.dark-mode .lead-card{background:linear-gradient(180deg,#071427,#051025);box
 body.dark-mode .kanban-header{border-bottom:1px solid rgba(255,255,255,0.03)}
 
 /* theme-dark mode (match the script) */
-body.theme-dark .kanban-column{background:#0b1220 !important;color:#dbeafe !important;border-color:rgba(255,255,255,0.06) !important;box-shadow:0 10px 30px rgba(0,0,0,0.4) !important}
-body.theme-dark .lead-card{background:#0f1724 !important;color:#e6eef8 !important;box-shadow:0 6px 18px rgba(0,0,0,0.4) !important;border:1px solid rgba(255,255,255,0.06) !important}
+body.theme-dark .kanban-column{background:#101722 !important;color:#dbeafe !important;border-color:rgba(148,163,184,0.10) !important;box-shadow:0 8px 24px rgba(0,0,0,0.28) !important}
+body.theme-dark .lead-card{background:#151d29 !important;color:#e6eef8 !important;box-shadow:0 4px 14px rgba(0,0,0,0.24) !important;border:1px solid rgba(148,163,184,0.09) !important}
 body.theme-dark .lead-card .title{color:#e6eef8 !important}
 body.theme-dark .kanban-header{border-bottom:1px solid rgba(255,255,255,0.06) !important;color:#e6eef8 !important}
 body.theme-dark .kanban-header .kanban-title{color:#ffffff !important}
 body.theme-dark .kanban-header .stage-sum{color:#c3d5ea !important}
 body.theme-dark .column-content{color:#e6eef8 !important}
+body.theme-dark .kanban-top-stripe{opacity:.34 !important}
 body.theme-dark .lead-meta{color:#c3d5ea !important}
 body.theme-dark .lead-panel{background:#0b1220 !important;color:#e6eef8 !important;border-left:1px solid rgba(255,255,255,0.06) !important}
 body.theme-dark .lead-panel-inner{color:#e6eef8 !important}
@@ -862,10 +958,10 @@ body.kanban-only.theme-dark .lead-card,
 body.kanban-only.theme-dark .lead-panel,
 body.kanban-only.theme-dark .kanban-header,
 body.kanban-only.theme-dark .column-content{
-    background-color: rgba(7,20,39,0.82) !important;
+    background-color: rgba(16,23,34,0.94) !important;
     color: #e6eef8 !important;
     background-image: none !important;
-    box-shadow: 0 8px 22px rgba(0,0,0,0.45) !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.30) !important;
     border-top: 1px solid rgba(255,255,255,0.08) !important;
     border-right: 1px solid rgba(255,255,255,0.08) !important;
     border-bottom: 1px solid rgba(240, 240, 240, 0.08) !important;

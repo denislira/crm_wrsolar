@@ -23,6 +23,7 @@ include_once 'includes/settings_storage.php';
       try {
         var darkMode = localStorage.getItem('theme.mode') === 'dark' || localStorage.getItem('darkMode') === '1';
         if (!darkMode) return;
+        document.documentElement.setAttribute('data-theme', 'dark');
         var style = document.createElement('style');
         style.id = 'theme-preload-dark';
         style.textContent = [
@@ -41,6 +42,7 @@ include_once 'includes/settings_storage.php';
   </script>
   <?php if (empty($noNavbar) && !empty($_SESSION['user_id'])): ?>
     <link rel="stylesheet" href="assets/css/internal_chat.css">
+    <link rel="stylesheet" href="assets/css/ai_assistant.css">
   <?php endif; ?>
   <?php
     // Load appearance settings and create defaults when missing.
@@ -136,9 +138,32 @@ include_once 'includes/settings_storage.php';
   </style>
 </head>
 <body>
+  <script>
+    // Keep the markers used by older and newer screens in sync before rendering.
+    (function () {
+      try {
+        var mode = localStorage.getItem('theme.mode') || (localStorage.getItem('darkMode') === '1' ? 'dark' : null);
+        if (!mode && window.matchMedia) {
+          mode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        mode = mode || 'light';
+        document.documentElement.setAttribute('data-theme', mode);
+        document.body.classList.add(mode === 'dark' ? 'theme-dark' : 'theme-light');
+        document.body.classList.toggle('dark-mode', mode === 'dark');
+        // The preload rules only prevent a light flash before <body> exists.
+        // Keeping them in the document would override page/theme styles because
+        // they use !important, especially after switching back to light mode.
+        var preloadStyle = document.getElementById('theme-preload-dark');
+        if (preloadStyle) preloadStyle.remove();
+      } catch (e) {
+        // Ignore unavailable storage in restricted browser contexts.
+      }
+    })();
+  </script>
   <?php if (empty($noNavbar) && !empty($_SESSION['user_id'])): ?>
   <script>
     window.currentUserId = <?php echo (int) $_SESSION['user_id']; ?>;
+    window.currentUserName = <?php echo json_encode((string)($_SESSION['name'] ?? $_SESSION['username'] ?? 'Usuário'), JSON_UNESCAPED_UNICODE); ?>;
   </script>
   <?php endif; ?>
   <script>

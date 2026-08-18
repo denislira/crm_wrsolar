@@ -11,6 +11,22 @@ include '../includes/permissions.php';
 require_once '../includes/project_post_sale_automation.php';
 require_once '../includes/movements.php';
 
+function normalizeProjectDecimal($value, $emptyValue = 0.0) {
+    $raw = trim((string)$value);
+    if ($raw === '') return $emptyValue;
+
+    $raw = preg_replace('/[^0-9,\.\-]/u', '', $raw);
+    if (strpos($raw, ',') !== false) {
+        $raw = str_replace('.', '', $raw);
+        $raw = str_replace(',', '.', $raw);
+    } elseif (substr_count($raw, '.') > 1) {
+        $lastDot = strrpos($raw, '.');
+        $raw = str_replace('.', '', substr($raw, 0, $lastDot)) . substr($raw, $lastDot);
+    }
+
+    return is_numeric($raw) ? (float)$raw : false;
+}
+
 if (!hasPermission('projetos')) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Acesso negado']);
@@ -69,7 +85,13 @@ foreach ($allowed as $f) {
         $sets[] = "$f = ?";
         $val = $_POST[$f];
         // normalize numeric
-        if ($f === 'proposal_value') $val = str_replace([',',' '], ['.',''], $val);
+        if ($f === 'proposal_value') {
+            $val = normalizeProjectDecimal($val, 0.0);
+            if ($val === false) {
+                echo json_encode(['success' => false, 'message' => 'Valor da proposta inválido']);
+                exit;
+            }
+        }
         $params[] = ($val === '' ? null : $val);
     }
 }
@@ -236,8 +258,8 @@ try {
 
         if (isset($_POST['proposal_value'])) {
             $leadSets[] = 'orcamento_value = ?';
-            $leadVal = str_replace([',',' '], ['.',''], (string)$_POST['proposal_value']);
-            $leadParams[] = ($leadVal === '' ? null : $leadVal);
+            $leadVal = normalizeProjectDecimal($_POST['proposal_value'], 0.0);
+            $leadParams[] = ($leadVal === false ? 0.0 : $leadVal);
         }
 
         if (isset($_POST['projeto'])) {

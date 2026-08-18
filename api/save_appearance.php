@@ -140,7 +140,7 @@ if (isset($_POST['remove_login_background']) && $_POST['remove_login_background'
 }
 
 // Save settings
-if (file_put_contents($settingsPath, json_encode($appearance, JSON_PRETTY_PRINT))) {
+if (wrcrm_save_settings($appearance)) {
     echo json_encode(['success' => true, 'message' => 'Aparência salva com sucesso', 'appearance' => $appearance]);
 } else {
     echo json_encode(['success' => false, 'message' => 'Falha ao salvar configurações']);

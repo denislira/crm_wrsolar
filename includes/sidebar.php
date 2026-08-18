@@ -31,8 +31,12 @@ $isConsultorExterno = strtolower((string)$roleName) === 'consultor_externo';
 .app-sidebar .sidebar-content::-webkit-scrollbar-thumb { background:var(--blue-700); border-radius:4px; }
 .app-sidebar .sidebar-content::-webkit-scrollbar-thumb:hover { background:var(--blue-900); }
 .app-sidebar .sidebar-content { scrollbar-width:none; scrollbar-color:var(--blue-700) transparent; }
-.app-sidebar .brand { display:flex; align-items:center; justify-content:center; padding:6px 0; margin:0 0 6px 0; position:sticky; top:8px; background:transparent; }
+.app-sidebar .sidebar-top { min-height:64px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px; border-bottom:1px solid rgba(255,255,255,.08); }
+.app-sidebar .brand { min-width:0; flex:1; display:flex; align-items:center; justify-content:center; padding:0; margin:0; border:0; border-radius:10px; background:transparent; color:inherit; }
+.app-sidebar .brand:focus-visible, .app-sidebar #sidebarToggle:focus-visible { outline:2px solid rgba(255,255,255,.9); outline-offset:2px; }
 .app-sidebar .brand img.brand-logo { height:44px; width:120px; object-fit:contain; display:block; }
+.app-sidebar #sidebarToggle { width:38px; height:38px; flex:0 0 38px; padding:0; border-radius:10px; font-size:.9rem; }
+.app-sidebar #sidebarToggle:hover { background:rgba(255,255,255,.1) !important; }
 .app-sidebar .nav { gap:6px; }
 .app-sidebar .nav-link { display:flex; align-items:center; gap:10px; color:rgba(255,255,255,0.9); padding:8px 10px; border-radius:8px; margin:4px 0; text-decoration:none; font-weight:400; }
 .app-sidebar .nav-link .icon { width:28px; text-align:center; color:rgba(255,255,255,0.95); }
@@ -52,13 +56,22 @@ $isConsultorExterno = strtolower((string)$roleName) === 'consultor_externo';
 body.sidebar-collapsed .brand .normal-logo { display: none !important; }
 .app-sidebar.collapsed .brand .brand-logo-collapsed,
 body.sidebar-collapsed .brand .brand-logo-collapsed { display: block !important; }
+.app-sidebar.collapsed .sidebar-top,
+body.sidebar-collapsed .app-sidebar .sidebar-top { justify-content:center; padding:8px; }
+.app-sidebar.collapsed .brand,
+body.sidebar-collapsed .app-sidebar .brand { flex:0 0 48px; width:48px; height:48px; cursor:pointer; }
+.app-sidebar.collapsed .brand:hover,
+body.sidebar-collapsed .app-sidebar .brand:hover { background:rgba(255,255,255,.1); transform:translateY(-1px); }
+.app-sidebar.collapsed #sidebarToggle,
+body.sidebar-collapsed .app-sidebar #sidebarToggle { display:none; }
+@media (max-width:767.98px) {
+    .app-sidebar .sidebar-top { justify-content:space-between !important; }
+}
 </style>
 
 <aside class="app-sidebar d-flex flex-column">
-    <div class="sidebar-top d-flex justify-content-start" style="padding:6px 6px 0 6px;">
-        <button id="sidebarToggle" class="btn btn-sm" title="Alternar menu" aria-label="Alternar menu">☰</button>
-    </div>
-    <div class="brand">
+    <div class="sidebar-top">
+        <button type="button" id="sidebarBrandButton" class="brand" aria-label="Logomarca do sistema" aria-disabled="true" tabindex="-1">
         <?php
             // allow custom logo via storage/settings.json -> logo
             $settingsFile = __DIR__ . '/../storage/settings.json';
@@ -85,6 +98,8 @@ body.sidebar-collapsed .brand .brand-logo-collapsed { display: block !important;
             if (empty($collapsedSrc)) $collapsedSrc = 'assets/img/logo.png';
         ?>
         <img src="<?php echo htmlspecialchars($collapsedSrc); ?>" alt="Logo pequeno" class="brand-logo-collapsed" style="display:none;" />
+        </button>
+        <button id="sidebarToggle" class="btn btn-sm" type="button" title="Recolher menu" aria-label="Recolher menu"><i class="fa-solid fa-chevron-left"></i></button>
     </div>
     <div class="sidebar-content" style="overflow:auto;">
         <ul class="nav nav-pills flex-column">

@@ -1,6 +1,6 @@
 .internal-chat {
   position: fixed;
-  right: 22px;
+  right: 4px;
   bottom: 22px;
   z-index: 2300;
   font-family: inherit;
@@ -11,21 +11,36 @@
 }
 
 .internal-chat-toggle {
-  width: 56px;
-  height: 56px;
+  width: 54px;
+  height: 54px;
   border: 0;
-  border-radius: 18px;
+  border-radius: 0;
   color: #fff;
-  background: linear-gradient(135deg, var(--blue-700, #0b6ac1), var(--green, #4bbf4b));
-  box-shadow: 0 18px 38px rgba(7, 59, 107, .28);
+  background: transparent !important;
+  box-shadow: none;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   position: relative;
+  padding: 0;
 }
 
-.internal-chat-toggle i {
-  font-size: 1.15rem;
+.internal-chat-toggle:hover,
+.internal-chat-toggle:focus,
+.internal-chat-toggle:active {
+  background: transparent !important;
+  box-shadow: none;
+  outline: none;
+}
+
+.internal-chat-toggle-img {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  display: block;
 }
 
 .internal-chat-badge {
@@ -54,9 +69,9 @@
 .internal-chat-panel {
   position: absolute;
   right: 0;
-  bottom: 72px;
+  bottom: 142px;
   width: min(390px, calc(100vw - 24px));
-  height: min(620px, calc(100vh - 96px));
+  height: min(540px, calc(100vh - 174px));
   background: #fff;
   color: #172033;
   border: 1px solid rgba(15, 23, 42, .12);
@@ -435,13 +450,13 @@ body.theme-dark .internal-chat-bubble {
 
 @media (max-width: 575.98px) {
   .internal-chat {
-    right: 12px;
+    right: 6px;
     bottom: 12px;
   }
 
   .internal-chat-panel {
     position: fixed;
-    inset: 64px 10px 82px 10px;
+    inset: 64px 10px 150px 10px;
     width: auto;
     height: auto;
   }

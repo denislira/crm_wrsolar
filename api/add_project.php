@@ -9,6 +9,23 @@ if (!isset($_SESSION['user_id'])) {
 include '../includes/config.php';
 include '../includes/permissions.php';
 
+function normalizeProjectDecimal($value, $emptyValue = 0.0) {
+    $raw = trim((string)$value);
+    if ($raw === '') return $emptyValue;
+
+    $raw = preg_replace('/[^0-9,\.\-]/u', '', $raw);
+    if (strpos($raw, ',') !== false) {
+        // Brazilian format: 1.234,56 -> 1234.56
+        $raw = str_replace('.', '', $raw);
+        $raw = str_replace(',', '.', $raw);
+    } elseif (substr_count($raw, '.') > 1) {
+        $lastDot = strrpos($raw, '.');
+        $raw = str_replace('.', '', substr($raw, 0, $lastDot)) . substr($raw, $lastDot);
+    }
+
+    return is_numeric($raw) ? (float)$raw : false;
+}
+
 if (!hasPermission('projetos')) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Acesso negado']);
@@ -23,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $client_name = trim($_POST['client_name'] ?? '');
 $address = trim($_POST['address'] ?? '');
-$proposal_value = isset($_POST['proposal_value']) ? str_replace([',',' '], ['.',''], $_POST['proposal_value']) : 0;
+$proposal_value = normalizeProjectDecimal($_POST['proposal_value'] ?? '', 0.0);
 $status = isset($_POST['status']) ? trim((string)$_POST['status']) : '';
 $lead_id = isset($_POST['lead_id']) && $_POST['lead_id'] !== '' ? intval($_POST['lead_id']) : null;
 $closed_date = $_POST['closed_date'] ?? null;
@@ -67,6 +84,10 @@ error_log("add_project.php - Processado lead_id: " . ($lead_id ?? 'NULL'));
 
 if (empty($client_name)) {
     echo json_encode(['success' => false, 'message' => 'Nome do cliente obrigatório']);
+    exit;
+}
+if ($proposal_value === false) {
+    echo json_encode(['success' => false, 'message' => 'Valor da proposta inválido']);
     exit;
 }
 

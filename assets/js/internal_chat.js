@@ -90,7 +90,7 @@
     root.className = 'internal-chat';
     root.innerHTML = `
       <button class="internal-chat-toggle" type="button" title="Chat interno" aria-label="Abrir chat interno">
-        <i class="fa-regular fa-comments"></i>
+        <img class="internal-chat-toggle-img" src="assets/img/chat.png" alt="">
         <span class="internal-chat-badge">0</span>
       </button>
       <section class="internal-chat-panel" aria-label="Chat interno">

@@ -24,7 +24,7 @@ if (empty($id)) {
 
 try {
     // include avatar column if present
-    $cols = ['id','username','email','nome_completo','biografia','role_id','team_id','role_level','avatar'];
+    $cols = ['id','username','email','nome_completo','biografia','role_id','team_id','role_level','avatar','ai_bot_mode'];
     $available = [];
     try {
         $colStmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'");

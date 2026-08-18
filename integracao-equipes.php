@@ -214,6 +214,16 @@ try {
     background: transparent !important;
     box-shadow: none !important;
 }
+.integration-page {
+    --integration-overlay-bg: rgba(255,255,255,.80);
+}
+.integration-destination-panel {
+    background: #f8fbff;
+    border-color: var(--blue-700) !important;
+}
+.integration-destination-title {
+    color: var(--blue-700);
+}
 #modalNovaTarefa .form-control,
 #modalNovaTarefa .form-select {
     border-color:#64748b !important;
@@ -451,6 +461,80 @@ body.theme-dark .status-Conclu\00edda,
 body.theme-dark .status-Concluida {
     border-color: rgba(255,255,255,0.08) !important;
 }
+body.theme-dark .integration-page {
+    --integration-overlay-bg: rgba(7,18,32,.84);
+}
+body.theme-dark .integration-page .tasks-list-shell,
+body.theme-dark .integration-page #tasksList,
+body.theme-dark .integration-page #teamTimeline {
+    background: transparent !important;
+}
+body.theme-dark .integration-page .task-description,
+body.theme-dark .integration-page .activity-person-name {
+    color: #c3d5ea !important;
+}
+body.theme-dark .integration-page .team-task-badge,
+body.theme-dark .integration-page .activity-team-badge,
+body.theme-dark .integration-page .integration-offline-badge,
+body.theme-dark .integration-page #taskCount {
+    background: rgba(99,102,241,.18) !important;
+    border-color: rgba(129,140,248,.35) !important;
+    color: #c7d2fe !important;
+}
+body.theme-dark .integration-page .activity-filter-type {
+    background: rgba(255,255,255,.04) !important;
+    border-color: rgba(255,255,255,.12) !important;
+    color: #c3d5ea !important;
+}
+body.theme-dark .integration-page .activity-filter-type.active,
+body.theme-dark .integration-page .activity-filter-type:hover {
+    background: rgba(var(--bs-primary-rgb),.28) !important;
+    color: #fff !important;
+}
+body.theme-dark .integration-page .modal-edit-left {
+    border-color: rgba(255,255,255,.10) !important;
+}
+body.theme-dark .integration-page #edit-task-team-block,
+body.theme-dark .integration-page #editRem-team-block {
+    background: linear-gradient(135deg, #142d4b, #172b43) !important;
+    border-color: rgba(var(--bs-primary-rgb),.55) !important;
+}
+body.theme-dark .integration-page .integration-destination-panel {
+    background: #142033 !important;
+    border-color: #315f8f !important;
+    color: #e6eef8 !important;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.025);
+}
+body.theme-dark .integration-page .integration-destination-title {
+    color: #93c5fd !important;
+}
+body.theme-dark .integration-page .integration-destination-panel .form-label {
+    color: #c3d5ea !important;
+}
+body.theme-dark .integration-page .integration-destination-panel .form-select {
+    background-color: #1b2a3e !important;
+    border-color: #3b506b !important;
+    color: #e6eef8 !important;
+}
+
+/* O modal de edição precisa de superfícies opacas sobre o backdrop. */
+body.theme-dark #modalEditarTarefa .modal-content {
+    background: #111c2d !important;
+    border: 1px solid #33465f !important;
+    box-shadow: 0 24px 70px rgba(0,0,0,.62) !important;
+}
+body.theme-dark #modalEditarTarefa .modal-header {
+    background: linear-gradient(120deg, var(--blue-900), var(--blue-700)) !important;
+    border-bottom-color: rgba(255,255,255,.10) !important;
+}
+body.theme-dark #modalEditarTarefa .modal-body {
+    background: #111c2d !important;
+    color: #e6eef8 !important;
+}
+body.theme-dark #modalEditarTarefa .modal-footer {
+    background: #172235 !important;
+    border-top-color: rgba(255,255,255,.10) !important;
+}
 
 /* Modal moderno de edicao de lembrete */
 #modalEditarLembrete .modal-dialog { max-width: 760px; }
@@ -586,7 +670,7 @@ body.theme-dark #modalTeamUsers .modal-body {
 
 <div class="d-flex">
     <?php include 'includes/sidebar.php'; ?>
-    <main class="flex-grow-1 p-4">
+    <main class="flex-grow-1 p-4 integration-page">
         <div class="container-fluid">
 <!-- Modal Editar Lembrete -->
 <div class="modal fade" id="modalEditarLembrete" tabindex="-1" aria-labelledby="modalEditarLembreteLabel" aria-hidden="true">
@@ -1347,14 +1431,14 @@ async function atualizarTarefas() {
             content.innerHTML = `<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                 <h6 class="mb-0 fw-semibold" style="color: #1e293b; font-size: 0.95rem;">${escapeHtml(t.titulo)}</h6>
                 <span class="badge rounded-pill" style="background:${equipeColor(t.equipe)};color:#fff;padding:0.35em 0.75em;font-size:0.7rem;font-weight:500;">${escapeHtml(t.equipe)}</span>
-                ${isTeamTask ? '<span class="badge rounded-pill" style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:0.35em 0.75em;font-size:0.7rem;font-weight:700;"><i class="fa fa-users me-1"></i>Para equipe: ' + escapeHtml(teamName || t.equipe || 'Equipe') + '</span>' : ''}
+                ${isTeamTask ? '<span class="badge rounded-pill team-task-badge" style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:0.35em 0.75em;font-size:0.7rem;font-weight:700;"><i class="fa fa-users me-1"></i>Para equipe: ' + escapeHtml(teamName || t.equipe || 'Equipe') + '</span>' : ''}
             </div>
             <div class="d-flex align-items-center gap-3 mb-2" style="font-size: 0.8rem;">
                 ${!isTeamTask && responsavelNome ? '<div class="text-muted"><i class="fa fa-user me-1" style="opacity:0.6;"></i><span>' + escapeHtml(responsavelNome) + '</span></div>' : ''}
                 ${t.data_vencimento ? '<div class="text-muted"><i class="fa fa-calendar me-1" style="opacity:0.6;"></i><span>' + escapeHtml(t.data_vencimento) + '</span></div>' : ''}
                 ${criadorNome ? '<div class="text-muted"><i class="fa fa-user-plus me-1" style="opacity:0.6;"></i><span>Criado por: <b>' + escapeHtml(criadorNome) + '</b></span></div>' : ''}
             </div>
-            ${t.descricao ? '<div class="task-description text-secondary" style="font-size: 0.85rem; line-height: 1.5; color: #64748b !important;">' + escapeHtml(t.descricao) + '</div>' : ''}`;
+            ${t.descricao ? '<div class="task-description text-secondary" style="font-size: 0.85rem; line-height: 1.5;">' + escapeHtml(t.descricao) + '</div>' : ''}`;
             card.appendChild(content);
             // Ações (concluir se for responsável, editar, excluir)
             const actions = document.createElement('div');
@@ -1451,7 +1535,7 @@ function setLoadingState(formOrButton, loading, message = 'Salvando...') {
         root.style.position = root.style.position || 'relative';
         overlay = document.createElement('div');
         overlay.className = 'wrcrm-loading-overlay';
-        overlay.style.cssText = 'display:none; position:absolute; inset:0; z-index:30; background:rgba(255,255,255,.75); backdrop-filter: blur(1px); align-items:center; justify-content:center; border-radius:12px;';
+        overlay.style.cssText = 'display:none; position:absolute; inset:0; z-index:30; background:var(--integration-overlay-bg); backdrop-filter: blur(1px); align-items:center; justify-content:center; border-radius:12px;';
         overlay.innerHTML = '<div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill bg-white shadow-sm border"><div class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></div><div class="fw-semibold text-primary">' + message + '</div></div>';
         root.appendChild(overlay);
     }
@@ -1481,7 +1565,7 @@ function setModalLoading(modalId, loading, message = 'Carregando...') {
         body.style.position = body.style.position || 'relative';
         overlay = document.createElement('div');
         overlay.className = 'wrcrm-modal-loading-overlay';
-        overlay.style.cssText = 'display:none; position:absolute; inset:0; z-index:60; background:rgba(255,255,255,.8); backdrop-filter: blur(1px); align-items:center; justify-content:center; border-radius:12px;';
+        overlay.style.cssText = 'display:none; position:absolute; inset:0; z-index:60; background:var(--integration-overlay-bg); backdrop-filter: blur(1px); align-items:center; justify-content:center; border-radius:12px;';
         overlay.innerHTML = '<div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill bg-white shadow-sm border"><div class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></div><div class="fw-semibold text-primary">' + message + '</div></div>';
         body.appendChild(overlay);
     }
@@ -1616,12 +1700,12 @@ function renderActivities(activities) {
                     </div>
                     <div class="flex-grow-1">
                         <div class="mb-1">
-                            <span class="fw-semibold" style="color: #1e293b; font-size: 0.9rem;">${escapeHtml(name)}</span>
+                            <span class="fw-semibold activity-person-name" style="color: #1e293b; font-size: 0.9rem;">${escapeHtml(name)}</span>
                             <span class="text-muted" style="font-size: 0.85rem;"> ${actionText}</span>
                         </div>
                         ${title ? '<div class="mb-1" style="color: var(--blue-700); font-size: 0.85rem; font-weight: 500;">"' + escapeHtml(title) + '"</div>' : ''}
                         <div class="d-flex align-items-center gap-2">
-                            ${equipe ? '<span class="badge rounded-pill" style="background: #e0e7ff; color: #4f46e5; font-size: 0.7rem; padding: 0.25em 0.6em;">' + escapeHtml(equipe) + '</span>' : ''}
+                            ${equipe ? '<span class="badge rounded-pill activity-team-badge" style="background: #e0e7ff; color: #4f46e5; font-size: 0.7rem; padding: 0.25em 0.6em;">' + escapeHtml(equipe) + '</span>' : ''}
                             <span class="text-muted" style="font-size: 0.75rem;"><i class="fa fa-clock-o me-1"></i>${formatDate(a.timestamp)}</span>
                         </div>
                     </div>
@@ -1890,7 +1974,7 @@ function renderIntegrations(list) {
                             <div class="small text-muted">${(ui.last_activity? 'Última: '+escapeHtmlGlobal(ui.last_activity) : 'Sem atividade recente')}</div>
                         </div>
                         <div>
-                            ${ui.online? '<span class="badge rounded-pill" style="background:var(--green);color:#fff;">Online</span>':'<span class="badge rounded-pill" style="background:#e2e8f0;color:#64748b;">Offline</span>'}
+                            ${ui.online? '<span class="badge rounded-pill" style="background:var(--green);color:#fff;">Online</span>':'<span class="badge rounded-pill integration-offline-badge" style="background:#e2e8f0;color:#64748b;">Offline</span>'}
                         </div>
                     </div>
                     <div class="mt-2">
@@ -2055,12 +2139,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (formNovaTarefa) {
         if (!document.getElementById('quick-new-destino')) {
             const destinoWrap = document.createElement('div');
-            destinoWrap.className = 'mb-2 p-2 rounded-3 border border-2';
-            destinoWrap.style.borderColor = 'var(--blue-700)';
-            destinoWrap.style.background = '#f8fbff';
+            destinoWrap.className = 'integration-destination-panel mb-2 p-2 rounded-3 border border-2';
             const teamOptions = (teamsData || []).map(t => `<option value="${t.id}">${escapeHtmlGlobal(t.name || '')}</option>`).join('');
             destinoWrap.innerHTML = `
-                <div class="fw-semibold mb-2" style="color:var(--blue-700);">Destino</div>
+                <div class="integration-destination-title fw-semibold mb-2">Destino</div>
                 <select name="destino" id="quick-new-destino" class="form-select form-select-sm">
                     <option value="responsavel" selected>Responsável</option>
                     <option value="team">Equipe inteira</option>
@@ -2137,12 +2219,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const formModalNova = document.getElementById('formModalNovaTarefa');
         if (formModalNova && !document.getElementById('modal-new-destino')) {
             const destinoWrap = document.createElement('div');
-            destinoWrap.className = 'mb-2 p-2 rounded-3 border border-2';
-            destinoWrap.style.borderColor = 'var(--blue-700)';
-            destinoWrap.style.background = '#f8fbff';
+            destinoWrap.className = 'integration-destination-panel mb-2 p-2 rounded-3 border border-2';
             const teamOptions = (teamsData || []).map(t => `<option value="${t.id}">${escapeHtmlGlobal(t.name || '')}</option>`).join('');
             destinoWrap.innerHTML = `
-                <div class="fw-semibold mb-2" style="color:var(--blue-700);">Destino</div>
+                <div class="integration-destination-title fw-semibold mb-2">Destino</div>
                 <select name="destino" id="modal-new-destino" class="form-select form-select-sm">
                     <option value="responsavel" selected>Responsável</option>
                     <option value="team">Equipe inteira</option>
@@ -2198,12 +2278,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (formNovoLembrete) {
         if (!document.getElementById('rem-destino')) {
             const destinoWrap = document.createElement('div');
-            destinoWrap.className = 'mb-2 p-2 rounded-3 border border-2';
-            destinoWrap.style.borderColor = 'var(--blue-700)';
-            destinoWrap.style.background = '#f8fbff';
+            destinoWrap.className = 'integration-destination-panel mb-2 p-2 rounded-3 border border-2';
             const teamOptions = (teamsData || []).map(t => `<option value="${t.id}">${escapeHtmlGlobal(t.name || '')}</option>`).join('');
             destinoWrap.innerHTML = `
-                <div class="fw-semibold mb-2" style="color:var(--blue-700);">Destino</div>
+                <div class="integration-destination-title fw-semibold mb-2">Destino</div>
                 <select name="destino" id="rem-destino" class="form-select form-select-sm mb-2">
                     <option value="responsavel" selected>Responsável</option>
                     <option value="team">Equipe inteira</option>

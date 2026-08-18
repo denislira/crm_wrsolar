@@ -9,6 +9,20 @@ include '../includes/config.php';
 
 $user_id = (int) $_SESSION['user_id'];
 
+function wrcrm_ensure_ai_bot_mode_column(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'ai_bot_mode'");
+        if ($stmt && $stmt->fetch()) return;
+        $pdo->exec("ALTER TABLE users ADD COLUMN ai_bot_mode VARCHAR(20) NOT NULL DEFAULT 'head'");
+    } catch (Throwable $e) {
+        // Ignore migration errors and keep working with the available schema.
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['success'=>false,'message'=>'Método não permitido']);
@@ -18,14 +32,25 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $nome_completo = $_POST['nome_completo'] ?? null;
 $biografia = $_POST['biografia'] ?? null;
 $email = $_POST['email'] ?? null;
+$aiBotMode = $_POST['ai_bot_mode'] ?? null;
 
 try {
+    wrcrm_ensure_ai_bot_mode_column($pdo);
     $latest = null;
     $fields = [];
     $params = [];
     if (!is_null($nome_completo)) { $fields[] = 'nome_completo = ?'; $params[] = $nome_completo; }
     if (!is_null($biografia)) { $fields[] = 'biografia = ?'; $params[] = $biografia; }
     if (!is_null($email)) { $fields[] = 'email = ?'; $params[] = $email; }
+    if (!is_null($aiBotMode)) {
+        if ($aiBotMode === 'speech') {
+            $aiBotMode = 'body';
+        }
+        $allowed = ['none', 'head', 'body'];
+        $aiBotMode = in_array($aiBotMode, $allowed, true) ? $aiBotMode : 'head';
+        $fields[] = 'ai_bot_mode = ?';
+        $params[] = $aiBotMode;
+    }
 
     if (!empty($fields)) {
         $params[] = $user_id;
@@ -35,7 +60,7 @@ try {
 
         // Refresh session values so frontend header/sidebar reflects changes
         try {
-            $r = $pdo->prepare('SELECT username, email, nome_completo, biografia FROM users WHERE id = ? LIMIT 1');
+            $r = $pdo->prepare('SELECT username, email, nome_completo, biografia, ai_bot_mode FROM users WHERE id = ? LIMIT 1');
             $r->execute([$user_id]);
             $latest = $r->fetch(PDO::FETCH_ASSOC);
             if ($latest) {
@@ -67,7 +92,7 @@ try {
                 $u = $pdo->prepare('UPDATE users SET avatar = ? WHERE id = ?');
                 $u->execute([$targetName, $user_id]);
                 if (!$latest) {
-                    $r = $pdo->prepare('SELECT username, email, nome_completo, biografia FROM users WHERE id = ? LIMIT 1');
+                    $r = $pdo->prepare('SELECT username, email, nome_completo, biografia, ai_bot_mode FROM users WHERE id = ? LIMIT 1');
                     $r->execute([$user_id]);
                     $latest = $r->fetch(PDO::FETCH_ASSOC);
                 }
@@ -83,7 +108,7 @@ try {
     }
 
     if (!$latest) {
-        $r = $pdo->prepare('SELECT username, email, nome_completo, biografia FROM users WHERE id = ? LIMIT 1');
+        $r = $pdo->prepare('SELECT username, email, nome_completo, biografia, ai_bot_mode FROM users WHERE id = ? LIMIT 1');
         $r->execute([$user_id]);
         $latest = $r->fetch(PDO::FETCH_ASSOC);
     }

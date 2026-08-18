@@ -8,6 +8,7 @@ if (!isset($_SESSION['user_id'])) {
 
 include '../includes/config.php';
 include '../includes/permissions.php';
+include '../includes/settings_storage.php';
 
 if (!hasPermission('configuracoes')) {
     http_response_code(403);
@@ -21,15 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$storageDir = __DIR__ . '/../storage';
-if (!is_dir($storageDir)) @mkdir($storageDir, 0755, true);
-$settingsPath = $storageDir . '/settings.json';
-
-$settings = [];
-if (file_exists($settingsPath)) {
-    $raw = @file_get_contents($settingsPath);
-    $settings = $raw ? json_decode($raw, true) : [];
-}
+$settings = wrcrm_load_settings(true);
 
 $smtp = isset($settings['smtp']) && is_array($settings['smtp']) ? $settings['smtp'] : [];
 
@@ -56,7 +49,7 @@ $smtp['auth'] = $auth;
 
 $settings['smtp'] = $smtp;
 
-if (file_put_contents($settingsPath, json_encode($settings, JSON_PRETTY_PRINT))) {
+if (wrcrm_save_settings($settings)) {
     $safeSmtp = $smtp;
     if (!empty($safeSmtp['pass'])) $safeSmtp['pass'] = '';
     echo json_encode(['success' => true, 'message' => 'SMTP salvo com sucesso', 'smtp' => $safeSmtp]);

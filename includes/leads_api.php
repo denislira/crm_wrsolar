@@ -139,6 +139,26 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
     }
 }
 
+/** Mantém a qualificação SQL como um marco histórico permanente. */
+function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
+    if (empty($leadId) || empty($stageId)) return false;
+    try {
+        $stageStmt = $pdo->prepare('SELECT is_qualification FROM funil_stages WHERE id = ? LIMIT 1');
+        $stageStmt->execute([(int)$stageId]);
+        if ((int)$stageStmt->fetchColumn() !== 1) return false;
+
+        $updateStmt = $pdo->prepare('UPDATE leads SET is_sql = 1 WHERE id = ? AND COALESCE(is_sql, 0) <> 1');
+        $updateStmt->execute([(int)$leadId]);
+        if ($updateStmt->rowCount() > 0) {
+            _log_lead_update($pdo, (int)$leadId, $userId, 'is_sql', 0, 1);
+            return true;
+        }
+    } catch (Throwable $e) {
+        _leads_api_log('SQL qualification sync failed for lead ' . (int)$leadId . ': ' . $e->getMessage());
+    }
+    return false;
+}
+
 
     if ($action === 'search') {
         $query = $_GET['q'] ?? '';
@@ -541,6 +561,7 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
         }
 
         $leadId = $pdo->lastInsertId();
+        _mark_lead_as_sql_for_stage($pdo, $leadId, $resolvedStageId, $userId);
 
         // Handle file attachments (multiple)
         if (!empty($_FILES['anexos'])) {
@@ -832,6 +853,7 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
         $stmt = $pdo->prepare('UPDATE leads SET name=?, cidade=?, email=?, phone=?, cpf_cnpj=?, source=?, status=?, stage_id=?, notes=?, consumo_cliente=?, estimativa_projeto_kwh=?, orcamento_value=?, envio_proposta=?, ultimo_contato=?, forma_pagamento=?, data_inicio=?, user_id_update=?, updated_at=NOW()' . $updateAnexos . ' WHERE id=?');
         try {
             $stmt->execute($params);
+            _mark_lead_as_sql_for_stage($pdo, (int)$data['id'], $resolvedStageId, $userId);
             if ((string)$oldUltimoContato !== (string)$ultimoContato) {
                 _log_lead_update($pdo, (int)$data['id'], $userId, 'ultimo_contato', $oldUltimoContato, $ultimoContato);
             }
@@ -964,6 +986,7 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
         $stmt = $pdo->prepare('UPDATE leads SET status=?, stage_id=?, updated_at=NOW() WHERE id=?');
         $p0 = is_string($data['status']) ? ensure_utf8_local($data['status']) : $data['status'];
         $stmt->execute([$p0, $resolvedStageId, $data['id']]);
+        _mark_lead_as_sql_for_stage($pdo, (int)$data['id'], $resolvedStageId, $userId);
         _log_lead_update($pdo, (int)$data['id'], $userId, 'status', $fromStatus, $p0);
         if ((string)$fromStageId !== (string)$resolvedStageId) {
             _log_lead_update($pdo, (int)$data['id'], $userId, 'stage_id', $fromStageId, $resolvedStageId);
@@ -1357,6 +1380,7 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
                 1
             ]);
             $newId = $pdo->lastInsertId();
+            _mark_lead_as_sql_for_stage($pdo, $newId, $targetStage, $userId);
             // After successfully creating the lead, mark the original anuncio as transferred instead of deleting it
             try {
                 $colChk2 = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads_anuncios'");
@@ -1434,6 +1458,7 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
                 $notes,
             ]);
             $newId = $pdo->lastInsertId();
+            _mark_lead_as_sql_for_stage($pdo, $newId, $resolvedStageId, $userId);
             $update = $pdo->prepare('UPDATE pos_venda_referrals SET transferred_to_kanban = 1, promoted_at = NOW() WHERE id = ? AND user_id = ?');
             $update->execute([$refId, $userId]);
             wrcrm_notify_lead_created($pdo, $newId, $userId);
@@ -1457,6 +1482,14 @@ function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, 
         $stmt->execute();
         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode($users);
+        exit;
+    }
+
+    // Get teams available as a task destination
+    if ($action === 'get_teams') {
+        $stmt = $pdo->prepare('SELECT id, name FROM teams ORDER BY name');
+        $stmt->execute();
+        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
         exit;
     }
 

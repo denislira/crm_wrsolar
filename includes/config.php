@@ -2,6 +2,8 @@
 // Simple auto-select configuration by request host.
 // If running on localhost use local XAMPP credentials, otherwise use production creds.
 
+date_default_timezone_set('America/Sao_Paulo');
+
 $reqHost = strtolower($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost');
 $reqHost = preg_replace('/:\d+$/', '', $reqHost);
 
@@ -24,6 +26,7 @@ try {
     $pdo = new PDO("mysql:host={$connectHost};dbname={$dbname};charset=utf8mb4", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->exec("SET NAMES utf8mb4");
+    $pdo->exec("SET time_zone = '-03:00'");
     try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS lead_update_logs (
             id INT AUTO_INCREMENT PRIMARY KEY,

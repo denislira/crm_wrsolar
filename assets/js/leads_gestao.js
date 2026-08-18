@@ -253,15 +253,37 @@
         return '#' + toHex(mix(rgb.r)) + toHex(mix(rgb.g)) + toHex(mix(rgb.b));
     }
 
+    function mixHexColors(baseHex, accentHex, accentWeight = 0.18){
+        const base = hexToRgb(baseHex);
+        const accent = hexToRgb(accentHex);
+        if (!base || !accent) return accentHex || baseHex || '';
+        const weight = Math.max(0, Math.min(1, accentWeight));
+        const mix = (baseChannel, accentChannel) => Math.round(baseChannel * (1 - weight) + accentChannel * weight);
+        const toHex = (n) => n.toString(16).padStart(2, '0');
+        return '#' + toHex(mix(base.r, accent.r)) + toHex(mix(base.g, accent.g)) + toHex(mix(base.b, accent.b));
+    }
+
     function isDarkThemeActive(){
         return document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
     }
 
     function applyKanbanHeaderColor(headerEl, columnColor){
         if (!headerEl || !columnColor) return;
-        const bg = isDarkThemeActive() ? darkenHexColor(columnColor, 0.55) : lightenHexColor(columnColor, 0.84);
-        headerEl.style.background = bg;
-        headerEl.style.borderBottomColor = columnColor;
+        // In dark mode tint a neutral surface with the configured stage color.
+        // This preserves each stage identity without producing saturated headers.
+        const darkTheme = isDarkThemeActive();
+        const bg = darkTheme ? mixHexColors('#151d2a', columnColor, 0.18) : lightenHexColor(columnColor, 0.84);
+        if (darkTheme) {
+            // The full-screen Kanban uses !important surface rules, so keep the
+            // calculated per-stage tint at inline-important priority.
+            headerEl.style.setProperty('background-color', bg, 'important');
+            headerEl.style.setProperty('border-bottom-color', mixHexColors('#334155', columnColor, 0.34), 'important');
+        } else {
+            headerEl.style.removeProperty('background-color');
+            headerEl.style.removeProperty('border-bottom-color');
+            headerEl.style.background = bg;
+            headerEl.style.borderBottomColor = columnColor;
+        }
         headerEl.style.color = readableTextColor(bg) || '#1f2937';
     }
 
@@ -1584,11 +1606,18 @@
     async function openTaskForLead(lead){
         if (!lead || !lead.id) return;
         let users = [];
+        let teams = [];
         try {
-            const res = await fetch('includes/leads_api.php?action=get_users');
-            users = await res.json();
+            const [usersResponse, teamsResponse] = await Promise.all([
+                fetch('includes/leads_api.php?action=get_users'),
+                fetch('includes/leads_api.php?action=get_teams')
+            ]);
+            users = await usersResponse.json();
+            teams = await teamsResponse.json();
+            if (!Array.isArray(users)) users = [];
+            if (!Array.isArray(teams)) teams = [];
         } catch (err) {
-            console.error('Erro ao obter usuarios:', err);
+            console.error('Erro ao obter responsáveis/equipes:', err);
         }
         const oldModal = document.getElementById('addTaskModal');
         if (oldModal) oldModal.remove();
@@ -1596,6 +1625,7 @@
         modal.className = 'modal fade';
         modal.id = 'addTaskModal';
         const options = users.map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.username)}</option>`).join('');
+        const teamOptions = teams.map(team => `<option value="${escapeHtml(team.id)}">${escapeHtml(team.name)}</option>`).join('');
         modal.innerHTML = `
             <div class="modal-dialog">
                 <div class="modal-content">
@@ -1614,6 +1644,19 @@
                                 <textarea class="form-control" id="taskDescription" rows="3" style="border-color: #0b6ac1;"></textarea>
                             </div>
                             <div class="mb-3">
+                                <label for="taskDestination" class="form-label">Destino</label>
+                                <select class="form-select" id="taskDestination" style="border-color: #0b6ac1;">
+                                    <option value="responsavel" selected>Responsável</option>
+                                    <option value="team">Equipe inteira</option>
+                                </select>
+                            </div>
+                            <div class="mb-3" id="taskTeamWrap" hidden>
+                                <label for="taskTeam" class="form-label">Equipe</label>
+                                <select class="form-select" id="taskTeam" style="border-color: #0b6ac1;">
+                                    <option value="">Selecione...</option>${teamOptions}
+                                </select>
+                            </div>
+                            <div class="mb-3" id="taskResponsavelWrap">
                                 <label for="taskResponsavel" class="form-label">Responsavel</label>
                                 <select class="form-select" id="taskResponsavel" style="border-color: #0b6ac1;"><option value="">Selecione...</option>${options}</select>
                             </div>
@@ -1632,6 +1675,18 @@
         document.body.appendChild(modal);
         const bsModal = new bootstrap.Modal(modal);
         bsModal.show();
+        const destinationSelect = document.getElementById('taskDestination');
+        const teamWrap = document.getElementById('taskTeamWrap');
+        const responsavelWrap = document.getElementById('taskResponsavelWrap');
+        const syncTaskDestination = () => {
+            const isTeam = destinationSelect.value === 'team';
+            teamWrap.hidden = !isTeam;
+            responsavelWrap.hidden = isTeam;
+            if (isTeam) document.getElementById('taskResponsavel').value = '';
+            else document.getElementById('taskTeam').value = '';
+        };
+        destinationSelect.addEventListener('change', syncTaskDestination);
+        syncTaskDestination();
         if (lead.responsavel_id) {
             const select = document.getElementById('taskResponsavel');
             if (select) select.value = String(lead.responsavel_id);
@@ -1639,10 +1694,13 @@
         document.getElementById('saveTaskBtn').addEventListener('click', async () => {
             const title = document.getElementById('taskTitle').value.trim();
             const description = document.getElementById('taskDescription').value.trim();
+            const destination = document.getElementById('taskDestination').value;
             const responsavelId = document.getElementById('taskResponsavel').value;
+            const teamId = document.getElementById('taskTeam').value;
             const dueDate = document.getElementById('taskDueDate').value;
             if (!title || !dueDate) { alert('Preencha titulo e data de vencimento.'); return; }
-            if (!responsavelId) { alert('Selecione um responsavel.'); return; }
+            if (destination === 'team' && !teamId) { alert('Selecione uma equipe.'); return; }
+            if (destination !== 'team' && !responsavelId) { alert('Selecione um responsavel.'); return; }
             try {
                 let userId = window.userId;
                 if (!userId) {
@@ -1657,8 +1715,10 @@
                     titulo: title,
                     descricao: description,
                     status: 'Pendente',
-                    responsavel: selectedUser ? selectedUser.username : '',
-                    responsavel_id: parseInt(responsavelId),
+                    destino: destination,
+                    team_id: destination === 'team' ? parseInt(teamId, 10) : '',
+                    responsavel: destination === 'team' ? '' : (selectedUser ? selectedUser.username : ''),
+                    responsavel_id: destination === 'team' ? '' : parseInt(responsavelId, 10),
                     data_vencimento: dueDate,
                     lead_id: lead.id
                 });
@@ -2549,6 +2609,9 @@
         taskBtn.title = 'Adicionar Tarefa';
         taskBtn.addEventListener('click', async (e)=>{
             e.stopPropagation();
+            // O card e o modal de edição usam o mesmo formulário de tarefa.
+            await openTaskForLead(lead);
+            return;
             // Obter lista de usuários
             let users = [];
             try {
@@ -3924,7 +3987,17 @@
 
         // dark mode
         const darkBtn = $('#darkToggle'); if (darkBtn) {
-            const apply = (on)=>{ document.body.classList.toggle('dark-mode', !!on); localStorage.setItem('darkMode', !!on ? '1' : '0'); darkBtn.textContent = !!on ? 'Modo Claro' : 'Modo Escuro'; syncLeadsTheme(); };
+            const apply = (on)=>{
+                const mode = on ? 'dark' : 'light';
+                document.body.classList.toggle('dark-mode', on);
+                document.body.classList.toggle('theme-dark', on);
+                document.body.classList.toggle('theme-light', !on);
+                document.documentElement.setAttribute('data-theme', mode);
+                localStorage.setItem('theme.mode', mode);
+                localStorage.setItem('darkMode', on ? '1' : '0');
+                darkBtn.textContent = on ? 'Modo Claro' : 'Modo Escuro';
+                syncLeadsTheme();
+            };
             apply(localStorage.getItem('darkMode') === '1');
             darkBtn.addEventListener('click', ()=> apply(!(localStorage.getItem('darkMode') === '1')) );
         }

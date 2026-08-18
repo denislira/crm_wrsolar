@@ -44,9 +44,13 @@
     (function(){
       const toggle = document.getElementById('themeToggle');
       const apply = (mode)=>{
-        document.body.classList.remove('theme-dark','theme-light');
+        const preloadStyle = document.getElementById('theme-preload-dark');
+        if (preloadStyle) preloadStyle.remove();
+        document.body.classList.remove('theme-dark','theme-light','dark-mode');
         if(mode === 'dark') document.body.classList.add('theme-dark');
         else document.body.classList.add('theme-light');
+        document.body.classList.toggle('dark-mode', mode === 'dark');
+        document.documentElement.setAttribute('data-theme', mode);
         try{
           localStorage.setItem('theme.mode', mode);
           localStorage.setItem('darkMode', mode === 'dark' ? '1' : '0');
@@ -199,6 +203,7 @@
     (function(){
       const sidebar = document.querySelector('.app-sidebar');
       const btn = document.getElementById('sidebarToggle');
+      const brandBtn = document.getElementById('sidebarBrandButton');
       const mobileBtn = document.getElementById('mobileSidebarToggle');
       const backdrop = document.getElementById('mobileSidebarBackdrop');
       if(!sidebar) return;
@@ -223,6 +228,12 @@
         }
         if(v) document.body.classList.add('sidebar-collapsed'); else document.body.classList.remove('sidebar-collapsed');
         if (btn) btn.setAttribute('aria-expanded', (!v).toString());
+        if (brandBtn) {
+          brandBtn.setAttribute('aria-disabled', (!v).toString());
+          brandBtn.setAttribute('aria-label', v ? 'Expandir menu' : 'Logomarca do sistema');
+          brandBtn.title = v ? 'Expandir menu' : '';
+          brandBtn.tabIndex = v ? 0 : -1;
+        }
         document.querySelectorAll('.app-sidebar .nav-link .label').forEach(el=>{
           if(v) { el.setAttribute('aria-hidden','true'); } else { el.removeAttribute('aria-hidden'); }
         });
@@ -266,6 +277,10 @@
         setCollapsed(!sidebar.classList.contains('collapsed'));
       });
 
+      if (brandBtn) brandBtn.addEventListener('click', ()=>{
+        if (!isMobile() && sidebar.classList.contains('collapsed')) setCollapsed(false);
+      });
+
       if (mobileBtn) mobileBtn.addEventListener('click', ()=>{
         setMobileOpen(!document.body.classList.contains('sidebar-mobile-open'));
       });
@@ -284,6 +299,48 @@
     })();
   </script>
 
+  <script>
+    // Ícones e títulos principais compartilhados entre as telas internas.
+    (function(){
+      const page = (location.pathname.split('/').pop() || 'index.php').toLowerCase();
+      const headings = {
+        'index.php':               ['main h1', 'fa-gauge-high'],
+        'dashboard.php':           ['main h1', 'fa-gauge-high'],
+        'configuracoes.php':       ['main h1.settings-title', 'fa-gear'],
+        'leads_gestao.php':        ['main h1', 'fa-users'],
+        'projetos.php':            ['main h1', 'fa-folder-open'],
+        'integracao-equipes.php':  ['main h1', 'fa-people-group'],
+        'funil.php':               ['main h1', 'fa-filter-circle-dollar'],
+        'funil_config.php':        ['main h1', 'fa-sliders'],
+        'projeto_config.php':      ['main h1', 'fa-diagram-project'],
+        'pos-venda.php':           ['main h1', 'fa-arrows-rotate'],
+        'meu_perfil.php':          ['main .profile-header-gradient h2', 'fa-user'],
+        'customers.php':           ['main h1', 'fa-address-book'],
+        'movimentos_leads.php':    ['main h1', 'fa-clock-rotate-left'],
+        'fila_demandas.php':       ['main h1', 'fa-inbox'],
+        'consultoria_externa.php': ['main h1.ce-page-title', 'fa-user-tie'],
+        'import_leads.php':        ['main h1', 'fa-file-import'],
+        'add_customer.php':        ['main h1', 'fa-user-plus']
+      };
+      const config = headings[page];
+      if (!config) return;
+      const title = document.querySelector(config[0]);
+      if (!title || title.classList.contains('wr-page-title')) return;
+
+      const oldIcon = title.querySelector(':scope > i');
+      if (oldIcon) oldIcon.remove();
+      const text = document.createElement('span');
+      text.className = 'wr-page-title-text';
+      while (title.firstChild) text.appendChild(title.firstChild);
+      const icon = document.createElement('span');
+      icon.className = 'wr-page-heading-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.innerHTML = '<i class="fa-solid ' + config[1] + '"></i>';
+      title.append(icon, text);
+      title.classList.add('wr-page-title');
+    })();
+  </script>
+
   <script src="assets/js/notifications.js"></script>
   <?php if (!empty($_SESSION['pending_login_notifications'])): ?>
   <script>
@@ -298,6 +355,7 @@
   <?php endif; ?>
   <?php if (empty($noNavbar) && !empty($_SESSION['user_id'])): ?>
   <script src="assets/js/internal_chat.js"></script>
+  <script src="assets/js/ai_assistant.js"></script>
   <?php endif; ?>
 </body>
 </html>

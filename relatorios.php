@@ -4,6 +4,7 @@ if (session_status() == PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['username'])) { header('Location: login.php'); exit(); }
 require_once 'includes/config.php';
 require_once 'includes/permissions.php';
+require_once 'includes/ai_settings.php';
 
 checkAccessOrRedirect('relatorios');
 
@@ -398,6 +399,9 @@ try {
 
 // --- Temporal analysis heuristics (automated insights) ---
 $temporalInsights = [];
+$temporalInsightsSource = 'fallback';
+$temporalInsightsStatus = 'Regras locais';
+$temporalInsightsError = '';
 $activityCount = 0;
 $activityProposalCount = 0;
 $activityByUser = [];
@@ -513,9 +517,61 @@ try {
 
     if (empty($temporalInsights)) $temporalInsights[] = 'Nenhum problema crítico detectado no período; continue monitorando os indicadores.';
 
+    $aiSettings = wrcrm_get_ai_settings(true);
+    if (!empty($aiSettings['enabled']) && !empty($aiSettings['api_key'])) {
+        $aiPayload = [
+            'periodo' => [
+                'inicio' => $fStartStr,
+                'fim' => $fEndStr,
+                'fontes_filtradas' => $filterSources,
+            ],
+            'resumo' => [
+                'leads_criados' => $leadsCreated,
+                'atividades_registradas' => $activityCount,
+                'media_atividades_por_lead' => $avgActivitiesPerLead,
+                'atividades_com_palavra_proposta' => $activityProposalCount,
+                'tempo_medio_para_fechar_dias' => $avgDaysToClose,
+                'ticket_medio' => $avgTicket,
+            ],
+            'conversao_por_origem' => $conversionBySource,
+            'quedas_entre_etapas' => $stageDropoffs,
+            'atividade_por_usuario' => $activityByUser,
+            'tendencia_mensal_leads' => $trendSeries,
+            'distribuicao_por_dia_semana' => $timeDistribution,
+            'alertas_heuristicos_atuais' => $temporalInsights,
+        ];
+
+        $aiResult = wrcrm_call_ai_chat([
+            ['role' => 'system', 'content' => (string)$aiSettings['prompt']],
+            ['role' => 'user', 'content' =>
+                "Analise os dados temporais abaixo e retorne JSON valido no formato {\"insights\":[\"texto 1\",\"texto 2\"]}.\n" .
+                "Cada insight deve citar o dado que sustenta a conclusao quando houver numero disponivel.\n" .
+                "Dados:\n" . json_encode($aiPayload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            ],
+        ]);
+
+        if (!empty($aiResult['success'])) {
+            $aiInsights = wrcrm_parse_ai_insights((string)$aiResult['content']);
+            if (!empty($aiInsights)) {
+                $temporalInsights = $aiInsights;
+                $temporalInsightsSource = 'ia';
+                $temporalInsightsStatus = 'Gerado por IA (' . ($aiSettings['provider'] === 'gemini' ? 'Gemini' : 'OpenAI compatível') . ')';
+            }
+        } else {
+            $temporalInsightsSource = 'fallback_error';
+            $temporalInsightsStatus = 'Regras locais';
+            $temporalInsightsError = (string)($aiResult['message'] ?? 'IA indisponivel');
+        }
+    } else {
+        $temporalInsightsStatus = 'Regras locais';
+    }
+
 } catch (Exception $e) {
     // fallback
     $temporalInsights[] = 'Não foi possível gerar insights automáticos (erro de análise).';
+    $temporalInsightsSource = 'fallback_error';
+    $temporalInsightsStatus = 'Erro na análise';
+    $temporalInsightsError = $e->getMessage();
 }
 
 // Timeline
@@ -756,6 +812,16 @@ try {
     $hasPayType  = in_array('payment_type', $qLeadCols, true);
     $hasOrcamento = in_array('orcamento_value', $qLeadCols, true);
 
+    $qStageCols = [];
+    try {
+        $qStageCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'")->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Exception $e) { /* schema antigo: os fallbacks por status continuam funcionando */ }
+    $hasStageId = in_array('stage_id', $qLeadCols, true);
+    $hasFinalType = in_array('final_type', $qStageCols, true);
+    $hasStageQualification = in_array('is_qualification', $qStageCols, true);
+    $qStageNameCol = in_array('stage_name', $qStageCols, true) ? 'stage_name' : (in_array('name', $qStageCols, true) ? 'name' : null);
+    $qStageJoin = $hasStageId ? ' LEFT JOIN funil_stages qfs ON qfs.id = l.stage_id' : '';
+
     $qualDelBase = $hasDeleted2 ? " AND deleted = 0" : "";
     $qualDateBase = in_array('data_inicio', $qLeadCols, true) ? 'data_inicio' : (in_array('created_at', $qLeadCols, true) ? 'created_at' : 'data_inicio');
     $qualSrcCond = $srcCond; // reuse source condition built earlier
@@ -772,9 +838,17 @@ try {
         $totalSqlStmt->execute($qualBaseParams);
         $totalSql = (int)$totalSqlStmt->fetchColumn();
     } else {
-        // Fallback: SQL = leads that have a proposta stage or orcamento_value > 0
-        $sqlFallbackCond = $hasOrcamento ? "orcamento_value > 0" : "status LIKE '%proposta%' OR status LIKE '%qualif%'";
-        $sqlFallbackStmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE ({$sqlFallbackCond}) AND {$qualBaseWhere}");
+        // Schema antigo: reconhece a configuração da etapa e, por compatibilidade,
+        // nomes de qualificação/proposta ou orçamento preenchido.
+        $sqlFallbackParts = [];
+        if ($hasStageQualification && $hasStageId) $sqlFallbackParts[] = 'COALESCE(qfs.is_qualification, 0) = 1';
+        if ($qStageNameCol && $hasStageId) $sqlFallbackParts[] = "LOWER(COALESCE(qfs.{$qStageNameCol}, '')) LIKE '%qualif%'";
+        $sqlFallbackParts[] = "LOWER(COALESCE(l.status, '')) LIKE '%qualif%'";
+        $sqlFallbackParts[] = "LOWER(COALESCE(l.status, '')) LIKE '%proposta%'";
+        if ($hasOrcamento) $sqlFallbackParts[] = 'COALESCE(l.orcamento_value, 0) > 0';
+        $sqlFallbackCond = implode(' OR ', $sqlFallbackParts);
+        $aliasedQualWhere = "l.{$qualDateBase} >= ? AND l.{$qualDateBase} <= ?" . ($hasDeleted2 ? ' AND l.deleted = 0' : '') . str_replace('source', 'l.source', $qualSrcCond);
+        $sqlFallbackStmt = $pdo->prepare("SELECT COUNT(DISTINCT l.id) FROM leads l{$qStageJoin} WHERE ({$sqlFallbackCond}) AND {$aliasedQualWhere}");
         $sqlFallbackStmt->execute($qualBaseParams);
         $totalSql = (int)$sqlFallbackStmt->fetchColumn();
     }
@@ -799,17 +873,25 @@ try {
         $disqualBySource = $dqSrcStmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Lost reasons
-    if ($hasLost) {
-        $lostStmt = $pdo->prepare("SELECT COALESCE(NULLIF(lost_reason,''),'Não informado') AS reason, COUNT(*) AS cnt FROM leads WHERE lost_reason IS NOT NULL AND {$qualBaseWhere} GROUP BY reason ORDER BY cnt DESC LIMIT 10");
-        $lostStmt->execute($qualBaseParams);
-        $lostReasons = $lostStmt->fetchAll(PDO::FETCH_ASSOC);
-    } else {
-        // Fallback from status
-        $lostStmt = $pdo->prepare("SELECT COALESCE(NULLIF(status,''),'Sem status') AS reason, COUNT(*) AS cnt FROM leads WHERE (status LIKE '%perdido%' OR status LIKE '%descartado%' OR status LIKE '%cancelado%') AND {$qualBaseWhere} GROUP BY reason ORDER BY cnt DESC LIMIT 10");
-        $lostStmt->execute($qualBaseParams);
-        $lostReasons = $lostStmt->fetchAll(PDO::FETCH_ASSOC);
-    }
+    // Perdas: a configuração final_type='lost' é a fonte principal. O status textual
+    // permanece como fallback para etapas antigas e importações sem stage_id.
+    $lostParts = [
+        "LOWER(COALESCE(l.status, '')) LIKE '%perdid%'",
+        "LOWER(COALESCE(l.status, '')) LIKE '%cancelad%'",
+        "LOWER(COALESCE(l.status, '')) LIKE '%descartad%'",
+    ];
+    if ($hasFinalType && $hasStageId) $lostParts[] = "COALESCE(qfs.final_type, 'none') = 'lost'";
+    $lostCondition = '(' . implode(' OR ', $lostParts) . ')';
+    $stageLabelExpr = ($qStageNameCol && $hasStageId)
+        ? "COALESCE(NULLIF(TRIM(qfs.{$qStageNameCol}), ''), NULLIF(TRIM(l.status), ''), 'Sem etapa')"
+        : "COALESCE(NULLIF(TRIM(l.status), ''), 'Sem etapa')";
+    $lostReasonExpr = $hasLost
+        ? "COALESCE(NULLIF(TRIM(l.lost_reason), ''), CONCAT('Não informado — ', {$stageLabelExpr}))"
+        : $stageLabelExpr;
+    $aliasedQualWhere = "l.{$qualDateBase} >= ? AND l.{$qualDateBase} <= ?" . ($hasDeleted2 ? ' AND l.deleted = 0' : '') . str_replace('source', 'l.source', $qualSrcCond);
+    $lostStmt = $pdo->prepare("SELECT {$lostReasonExpr} AS reason, COUNT(DISTINCT l.id) AS cnt FROM leads l{$qStageJoin} WHERE {$lostCondition} AND {$aliasedQualWhere} GROUP BY reason ORDER BY cnt DESC LIMIT 10");
+    $lostStmt->execute($qualBaseParams);
+    $lostReasons = $lostStmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Payment distribution
     $payColSrc = $hasPayType ? 'payment_type' : (in_array('forma_pagamento', $qLeadCols, true) ? 'forma_pagamento' : null);
@@ -1466,17 +1548,43 @@ body.theme-dark .export-btn { background: var(--blue-700) !important; }
 .stat-change { font-size: 0.75rem; margin-top: 0.25rem; }
 .stat-change.positive { color: #10b981; }
 .stat-change.negative { color: #ef4444; }
-.funnel-stage { background: #0f172a; color: #f8fafc; border-left: 4px solid; padding: 1rem 1.5rem; margin-bottom: 0.5rem; border-radius: 0 8px 8px 0; display: flex; justify-content: space-between; align-items: center; transition: all 0.3s; box-shadow: 0 4px 16px rgba(0,0,0,0.45); }
-.funnel-stage:hover { transform: translateX(4px); box-shadow: 0 8px 24px rgba(0,0,0,0.40); }
-.funnel-value { font-size: 1.5rem; font-weight: 700; }
-.funnel-percent { font-size: 0.875rem; color: #64748b; }
-.funnel-container { padding: 1rem 0; }
-.funnel-stage-wrapper { animation: slideInLeft 0.5s ease-out forwards; opacity: 0; }
-.funnel-compact .funnel-stage { padding: 0.2rem 0.4rem; margin-bottom: 0.25rem; border-radius: 0 4px 4px 0; }
-.funnel-compact .funnel-stage-number { min-width: 24px; font-size: 0.75rem; }
-.funnel-compact .funnel-stage .funnel-value { font-size: 0.95rem; }
-.funnel-compact .funnel-stage .funnel-percent { font-size: 0.6rem; gap: 0.35rem; }
-.funnel-compact .funnel-stage div[style*="font-weight: 600"] { font-size: 0.7rem !important; }
+.funnel-container { padding: 0; }
+.funnel-table { margin: 0; min-width: 620px; }
+.funnel-table th { white-space: nowrap; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+.funnel-table td { vertical-align: middle; padding-top: .65rem; padding-bottom: .65rem; }
+.funnel-stage-cell { display: flex; align-items: center; gap: .65rem; min-width: 180px; font-weight: 650; }
+.funnel-stage-order { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; border-radius: 50%; background: #eef2f7; color: #475569; font-size: .72rem; font-weight: 700; }
+.funnel-stage-color { width: 8px; height: 28px; flex: 0 0 8px; border-radius: 3px; }
+.funnel-volume { font-weight: 750; font-variant-numeric: tabular-nums; }
+.funnel-share { display: flex; align-items: center; gap: .55rem; min-width: 145px; }
+.funnel-share-track { width: 72px; height: 6px; overflow: hidden; border-radius: 99px; background: #e8edf3; }
+.funnel-share-fill { display: block; height: 100%; border-radius: inherit; }
+.funnel-rate { display: inline-flex; min-width: 56px; justify-content: center; padding: .2rem .45rem; border-radius: 5px; font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.funnel-rate.good { color: #047857; background: #d1fae5; }
+.funnel-rate.warning { color: #a16207; background: #fef3c7; }
+.funnel-rate.low { color: #b91c1c; background: #fee2e2; }
+.funnel-rate.base { color: #475569; background: #e2e8f0; }
+.funnel-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid #e2e8f0; }
+.funnel-summary-item { padding: .75rem 1rem; border-right: 1px solid #e2e8f0; }
+.funnel-summary-item:last-child { border-right: 0; }
+.funnel-summary-label { display: block; color: #64748b; font-size: .72rem; }
+.funnel-summary-value { display: block; margin-top: .12rem; color: #1e293b; font-size: 1.05rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+body.theme-dark .funnel-stage-order { background: rgba(255,255,255,.08); color: #c3d5ea; }
+body.theme-dark .funnel-share-track { background: rgba(255,255,255,.10); }
+body.theme-dark .funnel-summary,
+body.theme-dark .funnel-summary-item { border-color: rgba(255,255,255,.08); }
+body.theme-dark .funnel-summary-label { color: #b8c7dc; }
+body.theme-dark .funnel-summary-value { color: #e6eef8; }
+body.theme-dark .funnel-rate.good { color: #6ee7b7; background: rgba(16,185,129,.16); }
+body.theme-dark .funnel-rate.warning { color: #fcd34d; background: rgba(245,158,11,.16); }
+body.theme-dark .funnel-rate.low { color: #fca5a5; background: rgba(239,68,68,.16); }
+body.theme-dark .funnel-rate.base { color: #c3d5ea; background: rgba(148,163,184,.16); }
+@media (max-width: 767.98px) {
+    .funnel-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .funnel-summary-item:nth-child(2) { border-right: 0; }
+    .funnel-summary-item:nth-child(-n+2) { border-bottom: 1px solid #e2e8f0; }
+    body.theme-dark .funnel-summary-item:nth-child(-n+2) { border-bottom-color: rgba(255,255,255,.08); }
+}
 .illustrated-funnel {
     display: grid;
     grid-template-columns: minmax(320px, 0.95fr) minmax(280px, 1.05fr);
@@ -1563,9 +1671,12 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
         <div class="container-fluid">
             <!-- Header -->
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <div>
-                    <h1 class="h3 mb-1">📊 Relatórios e Análises</h1>
-                    <p class="text-muted small mb-0">Visão completa do desempenho comercial</p>
+                <div class="wr-page-title">
+                    <span class="wr-page-heading-icon" aria-hidden="true"><i class="fa-solid fa-chart-column"></i></span>
+                    <div>
+                        <h1 class="h3 mb-1">Relatórios e Análises</h1>
+                        <p class="text-muted small mb-0">Visão completa do desempenho comercial</p>
+                    </div>
                 </div>
                 <div class="d-flex gap-2">
                     <button class="export-btn" onclick="exportReport('pdf')"><i class="fa fa-file-pdf"></i> Exportar PDF</button>
@@ -1866,17 +1977,8 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
                             <div class="report-card">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <div class="report-card-title"><i class="fa fa-filter"></i> Funil de Vendas Completo</div>
-                                    <button id="btnCompactFunnel" class="btn btn-sm btn-outline-secondary" type="button" onclick="toggleCompactFunnel()">Compactar Funil</button>
                                 </div>
                                 <div id="chartFunnel" class="funnel-container"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row g-3 mb-4">
-                        <div class="col-12">
-                            <div class="report-card">
-                                <div class="report-card-title"><i class="fa fa-chart-simple"></i> Funil Ilustrado por Percentual</div>
-                                <div id="illustratedFunnel"></div>
                             </div>
                         </div>
                     </div>
@@ -1936,7 +2038,18 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
                             @media (max-width:800px){ .insight-card { flex:1 1 100%; } }
                             </style>
                             <div class="report-card">
-                                <div class="report-card-title"><i class="fa fa-lightbulb"></i> Insights automáticos (Análise Temporal)</div>
+                                <div class="report-card-title d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                    <span><i class="fa fa-lightbulb"></i> Insights automáticos (Análise Temporal)</span>
+                                    <?php
+                                        $insightBadgeClass = $temporalInsightsSource === 'ia' ? 'bg-success' : ($temporalInsightsSource === 'fallback_error' ? 'bg-warning text-dark' : 'bg-secondary');
+                                    ?>
+                                    <span class="badge <?php echo $insightBadgeClass; ?>"><?php echo htmlspecialchars($temporalInsightsStatus, ENT_QUOTES, 'UTF-8'); ?></span>
+                                </div>
+                                <?php if (!empty($temporalInsightsError)): ?>
+                                    <div class="alert alert-warning py-2 small mb-3">
+                                        IA não respondeu; exibindo regras locais. Detalhe: <?php echo htmlspecialchars($temporalInsightsError, ENT_QUOTES, 'UTF-8'); ?>
+                                    </div>
+                                <?php endif; ?>
                                 <div id="temporalInsights" style="min-height:120px;">
                                     <div id="temporalInsightsGrid" class="insights-grid">
                                         <?php if (!empty($temporalInsights) && is_array($temporalInsights)): ?>
@@ -2271,14 +2384,14 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
                     <div class="col-md-3">
                         <div class="kpi-card green">
                             <div class="kpi-value"><?php echo (int)$totalSql; ?></div>
-                            <div class="kpi-label">SQL (leads qualificados)</div>
+                            <div class="kpi-label d-flex align-items-center">SQL (leads qualificados)<button type="button" class="metric-info-button" title="SQL significa Sales Qualified Lead. O CRM marca is_sql = 1 quando o lead atinge uma etapa configurada como qualificação. Essa marca é permanente e continua válida mesmo se o lead avançar ou voltar no funil." aria-label="Explicação sobre leads SQL"><i class="fa-solid fa-circle-info"></i></button></div>
                             <i class="fa fa-check-double kpi-icon"></i>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="kpi-card <?php echo ($sqlRate !== null && $sqlRate < 30) ? 'orange' : 'blue'; ?>">
                             <div class="kpi-value"><?php echo $sqlRate !== null ? $sqlRate . '%' : '—'; ?></div>
-                            <div class="kpi-label">Taxa de SQL (MQL→SQL) <?php echo ($sqlRate !== null && $sqlRate < 30) ? ' ⚠ Baixa' : ''; ?></div>
+                            <div class="kpi-label d-flex align-items-center">Taxa de SQL (MQL→SQL) <?php echo ($sqlRate !== null && $sqlRate < 30) ? ' ⚠ Baixa' : ''; ?><button type="button" class="metric-info-button" title="Percentual dos leads recebidos que foram qualificados para vendas no período selecionado. Fórmula: total de SQL ÷ total de MQL × 100." aria-label="Explicação da Taxa SQL no relatório"><i class="fa-solid fa-circle-info"></i></button></div>
                             <i class="fa fa-percentage kpi-icon"></i>
                         </div>
                     </div>
@@ -2342,7 +2455,7 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
                     <div class="col-md-4">
                         <div class="kpi-card <?php echo ($speedToLeadAvg !== null && $speedToLeadAvg > 24) ? 'orange' : 'blue'; ?>">
                             <div class="kpi-value"><?php echo $speedToLeadAvg !== null ? $speedToLeadAvg . 'h' : '—'; ?></div>
-                            <div class="kpi-label">Speed-to-Lead (média)<?php echo ($speedToLeadAvg !== null && $speedToLeadAvg > 24) ? ' ⚠ Acima de 24h' : ''; ?></div>
+                            <div class="kpi-label d-flex align-items-center">Speed-to-Lead (média)<?php echo ($speedToLeadAvg !== null && $speedToLeadAvg > 24) ? ' ⚠ Acima de 24h' : ''; ?><button type="button" class="metric-info-button" title="Tempo médio entre a entrada do lead e o primeiro contato dentro do período e origem selecionados. Fórmula: média de first_contact_at − data_inicio (ou created_at), em horas. Leads sem first_contact_at não entram nessa média." aria-label="Explicação do Speed-to-Lead no relatório"><i class="fa-solid fa-circle-info"></i></button></div>
                             <i class="fa fa-bolt kpi-icon"></i>
                         </div>
                     </div>
@@ -2652,6 +2765,8 @@ const REPORT_LAST24_PROPOSTA = <?php echo json_encode($last24Proposta ?? 0, JSON
 const REPORT_LAST24_ATENDIMENTO = <?php echo json_encode($last24Atendimento ?? 0, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 // Temporal analysis results
 const REPORT_TEMPORAL_INSIGHTS = <?php echo json_encode($temporalInsights ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_TEMPORAL_INSIGHTS_SOURCE = <?php echo json_encode($temporalInsightsSource ?? 'fallback', JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_TEMPORAL_INSIGHTS_STATUS = <?php echo json_encode($temporalInsightsStatus ?? 'Regras locais', JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_ACTIVITY_BY_USER = <?php echo json_encode($activityByUser ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_CONVERSION_BY_SOURCE = <?php echo json_encode($conversionBySource ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_AVG_ACTIVITIES_PER_LEAD = <?php echo json_encode($avgActivitiesPerLead ?? null, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
@@ -3295,111 +3410,57 @@ function renderTemporalInsights() {
 function renderFunnel() {
     const container = document.getElementById('chartFunnel');
     if(!container) return;
-    
+
     const counts = REPORT_STAGE_COUNTS.map(c=>Number(c)||0);
-    const pairs = REPORT_STAGES.map((s,i)=>({ 
-        label:s.name||'Sem nome', 
-        value:counts[i]||0, 
+    const pairs = REPORT_STAGES.map((s,i)=>({
+        label:s.name||'Sem nome',
+        value:counts[i]||0,
         color:(s.color&&s.color!=='')?s.color:defaultPalette(i),
         order: i
     }));
-    
-    // Sort by order to maintain funnel sequence
+
     pairs.sort((a,b)=>a.order-b.order);
-    
     const totalLeads = pairs.reduce((sum, p) => sum + p.value, 0);
-    const maxValue = Math.max(...pairs.map(p => p.value), 1);
-    const minValue = Math.min(...pairs.map(p => p.value > 0 ? p.value : maxValue), maxValue);
-    
-    let html = '<div class="funnel-container">';
-    
-    pairs.forEach((p, idx) => {
-        const percentage = totalLeads > 0 ? ((p.value / totalLeads) * 100).toFixed(1) : 0;
-        // Width com escala de 30% (mínimo) a 100% (máximo) para manter o texto dentro da barra
-        // e ainda diferenciar claramente os valores.
-        let width = 30;
-        if (p.value > 0 && maxValue > 0) {
-            const proportion = p.value / maxValue;
-            width = Math.max(30, 20 + (proportion * 80)); // De 30% a 100%
-        }
-        const conversionRate = idx > 0 && pairs[idx-1].value > 0 ? ((p.value / pairs[idx-1].value) * 100).toFixed(1) : 100;
-        
-        html += `
-            <div class="funnel-stage-wrapper" style="width: 100%; display: flex; align-items: center; margin-bottom: 1rem;">
-                <div class="funnel-stage-number" style="min-width: 40px; text-align: center; font-weight: 700; font-size: 1.2rem; color: ${p.color};">
-                    ${idx + 1}
-                </div>
-                <div class="funnel-stage-bar" style="flex: 1;">
-                    <div class="funnel-stage" style="
-                        border-left: 6px solid ${p.color}; 
-                        width: ${width}%; 
-                        background: linear-gradient(90deg, ${p.color}35 0%, ${p.color}22 100%);
-                        box-shadow: 0 3px 12px rgba(0,0,0,0.35);
-                        margin: 0;
-                        color: #f8fafc;
-                    ">
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; font-size: 1rem; color: ${p.color || '#f8fafc'}; margin-bottom: 0.25rem;">
-                                ${escapeHtml(p.label)}
-                            </div>
-                            <div class="funnel-percent" style="display: flex; gap: 1rem; font-size: 0.8rem;">
-                                <span style="color: #64748b;">
-                                    <i class="fa fa-users" style="font-size: 0.75rem;"></i> ${formatNumber(p.value)} leads
-                                </span>
-                                <span style="color: #64748b;">
-                                    <i class="fa fa-percentage" style="font-size: 0.75rem;"></i> ${percentage}% do total
-                                </span>
-                                ${idx > 0 ? `<span style="color: ${conversionRate >= 50 ? '#10b981' : conversionRate >= 25 ? '#f59e0b' : '#ef4444'};">
-                                    <i class="fa fa-arrow-down" style="font-size: 0.75rem;"></i> ${conversionRate}% conversão
-                                </span>` : ''}
-                            </div>
-                        </div>
-                        <div class="funnel-value" style="font-size: 2rem; color: ${p.color};">
-                            ${formatNumber(p.value)}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    html += '</div>';
-    
-    // Add summary at the bottom
+
     const firstStage = pairs[0]?.value || 0;
     const lastStage = pairs[pairs.length - 1]?.value || 0;
     const overallConversion = firstStage > 0 ? ((lastStage / firstStage) * 100).toFixed(1) : 0;
-    
-    html += `
-        <div style="margin-top: 2rem; padding: 1.5rem; background: linear-gradient(135deg, var(--blue-700) 0%, var(--blue-900) 100%); border-radius: 12px; color: #fff;">
-            <div style="display: flex; justify-content: space-around; text-align: center;">
-                <div>
-                    <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Total no Funil</div>
-                    <div style="font-size: 2rem; font-weight: 700;">${formatNumber(totalLeads)}</div>
-                </div>
-                <div>
-                    <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Entrada</div>
-                    <div style="font-size: 2rem; font-weight: 700;">${formatNumber(firstStage)}</div>
-                </div>
-                <div>
-                    <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Conversão Final</div>
-                    <div style="font-size: 2rem; font-weight: 700;">${formatNumber(lastStage)}</div>
-                </div>
-                <div>
-                    <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Taxa Global</div>
-                    <div style="font-size: 2rem; font-weight: 700;">${overallConversion}%</div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    container.innerHTML = html;
 
-    // Toggle compact mode class state (keeps layout after render)
-    const funnelWrap = document.getElementById('chartFunnel');
-    if (funnelWrap && funnelWrap.classList.contains('funnel-compact')) {
-        funnelWrap.classList.add('funnel-compact');
+    let rows = '';
+    pairs.forEach((p, idx) => {
+        const share = totalLeads > 0 ? (p.value / totalLeads) * 100 : 0;
+        const conversion = idx > 0 && pairs[idx - 1].value > 0
+            ? (p.value / pairs[idx - 1].value) * 100
+            : null;
+        const rateClass = conversion === null ? 'base' : conversion >= 50 ? 'good' : conversion >= 25 ? 'warning' : 'low';
+        const rateLabel = conversion === null ? 'Base' : `${conversion.toFixed(1)}%`;
+
+        rows += `
+            <tr>
+                <td><div class="funnel-stage-cell"><span class="funnel-stage-order">${idx + 1}</span><span class="funnel-stage-color" style="background:${p.color}"></span><span>${escapeHtml(p.label)}</span></div></td>
+                <td class="text-end funnel-volume">${formatNumber(p.value)}</td>
+                <td><div class="funnel-share"><span class="funnel-share-track"><span class="funnel-share-fill" style="width:${share.toFixed(1)}%;background:${p.color}"></span></span><span>${share.toFixed(1)}%</span></div></td>
+                <td class="text-end"><span class="funnel-rate ${rateClass}">${rateLabel}</span></td>
+            </tr>`;
+    });
+
+    if (!pairs.length) {
+        rows = '<tr><td colspan="4" class="text-center text-muted py-4">Nenhuma etapa cadastrada para montar o funil.</td></tr>';
     }
+
+    container.innerHTML = `
+        <div class="table-responsive">
+            <table class="data-table funnel-table">
+                <thead><tr><th>Etapa</th><th class="text-end">Leads</th><th>Participação</th><th class="text-end">Conversão</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+        <div class="funnel-summary">
+            <div class="funnel-summary-item"><span class="funnel-summary-label">Total no funil</span><span class="funnel-summary-value">${formatNumber(totalLeads)}</span></div>
+            <div class="funnel-summary-item"><span class="funnel-summary-label">Entrada</span><span class="funnel-summary-value">${formatNumber(firstStage)}</span></div>
+            <div class="funnel-summary-item"><span class="funnel-summary-label">Etapa final</span><span class="funnel-summary-value">${formatNumber(lastStage)}</span></div>
+            <div class="funnel-summary-item"><span class="funnel-summary-label">Conversão global</span><span class="funnel-summary-value">${overallConversion}%</span></div>
+        </div>`;
 }
 
 function renderIllustratedFunnel() {
@@ -3532,17 +3593,6 @@ function renderIllustratedFunnel() {
             <div class="illustrated-funnel-details">${detailsHtml}</div>
         </div>
     `;
-}
-
-let isFunnelCompact = false;
-function toggleCompactFunnel() {
-    const container = document.getElementById('chartFunnel');
-    const btn = document.getElementById('btnCompactFunnel');
-    if (!container || !btn) return;
-
-    isFunnelCompact = !isFunnelCompact;
-    container.classList.toggle('funnel-compact', isFunnelCompact);
-    btn.textContent = isFunnelCompact ? 'Expandir Funil' : 'Compactar Funil';
 }
 
 function renderTopSourcesTable() {
@@ -4313,7 +4363,6 @@ function renderReports(){
         renderTimeDistributionChart();
         renderTrendsChart();
         renderFunnel();
-        renderIllustratedFunnel();
         renderTopSourcesTable();
         renderStagesDetailTable();
         renderTopSellersChart();

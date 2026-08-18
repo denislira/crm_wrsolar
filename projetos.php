@@ -255,6 +255,61 @@ include 'includes/header.php';
             body.theme-dark .card-project .badge {
                 color: #e6eef8 !important;
             }
+            body.theme-dark .top-info-toggle,
+            body.theme-dark .project-config-btn {
+                background: rgba(255,255,255,0.05) !important;
+                border-color: rgba(148,163,184,0.18) !important;
+                color: #93c5fd !important;
+                box-shadow: 0 8px 22px rgba(0,0,0,0.26) !important;
+            }
+            body.theme-dark .top-info-toggle:hover,
+            body.theme-dark .project-config-btn:hover {
+                background: rgba(59,130,246,0.16) !important;
+                border-color: rgba(96,165,250,0.38) !important;
+                color: #dbeafe !important;
+            }
+            body.theme-dark.hide-project-top-info .top-info-toggle {
+                background: #1d4ed8 !important;
+                border-color: #2563eb !important;
+                color: #fff !important;
+            }
+            body.theme-dark #btnTodosProjetos,
+            body.theme-dark #btnMeusProjetos {
+                background: rgba(255,255,255,0.04) !important;
+                border-color: rgba(148,163,184,0.18) !important;
+                color: #c3d5ea !important;
+            }
+            body.theme-dark #btnTodosProjetos.active,
+            body.theme-dark #btnMeusProjetos.active {
+                background: rgba(37,99,235,0.30) !important;
+                border-color: #3b82f6 !important;
+                color: #fff !important;
+            }
+            body.theme-dark .card-project .btn-outline-primary,
+            body.theme-dark .card-project .btn-outline-danger,
+            body.theme-dark .card-project .btn-outline-success,
+            body.theme-dark .card-project .btn-outline-secondary {
+                background: rgba(255,255,255,0.035) !important;
+                border-color: rgba(148,163,184,0.18) !important;
+            }
+            body.theme-dark .card-project .btn-outline-primary { color:#93c5fd !important; }
+            body.theme-dark .card-project .btn-outline-danger { color:#fca5a5 !important; }
+            body.theme-dark .card-project .btn-outline-success { color:#86efac !important; }
+            body.theme-dark .card-project .btn-outline-secondary { color:#cbd5e1 !important; }
+            body.theme-dark .card-project .btn:hover { background:rgba(255,255,255,0.10) !important; color:#fff !important; }
+            body.theme-dark .card-project .abbr-stage-badge.is-inactive {
+                background: #263446 !important;
+                color: #a9bacd !important;
+                border: 1px solid rgba(148,163,184,.12);
+            }
+            body.theme-dark .card-project .progress {
+                background: #263446 !important;
+                box-shadow: inset 0 1px 2px rgba(0,0,0,.30);
+            }
+            body.theme-dark .board-column.drop-target {
+                background: rgba(37,99,235,.10) !important;
+                border-color: #3b82f6 !important;
+            }
             body.hide-project-top-info .project-top-section {
                 display: none !important;
             }
@@ -371,6 +426,60 @@ include 'includes/header.php';
             .file-attachment-item a { color: #1d4ed8; text-decoration: none; }
             .file-attachment-item button { border: none; background: #f8fafc; color: #475569; padding: 0.25rem 0.45rem; border-radius: 0.65rem; cursor: pointer; }
             .file-attachment-item button:hover { background: #e2e8f0; }
+            body.theme-dark #modalProjeto .nav-tabs {
+                border-bottom-color: rgba(148,163,184,.16) !important;
+            }
+            body.theme-dark #modalProjeto .nav-tabs .nav-link {
+                color: #a9bdd2 !important;
+                border-color: transparent !important;
+            }
+            body.theme-dark #modalProjeto .nav-tabs .nav-link:hover {
+                background: rgba(255,255,255,.05) !important;
+                color: #fff !important;
+            }
+            body.theme-dark #modalProjeto .nav-tabs .nav-link.active {
+                background: #162438 !important;
+                border-color: rgba(148,163,184,.16) !important;
+                border-bottom-color: #162438 !important;
+                color: #fff !important;
+            }
+            body.theme-dark #modalProjeto .tab-content.bg-white {
+                background: #162438 !important;
+                border-color: rgba(148,163,184,.16) !important;
+                color: #e6eef8 !important;
+            }
+            body.theme-dark #modalProjeto .form-check-label { color: #cbd5e1 !important; }
+            body.theme-dark #modalProjeto .file-dropzone {
+                background: #111d2d !important;
+                border-color: #3b506b !important;
+                color: #cbd5e1 !important;
+            }
+            body.theme-dark #modalProjeto .file-dropzone:hover,
+            body.theme-dark #modalProjeto .file-dropzone.dragover {
+                background: rgba(37,99,235,.12) !important;
+                border-color: #3b82f6 !important;
+            }
+            body.theme-dark #modalProjeto .file-attachment-item {
+                background: #111d2d !important;
+                border-color: rgba(148,163,184,.16) !important;
+                color: #e6eef8 !important;
+            }
+            body.theme-dark #modalProjeto .file-attachment-item a { color: #93c5fd !important; }
+            body.theme-dark #modalProjeto .file-attachment-item button {
+                background: #1d2b3e !important;
+                color: #fca5a5 !important;
+                border: 1px solid rgba(248,113,113,.24) !important;
+            }
+            body.theme-dark #modalProjeto #btnExcluirProjeto {
+                background: rgba(239,68,68,.08) !important;
+                border-color: rgba(248,113,113,.38) !important;
+                color: #fca5a5 !important;
+            }
+            body.theme-dark #closeLeadPanel {
+                background: #1d2b3e !important;
+                border-color: rgba(148,163,184,.18) !important;
+                color: #e6eef8 !important;
+            }
         </style>
         <div id="projetos">
             <div class="d-flex align-items-center justify-content-between mb-2">
@@ -618,7 +727,7 @@ include 'includes/header.php';
                                                     $badgeStageColor = $stageStyles[$stageLabel]['color'] ?? '#0d6efd';
                                                     $badgeStyle = $isActiveStage ? 'background:' . htmlspecialchars($badgeStageColor) . ';color:#fff;' : 'background:#d8d8d8;color:#6c757d;';
                                                 ?>
-                                                    <span class="badge abbr-stage-badge" data-stage="<?= htmlspecialchars($stageLabel) ?>" style="font-size:70%; <?= $badgeStyle ?>"><?= htmlspecialchars($abbr) ?></span>
+                                                    <span class="badge abbr-stage-badge <?= $isActiveStage ? 'is-active' : 'is-inactive' ?>" data-stage="<?= htmlspecialchars($stageLabel) ?>" style="font-size:70%; <?= $badgeStyle ?>"><?= htmlspecialchars($abbr) ?></span>
                                                 <?php endforeach; ?>
                                             </div>
                                             <div class="d-flex flex-wrap gap-1 mt-2">

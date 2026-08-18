@@ -24,13 +24,13 @@
       row.dataset.id = s.id;
       const badges = [];
       if (asBool(s.is_conversion) || (s.final_type && String(s.final_type).toLowerCase() === 'won')) {
-        badges.push('<span style="background:#d1fae5;color:#065f46;font-size:.67rem;font-weight:700;padding:1px 6px;border-radius:20px;"><i class="fa fa-trophy" style="font-size:.6rem;"></i> Venda Concluída</span>');
+        badges.push('<span class="stage-badge-won" style="background:#d1fae5;color:#065f46;font-size:.67rem;font-weight:700;padding:1px 6px;border-radius:20px;"><i class="fa fa-trophy" style="font-size:.6rem;"></i> Venda Concluída</span>');
       }
       if (s.final_type && String(s.final_type).toLowerCase() === 'lost') {
-        badges.push('<span style="background:#fee2e2;color:#b91c1c;font-size:.67rem;font-weight:700;padding:1px 6px;border-radius:20px;"><i class="fa fa-times-circle" style="font-size:.6rem;"></i> Venda Perdida</span>');
+        badges.push('<span class="stage-badge-lost" style="background:#fee2e2;color:#b91c1c;font-size:.67rem;font-weight:700;padding:1px 6px;border-radius:20px;"><i class="fa fa-times-circle" style="font-size:.6rem;"></i> Venda Perdida</span>');
       }
       if (asBool(s.is_qualification)) {
-        badges.push('<span style="background:#dbeafe;color:#1e40af;font-size:.67rem;font-weight:700;padding:1px 6px;border-radius:20px;"><i class="fa fa-filter" style="font-size:.6rem;"></i> SQL</span>');
+        badges.push('<span class="stage-badge-sql" style="background:#dbeafe;color:#1e40af;font-size:.67rem;font-weight:700;padding:1px 6px;border-radius:20px;"><i class="fa fa-filter" style="font-size:.6rem;"></i> SQL</span>');
       }
       row.innerHTML = `
         <div class="d-flex align-items-center gap-2" style="min-width:0;">
@@ -142,7 +142,7 @@
     const card = document.createElement('div');
     card.style.marginTop = '8px'; card.style.padding = '10px'; card.style.borderRadius = '10px';
     card.style.borderLeft = '4px solid ' + (s.color || '#6c757d');
-    card.style.background = s.card_color || (isDark ? '#071427' : '#fff');
+    card.style.background = isDark ? '#101b2b' : (s.card_color || '#fff');
     card.style.color = isDark ? '#e6eef8' : '#111';
     card.innerHTML = 'Ex: Nome do lead — <small class="text-muted">R$ 10.000</small>';
     col.appendChild(card);

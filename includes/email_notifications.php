@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/settings_storage.php';
+
 if (!function_exists('wrcrm_settings_path')) {
     function wrcrm_settings_path() {
         return __DIR__ . '/../storage/settings.json';
@@ -28,19 +30,13 @@ if (!function_exists('wrcrm_mime_header_encode')) {
 
 if (!function_exists('wrcrm_read_settings')) {
     function wrcrm_read_settings() {
-        $path = wrcrm_settings_path();
-        if (!file_exists($path)) return [];
-        $raw = @file_get_contents($path);
-        $settings = $raw ? json_decode($raw, true) : [];
-        return is_array($settings) ? $settings : [];
+        return function_exists('wrcrm_load_settings') ? wrcrm_load_settings(true) : [];
     }
 }
 
 if (!function_exists('wrcrm_write_settings')) {
     function wrcrm_write_settings(array $settings) {
-        $dir = dirname(wrcrm_settings_path());
-        if (!is_dir($dir)) @mkdir($dir, 0755, true);
-        return @file_put_contents(wrcrm_settings_path(), json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX) !== false;
+        return function_exists('wrcrm_save_settings') ? wrcrm_save_settings($settings) : false;
     }
 }
 
