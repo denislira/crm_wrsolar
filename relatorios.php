@@ -207,11 +207,18 @@ try {
         if ($colorCol) $selectCols .= ", {$colorCol} AS color";
         $q = $pdo->query("SELECT {$selectCols} FROM funil_stages ORDER BY COALESCE({$positionCol}, id) ASC");
         $stages = $q->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($stages as $s) {
-                $c = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE (stage_id = ? OR status = ?) AND {$filterWhere}");
-                $c->execute(array_merge([$s['id'], $s['name']], $filterParams));
-                $stageCounts[] = (int)$c->fetchColumn();
-        }
+        // Aggregate all stages in one query instead of one COUNT query per stage.
+        $stageFilterWhere = str_replace($dateCol, "l.{$dateCol}", $filterWhere);
+        $stageFilterWhere = str_replace('deleted =', 'l.deleted =', $stageFilterWhere);
+        $stageFilterWhere = str_replace('source', 'l.source', $stageFilterWhere);
+        $countStmt = $pdo->prepare("SELECT fs.id, COUNT(DISTINCT l.id) AS total
+                FROM funil_stages fs LEFT JOIN leads l
+                  ON (l.stage_id = fs.id OR l.status = fs.{$nameCol}) AND {$stageFilterWhere}
+                GROUP BY fs.id");
+        $countStmt->execute($filterParams);
+        $countByStage = [];
+        foreach ($countStmt->fetchAll(PDO::FETCH_ASSOC) as $row) $countByStage[(string)$row['id']] = (int)$row['total'];
+        foreach ($stages as $s) $stageCounts[] = $countByStage[(string)$s['id']] ?? 0;
 } catch (Exception $e) { $stages = []; $stageCounts = []; }
 
 // Monthly series follows the same selected filter range
@@ -486,11 +493,8 @@ try {
     }
 
     // Heuristics for insights
-    if ($activityCount < max(10, $leadsCreated * 0.5)) {
-        $temporalInsights[] = 'Atividade geral baixa no período. A equipe precisa aumentar toques e follow-ups; sugerido: +2 contatos por lead.';
-    }
     if ($avgActivitiesPerLead < 1.5) {
-        $temporalInsights[] = 'Poucas ações por lead (média de ' . $avgActivitiesPerLead . '). Aumente cadência de contato e registre ações na plataforma.';
+        $temporalInsights[] = 'Poucas atividades registradas por lead no período: média de ' . $avgActivitiesPerLead . ' atividade(s) por lead. Esse insight aparece quando a média fica abaixo de 1,5; registre contatos, follow-ups e avanços do atendimento no CRM.';
     }
     if ($activityProposalCount < max(5, $leadsCreated * 0.05)) {
         $temporalInsights[] = 'Poucas propostas enviadas no período; reveja o processo de qualificação e prepare templates de proposta.';
@@ -546,6 +550,7 @@ try {
             ['role' => 'user', 'content' =>
                 "Analise os dados temporais abaixo e retorne JSON valido no formato {\"insights\":[\"texto 1\",\"texto 2\"]}.\n" .
                 "Cada insight deve citar o dado que sustenta a conclusao quando houver numero disponivel.\n" .
+                "Evite frases genericas como atividade geral baixa; explique qual indicador disparou o alerta e o limite usado quando existir.\n" .
                 "Dados:\n" . json_encode($aiPayload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
             ],
         ]);
@@ -1564,7 +1569,7 @@ body.theme-dark .export-btn { background: var(--blue-700) !important; }
 .funnel-rate.warning { color: #a16207; background: #fef3c7; }
 .funnel-rate.low { color: #b91c1c; background: #fee2e2; }
 .funnel-rate.base { color: #475569; background: #e2e8f0; }
-.funnel-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid #e2e8f0; }
+.funnel-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid #e2e8f0; }
 .funnel-summary-item { padding: .75rem 1rem; border-right: 1px solid #e2e8f0; }
 .funnel-summary-item:last-child { border-right: 0; }
 .funnel-summary-label { display: block; color: #64748b; font-size: .72rem; }
@@ -1615,6 +1620,15 @@ body.theme-dark .funnel-rate.base { color: #c3d5ea; background: rgba(148,163,184
 .illustrated-funnel-name { font-size: 1.05rem; font-weight: 800; color: #1f2937; margin-bottom: 0.12rem; }
 .illustrated-funnel-desc { color: #64748b; font-size: 0.9rem; line-height: 1.25; }
 .illustrated-funnel-metric { color: #334155; font-weight: 700; font-size: 0.82rem; margin-top: 0.22rem; }
+.illustrated-funnel-three { display:grid; grid-template-columns: minmax(180px,1fr) minmax(360px,1.8fr) minmax(180px,1fr); gap:2rem; align-items:center; padding:1.75rem 2rem 2rem; background:linear-gradient(145deg,#f8fafc 0%,#eef2ff 100%); border:1px solid #e2e8f0; border-radius:20px; box-shadow:0 18px 45px rgba(30,41,59,.10); }
+.illustrated-funnel-total { color:#991b1b; font-size:clamp(1.45rem,2.5vw,2rem); font-weight:900; letter-spacing:-.035em; text-align:center; margin:0; padding:1.35rem 1rem .9rem; background:#fff; border:1px solid #e2e8f0; border-bottom:0; border-radius:20px 20px 0 0; }
+.illustrated-funnel-group { display:flex; flex-direction:column; align-items:center; gap:7px; }
+.illustrated-funnel-group-subtitle { background:linear-gradient(135deg,#cbd5e1,#94a3b8); color:#0f172a; font-weight:800; padding:.8rem 1rem; text-align:center; width:100%; margin-bottom:.55rem; border-radius:10px; box-shadow:0 5px 12px rgba(71,85,105,.14); }
+.illustrated-funnel-step { width:var(--w); min-height:58px; background:linear-gradient(135deg,color-mix(in srgb,var(--c) 88%,#fff),var(--c)); color:#101827; display:flex; align-items:center; justify-content:center; text-align:center; font-weight:850; line-height:1.12; padding:.55rem .5rem; clip-path:polygon(0 0,100% 0,88% 100%,12% 100%); filter:drop-shadow(0 7px 5px rgba(15,23,42,.16)); text-transform:uppercase; letter-spacing:.01em; }
+.illustrated-funnel-step small { display:block; font-size:.72rem; font-weight:700; opacity:.85; text-transform:none; margin-top:.18rem; }
+.illustrated-funnel-arrow { color:#eab308; font-size:1.8rem; line-height:.7; text-shadow:0 2px 3px rgba(161,98,7,.25); }
+body.theme-dark .illustrated-funnel-three { background:rgba(255,255,255,.03); }
+@media (max-width: 768px) { .illustrated-funnel-three { grid-template-columns:1fr; gap:1.5rem; padding:1rem; } .illustrated-funnel-group.central { order:-1; } .illustrated-funnel-step { min-height:54px; } }
 body.theme-dark .illustrated-funnel { background: rgba(255,255,255,0.03) !important; border-color: rgba(255,255,255,0.08) !important; }
 body.theme-dark .illustrated-funnel-percent,
 body.theme-dark .illustrated-funnel-side-percent,
@@ -1976,6 +1990,17 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
                         <div class="col-12">
                             <div class="report-card">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <div class="report-card-title"><i class="fa fa-diagram-project"></i> Visão visual do funil</div>
+                                    <span class="small text-muted">Atualizado conforme os filtros selecionados</span>
+                                </div>
+                                <div id="illustratedFunnel"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <div class="report-card">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
                                     <div class="report-card-title"><i class="fa fa-filter"></i> Funil de Vendas Completo</div>
                                 </div>
                                 <div id="chartFunnel" class="funnel-container"></div>
@@ -2067,7 +2092,7 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
                                     </div>
                                 </div>
                                 <div style="margin-top:12px;">
-                                    <strong>Atividade por usuário (últimos 90 dias)</strong>
+                                    <strong>Atividade por usuário (período filtrado)</strong>
                                     <div id="temporalActivityByUser" style="margin-top:8px;"></div>
                                 </div>
                             </div>
@@ -3393,8 +3418,9 @@ function renderTemporalInsights() {
         card.appendChild(icon); card.appendChild(body);
         grid.appendChild(card);
     });
+}
 
-    // Activity by user small table (kept compact)
+function renderActivityByUser() {
     const abContainer = document.getElementById('temporalActivityByUser');
     if (!abContainer) return;
     const rows = Array.isArray(REPORT_ACTIVITY_BY_USER) ? REPORT_ACTIVITY_BY_USER : [];
@@ -3449,21 +3475,21 @@ function renderFunnel() {
     }
 
     container.innerHTML = `
-        <div class="table-responsive">
-            <table class="data-table funnel-table">
-                <thead><tr><th>Etapa</th><th class="text-end">Leads</th><th>Participação</th><th class="text-end">Conversão</th></tr></thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>
         <div class="funnel-summary">
             <div class="funnel-summary-item"><span class="funnel-summary-label">Total no funil</span><span class="funnel-summary-value">${formatNumber(totalLeads)}</span></div>
             <div class="funnel-summary-item"><span class="funnel-summary-label">Entrada</span><span class="funnel-summary-value">${formatNumber(firstStage)}</span></div>
             <div class="funnel-summary-item"><span class="funnel-summary-label">Etapa final</span><span class="funnel-summary-value">${formatNumber(lastStage)}</span></div>
             <div class="funnel-summary-item"><span class="funnel-summary-label">Conversão global</span><span class="funnel-summary-value">${overallConversion}%</span></div>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table funnel-table">
+                <thead><tr><th>Etapa</th><th class="text-end">Leads</th><th>Participação</th><th class="text-end">Conversão</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
         </div>`;
 }
 
-function renderIllustratedFunnel() {
+function renderIllustratedFunnelLegacy() {
     const container = document.getElementById('illustratedFunnel');
     if (!container) return;
 
@@ -3593,6 +3619,45 @@ function renderIllustratedFunnel() {
             <div class="illustrated-funnel-details">${detailsHtml}</div>
         </div>
     `;
+}
+
+// Layout requested for the funnel report: 1 stage on the left, 5 in the
+// central progression and 3 outcome stages on the right.
+function renderIllustratedFunnel() {
+    const container = document.getElementById('illustratedFunnel');
+    if (!container) return;
+    const counts = REPORT_STAGE_COUNTS.map(c => Number(c) || 0);
+    const stages = REPORT_STAGES.map((s, i) => ({
+        label: s.name || 'Sem nome', value: counts[i] || 0,
+        color: s.color || defaultPalette(i), order: i
+    }));
+    if (!stages.length) { container.innerHTML = '<p class="text-muted text-center py-5">Nenhuma etapa cadastrada.</p>'; return; }
+
+    // The configured order is preserved. With the standard 9 stages this is
+    // exactly 1 / 5 / 3, while unusual configurations remain usable.
+    const left = stages.slice(0, 1);
+    const center = stages.slice(1, 6);
+    const right = stages.slice(6, 9);
+    const esc = value => escapeHtml(String(value));
+    const step = (s, i, total) => {
+        const width = Math.max(38, 100 - (i * (total > 1 ? 13 : 0)));
+        return `<div class="illustrated-funnel-step" style="--w:${width}%;--c:${esc(s.color)}"><span>${esc(s.label)}<small>${formatNumber(s.value)} leads</small></span></div>`;
+    };
+    const group = (items, cls, title, subtitle) => `<div class="illustrated-funnel-group ${cls}">
+        ${title ? `<div class="illustrated-funnel-group-title">${title}</div>` : ''}
+        ${subtitle ? `<div class="illustrated-funnel-group-subtitle">${subtitle}</div>` : ''}
+        ${items.length ? items.map((s, i) => step(s, i, items.length)).join('<div class="illustrated-funnel-arrow">↓</div>') : '<span class="text-muted">Sem etapas</span>'}
+    </div>`;
+    const total = stages.reduce((sum, s) => sum + s.value, 0);
+    container.innerHTML = `<div class="illustrated-funnel-total">Total do Funil ${formatNumber(total)}</div>
+    <div class="illustrated-funnel-three">
+        ${group(left, 'side left', '', '')}
+        <div class="illustrated-funnel-group central">
+            <div class="illustrated-funnel-group-subtitle">${formatNumber(center.reduce((sum, s) => sum + s.value, 0))} leads - contato realizado/Desqualificado</div>
+            ${center.length ? center.map((s, i) => step(s, i, center.length)).join('<div class="illustrated-funnel-arrow">↓</div>') : '<span class="text-muted">Sem etapas</span>'}
+        </div>
+        ${group(right, 'side right', '', '')}
+    </div>`;
 }
 
 function renderTopSourcesTable() {
@@ -4363,6 +4428,7 @@ function renderReports(){
         renderTimeDistributionChart();
         renderTrendsChart();
         renderFunnel();
+        renderIllustratedFunnel();
         renderTopSourcesTable();
         renderStagesDetailTable();
         renderTopSellersChart();
@@ -4372,6 +4438,7 @@ function renderReports(){
         renderDailyCharts();
         renderFilteredStatusChart();
         renderTemporalInsights();
+        renderActivityByUser();
         // New modules
         renderQualificationCharts();
         renderSLACharts();

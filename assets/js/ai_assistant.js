@@ -11,17 +11,26 @@
 
   function addMessage(list, role, text) {
     const home = document.getElementById('aiAssistantHome');
-    if (home) home.hidden = true;
+    if (home) home.classList.add('chat-active');
     list.hidden = false;
     const msg = el('div', { class: 'ai-assistant-message ' + role });
+    const content = el('div', { class: 'ai-message-content' });
     if (role === 'assistant') {
-      msg.innerHTML = renderAssistantMessage(String(text || ''));
+      content.innerHTML = renderAssistantMessage(String(text || ''));
     } else {
-      msg.textContent = String(text || '');
+      content.appendChild(el('span', { class: 'ai-message-text' }, String(text || '')));
     }
+    msg.appendChild(content);
     list.appendChild(msg);
-    list.scrollTop = list.scrollHeight;
+    if (home) home.scrollTop = home.scrollHeight;
     return msg;
+  }
+
+  function updateAssistantMessage(msg, text) {
+    const content = msg.querySelector('.ai-message-content');
+    if (content) {
+      content.innerHTML = renderAssistantMessage(String(text || ''));
+    }
   }
 
   function renderAssistantMessage(text) {
@@ -80,7 +89,12 @@
     }
 
     flushList();
-    return blocks.join('');
+    return (
+      '<section class="ai-assistant-insights ai-response-card">' +
+        '<h3><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Resposta da IA</h3>' +
+        '<div class="ai-response-content">' + blocks.join('') + '</div>' +
+      '</section>'
+    );
   }
 
   function buildAssistantHome(onPrompt) {
@@ -97,17 +111,13 @@
       'Sugira ações para melhorar meus resultados'
     ];
     const quickList = el('div', { class: 'ai-assistant-quick-list', 'aria-label': 'Perguntas rapidas' });
-    quickPrompts.forEach(prompt => {
-      const button = el('button', { class: 'ai-assistant-quick-prompt', type: 'button' });
-      button.appendChild(el('span', {}, prompt));
-      button.innerHTML += '<i class="fa-solid fa-arrow-right" aria-hidden="true"></i>';
-      button.addEventListener('click', () => onPrompt(prompt));
-      quickList.appendChild(button);
-    });
+    renderQuickPrompts(quickList, quickPrompts, onPrompt);
     home.appendChild(quickList);
 
     const insightSection = el('section', { class: 'ai-assistant-insights' });
     insightSection.appendChild(el('h3', {}, 'Insights para você'));
+    const insightList = el('div', { class: 'ai-assistant-insights-list' });
+    insightSection.appendChild(insightList);
     const insights = [
       { icon: 'fa-user-clock', tone: 'danger', title: 'Leads estão sem contato há mais de 24h.', text: 'Atender agora pode aumentar a conversão em até 30%.', action: 'Mostre os leads sem contato >24h', label: 'Ver lista de leads' },
       { icon: 'fa-hourglass-half', tone: 'warning', title: 'Você tem leads parados há mais de 7 dias.', text: 'Que tal criar uma ação para reengajá-los?', action: 'Quais leads estão parados há mais de 7 dias?', label: 'Ver leads parados' },
@@ -125,10 +135,56 @@
       content.appendChild(action);
       row.appendChild(icon);
       row.appendChild(content);
-      insightSection.appendChild(row);
+      insightList.appendChild(row);
     });
     home.appendChild(insightSection);
+    loadAssistantHomeInsights(quickList, insightList, onPrompt);
     return home;
+  }
+
+  function renderQuickPrompts(container, prompts, onPrompt) {
+    container.innerHTML = '';
+    prompts.forEach(prompt => {
+      const button = el('button', { class: 'ai-assistant-quick-prompt', type: 'button' });
+      button.appendChild(el('span', {}, prompt));
+      button.innerHTML += '<i class="fa-solid fa-arrow-right" aria-hidden="true"></i>';
+      button.addEventListener('click', () => onPrompt(prompt));
+      container.appendChild(button);
+    });
+  }
+
+  function renderHomeInsights(container, insights, onPrompt) {
+    container.innerHTML = '';
+    insights.forEach(insight => {
+      const row = el('div', { class: 'ai-assistant-insight' });
+      const icon = el('span', { class: 'ai-assistant-insight-icon ' + (insight.tone || 'success') });
+      icon.innerHTML = '<i class="fa-solid ' + (insight.icon || 'fa-lightbulb') + '" aria-hidden="true"></i>';
+      const content = el('div', { class: 'ai-assistant-insight-content' });
+      content.appendChild(el('strong', {}, insight.title || 'Insight do CRM'));
+      content.appendChild(el('p', {}, insight.text || 'Abra a IA para analisar os dados comerciais.'));
+      if (insight.action && insight.label) {
+        const action = el('button', { class: 'ai-assistant-insight-action', type: 'button' }, insight.label);
+        action.addEventListener('click', () => onPrompt(insight.action));
+        content.appendChild(action);
+      }
+      row.appendChild(icon);
+      row.appendChild(content);
+      container.appendChild(row);
+    });
+  }
+
+  async function loadAssistantHomeInsights(quickList, insightList, onPrompt) {
+    try {
+      const res = await fetch('api/ai_home_insights.php');
+      const data = await res.json();
+      if (!data || !data.success) return;
+      if (Array.isArray(data.quick_prompts) && data.quick_prompts.length) {
+        renderQuickPrompts(quickList, data.quick_prompts, onPrompt);
+      }
+      if (Array.isArray(data.insights) && data.insights.length) {
+        renderHomeInsights(insightList, data.insights, onPrompt);
+      }
+    } catch (e) {}
   }
 
   function buildAssistant() {
@@ -184,7 +240,6 @@
     header.appendChild(actions);
 
     const messages = el('div', { id: 'aiAssistantMessages', class: 'ai-assistant-messages' });
-    messages.hidden = true;
     const contextBox = el('div', { id: 'aiAssistantContext', class: 'ai-assistant-context', hidden: 'hidden' });
     const suggestions = el('details', { class: 'ai-assistant-suggestions' });
     const suggestionsSummary = el('summary', { class: 'ai-assistant-suggestions-summary' }, 'Perguntas prontas');
@@ -227,10 +282,10 @@
       input.value = text;
       form.requestSubmit();
     });
+    home.appendChild(messages);
 
     panel.appendChild(header);
     panel.appendChild(home);
-    panel.appendChild(messages);
     panel.appendChild(contextBox);
     panel.appendChild(suggestions);
     panel.appendChild(form);
@@ -431,7 +486,9 @@
         await fetch('api/ai_chat.php?action=clear', { method: 'POST' });
       } catch (e) {}
       messages.innerHTML = '';
-      addMessage(messages, 'assistant', 'Histórico limpo. Pode mandar a próxima pergunta.');
+      messages.dataset.loaded = '1';
+      home.classList.remove('chat-active');
+      messages.hidden = false;
     });
 
     input.addEventListener('keydown', event => {
@@ -456,15 +513,16 @@
         fd.append('message', text);
         const res = await fetch('api/ai_chat.php', { method: 'POST', body: fd });
         const data = await res.json();
-        loading.textContent = data.success ? data.answer : (data.message || 'Não consegui responder agora.');
+        const answer = data.success ? data.answer : (data.message || 'Não consegui responder agora.');
+        updateAssistantMessage(loading, answer);
         status.textContent = data.success && data.checked_at ? 'Banco consultado às ' + data.checked_at : 'Consulta finalizada';
       } catch (e) {
-        loading.textContent = 'Erro ao consultar a IA. Confira a configuração em Integrações.';
+        updateAssistantMessage(loading, 'Erro ao consultar a IA. Confira a configuração em Integrações.');
         status.textContent = 'Erro na consulta';
       }
       send.disabled = false;
       setAssistantSpeaking(false);
-      messages.scrollTop = messages.scrollHeight;
+      home.scrollTop = home.scrollHeight;
     });
 
     setupContextualAssistant({ panel, launcher, messages, input, form, contextBox, status });
@@ -481,11 +539,7 @@
         return;
       }
     } catch (e) {}
-    const home = document.getElementById('aiAssistantHome');
-    if (home) home.hidden = false;
-    messages.hidden = true;
-    return;
-    addMessage(messages, 'assistant', 'Oi, eu sou a IA do CRM. Pergunte sobre leads, funil, atividades, projetos ou pós-venda.');
+    messages.hidden = false;
   }
 
   async function initAssistant() {
@@ -685,7 +739,8 @@
     let bubble = document.getElementById('aiProactiveBubble');
     if (!bubble) {
       bubble = el('button', { id: 'aiProactiveBubble', class: 'ai-assistant-proactive', type: 'button' });
-      bubble.addEventListener('click', () => {
+      bubble.addEventListener('click', event => {
+        if (event.target && event.target.closest && event.target.closest('.ai-proactive-close')) return;
         const launcher = document.getElementById('aiAssistantLauncher');
         if (launcher) launcher.click();
         bubble.classList.remove('show');
@@ -693,6 +748,17 @@
       document.body.appendChild(bubble);
     }
     bubble.innerHTML = renderProactiveBubble(message);
+    const close = bubble.querySelector('.ai-proactive-close');
+    if (close) {
+      close.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        bubble.classList.remove('show');
+        if (typeof window.__setAiAssistantSpeaking === 'function') {
+          window.__setAiAssistantSpeaking(false);
+        }
+      });
+    }
     bubble.style.right = 'var(--ai-assistant-proactive-right, 62px)';
     bubble.style.bottom = 'var(--ai-assistant-proactive-bottom, 128px)';
     bubble.classList.add('show');
@@ -710,7 +776,7 @@
 
   function renderProactiveBubble(message) {
     let text = String(message || '').trim();
-    if (!text) return '<div class="ai-proactive-card"><div class="ai-proactive-kicker">IA proativa</div><div class="ai-proactive-title">Sem retorno no momento</div></div>';
+    if (!text) return '<div class="ai-proactive-card"><button class="ai-proactive-close" type="button" aria-label="Fechar sugestão" title="Fechar sugestão"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button><div class="ai-proactive-kicker">IA proativa</div><div class="ai-proactive-title">Sem retorno no momento</div></div>';
 
     const parts = text
       .replace(/\s*([.!?])\s+(?=[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ])/g, '$1\n')
@@ -727,6 +793,7 @@
 
     return (
       '<div class="ai-proactive-card">' +
+        '<button class="ai-proactive-close" type="button" aria-label="Fechar sugestão" title="Fechar sugestão"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>' +
         '<div class="ai-proactive-kicker">IA proativa</div>' +
         '<div class="ai-proactive-title">' + escapeHtml(lead || text) + '</div>' +
         (bullets.length ? '<div class="ai-proactive-list">' + bullets.map(item => '<div class="ai-proactive-item">' + escapeHtml(item) + '</div>').join('') + '</div>' : '') +

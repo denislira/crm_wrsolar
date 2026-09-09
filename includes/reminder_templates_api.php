@@ -43,7 +43,25 @@ try {
         $id = $pdo->lastInsertId();
         http_response_code(201); echo json_encode(['id'=>$id]); exit;
     }
-    // future: update/delete for admins
+    if ($action === 'update') {
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $message = trim($_POST['message'] ?? '');
+        $offset = (int)($_POST['default_days_offset'] ?? 0);
+        $time = $_POST['default_time'] ?? null;
+        $channel = $_POST['channel'] ?? 'in-app';
+        if (!$id || $name === '' || $message === '') { http_response_code(400); echo json_encode(['error'=>'id, name and message required']); exit; }
+        $stmt = $pdo->prepare('UPDATE reminder_templates SET name = ?, message = ?, default_days_offset = ?, default_time = ?, channel = ? WHERE id = ? AND active = 1');
+        $stmt->execute([$name, $message, $offset, $time ?: null, $channel, $id]);
+        echo json_encode(['ok'=>true]); exit;
+    }
+    if ($action === 'deactivate') {
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) { http_response_code(400); echo json_encode(['error'=>'id required']); exit; }
+        $stmt = $pdo->prepare('UPDATE reminder_templates SET active = 0 WHERE id = ?');
+        $stmt->execute([$id]);
+        echo json_encode(['ok'=>true]); exit;
+    }
     http_response_code(400); echo json_encode(['error'=>'Unknown action']);
 } catch (Exception $e) {
     http_response_code(500); echo json_encode(['error'=>$e->getMessage()]);

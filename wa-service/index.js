@@ -78,12 +78,16 @@ const logger = pino({ level: process.env.WA_DEBUG === '1' ? (process.env.LOG_LEV
 const defaultStoragePath = path.join(__dirname, '..', 'storage', 'wa_state.json');
 const STORAGE_PATH = process.env.STORAGE_PATH || defaultStoragePath;
 const COMMAND_PATH = process.env.COMMAND_PATH || path.join(path.dirname(STORAGE_PATH), 'wa_command.json');
+const RESULT_PATH = process.env.RESULT_PATH || path.join(path.dirname(STORAGE_PATH), 'wa_result.json');
 const AUTH_FILE = process.env.AUTH_FILE || path.join(__dirname, 'auth_info.json');
 
 let sock = null;
 let saveCredsHandler = null;
 let lastCommandId = null;
 let restarting = false;
+let manualDisconnect = false;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
 let currentState = { connected: false, info: 'iniciando servico Baileys' };
 
 function ensureDir(filePath) {
@@ -146,6 +150,8 @@ async function startSocket({ fresh = false, reason = 'start' } = {}) {
   restarting = true;
 
   try {
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    if (reason !== 'disconnect') manualDisconnect = false;
     closeSocket();
     if (fresh) removeAuth();
 
@@ -182,6 +188,7 @@ async function startSocket({ fresh = false, reason = 'start' } = {}) {
           info: 'connected via Baileys - ' + (sock.user && sock.user.id ? sock.user.id : 'online'),
           connected_at: new Date().toISOString()
         });
+        reconnectAttempts = 0;
       }
 
       if (connection === 'close') {
@@ -194,6 +201,14 @@ async function startSocket({ fresh = false, reason = 'start' } = {}) {
           qr_data: null,
           info: 'desconectado do Baileys'
         });
+        if (!manualDisconnect && reasonCode !== 401 && reasonCode !== 403) {
+          reconnectAttempts += 1;
+          const delay = Math.min(60000, 3000 * Math.pow(2, Math.min(reconnectAttempts - 1, 4)));
+          writeState({ info: 'conexão perdida; reconectando em ' + Math.round(delay / 1000) + 's' });
+          reconnectTimer = setTimeout(() => startSocket({ fresh: false, reason: 'auto_reconnect' }), delay);
+        } else if (reasonCode === 401 || reasonCode === 403) {
+          writeState({ info: 'sessão inválida; gere um novo QR Code' });
+        }
       }
     });
   } catch (err) {
@@ -217,9 +232,29 @@ async function handleCommand(command) {
     await startSocket({ fresh: true, reason: 'renew_qr' });
   }
 
+  if (command.action === 'send_text') {
+    const result = { id: command.id, success: false, action: 'send_text', finished_at: new Date().toISOString() };
+    try {
+      if (!sock || !currentState.connected) throw new Error('WhatsApp não está conectado.');
+      const phone = String(command.phone || '').replace(/\D/g, '');
+      const text = String(command.text || '').trim();
+      if (phone.length < 10 || phone.length > 15) throw new Error('Número de telefone inválido. Use o formato internacional, por exemplo 5511999999999.');
+      if (!text) throw new Error('A mensagem não pode estar vazia.');
+      const jid = phone + '@s.whatsapp.net';
+      const sent = await sock.sendMessage(jid, { text });
+      result.success = true;
+      result.message_id = sent && sent.key ? sent.key.id : null;
+      result.to = jid;
+    } catch (err) {
+      result.error = err && err.message ? err.message : String(err);
+    }
+    writeJson(RESULT_PATH, result);
+  }
+
   if (command.action === 'disconnect') {
     logger.info({ command }, 'Comando disconnect recebido');
     try {
+      manualDisconnect = true;
       if (sock && typeof sock.logout === 'function') await sock.logout();
     } catch (err) {
       logger.warn({ err }, 'Falha ao executar logout');

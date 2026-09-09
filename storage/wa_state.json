@@ -1,9 +1,9 @@
 {
   "connected": false,
-  "info": "desconectado do Baileys",
+  "info": "conexão perdida; reconectando em 48s",
   "qr_data": null,
-  "last_action": "renew_qr",
+  "last_action": "auto_reconnect",
   "service_running": true,
-  "service_pid": 33728,
-  "service_heartbeat_at": "2026-07-22T20:26:04.826Z"
+  "service_pid": 23356,
+  "service_heartbeat_at": "2026-09-03T07:50:26.774Z"
 }

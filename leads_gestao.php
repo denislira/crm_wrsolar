@@ -225,8 +225,8 @@ include 'includes/header.php';
             <!-- Detalhes do Lead (painel lateral) -->
             <aside id="leadDetailsPanel" class="lead-panel hidden">
                 <div class="lead-panel-inner">
-                    <button id="closeLeadPanel" class="btn btn-sm btn-light close-panel" title="Fechar">✕</button>
-                    <button id="expandLeadPanelBtn" class="btn btn-sm btn-light me-2 expand-panel" title="Expandir painel" aria-pressed="false">⇔</button>
+                    <button id="closeLeadPanel" class="lead-panel-control close-panel" title="Fechar" aria-label="Fechar painel"><i class="fa-solid fa-xmark"></i></button>
+                    <button id="expandLeadPanelBtn" class="lead-panel-control expand-panel" title="Expandir painel" aria-label="Expandir painel" aria-pressed="false"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></button>
                     <div id="leadDetailContent" class="p-3"></div>
                 </div>
             </aside>

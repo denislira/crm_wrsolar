@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@adiwajshing/baileys": "github:canove/whaileys",
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.16",
     "pino": "^8.0.0"
   }
 }

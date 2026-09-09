@@ -2535,8 +2535,8 @@
     async function openPanel(id){
         const lead = allLeads.find(l=>String(l.id)===String(id)); if (!lead) return;
         const p = $('#leadDetailContent'); p.innerHTML = '';
-        const title = document.createElement('h4'); title.textContent = lead.name || '(sem nome)';
-        const status = document.createElement('div'); status.className='mb-2 small text-muted';
+        const title = document.createElement('h4'); title.className='lead-detail-title'; title.textContent = lead.name || '(sem nome)';
+        const status = document.createElement('div'); status.className='lead-detail-status mb-2';
         (async ()=>{
             try {
                 let statusLabel = lead.status || 'Novo';
@@ -2587,6 +2587,9 @@
         const notes = document.createElement('div'); notes.className='mt-3'; notes.textContent = 'Notas: ' + sanitizeLeadNotesForDisplay(lead.notes);
             const btns = document.createElement('div'); btns.className='mt-3 d-flex gap-2';
             // compact reminders placeholder (filled after panel open)
+            const aiInsightWrap = document.createElement('div');
+            aiInsightWrap.className = 'lead-ai-insight mt-3 mb-3';
+            aiInsightWrap.id = 'leadAiInsight';
             const remindersWrap = document.createElement('div');
             remindersWrap.className = 'mt-3 mb-3'; remindersWrap.id = 'leadReminders';
             // prepare columns
@@ -2757,12 +2760,18 @@
         leftCol.appendChild(title); leftCol.appendChild(status); leftCol.appendChild(createdDiv); leftCol.appendChild(company); leftCol.appendChild(email); leftCol.appendChild(phone); leftCol.appendChild(city); leftCol.appendChild(value); leftCol.appendChild(notes);
         if (typeof anexosDiv !== 'undefined' && anexosDiv) leftCol.appendChild(anexosDiv);
         leftCol.appendChild(btns);
-            rightCol.appendChild(remindersWrap); rightCol.appendChild(timelineWrap); 
+            rightCol.appendChild(aiInsightWrap); rightCol.appendChild(remindersWrap); rightCol.appendChild(timelineWrap);
             // append columns directly to detail content so CSS grid works
             p.appendChild(leftCol); p.appendChild(rightCol);
 
+            const panel = $('#leadDetailsPanel'); panel.classList.remove('hidden');
+            const kanbanWrap = $('#kanbanWrap'); if (kanbanWrap) kanbanWrap.classList.add('panel-open');
+            const detail = document.getElementById('leadDetailContent');
+            if (panel.classList.contains('expanded')) { if (detail) detail.classList.add('columns-2'); }
+
             // load compact reminders for this lead
-            try { fetchRemindersForLead(id); } catch(e){ console.warn('failed loading reminders', e); }
+            let remindersPromise = Promise.resolve();
+            try { remindersPromise = fetchRemindersForLead(id); } catch(e){ console.warn('failed loading reminders', e); }
 
         // fetch and render movements
         const timeline = timelineWrap.querySelector('#timeline'); timeline.innerHTML = '<div class="small text-muted">Carregando...</div>';
@@ -2865,11 +2874,12 @@
             timeline.innerHTML = '<div class="small text-muted">Nenhuma movimentação registrada</div>';
         }
 
-        const panel = $('#leadDetailsPanel'); panel.classList.remove('hidden');
+        await remindersPromise;
+        try { fetchLeadAiInsight(id); } catch(e){ console.warn('failed loading lead AI insight', e); }
+        panel.classList.remove('hidden');
         // add margin to kanban when panel is open
-        const kanbanWrap = $('#kanbanWrap'); if (kanbanWrap) kanbanWrap.classList.add('panel-open');
+        if (kanbanWrap) kanbanWrap.classList.add('panel-open');
         // if panel already expanded, ensure two-column class present
-        const detail = document.getElementById('leadDetailContent');
         if (panel.classList.contains('expanded')) { if (detail) detail.classList.add('columns-2'); }
     }
 
@@ -2883,7 +2893,7 @@
     function fetchRemindersForLead(leadId) {
         const wrap = document.getElementById('leadReminders'); if (!wrap) return;
         wrap.innerHTML = '<strong>Lembretes:</strong> carregando...';
-        fetch('includes/reminders_api.php?action=list&lead_id=' + encodeURIComponent(leadId))
+        return fetch('includes/reminders_api.php?action=list&lead_id=' + encodeURIComponent(leadId))
             .then(r => r.json())
             .then(rows => {
                 wrap.innerHTML = '';
@@ -2908,6 +2918,49 @@
                 if (rows.length > 3) { const more = document.createElement('div'); more.className='small text-muted mt-1'; more.textContent='Ver todos em Integração → Lembretes'; list.appendChild(more); }
                 wrap.appendChild(list);
             }).catch(err=>{ wrap.innerHTML = '<div class="text-danger small">Erro ao carregar lembretes</div>'; console.error(err); });
+    }
+
+    function renderLeadAiInsightText(text) {
+        const lines = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+        if (!lines.length) return '<div class="text-muted small">A IA não retornou insight para este lead.</div>';
+        return lines.slice(0, 4).map(line => {
+            const clean = escapeText(line.replace(/^[-*•]\s*/, ''));
+            return '<div class="lead-ai-insight-line">' + clean + '</div>';
+        }).join('');
+    }
+
+    function fetchLeadAiInsight(leadId) {
+        const wrap = document.getElementById('leadAiInsight'); if (!wrap) return;
+        wrap.innerHTML = `
+            <div class="lead-ai-insight-head">
+                <span><i class="fa-solid fa-wand-magic-sparkles"></i> Insight do cliente</span>
+                <span class="lead-ai-insight-loading">gerando...</span>
+            </div>
+            <div class="lead-ai-insight-skeleton"></div>
+            <div class="lead-ai-insight-skeleton short"></div>
+        `;
+        fetch('api/ai_lead_insight.php?lead_id=' + encodeURIComponent(leadId))
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.success) {
+                    wrap.innerHTML = `
+                        <div class="lead-ai-insight-head"><span><i class="fa-solid fa-wand-magic-sparkles"></i> Insight do cliente</span></div>
+                        <div class="text-muted small">${escapeText((data && data.message) || 'Não foi possível gerar o insight agora.')}</div>
+                    `;
+                    return;
+                }
+                wrap.innerHTML = `
+                    <div class="lead-ai-insight-head">
+                        <span><i class="fa-solid fa-wand-magic-sparkles"></i> Insight do cliente</span>
+                        <span class="lead-ai-insight-time">${escapeText(data.checked_at || '')}</span>
+                    </div>
+                    <div class="lead-ai-insight-body">${renderLeadAiInsightText(data.insight || '')}</div>
+                `;
+            })
+            .catch(err => {
+                wrap.innerHTML = '<div class="text-danger small">Erro ao gerar insight do cliente.</div>';
+                console.error(err);
+            });
     }
 
     function openReminderModalForLead(leadId){

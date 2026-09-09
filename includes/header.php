@@ -201,6 +201,9 @@ include_once 'includes/settings_storage.php';
         <?php if (isset($reqHost) && ($reqHost === 'localhost' || $reqHost === '127.0.0.1')): ?>
           <div class="me-2 d-none d-md-inline"><span class="badge bg-secondary">dev</span></div>
         <?php endif; ?>
+        <a href="emails.php" class="btn btn-outline-secondary me-2 d-inline-flex align-items-center gap-2 <?php echo basename($_SERVER['PHP_SELF'] ?? '') === 'emails.php' ? 'active' : ''; ?>" title="Central de e-mails" aria-label="E-mails">
+          <i class="fa-regular fa-envelope"></i><span class="d-none d-lg-inline">E-mail</span>
+        </a>
         <button id="themeToggle" class="btn btn-outline-secondary me-2" title="Alternar tema" aria-label="Alternar tema">🌓</button>
         <!-- Reminder bell -->
         <div class="dropdown me-2">

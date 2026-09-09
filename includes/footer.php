@@ -307,6 +307,7 @@
         'index.php':               ['main h1', 'fa-gauge-high'],
         'dashboard.php':           ['main h1', 'fa-gauge-high'],
         'configuracoes.php':       ['main h1.settings-title', 'fa-gear'],
+        'emails.php':              ['main h1', 'fa-envelope'],
         'leads_gestao.php':        ['main h1', 'fa-users'],
         'projetos.php':            ['main h1', 'fa-folder-open'],
         'integracao-equipes.php':  ['main h1', 'fa-people-group'],

@@ -8,5 +8,6 @@ node_modules/
 /storage/settings.json
 /uploads/custom_logo.*
 /uploads/custom_logo_collapsed.*
+/uploads/emails/
 *.log
 .DS_Store

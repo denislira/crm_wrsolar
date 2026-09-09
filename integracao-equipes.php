@@ -1089,9 +1089,12 @@ body.theme-dark #modalTeamUsers .modal-body {
                             <div id="agendaHoje" class="list-unstyled small text-muted">Carregando...</div>
                         </div>
                         <div class="form-card-modern section-left-border">
-                            <div class="heading-with-icon">
+                            <div class="heading-with-icon d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-2">
                                 <i class="fa fa-bell-o"></i>
                                 <h6>Agendar Lembrete</h6>
+                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="btnGerenciarModelos"><i class="fa fa-cog me-1"></i>Modelos</button>
                             </div>
                             <form id="formNovoLembrete">
                                 <div class="mb-2">
@@ -1171,6 +1174,24 @@ body.theme-dark #modalTeamUsers .modal-body {
                 </div>
             </div>
             <!-- Fim Aba Lembretes -->
+
+            <div class="modal fade" id="modalModelosLembrete" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg"><div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title"><i class="fa fa-file-text-o me-2"></i>Modelos de lembrete</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-body">
+                        <div id="modelosLembreteLista" class="list-group mb-3"></div>
+                        <hr><h6 id="modeloFormTitulo">Novo modelo</h6>
+                        <form id="formModeloLembrete" class="row g-2">
+                            <input type="hidden" id="modelo-id">
+                            <div class="col-md-6"><label class="form-label">Nome</label><input id="modelo-nome" class="form-control" required></div>
+                            <div class="col-md-3"><label class="form-label">Dias padrão</label><input id="modelo-offset" type="number" min="0" value="0" class="form-control"></div>
+                            <div class="col-md-3"><label class="form-label">Hora padrão</label><input id="modelo-hora" type="time" class="form-control"></div>
+                            <div class="col-12"><label class="form-label">Mensagem</label><textarea id="modelo-mensagem" rows="3" class="form-control" required></textarea></div>
+                            <div class="col-12 d-flex gap-2"><button class="btn btn-primary" type="submit">Salvar modelo</button><button class="btn btn-light" type="button" id="btnCancelarModelo">Limpar</button><span id="modeloMsg" class="small align-self-center"></span></div>
+                        </form>
+                    </div>
+                </div></div>
+            </div>
 
             <!-- Aba: Minhas Integrações -->
             <div id="minhasIntegracoesArea" style="display:none;">
@@ -1993,6 +2014,35 @@ async function fetchReminderTemplates() {
         return await res.json();
     } catch (e) { return []; }
 }
+
+function limparModeloForm() {
+    document.getElementById('formModeloLembrete')?.reset();
+    document.getElementById('modelo-id').value = '';
+    document.getElementById('modelo-offset').value = 0;
+    document.getElementById('modeloFormTitulo').textContent = 'Novo modelo';
+}
+async function carregarModelosGerenciamento() {
+    const list = document.getElementById('modelosLembreteLista');
+    if (!list) return;
+    list.innerHTML = '<div class="text-muted small">Carregando...</div>';
+    const rows = await fetchReminderTemplates();
+    list.innerHTML = rows.length ? '' : '<div class="text-muted small">Nenhum modelo cadastrado.</div>';
+    rows.forEach(t => {
+        const item = document.createElement('div'); item.className = 'list-group-item d-flex justify-content-between align-items-center gap-2';
+        item.innerHTML = `<div><strong>${escapeHtmlGlobal(t.name || '')}</strong><div class="small text-muted">${escapeHtmlGlobal(t.message || '')}</div></div><div class="text-nowrap"><button class="btn btn-sm btn-outline-primary me-1 editar-modelo">Editar</button><button class="btn btn-sm btn-outline-danger excluir-modelo">Desativar</button></div>`;
+        item.querySelector('.editar-modelo').onclick = () => { document.getElementById('modelo-id').value=t.id; document.getElementById('modelo-nome').value=t.name||''; document.getElementById('modelo-offset').value=t.default_days_offset||0; document.getElementById('modelo-hora').value=(t.default_time||'').substring(0,5); document.getElementById('modelo-mensagem').value=t.message||''; document.getElementById('modeloFormTitulo').textContent='Editar modelo'; };
+        item.querySelector('.excluir-modelo').onclick = async () => { if (!confirm('Desativar este modelo?')) return; const p=new URLSearchParams({action:'deactivate',id:t.id}); await fetch('includes/reminder_templates_api.php',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:p}); carregarModelosGerenciamento(); loadRemindersLayout(); };
+        list.appendChild(item);
+    });
+}
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('btnGerenciarModelos')?.addEventListener('click', () => { limparModeloForm(); carregarModelosGerenciamento(); new bootstrap.Modal(document.getElementById('modalModelosLembrete')).show(); });
+    document.getElementById('btnCancelarModelo')?.addEventListener('click', limparModeloForm);
+    document.getElementById('formModeloLembrete')?.addEventListener('submit', async e => {
+        e.preventDefault(); const p=new URLSearchParams({action:document.getElementById('modelo-id').value?'update':'create',id:document.getElementById('modelo-id').value,name:document.getElementById('modelo-nome').value.trim(),message:document.getElementById('modelo-mensagem').value.trim(),default_days_offset:document.getElementById('modelo-offset').value,default_time:document.getElementById('modelo-hora').value,channel:'in-app'});
+        const r=await fetch('includes/reminder_templates_api.php',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:p}); const d=await r.json(); const msg=document.getElementById('modeloMsg'); msg.textContent=d.ok||d.id?'Modelo salvo.':'Erro ao salvar modelo.'; msg.className='small align-self-center '+(d.ok||d.id?'text-success':'text-danger'); if(d.ok||d.id){limparModeloForm(); carregarModelosGerenciamento(); loadRemindersLayout();}
+    });
+});
 
 async function loadRemindersLayout() {
     const agendaEl = document.getElementById('agendaHoje');

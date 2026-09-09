@@ -43,11 +43,29 @@ if (empty($prompts)) {
 
 $index = isset($_GET['i']) ? (int)$_GET['i'] : 0;
 $prompt = $prompts[$index % count($prompts)];
-$context = wrcrm_ai_collect_context($pdo, $prompt);
+$userId = (int)$_SESSION['user_id'];
+$context = wrcrm_ai_collect_context($pdo, $prompt, $userId);
+$userNameCol = wrcrm_ai_has_col($pdo, 'users', 'nome_completo') ? 'nome_completo' : "'' AS nome_completo";
+$userEmailCol = wrcrm_ai_has_col($pdo, 'users', 'email') ? 'email' : "'' AS email";
+$userStmt = $pdo->prepare("SELECT id, username, {$userNameCol}, {$userEmailCol} FROM users WHERE id = ? LIMIT 1");
+$userStmt->execute([$userId]);
+$loggedUser = $userStmt->fetch(PDO::FETCH_ASSOC) ?: ['id' => $userId];
+$context['usuario_logado'] = [
+    'id' => (int)($loggedUser['id'] ?? $userId),
+    'nome' => trim((string)($loggedUser['nome_completo'] ?? '')) ?: (string)($loggedUser['username'] ?? ''),
+    'username' => (string)($loggedUser['username'] ?? ''),
+    'email' => (string)($loggedUser['email'] ?? ''),
+    'perfil_no_chat' => 'usuario interno do CRM (vendedor/gestor)',
+];
 
 $result = wrcrm_call_ai_chat([
     ['role' => 'system', 'content' =>
         "Voce e a IA proativa do WRCRM.\n" .
+        "Seu interlocutor e sempre o usuario interno do CRM descrito em usuario_logado, normalmente um vendedor ou gestor.\n" .
+        "Leads, clientes, projetos e contatos presentes no contexto sao terceiros analisados pelo usuario; nunca os confunda com o usuario logado.\n" .
+        "Nunca fale como se estivesse atendendo diretamente um lead ou cliente e nunca dirija a mensagem ao nome de um lead/cliente.\n" .
+        "Ao mencionar um cliente, fale sobre ele em terceira pessoa e oriente o vendedor sobre a proxima acao.\n" .
+        "Se cumprimentar, use apenas 'Ola!' sem nome. Prefira iniciar diretamente pelo alerta ou recomendacao.\n" .
         "Responda em portugues do Brasil.\n" .
         "Use somente os dados do contexto.\n" .
         "Nao invente numeros.\n" .
@@ -67,7 +85,6 @@ if (empty($result['success'])) {
 }
 
 $message = trim((string)$result['content']);
-$userId = (int)$_SESSION['user_id'];
 $saved = false;
 try {
     wrcrm_ai_proactive_ensure_chat_table($pdo);

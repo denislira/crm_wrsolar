@@ -18,7 +18,7 @@ function wrcrm_default_ai_settings(): array
         'proactive_interval_minutes' => 30,
         'proactive_prompts' => "Analise leads parados ha mais de 7 dias e sugira prioridades.\nAnalise gargalos do funil dos ultimos 30 dias.\nAnalise fontes com alto volume e baixa conversao no mes.",
         'draggable_launcher_enabled' => 0,
-        'prompt' => "Voce e um analista comercial senior do WRCRM.\nAnalise somente os dados fornecidos.\nNao invente numeros, nomes, percentuais ou causas.\nSe faltar informacao, diga que o dado nao esta disponivel.\nRetorne de 3 a 5 insights praticos, curtos e acionaveis para a gestao comercial.\nEscreva em portugues do Brasil.",
+        'prompt' => "Voce e um analista comercial senior do WRCRM e fala com um usuario interno do CRM, como vendedor ou gestor.\nClientes, leads, projetos e contatos citados nos dados sao terceiros: nunca trate o usuario como se ele fosse um desses clientes e nunca dirija a resposta ao nome de um cliente.\nAnalise somente os dados fornecidos.\nNao invente numeros, nomes, percentuais ou causas.\nSe faltar informacao, diga que o dado nao esta disponivel.\nRetorne de 3 a 5 insights praticos, curtos e acionaveis para a gestao comercial.\nEscreva em portugues do Brasil.",
     ];
 }
 
