@@ -88,6 +88,38 @@
     function $(sel){return document.querySelector(sel)}
     function $all(sel){return Array.from(document.querySelectorAll(sel))}
 
+    function exportLeadsToExcel(){
+        const leads = getFilteredLeads();
+        const columns = [
+            ['ID', 'id'], ['Nome', 'name'], ['Cidade', 'cidade'], ['E-mail', 'email'],
+            ['Telefone', 'phone'], ['CPF/CNPJ', 'cpf_cnpj'], ['Origem', 'source'],
+            ['Status', 'status'], ['Consumo (kWh)', 'consumo_cliente'],
+            ['Estimativa do projeto (kWh)', 'estimativa_projeto_kwh'],
+            ['Orçamento (R$)', 'orcamento_value'], ['Último contato', 'ultimo_contato'],
+            ['Data de entrada', 'data_inicio'], ['Criado em', 'created_at'],
+            ['Atualizado em', 'updated_at'], ['Observações', 'notes']
+        ];
+        const csvValue = (value) => {
+            let text = value == null ? '' : String(value);
+            // Prevent Excel from interpreting exported text as a formula.
+            if (/^[=+\-@]/.test(text)) text = "'" + text;
+            return '"' + text.replace(/"/g, '""').replace(/\r?\n/g, ' ') + '"';
+        };
+        const csv = '\uFEFF' + [
+            columns.map(column => csvValue(column[0])).join(';'),
+            ...leads.map(lead => columns.map(column => csvValue(lead[column[1]])).join(';'))
+        ].join('\r\n');
+        const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'leads_' + new Date().toISOString().slice(0, 10) + '.csv';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
+
     function setPreloaderVisible(visible, text){
         const el = document.getElementById('leadsPreloader');
         if (!el) return;
@@ -3847,6 +3879,38 @@
             CURRENT_SEARCH = e.target.value;
             renderAll();
         });
+
+        const exportLeadsBtn = $('#exportLeadsBtn');
+        if (exportLeadsBtn) {
+            exportLeadsBtn.addEventListener('click', exportLeadsToExcel);
+        }
+
+        const refreshLeadsBtn = $('#refreshLeadsBtn');
+        if (refreshLeadsBtn) {
+            refreshLeadsBtn.addEventListener('click', async () => {
+                if (refreshLeadsBtn.disabled) return;
+                const icon = refreshLeadsBtn.querySelector('i');
+                // Keep both the Kanban filters and the table header filters while reloading.
+                const savedGridFilters = JSON.parse(JSON.stringify(GRID_FILTERS || {}));
+                const savedGridPage = GRID_PAGE;
+                refreshLeadsBtn.disabled = true;
+                if (icon) icon.classList.add('fa-spin');
+                try {
+                    await fetchLeads();
+                    GRID_FILTERS = savedGridFilters;
+                    GRID_PAGE = savedGridPage;
+                    // fetchLeads already renders the active view; render once more so
+                    // table header filter indicators and the top cards are in sync.
+                    renderKpis();
+                    renderAll();
+                } catch (err) {
+                    alert('Não foi possível atualizar o Kanban.');
+                } finally {
+                    refreshLeadsBtn.disabled = false;
+                    if (icon) icon.classList.remove('fa-spin');
+                }
+            });
+        }
 
         const applyDateFilter = () => {
             CURRENT_DATE_FROM = ($('#filterDateStart')?.value || '').trim();

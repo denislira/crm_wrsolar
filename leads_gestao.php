@@ -32,6 +32,7 @@ include 'includes/header.php';
                         Filtros
                     </button>
                     <button id="newLeadBtn" class="btn btn-primary btn-sm" style="min-width:160px;">Novo lead</button>
+                    <button id="exportLeadsBtn" class="btn btn-sm btn-outline-success" type="button" title="Baixar leads em planilha Excel"><i class="fa fa-file-excel" aria-hidden="true"></i> Exportar</button>
                     <a href="import_leads.php" class="btn btn-sm btn-outline-secondary" title="Importar leads via CSV" aria-label="Importar leads via CSV"><i class="fa fa-file-import" aria-hidden="true"></i></a>
                     <button id="funilConfigBtn" class="btn btn-sm btn-outline-primary btn-funil-config" title="Personalizar estágios do funil" aria-label="Personalizar estágios do funil" onclick="location.href='funil_config.php'"><i class="fa fa-diagram-project" aria-hidden="true"></i></button>
                 </div>
@@ -117,6 +118,7 @@ include 'includes/header.php';
                     <button id="toggleAnunciosBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Anúncios">Anúncios</button>
                     <button id="toggleIndicadosBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Indicações">Indicações</button>
                     <button id="bulkActionsBtn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#bulkModal">Ações em massa</button>
+                    <button id="refreshLeadsBtn" class="btn btn-sm btn-outline-primary" type="button" title="Atualizar Kanban" aria-label="Atualizar Kanban" style="width:34px;height:34px;padding:0;"><i class="fa fa-refresh" aria-hidden="true"></i></button>
                     <button id="printSelectedBtn" class="btn btn-sm btn-outline-secondary d-none" title="Imprimir leads selecionados"><i class="fa fa-print"></i> Imprimir Selecionados</button>
                     <button id="toggleViewBtn" class="btn btn-sm btn-outline-secondary" title="Alternar visualização Kanban / Grade"><i class="fa fa-columns"></i></button>
                     <button id="kanbanCompactBtn" class="btn btn-sm btn-outline-secondary" title="Compactar Kanban" style="width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;margin-right:6px;">
