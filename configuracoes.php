@@ -121,14 +121,27 @@ body.theme-dark .text-muted {
 .ai-reports-form code { padding:.08rem .3rem; border-radius:5px; color:#1d4ed8; background:#eff6ff; }
 .ai-reports-form > .ai-automation-heading { padding:1.1rem 1.15rem; border-color:#bfdbfe; background:linear-gradient(135deg,#eff6ff,#f7fbff); }
 .ai-reports-form > .ai-automation-option { background:#f9fbfe; }
+.ai-automation-section { grid-column:1 / -1; display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:1rem; padding:1rem; border:1px solid #bfdbfe; border-radius:16px; background:linear-gradient(145deg,#f8fbff,#eef6ff); box-shadow:0 8px 24px rgba(30,64,175,.07); }
+.ai-automation-section > [class*="col-"] { width:auto; max-width:none; padding:1rem; border:1px solid #dbeafe; border-radius:12px; background:rgba(255,255,255,.7); }
+.ai-automation-section > .col-12 { grid-column:span 12; }
+.ai-automation-section > .col-md-4 { grid-column:span 4; }
+.ai-automation-section > .col-md-8 { grid-column:span 8; }
 .ai-reports-form > .ai-actions { position:sticky; bottom:0; z-index:3; justify-content:space-between !important; align-items:center; padding:.9rem 1rem; border-color:#d8e5f1; background:rgba(255,255,255,.94); backdrop-filter:blur(10px); }
 .ai-actions-note { color:#64748b; font-size:.78rem; }
 .ai-actions-buttons { display:flex; gap:.6rem; margin-left:auto; }
 .ai-actions .btn { min-height:40px; padding-inline:1rem; border-radius:10px; font-weight:700; }
+.ai-automation-section > .col-md-4,
+.ai-automation-section > .col-md-8 { grid-column:span 12; }
+@media (min-width:768px) {
+    .ai-automation-section > .col-md-4 { grid-column:span 4; }
+    .ai-automation-section > .col-md-8 { grid-column:span 8; }
+}
 body.theme-dark .ai-reports-shell { background:#0b1523 !important; border-color:rgba(148,163,184,.14) !important; }
 body.theme-dark .ai-reports-form > [class*="col-"] { background:#111d2d !important; border-color:rgba(148,163,184,.13) !important; box-shadow:0 6px 20px rgba(0,0,0,.18) !important; }
 body.theme-dark .ai-reports-form > .ai-automation-heading { background:linear-gradient(135deg,rgba(37,99,235,.15),rgba(15,118,110,.09)) !important; border-color:rgba(96,165,250,.28) !important; }
 body.theme-dark .ai-reports-form > .ai-automation-option { background:#0e1a2a !important; }
+body.theme-dark .ai-automation-section { background:linear-gradient(145deg,rgba(37,99,235,.12),rgba(15,118,110,.08)); border-color:rgba(96,165,250,.28); }
+body.theme-dark .ai-automation-section > [class*="col-"] { background:rgba(17,29,45,.82); border-color:rgba(148,163,184,.15); }
 body.theme-dark .ai-reports-form > .ai-actions { background:rgba(15,25,39,.94) !important; }
 body.theme-dark .ai-reports-form .form-control, body.theme-dark .ai-reports-form .form-select { background-color:#0c1726 !important; border-color:#30445d !important; color:#e6eef8 !important; }
 body.theme-dark .ai-reports-form code { color:#bfdbfe; background:rgba(59,130,246,.14); }
@@ -1415,21 +1428,6 @@ body.theme-dark .edit-user-modal .avatar-box {
                                         <small class="text-muted d-block mt-1">Aqui você define o comportamento da IA, por exemplo: mais analítica, mais resumida ou mais estratégica.</small>
                                         <small id="ai_key_hint_reports" class="text-muted d-block mt-2"></small>
                                     </div>
-                                    <div class="col-12 ai-automation-heading">
-                                        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
-                                            <div>
-                                                <h6 class="mb-1 d-flex align-items-center gap-2">
-                                                    <span>Interação automática no CRM</span>
-                                                    <i class="fa-solid fa-circle-info text-primary" title="Ativa análises automáticas em segundo plano no intervalo escolhido."></i>
-                                                </h6>
-                                                <p class="small text-muted mb-0">A IA analisa o CRM no intervalo definido e mostra balões discretos com alertas úteis.</p>
-                                            </div>
-                                            <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="ai_proactive_enabled_reports" name="proactive_enabled">
-                                                <label class="form-check-label" for="ai_proactive_enabled_reports">Ativar</label>
-                                            </div>
-                                        </div>
-                                    </div>
                                     <div class="col-12 ai-automation-option">
                                         <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
                                             <div>
@@ -1442,6 +1440,22 @@ body.theme-dark .edit-user-modal .avatar-box {
                                             <div class="form-check form-switch">
                                                 <input class="form-check-input" type="checkbox" role="switch" id="ai_draggable_launcher_enabled_reports" name="draggable_launcher_enabled">
                                                 <label class="form-check-label" for="ai_draggable_launcher_enabled_reports">Ativar mover</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="ai-automation-section">
+                                    <div class="col-12 ai-automation-heading">
+                                        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                                            <div>
+                                                <h6 class="mb-1 d-flex align-items-center gap-2">
+                                                    <span>Interação automática no CRM</span>
+                                                    <i class="fa-solid fa-circle-info text-primary" title="Ativa análises automáticas em segundo plano no intervalo escolhido."></i>
+                                                </h6>
+                                                <p class="small text-muted mb-0">A IA analisa o CRM no intervalo definido e mostra balões discretos com alertas úteis.</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" role="switch" id="ai_proactive_enabled_reports" name="proactive_enabled">
+                                                <label class="form-check-label" for="ai_proactive_enabled_reports">Ativar</label>
                                             </div>
                                         </div>
                                     </div>
@@ -1460,6 +1474,7 @@ body.theme-dark .edit-user-modal .avatar-box {
                                         </label>
                                         <textarea class="form-control" id="ai_proactive_prompts_reports" name="proactive_prompts" rows="4" placeholder="Uma análise por linha"></textarea>
                                         <small class="text-muted">Cada linha vira uma análise. Exemplo: leads parados, funil, fontes, atividades da equipe.</small>
+                                    </div>
                                     </div>
                                     <div class="col-12 d-flex ai-actions">
                                         <span class="ai-actions-note"><i class="fa-solid fa-shield-halved me-1"></i>A chave salva não é exibida novamente.</span>

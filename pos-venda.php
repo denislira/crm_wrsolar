@@ -1382,6 +1382,30 @@ body.theme-dark #pvModal .modal-body, body.theme-dark #pvModal .modal-footer {
 .pv-details-panel.hidden { transform: translateX(100%); }
 .pv-details-panel-inner { padding: 1rem; }
 .pv-details-close { position:absolute; top:8px; right:8px; }
+body.theme-dark .pv-details-panel,
+body.dark-mode .pv-details-panel {
+    background: #0c172a;
+    border-left-color: rgba(255,255,255,.1);
+    box-shadow: -8px 0 24px rgba(0,0,0,.3);
+    color: #e6eef8;
+}
+body.theme-dark .pv-details-panel-inner,
+body.dark-mode .pv-details-panel-inner { color: #e6eef8; }
+body.theme-dark #pvDetailsContent > div,
+body.dark-mode #pvDetailsContent > div {
+    background: #101d31 !important;
+    border-color: rgba(255,255,255,.1) !important;
+}
+body.theme-dark #pvDetailsContent .text-muted,
+body.dark-mode #pvDetailsContent .text-muted { color: #aebed2 !important; }
+body.theme-dark #pvDetailsContent h6,
+body.dark-mode #pvDetailsContent h6 { color: #e6eef8; }
+body.theme-dark .pv-details-close,
+body.dark-mode .pv-details-close {
+    background: #172235;
+    border-color: rgba(255,255,255,.12);
+    color: #e6eef8;
+}
 @media (max-width: 992px) {
     .pv-main-with-panel.panel-open { margin-right: 0; }
     .pv-details-panel { width: 100%; top: 56px; height: calc(100vh - 56px); }

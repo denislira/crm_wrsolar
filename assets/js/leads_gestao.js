@@ -351,7 +351,9 @@
         if (lead.estimativa_projeto_kwh) score += 10;
         if (lead.notes && lead.notes.length>40) score += 10;
         if (lead.source) score += 10;
-        score = Math.min(100, score + (Math.random()*8|0));
+        // The score must be reproducible between refreshes. Random points here
+        // caused the same lead to cross the 80-point "hot" threshold randomly.
+        score = Math.min(100, score);
         return Math.round(score);
     }
 

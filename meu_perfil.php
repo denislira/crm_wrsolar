@@ -9,7 +9,7 @@ $user_id = (int) $_SESSION['user_id'];
 try {
     $colStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'ai_bot_mode'");
     if (!$colStmt || !$colStmt->fetch()) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN ai_bot_mode VARCHAR(20) NOT NULL DEFAULT 'head'");
+        $pdo->exec("ALTER TABLE users ADD COLUMN ai_bot_mode VARCHAR(20) NOT NULL DEFAULT 'chatbot3'");
     }
 } catch (Throwable $e) {
     // The profile keeps working even if this optional preference column is unavailable.
@@ -32,12 +32,12 @@ if ($profileNomeCompleto === '') $profileNomeCompleto = trim((string)($_SESSION[
 $profileEmail = trim((string)($user['email'] ?? ''));
 if ($profileEmail === '') $profileEmail = trim((string)($_SESSION['email'] ?? ''));
 $profileBiografia = (string)($user['biografia'] ?? '');
-$profileAiBotMode = (string)($user['ai_bot_mode'] ?? 'head');
+$profileAiBotMode = (string)($user['ai_bot_mode'] ?? 'chatbot3');
 if ($profileAiBotMode === 'speech') {
     $profileAiBotMode = 'body';
 }
-if (!in_array($profileAiBotMode, ['none', 'head', 'body'], true)) {
-    $profileAiBotMode = 'head';
+if (!in_array($profileAiBotMode, ['none', 'head', 'body', 'chatbot1', 'chatbot3'], true)) {
+    $profileAiBotMode = 'chatbot3';
 }
 
 // Server-side fetch of profile-related data as a reliable fallback
@@ -1137,12 +1137,16 @@ include __DIR__ . '/includes/sidebar.php';
                                         'none' => 'Nenhum',
                                         'head' => 'Só a cabeça',
                                         'body' => 'Corpo inteiro',
+                                        'chatbot1' => 'Chat IA',
+                                        'chatbot3' => 'Copiloto',
                                     ];
                                     echo htmlspecialchars($modeLabels[$profileAiBotMode] ?? 'Só a cabeça');
                                 ?>
                             </div>
                             <div class="edit-mode d-none">
                                 <select class="form-select form-select-sm ai-bot-mode-select" name="ai_bot_mode">
+                                    <option value="chatbot3" <?php echo $profileAiBotMode === 'chatbot3' ? 'selected' : ''; ?>>Copiloto</option>
+                                    <option value="chatbot1" <?php echo $profileAiBotMode === 'chatbot1' ? 'selected' : ''; ?>>Chat IA</option>
                                     <option value="none" <?php echo $profileAiBotMode === 'none' ? 'selected' : ''; ?>>Nenhum</option>
                                     <option value="head" <?php echo $profileAiBotMode === 'head' ? 'selected' : ''; ?>>Só a cabeça</option>
                                     <option value="body" <?php echo $profileAiBotMode === 'body' ? 'selected' : ''; ?>>Corpo inteiro</option>
@@ -1707,11 +1711,13 @@ include __DIR__ . '/includes/sidebar.php';
         const fullName = Object.prototype.hasOwnProperty.call(profile, 'nome_completo') ? (profile.nome_completo || '') : null;
         const email = Object.prototype.hasOwnProperty.call(profile, 'email') ? (profile.email || '') : null;
         const bio = Object.prototype.hasOwnProperty.call(profile, 'biografia') ? (profile.biografia || '') : null;
-        const botMode = Object.prototype.hasOwnProperty.call(profile, 'ai_bot_mode') ? (profile.ai_bot_mode || 'head') : null;
+        const botMode = Object.prototype.hasOwnProperty.call(profile, 'ai_bot_mode') ? (profile.ai_bot_mode || 'chatbot3') : null;
         const botModeLabels = {
             none: 'Nenhum',
             head: 'Só a cabeça',
-            body: 'Corpo inteiro'
+            body: 'Corpo inteiro',
+            chatbot1: 'Chat IA',
+            chatbot3: 'Copiloto'
         };
 
         document.querySelectorAll('.profile-info-item[data-field]').forEach(it => {
@@ -1729,7 +1735,7 @@ include __DIR__ . '/includes/sidebar.php';
             } else if (field === 'email' && email !== null) {
                 view.textContent = email;
             } else if (field === 'ai_bot_mode' && botMode !== null) {
-                view.textContent = botModeLabels[botMode] || botModeLabels.head;
+                view.textContent = botModeLabels[botMode] || botModeLabels.chatbot3;
             }
         });
 

@@ -307,12 +307,12 @@
     }
 
     const avatarState = {
-      mode: 'head',
+      mode: 'chatbot3',
       speechTimer: null
     };
 
     function applyLauncherAvatar(mode, speaking) {
-      const normalized = ['none', 'head', 'body'].includes(mode) ? mode : (mode === 'speech' ? 'body' : 'head');
+      const normalized = ['none', 'head', 'body', 'chatbot1', 'chatbot3'].includes(mode) ? mode : (mode === 'speech' ? 'body' : 'chatbot3');
       const previousMode = avatarState.mode;
       avatarState.mode = normalized;
       window.__aiAssistantBotMode = normalized;
@@ -323,7 +323,7 @@
         document.body.classList.remove('ai-assistant-open');
         return;
       }
-      let src = 'assets/img/robot1.png';
+      let src = normalized === 'chatbot3' ? 'assets/img/chatbot3.png' : (normalized === 'chatbot1' ? 'assets/img/chatbot1.png' : 'assets/img/robot1.png');
       if (normalized === 'body') {
         src = speaking ? 'assets/img/chatbot2.png' : 'assets/img/chatbot.png';
       }
@@ -566,9 +566,9 @@
     try {
       const profileRes = await fetch('api/get_my_profile.php');
       const profileData = await profileRes.json();
-      const userMode = profileData && profileData.success && profileData.user ? profileData.user.ai_bot_mode : 'head';
+      const userMode = profileData && profileData.success && profileData.user ? profileData.user.ai_bot_mode : 'chatbot3';
       if (typeof window.__setAiAssistantAvatarMode === 'function') {
-        window.__setAiAssistantAvatarMode(userMode || 'head');
+        window.__setAiAssistantAvatarMode(userMode || 'chatbot3');
       }
       const ai = aiSettings || {};
       if (typeof window.__setAiAssistantDragEnabled === 'function') {

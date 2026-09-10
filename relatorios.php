@@ -1627,7 +1627,23 @@ body.theme-dark .funnel-rate.base { color: #c3d5ea; background: rgba(148,163,184
 .illustrated-funnel-step { width:var(--w); min-height:58px; background:linear-gradient(135deg,color-mix(in srgb,var(--c) 88%,#fff),var(--c)); color:#101827; display:flex; align-items:center; justify-content:center; text-align:center; font-weight:850; line-height:1.12; padding:.55rem .5rem; clip-path:polygon(0 0,100% 0,88% 100%,12% 100%); filter:drop-shadow(0 7px 5px rgba(15,23,42,.16)); text-transform:uppercase; letter-spacing:.01em; }
 .illustrated-funnel-step small { display:block; font-size:.72rem; font-weight:700; opacity:.85; text-transform:none; margin-top:.18rem; }
 .illustrated-funnel-arrow { color:#eab308; font-size:1.8rem; line-height:.7; text-shadow:0 2px 3px rgba(161,98,7,.25); }
-body.theme-dark .illustrated-funnel-three { background:rgba(255,255,255,.03); }
+#illustratedFunnel { --funnel-ink:#172033; --funnel-muted:#64748b; }
+#illustratedFunnel .illustrated-funnel-total { position:relative; color:#0f6caf; background:linear-gradient(135deg,#eff8ff,#ffffff 58%,#f0fdf9); border:1px solid #dbeafe; box-shadow:0 10px 25px rgba(30,64,175,.08); }
+#illustratedFunnel .illustrated-funnel-total::before { content:'PIPELINE COMERCIAL'; display:block; color:#64748b; font-size:.64rem; font-weight:800; letter-spacing:.16em; margin-bottom:.28rem; }
+#illustratedFunnel .illustrated-funnel-three { position:relative; overflow:hidden; background:linear-gradient(135deg,#f8fbff 0%,#eef5ff 52%,#f4fbfa 100%); border-color:#dbeafe; box-shadow:0 20px 50px rgba(30,64,175,.12); }
+#illustratedFunnel .illustrated-funnel-three::before { content:''; position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 50% 0%,rgba(14,165,233,.12),transparent 38%); }
+#illustratedFunnel .illustrated-funnel-group { position:relative; z-index:1; padding:1rem .7rem; border:1px solid rgba(148,163,184,.24); border-radius:18px; background:rgba(255,255,255,.62); box-shadow:0 10px 25px rgba(30,41,59,.06); }
+#illustratedFunnel .illustrated-funnel-group.central { background:rgba(255,255,255,.78); border-color:rgba(14,165,233,.2); }
+#illustratedFunnel .illustrated-funnel-step { position:relative; width:min(var(--w),100%); min-height:64px; border-radius:12px; clip-path:none; background:linear-gradient(135deg,color-mix(in srgb,var(--c) 82%,#fff),color-mix(in srgb,var(--c) 92%,#0f172a)); color:#fff; padding:.7rem .8rem; box-shadow:0 8px 16px rgba(15,23,42,.14); transition:transform .2s ease,box-shadow .2s ease,filter .2s ease; }
+#illustratedFunnel .illustrated-funnel-step::after { content:''; position:absolute; inset:1px; border-radius:11px; border:1px solid rgba(255,255,255,.25); pointer-events:none; }
+#illustratedFunnel .illustrated-funnel-step:hover { transform:translateY(-3px) scale(1.015); filter:saturate(1.12); box-shadow:0 13px 24px rgba(15,23,42,.2); }
+#illustratedFunnel .illustrated-funnel-step small { color:rgba(255,255,255,.86); }
+#illustratedFunnel .illustrated-funnel-arrow { color:#0ea5e9; font-size:1.35rem; text-shadow:none; opacity:.8; }
+body.theme-dark #illustratedFunnel .illustrated-funnel-total,body.dark-mode #illustratedFunnel .illustrated-funnel-total { color:#7dd3fc; background:linear-gradient(135deg,#0d2239,#101d31); border-color:rgba(125,211,252,.18); }
+body.theme-dark #illustratedFunnel .illustrated-funnel-total::before,body.dark-mode #illustratedFunnel .illustrated-funnel-total::before { color:#94a3b8; }
+body.theme-dark #illustratedFunnel .illustrated-funnel-three,body.dark-mode #illustratedFunnel .illustrated-funnel-three { background:linear-gradient(135deg,#0b1729,#101d31 55%,#0d211f); border-color:rgba(125,211,252,.14); box-shadow:0 20px 50px rgba(0,0,0,.22); }
+body.theme-dark #illustratedFunnel .illustrated-funnel-group,body.dark-mode #illustratedFunnel .illustrated-funnel-group { background:rgba(15,27,45,.78); border-color:rgba(255,255,255,.1); box-shadow:0 10px 25px rgba(0,0,0,.16); }
+body.theme-dark #illustratedFunnel .illustrated-funnel-group.central,body.dark-mode #illustratedFunnel .illustrated-funnel-group.central { background:rgba(16,35,57,.82); border-color:rgba(125,211,252,.18); }
 @media (max-width: 768px) { .illustrated-funnel-three { grid-template-columns:1fr; gap:1.5rem; padding:1rem; } .illustrated-funnel-group.central { order:-1; } .illustrated-funnel-step { min-height:54px; } }
 body.theme-dark .illustrated-funnel { background: rgba(255,255,255,0.03) !important; border-color: rgba(255,255,255,0.08) !important; }
 body.theme-dark .illustrated-funnel-percent,

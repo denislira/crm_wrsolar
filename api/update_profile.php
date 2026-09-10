@@ -17,7 +17,7 @@ function wrcrm_ensure_ai_bot_mode_column(PDO $pdo): void
     try {
         $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'ai_bot_mode'");
         if ($stmt && $stmt->fetch()) return;
-        $pdo->exec("ALTER TABLE users ADD COLUMN ai_bot_mode VARCHAR(20) NOT NULL DEFAULT 'head'");
+        $pdo->exec("ALTER TABLE users ADD COLUMN ai_bot_mode VARCHAR(20) NOT NULL DEFAULT 'chatbot3'");
     } catch (Throwable $e) {
         // Ignore migration errors and keep working with the available schema.
     }
@@ -46,8 +46,8 @@ try {
         if ($aiBotMode === 'speech') {
             $aiBotMode = 'body';
         }
-        $allowed = ['none', 'head', 'body'];
-        $aiBotMode = in_array($aiBotMode, $allowed, true) ? $aiBotMode : 'head';
+        $allowed = ['none', 'head', 'body', 'chatbot1', 'chatbot3'];
+        $aiBotMode = in_array($aiBotMode, $allowed, true) ? $aiBotMode : 'chatbot3';
         $fields[] = 'ai_bot_mode = ?';
         $params[] = $aiBotMode;
     }
