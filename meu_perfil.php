@@ -1135,12 +1135,12 @@ include __DIR__ . '/includes/sidebar.php';
                                 <?php
                                     $modeLabels = [
                                         'none' => 'Nenhum',
-                                        'head' => 'Só a cabeça',
-                                        'body' => 'Corpo inteiro',
+                                        'head' => 'Avatar compacto',
+                                        'body' => 'Avatar completo',
                                         'chatbot1' => 'Chat IA',
                                         'chatbot3' => 'Copiloto',
                                     ];
-                                    echo htmlspecialchars($modeLabels[$profileAiBotMode] ?? 'Só a cabeça');
+                                    echo htmlspecialchars($modeLabels[$profileAiBotMode] ?? 'Avatar compacto');
                                 ?>
                             </div>
                             <div class="edit-mode d-none">
@@ -1148,8 +1148,8 @@ include __DIR__ . '/includes/sidebar.php';
                                     <option value="chatbot3" <?php echo $profileAiBotMode === 'chatbot3' ? 'selected' : ''; ?>>Copiloto</option>
                                     <option value="chatbot1" <?php echo $profileAiBotMode === 'chatbot1' ? 'selected' : ''; ?>>Chat IA</option>
                                     <option value="none" <?php echo $profileAiBotMode === 'none' ? 'selected' : ''; ?>>Nenhum</option>
-                                    <option value="head" <?php echo $profileAiBotMode === 'head' ? 'selected' : ''; ?>>Só a cabeça</option>
-                                    <option value="body" <?php echo $profileAiBotMode === 'body' ? 'selected' : ''; ?>>Corpo inteiro</option>
+                                    <option value="head" <?php echo $profileAiBotMode === 'head' ? 'selected' : ''; ?>>Avatar compacto</option>
+                                    <option value="body" <?php echo $profileAiBotMode === 'body' ? 'selected' : ''; ?>>Avatar completo</option>
                                 </select>
                             </div>
                         </div>
@@ -1714,8 +1714,8 @@ include __DIR__ . '/includes/sidebar.php';
         const botMode = Object.prototype.hasOwnProperty.call(profile, 'ai_bot_mode') ? (profile.ai_bot_mode || 'chatbot3') : null;
         const botModeLabels = {
             none: 'Nenhum',
-            head: 'Só a cabeça',
-            body: 'Corpo inteiro',
+            head: 'Avatar compacto',
+            body: 'Avatar completo',
             chatbot1: 'Chat IA',
             chatbot3: 'Copiloto'
         };

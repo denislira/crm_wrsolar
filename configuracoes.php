@@ -2156,6 +2156,16 @@ body.theme-dark .edit-user-modal .avatar-box {
                                     <option value="2">2 - Administrador</option>
                                 </select>
                             </div>
+                            <div class="user-edit-section mb-3">
+                                <label for="edit_ai_bot_mode" class="form-label">Modo do bot</label>
+                                <select class="form-select" id="edit_ai_bot_mode" name="ai_bot_mode">
+                                    <option value="chatbot3">Copiloto</option>
+                                    <option value="chatbot1">Chat IA</option>
+                                    <option value="none">Nenhum</option>
+                                    <option value="head">Avatar compacto</option>
+                                    <option value="body">Avatar completo</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2272,6 +2282,7 @@ function editUser(id) {
             document.getElementById('edit_role_id').value = data.user.role_id;
             if (document.getElementById('edit_team_id')) document.getElementById('edit_team_id').value = data.user.team_id || '';
             if (document.getElementById('edit_role_level')) document.getElementById('edit_role_level').value = data.user.role_level || 0;
+            if (document.getElementById('edit_ai_bot_mode')) document.getElementById('edit_ai_bot_mode').value = data.user.ai_bot_mode || 'chatbot3';
                 // set avatar preview if provided
                 try{
                     var avatarPreview = document.getElementById('edit_user_avatar_preview');

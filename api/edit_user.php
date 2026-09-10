@@ -29,6 +29,9 @@ $biografia = $_POST['biografia'] ?? null;
 $role_id = $_POST['role_id'] ?? '';
 $team_id = $_POST['team_id'] ?? null;
 $role_level = isset($_POST['role_level']) ? intval($_POST['role_level']) : 0;
+$ai_bot_mode = $_POST['ai_bot_mode'] ?? 'chatbot3';
+$allowed_bot_modes = ['none', 'head', 'body', 'chatbot1', 'chatbot3'];
+if (!in_array($ai_bot_mode, $allowed_bot_modes, true)) $ai_bot_mode = 'chatbot3';
 
 if (empty($id) || empty($username) || empty($role_id)) {
     echo json_encode(['success' => false, 'message' => 'Campos obrigatórios: id, username, role_id']);
@@ -36,8 +39,8 @@ if (empty($id) || empty($username) || empty($role_id)) {
 }
 
 try {
-    $stmt = $pdo->prepare('UPDATE users SET username = ?, email = ?, nome_completo = ?, biografia = ?, role_id = ?, team_id = ?, role_level = ? WHERE id = ?');
-    $stmt->execute([$username, $email, $nome_completo, $biografia, $role_id, $team_id ?: null, $role_level, $id]);
+    $stmt = $pdo->prepare('UPDATE users SET username = ?, email = ?, nome_completo = ?, biografia = ?, role_id = ?, team_id = ?, role_level = ?, ai_bot_mode = ? WHERE id = ?');
+    $stmt->execute([$username, $email, $nome_completo, $biografia, $role_id, $team_id ?: null, $role_level, $ai_bot_mode, $id]);
     // handle avatar upload if provided
     if (!empty($_FILES['avatar']) && isset($_FILES['avatar']['tmp_name']) && file_exists($_FILES['avatar']['tmp_name'])) {
         $file = $_FILES['avatar'];
