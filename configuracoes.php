@@ -118,6 +118,10 @@ body.theme-dark .text-muted {
 .ai-reports-form textarea.form-control { min-height:auto; line-height:1.5; }
 .ai-reports-form .form-control:focus, .ai-reports-form .form-select:focus { border-color:var(--blue-700); box-shadow:0 0 0 .2rem rgba(var(--bs-primary-rgb),.12); }
 .ai-reports-form small { line-height:1.45; }
+.ai-key-help { margin-top:.75rem; padding:.75rem .85rem; border:1px solid #dbeafe; border-radius:10px; background:#f5f9ff; color:#52637d; font-size:.76rem; line-height:1.45; }
+.ai-key-help strong { color:#294865; }
+.ai-key-help ol { margin:.4rem 0 0 1.1rem; padding:0; }
+.ai-key-help a { font-weight:700; color:var(--blue-700); }
 .ai-reports-form code { padding:.08rem .3rem; border-radius:5px; color:#1d4ed8; background:#eff6ff; }
 .ai-reports-form > .ai-automation-heading { padding:1.1rem 1.15rem; border-color:#bfdbfe; background:linear-gradient(135deg,#eff6ff,#f7fbff); }
 .ai-reports-form > .ai-automation-option { background:#f9fbfe; }
@@ -145,6 +149,8 @@ body.theme-dark .ai-automation-section > [class*="col-"] { background:rgba(17,29
 body.theme-dark .ai-reports-form > .ai-actions { background:rgba(15,25,39,.94) !important; }
 body.theme-dark .ai-reports-form .form-control, body.theme-dark .ai-reports-form .form-select { background-color:#0c1726 !important; border-color:#30445d !important; color:#e6eef8 !important; }
 body.theme-dark .ai-reports-form code { color:#bfdbfe; background:rgba(59,130,246,.14); }
+body.theme-dark .ai-key-help { background:rgba(37,99,235,.1); border-color:rgba(96,165,250,.25); color:#b8c7dc; }
+body.theme-dark .ai-key-help strong { color:#e6eef8; }
 body.theme-dark .ai-actions-note { color:#91a6bd; }
 @media (min-width:768px) {
     .ai-reports-form > .col-md-3 { grid-column:span 3; }
@@ -1402,6 +1408,16 @@ body.theme-dark .edit-user-modal .avatar-box {
                                             <i class="fa-solid fa-circle-info text-primary" title="Chave secreta do provedor. Fica salva com segurança e não é exibida depois de cadastrada."></i>
                                         </label>
                                         <input class="form-control" id="ai_api_key_reports" name="api_key" type="password" autocomplete="new-password" placeholder="Cole a chave para salvar ou trocar">
+                                        <div id="aiGeminiKeyHelp" class="ai-key-help d-none">
+                                            <strong>Como gerar uma chave Gemini</strong>
+                                            <ol>
+                                                <li>Acesse o <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio — Chaves API</a>.</li>
+                                                <li>Abra <strong>Chaves API</strong> e clique em <strong>Criar chave de API</strong>.</li>
+                                                <li>Escolha um projeto importado ou crie/selecione um projeto para o Gemini.</li>
+                                                <li>Copie a chave gerada e cole neste campo.</li>
+                                            </ol>
+                                            <div class="mt-2"><i class="fa-solid fa-shield-halved me-1"></i>Não compartilhe essa chave nem a publique no código. Se ela vazar, revogue-a no Google AI Studio e gere outra.</div>
+                                        </div>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label d-flex align-items-center gap-2" for="ai_temperature_reports">
@@ -3142,6 +3158,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 const provider = ai.provider || 'gemini';
                 const preset = aiProviderPresets[provider] || aiProviderPresets.custom;
                 document.getElementById('ai_provider_reports').value = provider;
+                updateGeminiKeyHelp();
                 document.getElementById('ai_enabled_reports').checked = !!Number(ai.enabled || 0);
                 document.getElementById('ai_base_url_reports').value = ai.base_url || (preset.base_url || '');
                 document.getElementById('ai_model_reports').value = ai.model || (preset.model || '');
@@ -3235,6 +3252,10 @@ document.addEventListener('DOMContentLoaded', function(){
         });
 
         const aiProviderSelect = document.getElementById('ai_provider_reports');
+        const updateGeminiKeyHelp = () => {
+            const help = document.getElementById('aiGeminiKeyHelp');
+            if (help && aiProviderSelect) help.classList.toggle('d-none', aiProviderSelect.value !== 'gemini');
+        };
         if (aiProviderSelect) {
             aiProviderSelect.addEventListener('change', function(){
                 const provider = this.value;
@@ -3244,7 +3265,9 @@ document.addEventListener('DOMContentLoaded', function(){
                     document.getElementById('ai_model_reports').value = preset.model || '';
                     document.getElementById('ai_models_reports').value = (preset.models || []).join('\n');
                 }
+                updateGeminiKeyHelp();
             });
+            updateGeminiKeyHelp();
         }
 
         const testAiBtn = document.getElementById('btn_test_ai_reports');
