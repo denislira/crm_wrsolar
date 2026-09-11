@@ -26,6 +26,47 @@
     let FILTER_CITY_TIMER = null;
     const FILTER_CITY_MIN_CHARS = 3;
     let ADVANCED_FILTERS_OPEN = false;
+    const LEADS_FILTERS_STORAGE_KEY = 'wrcrm.leadsGestao.filters.v1';
+
+    function hasActiveLeadFilters() {
+        const hasGridFilters = Object.values(GRID_FILTERS || {}).some(value => Array.isArray(value) ? value.length > 0 : (value && typeof value === 'object' ? Boolean(value.from || value.to) : Boolean(String(value).trim())));
+        return Boolean(CURRENT_SEARCH || CURRENT_SCORE_FILTER || CURRENT_CIDADE_FILTER || CURRENT_ESTADO_FILTER || CURRENT_STALLED_ONLY || CURRENT_DATE_FROM || CURRENT_DATE_TO || hasGridFilters);
+    }
+
+    function syncPersistedFiltersNotice() {
+        const notice = document.getElementById('persistedFiltersNotice');
+        if (notice) notice.classList.toggle('d-none', !hasActiveLeadFilters());
+    }
+
+    function persistLeadFilters() {
+        try {
+            localStorage.setItem(LEADS_FILTERS_STORAGE_KEY, JSON.stringify({
+                search: CURRENT_SEARCH, score: CURRENT_SCORE_FILTER, cidade: CURRENT_CIDADE_FILTER,
+                estado: CURRENT_ESTADO_FILTER, stalled: CURRENT_STALLED_ONLY,
+                dateFrom: CURRENT_DATE_FROM, dateTo: CURRENT_DATE_TO,
+                grid: GRID_FILTERS || {}
+            }));
+        } catch (e) {}
+        syncPersistedFiltersNotice();
+    }
+
+    function restoreLeadFilters() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(LEADS_FILTERS_STORAGE_KEY) || 'null');
+            if (!saved) return;
+            CURRENT_SEARCH = String(saved.search || '');
+            CURRENT_SCORE_FILTER = String(saved.score || '');
+            CURRENT_CIDADE_FILTER = String(saved.cidade || '');
+            CURRENT_ESTADO_FILTER = String(saved.estado || '');
+            CURRENT_STALLED_ONLY = saved.stalled === true;
+            CURRENT_DATE_FROM = String(saved.dateFrom || '');
+            CURRENT_DATE_TO = String(saved.dateTo || '');
+            GRID_FILTERS = saved.grid && typeof saved.grid === 'object' ? saved.grid : {};
+            const values = {searchInput:CURRENT_SEARCH, filterScore:CURRENT_SCORE_FILTER, filterCidade:CURRENT_CIDADE_FILTER, filterEstado:CURRENT_ESTADO_FILTER, filterDateStart:CURRENT_DATE_FROM, filterDateEnd:CURRENT_DATE_TO};
+            Object.entries(values).forEach(([id, value]) => { const el = document.getElementById(id); if (el) el.value = value; });
+            syncPersistedFiltersNotice();
+        } catch (e) {}
+    }
 
     function getFilteredLeads(){
         let filtered = allLeads.slice(); // copy
@@ -152,6 +193,8 @@
         CURRENT_STALLED_ONLY = false;
         CURRENT_DATE_FROM = '';
         CURRENT_DATE_TO = '';
+        GRID_FILTERS = {};
+        try { localStorage.removeItem(LEADS_FILTERS_STORAGE_KEY); } catch (e) {}
         const ids = {
             searchInput: '',
             filterScore: '',
@@ -171,6 +214,7 @@
             stalledBtn.textContent = 'Leads parados';
         }
         renderAll();
+        syncPersistedFiltersNotice();
     }
 
     // Field adapter: maps common field keys to multiple possible modal input IDs
@@ -2102,9 +2146,9 @@
                         } else {
                             delete GRID_FILTERS[key];
                         }
-                        GRID_PAGE = 1; popup.remove(); renderGrid(); 
+                        GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid();
                     });
-                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid(); });
                     btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
                 } else if (key === 'criado' || key === 'ultimo_contato') {
                     const from = document.createElement('input'); from.type = 'date'; from.className = 'form-control form-control-sm'; from.placeholder = 'De';
@@ -2116,9 +2160,9 @@
                     const clear = document.createElement('button'); clear.className = 'btn btn-sm btn-outline-secondary flex-grow-1'; clear.textContent = 'Limpar';
                     apply.addEventListener('click', ()=>{
                         GRID_FILTERS[key] = { from: from.value || '', to: to.value || '' };
-                        GRID_PAGE = 1; popup.remove(); renderGrid();
+                        GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid();
                     });
-                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid(); });
                     btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
                 } else {
                     const input = document.createElement('input'); input.type = 'text'; input.className = 'form-control form-control-sm'; input.placeholder = 'Filtrar...';
@@ -2127,8 +2171,8 @@
                     const btns = document.createElement('div'); btns.className = 'd-flex gap-2 mt-2';
                     const apply = document.createElement('button'); apply.className = 'btn btn-sm btn-primary flex-grow-1'; apply.textContent = 'Aplicar';
                     const clear = document.createElement('button'); clear.className = 'btn btn-sm btn-outline-secondary flex-grow-1'; clear.textContent = 'Limpar';
-                    apply.addEventListener('click', ()=>{ GRID_FILTERS[key] = input.value.trim(); GRID_PAGE = 1; popup.remove(); renderGrid(); });
-                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; popup.remove(); renderGrid(); });
+                    apply.addEventListener('click', ()=>{ GRID_FILTERS[key] = input.value.trim(); GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid(); });
+                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid(); });
                     btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
                 }
                 document.body.appendChild(popup);
@@ -3879,6 +3923,7 @@
 
         $('#searchInput').addEventListener('input', (e)=>{
             CURRENT_SEARCH = e.target.value;
+            persistLeadFilters();
             renderAll();
         });
 
@@ -3917,6 +3962,7 @@
         const applyDateFilter = () => {
             CURRENT_DATE_FROM = ($('#filterDateStart')?.value || '').trim();
             CURRENT_DATE_TO = ($('#filterDateEnd')?.value || '').trim();
+            persistLeadFilters();
             renderAll();
         };
 
@@ -3938,6 +3984,7 @@
 
         $('#filterScore').addEventListener('change', (e)=>{
             CURRENT_SCORE_FILTER = e.target.value;
+            persistLeadFilters();
             renderAll();
         });
 
@@ -3948,11 +3995,13 @@
                 const value = e.target.value || '';
                 if (value.trim().length < FILTER_CITY_MIN_CHARS) {
                     CURRENT_CIDADE_FILTER = '';
+                    persistLeadFilters();
                     renderAll();
                     return;
                 }
                 FILTER_CITY_TIMER = setTimeout(() => {
                     CURRENT_CIDADE_FILTER = value;
+                    persistLeadFilters();
                     renderAll();
                 }, 1000);
             });
@@ -3962,6 +4011,7 @@
         if (filterEstadoEl) {
             filterEstadoEl.addEventListener('change', (e)=>{
                 CURRENT_ESTADO_FILTER = e.target.value || '';
+                persistLeadFilters();
                 populateLeadFilterOptions();
                 renderAll();
             });
@@ -3984,9 +4034,12 @@
 
         // stalled toggle
         const stalledBtn = $('#stalledToggle'); if (stalledBtn) {
+            stalledBtn.classList.toggle('active', CURRENT_STALLED_ONLY);
+            stalledBtn.textContent = CURRENT_STALLED_ONLY ? 'Somente parados' : 'Leads parados';
             stalledBtn.addEventListener('click', ()=>{
                 CURRENT_STALLED_ONLY = stalledBtn.classList.toggle('active');
                 stalledBtn.textContent = CURRENT_STALLED_ONLY ? 'Somente parados' : 'Leads parados';
+                persistLeadFilters();
                 renderAll();
             });
         }
@@ -4184,6 +4237,7 @@
     document.addEventListener('DOMContentLoaded', async ()=>{
         showPreloader('Carregando dados...');
         try{
+            restoreLeadFilters();
             await fetchStatuses(); await fetchStages(); await fetchLeads();
             // fetch anuncios and render KPI/card
             try { const ads = await fetchAnuncios(); if (ads && ads.length) { const adsCol = document.getElementById('anunciosFixedColumn'); if (adsCol) adsCol.classList.remove('d-none'); } } catch(e){}

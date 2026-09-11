@@ -28,9 +28,12 @@ include 'includes/header.php';
                 <h1 class="h4 mb-0">Gestão de Leads</h1>
                 <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
                     <input id="searchInput" class="form-control form-control-sm leads-search" placeholder="Buscar por nome, empresa ou telefone...">
-                    <button id="toggleAdvancedFiltersBtn" class="btn btn-sm btn-outline-primary filters-toggle-btn" type="button" aria-expanded="false" aria-controls="advancedFiltersBar">
-                        Filtros
-                    </button>
+                    <div class="filters-control-stack">
+                        <button id="toggleAdvancedFiltersBtn" class="btn btn-sm btn-outline-primary filters-toggle-btn" type="button" aria-expanded="false" aria-controls="advancedFiltersBar">
+                            Filtros
+                        </button>
+                        <span id="persistedFiltersNotice" class="persisted-filters-notice d-none" title="Filtros salvos e restaurados automaticamente">Filtros salvos</span>
+                    </div>
                     <button id="newLeadBtn" class="btn btn-primary btn-sm" style="min-width:160px;">Novo lead</button>
                     <button id="exportLeadsBtn" class="btn btn-sm btn-outline-success" type="button" title="Baixar leads em planilha Excel"><i class="fa fa-file-excel" aria-hidden="true"></i> Exportar</button>
                     <a href="import_leads.php" class="btn btn-sm btn-outline-secondary" title="Importar leads via CSV" aria-label="Importar leads via CSV"><i class="fa fa-file-import" aria-hidden="true"></i></a>
