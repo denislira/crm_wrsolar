@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $enabled = !empty($_POST['whatsapp_enabled']) && $_POST['whatsapp_enabled'] !== '0' ? 1 : 0;
 $autoCreate = !empty($_POST['auto_create_leads']) && $_POST['auto_create_leads'] !== '0' ? 1 : 0;
 $leadCaptureMode = (string)($_POST['lead_capture_mode'] ?? 'new_only');
-if (!in_array($leadCaptureMode, ['new_only', 'closed_after_days'], true)) $leadCaptureMode = 'new_only';
+if (!in_array($leadCaptureMode, ['new_only', 'closed_after_days', 'always_create'], true)) $leadCaptureMode = 'new_only';
 $reopenAfterDays = max(1, min(3650, (int)($_POST['reopen_after_days'] ?? 30)));
 $cfg = wa_baileys_config();
 

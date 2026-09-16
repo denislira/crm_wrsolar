@@ -314,9 +314,12 @@ if (strlen($phone) < 10 || strlen($phone) > 15) {
 try {
     wa_incoming_ensure_profile_image_column($pdo);
 
-    $existing = wa_incoming_find_latest_lead_by_phone($pdo, $phone);
+    $mode = (string)($cfg['lead_capture_mode'] ?? 'new_only');
+    $existing = null;
+    if ($mode !== 'always_create') {
+        $existing = wa_incoming_find_latest_lead_by_phone($pdo, $phone);
+    }
     if ($existing) {
-        $mode = (string)($cfg['lead_capture_mode'] ?? 'new_only');
         $closedAt = wa_incoming_lead_closed_at($pdo, $existing);
         $days = wa_incoming_days_since_date($closedAt);
         $minDays = max(1, (int)($cfg['reopen_after_days'] ?? 30));

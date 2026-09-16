@@ -1344,6 +1344,7 @@ body.theme-dark .edit-user-modal .avatar-box {
                                             <select id="waLeadCaptureMode" class="form-select form-select-sm">
                                                 <option value="new_only">Somente números que nunca existiram</option>
                                                 <option value="closed_after_days">Números novos e atendimentos encerrados após prazo</option>
+                                                <option value="always_create">Livre: criar lead para toda mensagem recebida</option>
                                             </select>
                                         </div>
                                         <div class="mt-2" id="waReopenAfterDaysWrap">
@@ -2459,7 +2460,7 @@ document.getElementById('changePasswordForm').addEventListener('submit', functio
 });
 </script>
 
-<script src="<?php echo rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\'); ?>/assets/js/wa_integration.js?v=20260916"></script>
+<script src="<?php echo rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\'); ?>/assets/js/wa_integration.js?v=20260916-4"></script>
 <script>
     (async function(){
         try{

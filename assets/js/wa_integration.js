@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const settingsFeedback = document.getElementById('waSettingsFeedback');
     let lastStatus = { connected: false };
     let statusErrorShown = false;
+    let settingsDirty = false;
 
     const integrationScript = Array.from(document.scripts).find((script) =>
         /\/assets\/js\/wa_integration\.js(?:\?|$)/.test(script.src)
@@ -63,19 +64,29 @@ document.addEventListener('DOMContentLoaded', function() {
         [waEnabled, autoCreateLeads, leadCaptureMode, reopenAfterDays, btnSaveSettings].forEach(el => { if (el) el.disabled = true; });
         if (settingsFeedback) settingsFeedback.textContent = 'Salvando...';
         try {
+            const enabledValue = waEnabled && waEnabled.checked ? '1' : '0';
+            const autoCreateValue = autoCreateLeads && autoCreateLeads.checked ? '1' : '0';
+            const captureModeValue = leadCaptureMode ? leadCaptureMode.value : 'new_only';
+            const reopenDaysValue = reopenAfterDays ? reopenAfterDays.value : '30';
             const body = new URLSearchParams({
-                whatsapp_enabled: waEnabled && waEnabled.checked ? '1' : '0',
-                auto_create_leads: autoCreateLeads && autoCreateLeads.checked ? '1' : '0',
-                lead_capture_mode: leadCaptureMode ? leadCaptureMode.value : 'new_only',
-                reopen_after_days: reopenAfterDays ? reopenAfterDays.value : '30'
+                whatsapp_enabled: enabledValue,
+                auto_create_leads: autoCreateValue,
+                lead_capture_mode: captureModeValue,
+                reopen_after_days: reopenDaysValue
             });
-            await fetchJson(apiPath('wa_save_settings.php'), {
+            const saved = await fetchJson(apiPath('wa_save_settings.php'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body
             });
+            settingsDirty = false;
+            if (waEnabled && typeof saved.whatsapp_enabled !== 'undefined') waEnabled.checked = !!saved.whatsapp_enabled;
+            if (autoCreateLeads && typeof saved.auto_create_leads !== 'undefined') autoCreateLeads.checked = !!saved.auto_create_leads;
+            if (leadCaptureMode && saved.lead_capture_mode) leadCaptureMode.value = saved.lead_capture_mode;
+            if (reopenAfterDays && saved.reopen_after_days) reopenAfterDays.value = saved.reopen_after_days;
             if (settingsFeedback) settingsFeedback.textContent = 'Configuracoes salvas.';
             syncEnabledUi();
+            await loadStatus();
         } finally {
             [waEnabled, autoCreateLeads, leadCaptureMode, reopenAfterDays, btnSaveSettings].forEach(el => { if (el) el.disabled = false; });
         }
@@ -97,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await fetchJson(apiPath('wa_status.php'), { cache: 'no-store' });
             lastStatus = data;
             statusErrorShown = false;
-            if (waEnabled && typeof data.whatsapp_enabled !== 'undefined') waEnabled.checked = !!data.whatsapp_enabled;
+            if (!settingsDirty && waEnabled && typeof data.whatsapp_enabled !== 'undefined') waEnabled.checked = !!data.whatsapp_enabled;
             if (waEnabled && !waEnabled.checked) {
                 syncEnabledUi();
             } else if (data.connected) {
@@ -145,9 +156,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     qrContainer.classList.add('d-none');
                 }
             }
-            if (autoCreateLeads && typeof data.auto_create_leads !== 'undefined') autoCreateLeads.checked = !!data.auto_create_leads;
-            if (leadCaptureMode && data.lead_capture_mode) leadCaptureMode.value = data.lead_capture_mode;
-            if (reopenAfterDays && data.reopen_after_days) reopenAfterDays.value = data.reopen_after_days;
+            if (!settingsDirty && autoCreateLeads && typeof data.auto_create_leads !== 'undefined') autoCreateLeads.checked = !!data.auto_create_leads;
+            if (!settingsDirty && leadCaptureMode && data.lead_capture_mode) leadCaptureMode.value = data.lead_capture_mode;
+            if (!settingsDirty && reopenAfterDays && data.reopen_after_days) reopenAfterDays.value = data.reopen_after_days;
             syncCaptureModeUi();
             syncEnabledUi();
         } catch (e) {
@@ -206,23 +217,33 @@ document.addEventListener('DOMContentLoaded', function() {
     btnDisconnect.addEventListener('click', disconnect);
     if (autoCreateLeads) {
         autoCreateLeads.addEventListener('change', function() {
+            settingsDirty = true;
             if (settingsFeedback) settingsFeedback.textContent = 'Alteracao pendente. Clique em salvar.';
         });
     }
     if (leadCaptureMode) {
         leadCaptureMode.addEventListener('change', function() {
+            settingsDirty = true;
             syncCaptureModeUi();
             if (settingsFeedback) settingsFeedback.textContent = 'Alteracao pendente. Clique em salvar.';
         });
     }
     if (reopenAfterDays) {
         reopenAfterDays.addEventListener('input', function() {
+            settingsDirty = true;
             if (settingsFeedback) settingsFeedback.textContent = 'Alteracao pendente. Clique em salvar.';
         });
     }
     if (btnSaveSettings) {
         btnSaveSettings.addEventListener('click', async function() {
             try { await saveWaSettings(); } catch (e) { if (settingsFeedback) settingsFeedback.textContent = 'Erro ao salvar.'; alert('Erro ao salvar configuracao do WhatsApp.'); console.error(e); }
+        });
+    }
+    if (waEnabled) {
+        waEnabled.addEventListener('change', function() {
+            settingsDirty = true;
+            syncEnabledUi();
+            if (settingsFeedback) settingsFeedback.textContent = 'Alteracao pendente. Clique em salvar.';
         });
     }
 
@@ -246,9 +267,3 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStatus();
     startPolling();
 });
-    if (waEnabled) {
-        waEnabled.addEventListener('change', function() {
-            syncEnabledUi();
-            if (settingsFeedback) settingsFeedback.textContent = 'Alteracao pendente. Clique em salvar.';
-        });
-    }
