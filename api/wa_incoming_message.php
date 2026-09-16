@@ -305,8 +305,14 @@ $remoteJidAlt = trim((string)($payload['remote_jid_alt'] ?? ''));
 $senderJid = trim((string)($payload['sender_jid'] ?? ''));
 $participantAlt = trim((string)($payload['participant_alt'] ?? ''));
 $idType = trim((string)($payload['id_tipo'] ?? $payload['id_type'] ?? ''));
+$mode = (string)($cfg['lead_capture_mode'] ?? 'new_only');
+$hasRealPhone = strlen($phone) >= 10 && strlen($phone) <= 15;
 
-if (strlen($phone) < 10 || strlen($phone) > 15) {
+if (!$hasRealPhone && $mode === 'always_create') {
+    $lidIdentifier = $senderJid !== '' ? $senderJid : $remoteJid;
+    $lidDigits = wa_incoming_digits($lidIdentifier);
+    $phone = $lidDigits !== '' ? ('wa_lid:' . $lidDigits) : 'wa_lid:sem-numero';
+} elseif (!$hasRealPhone) {
     @file_put_contents(__DIR__ . '/../logs/wa_incoming_message.log', '[' . date('c') . '] no_real_phone ' . json_encode(['remote_jid' => $remoteJid, 'remote_jid_alt' => $remoteJidAlt, 'sender_jid' => $senderJid, 'participant_alt' => $participantAlt, 'id_tipo' => $idType, 'nome' => $pushName], JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND | LOCK_EX);
     wa_incoming_json(['success' => true, 'created' => false, 'reason' => 'no_real_phone', 'remote_jid' => $remoteJid, 'remote_jid_alt' => $remoteJidAlt, 'sender_jid' => $senderJid, 'participant_alt' => $participantAlt, 'id_tipo' => $idType]);
 }
@@ -314,7 +320,6 @@ if (strlen($phone) < 10 || strlen($phone) > 15) {
 try {
     wa_incoming_ensure_profile_image_column($pdo);
 
-    $mode = (string)($cfg['lead_capture_mode'] ?? 'new_only');
     $existing = null;
     if ($mode !== 'always_create') {
         $existing = wa_incoming_find_latest_lead_by_phone($pdo, $phone);
@@ -340,9 +345,10 @@ try {
     } catch (Throwable $ignored) {}
     if ($userId <= 0) $userId = 1;
 
-    $name = $pushName !== '' ? $pushName : ('WhatsApp ' . $phone);
+    $name = $pushName !== '' ? $pushName : ('WhatsApp ' . ($hasRealPhone ? $phone : 'sem numero real'));
     $notes = [];
     $notes[] = 'Lead criado automaticamente a partir de conversa recebida no WhatsApp.';
+    if (!$hasRealPhone) $notes[] = 'Criado em modo livre sem telefone real. Identificador tecnico salvo em phone: ' . $phone;
     if (!empty($existing['id'])) $notes[] = 'Novo atendimento criado por retorno no WhatsApp. Lead anterior: #' . (int)$existing['id'];
     if ($text !== '') $notes[] = 'Primeira mensagem: ' . mb_substr($text, 0, 1000);
     if ($profilePictureUrl !== '') $notes[] = 'Foto WhatsApp: ' . mb_substr($profilePictureUrl, 0, 500);
