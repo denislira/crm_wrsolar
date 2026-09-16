@@ -8,6 +8,7 @@ $phone = trim((string)($_POST['phone'] ?? '')); $text = trim((string)($_POST['me
 if (strlen($digits) < 10 || strlen($digits) > 15) { http_response_code(422); echo json_encode(['success'=>false,'message'=>'Informe o número com código do país. Exemplo: 5511999999999']); exit; }
 if ($text === '' || mb_strlen($text) > 4096) { http_response_code(422); echo json_encode(['success'=>false,'message'=>'A mensagem deve ter entre 1 e 4096 caracteres.']); exit; }
  $cfg = wa_baileys_config();
+ if (empty($cfg['enabled'])) { http_response_code(422); echo json_encode(['success'=>false,'message'=>'Integração WhatsApp desativada.']); exit; }
  $result = wa_baileys_request('POST', '/send', ['empresa_id'=>$cfg['empresa_id'], 'empresa_token'=>$cfg['empresa_token'], 'telefone'=>$digits, 'mensagem'=>$text]);
  if (empty($result['ok'])) { http_response_code(($result['_http'] ?? 0) >= 500 ? 503 : 422); echo json_encode(['success'=>false,'message'=>$result['error'] ?? 'Falha ao enviar a mensagem.']); exit; }
  echo json_encode(['success'=>true,'message'=>'Mensagem enviada pelo WhatsApp.','message_id'=>$result['message_id'] ?? null]); exit;

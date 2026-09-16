@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnGenerate = document.getElementById('btnGenerateQr');
     const btnRefresh = document.getElementById('btnRefreshWa');
     const btnDisconnect = document.getElementById('btnDisconnectWa');
+    const waEnabled = document.getElementById('waEnabled');
     const autoCreateLeads = document.getElementById('waAutoCreateLeads');
     const leadCaptureMode = document.getElementById('waLeadCaptureMode');
     const reopenAfterDays = document.getElementById('waReopenAfterDays');
@@ -59,10 +60,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function saveWaSettings() {
-        [autoCreateLeads, leadCaptureMode, reopenAfterDays, btnSaveSettings].forEach(el => { if (el) el.disabled = true; });
+        [waEnabled, autoCreateLeads, leadCaptureMode, reopenAfterDays, btnSaveSettings].forEach(el => { if (el) el.disabled = true; });
         if (settingsFeedback) settingsFeedback.textContent = 'Salvando...';
         try {
             const body = new URLSearchParams({
+                whatsapp_enabled: waEnabled && waEnabled.checked ? '1' : '0',
                 auto_create_leads: autoCreateLeads && autoCreateLeads.checked ? '1' : '0',
                 lead_capture_mode: leadCaptureMode ? leadCaptureMode.value : 'new_only',
                 reopen_after_days: reopenAfterDays ? reopenAfterDays.value : '30'
@@ -73,8 +75,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 body
             });
             if (settingsFeedback) settingsFeedback.textContent = 'Configuracoes salvas.';
+            syncEnabledUi();
         } finally {
-            [autoCreateLeads, leadCaptureMode, reopenAfterDays, btnSaveSettings].forEach(el => { if (el) el.disabled = false; });
+            [waEnabled, autoCreateLeads, leadCaptureMode, reopenAfterDays, btnSaveSettings].forEach(el => { if (el) el.disabled = false; });
+        }
+    }
+
+    function syncEnabledUi() {
+        const enabled = !waEnabled || waEnabled.checked;
+        [btnGenerate, btnRefresh].forEach(el => { if (el) el.disabled = !enabled; });
+        [autoCreateLeads, leadCaptureMode, reopenAfterDays].forEach(el => { if (el) el.disabled = !enabled; });
+        if (!enabled) {
+            qrContainer.classList.add('d-none');
+            btnDisconnect.classList.add('d-none');
+            statusEl.innerText = 'WhatsApp desativado';
         }
     }
 
@@ -83,7 +97,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await fetchJson(apiPath('wa_status.php'), { cache: 'no-store' });
             lastStatus = data;
             statusErrorShown = false;
-            if (data.connected) {
+            if (waEnabled && typeof data.whatsapp_enabled !== 'undefined') waEnabled.checked = !!data.whatsapp_enabled;
+            if (waEnabled && !waEnabled.checked) {
+                syncEnabledUi();
+            } else if (data.connected) {
                 statusEl.innerText = 'Conectado - ' + (data.info || 'online');
                 qrContainer.classList.add('d-none');
                 btnDisconnect.classList.remove('d-none');
@@ -132,6 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (leadCaptureMode && data.lead_capture_mode) leadCaptureMode.value = data.lead_capture_mode;
             if (reopenAfterDays && data.reopen_after_days) reopenAfterDays.value = data.reopen_after_days;
             syncCaptureModeUi();
+            syncEnabledUi();
         } catch (e) {
             statusEl.innerText = 'WhatsApp indisponivel: ' + e.message;
             if (!statusErrorShown) console.error('wa_integration:', e);
@@ -140,6 +158,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function generateQr() {
+        if (waEnabled && !waEnabled.checked) return;
         btnGenerate.disabled = true;
         try {
             const data = await fetchJson(apiPath('wa_generate_qr.php'), { method: 'POST' });
@@ -159,6 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function refreshWa() {
+        if (waEnabled && !waEnabled.checked) return;
         if (lastStatus && lastStatus.connected) {
             await loadStatus();
             return;
@@ -226,3 +246,9 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStatus();
     startPolling();
 });
+    if (waEnabled) {
+        waEnabled.addEventListener('change', function() {
+            syncEnabledUi();
+            if (settingsFeedback) settingsFeedback.textContent = 'Alteracao pendente. Clique em salvar.';
+        });
+    }

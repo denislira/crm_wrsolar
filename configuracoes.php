@@ -1332,6 +1332,10 @@ body.theme-dark .edit-user-modal .avatar-box {
                                             <button id="btnDisconnectWa" class="btn btn-danger btn-sm d-none">Desconectar</button>
                                         </div>
                                         <div class="form-check form-switch mt-3">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="waEnabled" checked>
+                                            <label class="form-check-label small" for="waEnabled">Ativar integração WhatsApp</label>
+                                        </div>
+                                        <div class="form-check form-switch mt-3">
                                             <input class="form-check-input" type="checkbox" role="switch" id="waAutoCreateLeads" checked>
                                             <label class="form-check-label small" for="waAutoCreateLeads">Criar lead para números novos recebidos no WhatsApp</label>
                                         </div>
