@@ -220,6 +220,56 @@ function wa_incoming_download_profile_image(string $url, int $leadId, int $empre
     return $relativePath;
 }
 
+function wa_incoming_debug_notify(PDO $pdo, array $payload): void {
+    $phone = wa_incoming_digits($payload['telefone'] ?? $payload['phone'] ?? $payload['from'] ?? '');
+    $name = trim((string)($payload['push_name'] ?? $payload['nome'] ?? $payload['name'] ?? ''));
+    $message = trim((string)($payload['mensagem'] ?? $payload['text'] ?? $payload['message'] ?? ''));
+    $remoteJid = trim((string)($payload['remote_jid'] ?? ''));
+    $senderJid = trim((string)($payload['sender_jid'] ?? ''));
+    $summary = [
+        'phone' => $phone,
+        'name' => $name,
+        'remote_jid' => $remoteJid,
+        'sender_jid' => $senderJid,
+        'message' => mb_substr($message, 0, 160),
+    ];
+
+    @file_put_contents(__DIR__ . '/../logs/wa_incoming_message.log', '[' . date('c') . '] received_before_lead ' . json_encode($summary, JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND | LOCK_EX);
+
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS alerts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NULL,
+            project_id INT NULL,
+            type VARCHAR(50) DEFAULT 'notification',
+            message TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            is_read TINYINT DEFAULT 0
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $users = [];
+        try {
+            $stmt = $pdo->query('SELECT id FROM users WHERE COALESCE(role_level, 0) <= 1 ORDER BY id ASC LIMIT 10');
+            $users = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        } catch (Throwable $ignored) {}
+        if (!$users) {
+            $stmt = $pdo->query('SELECT id FROM users ORDER BY id ASC LIMIT 1');
+            $users = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        }
+
+        $label = $name !== '' ? $name : ($phone !== '' ? $phone : ($remoteJid !== '' ? $remoteJid : 'sem numero'));
+        $alertMessage = 'Teste WhatsApp: mensagem recebida antes de criar lead - ' . $label;
+        if ($message !== '') $alertMessage .= ' | ' . mb_substr($message, 0, 120);
+
+        $ins = $pdo->prepare('INSERT INTO alerts (user_id, project_id, type, message) VALUES (?, NULL, ?, ?)');
+        foreach ($users as $userId) {
+            $ins->execute([(int)$userId, 'whatsapp_test', $alertMessage]);
+        }
+    } catch (Throwable $e) {
+        @file_put_contents(__DIR__ . '/../logs/wa_incoming_message.log', '[' . date('c') . '] debug_notify_error ' . $e->getMessage() . "\n", FILE_APPEND | LOCK_EX);
+    }
+}
+
 $cfg = wa_baileys_config();
 $secret = $cfg['secret'] ?? '';
 if ($secret !== '' && ($_SERVER['HTTP_X_INTERNAL_SECRET'] ?? '') !== $secret) {
@@ -239,6 +289,8 @@ $payload = json_decode((string)$raw, true);
 if (!is_array($payload)) {
     wa_incoming_json(['success' => false, 'message' => 'invalid_json'], 400);
 }
+
+wa_incoming_debug_notify($pdo, $payload);
 
 if (empty($cfg['auto_create_leads'])) {
     wa_incoming_json(['success' => true, 'created' => false, 'reason' => 'auto_create_disabled']);
