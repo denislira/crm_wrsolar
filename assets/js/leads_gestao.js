@@ -780,9 +780,7 @@
 
     async function fetchLeads(){
         try {
-            console.log('Fetching leads from:', apiBase + '?action=list');
             const res = await fetch(apiBase + '?action=list');
-            console.log('Fetch leads response status:', res.status);
             if (!res.ok) throw new Error('Falha ao carregar leads');
             const text = await res.text();
             let json;
@@ -790,13 +788,11 @@
                 json = JSON.parse(text);
             } catch (e) {
                 console.error('Failed to parse JSON:', e);
-                console.log('Response text:', text);
                 throw e;
             }
             if (json.error) {
                 throw new Error(json.error);
             }
-            console.log('Leads loaded:', json.length);
             allLeads = json.map(l => ({...l, score: l.score ?? computeScore(l)}));
             populateLeadFilterOptions();
             const filterCidade = document.getElementById('filterCidade');
@@ -1231,12 +1227,8 @@
             formData.append('address', leadAddress);
             formData.append('lead_id', String(leadId));
 
-            console.log('Enviando FormData - lead_id:', formData.get('lead_id'), 'proposal_value:', formData.get('proposal_value'), 'projeto(kwh):', formData.get('projeto'));
-
             const res = await fetch('api/add_project.php', { method: 'POST', body: formData });
             const json = await res.json();
-            
-            console.log('Resposta da API:', json);
             
             if (json.success) {
                 lead.has_project = 1;
@@ -1891,12 +1883,9 @@
         quickActions.className = 'lead-card-actions';
         
         // Add create project button in the header if stage allows it
-        console.log('makeCard - Lead:', lead.id, lead.name, 'StageObj:', stageObj);
         if (stageObj) {
-            console.log('==> Stage:', stageObj.name, 'ID:', stageObj.id, 'allow_project_creation:', stageObj.allow_project_creation, 'Type:', typeof stageObj.allow_project_creation);
             // Check for truthy value (1, '1', true)
             if (stageObj.allow_project_creation == 1 || stageObj.allow_project_creation === true || stageObj.allow_project_creation === '1') {
-                console.log('✓ CRIANDO BOTÃO DE PROJETO!');
                 if (!isProjectLocked) {
                     const createProjBtn = document.createElement('button');
                     createProjBtn.className = 'btn btn-sm btn-success ms-2';
@@ -1917,7 +1906,6 @@
                     createProjBtn.style.gap = '2px';
                     createProjBtn.addEventListener('click', async (e) => {
                         e.stopPropagation();
-                        console.log('Botão clicado! Lead completo:', lead);
                         const leadIdToUse = lead.id || lead.lead_id || lead.ID;
                         if (!leadIdToUse) {
                             alert('ID do lead não encontrado. Não é possível criar projeto.');
@@ -1926,13 +1914,8 @@
                         await createProjectFromLead(lead);
                     });
                     left.appendChild(createProjBtn);
-                    console.log('Botão adicionado ao card!');
                 }
-            } else {
-                console.log('✗ Condição não atendida - valor:', stageObj.allow_project_creation);
             }
-        } else {
-            console.log('✗ stageObj é null/undefined');
         }
         
         head.appendChild(left);
@@ -2379,14 +2362,6 @@
     }
 
     function renderAll(){
-        console.log('=== renderAll iniciado ===');
-        console.log('STAGES:', STAGES);
-        console.log('Total de STAGES:', STAGES ? STAGES.length : 0);
-        if (STAGES && STAGES.length > 0) {
-            STAGES.forEach((s, idx) => {
-                console.log(`Stage ${idx}:`, s.id, s.name, 'allow_project_creation:', s.allow_project_creation);
-            });
-        }
         // Always refresh KPIs/top cards so totals are correct when switching views
         try { renderKpis(); } catch(e) { console.warn('renderKpis failed', e); }
         // switch to alternate views if requested: 'list' => table
@@ -2395,7 +2370,6 @@
         clearColumns();
         resetKanbanColumnState();
         const filtered = getFilteredLeads();
-        console.log('Filtered leads:', filtered.length);
         // compute sums per stage id
         const sums = {};
         STAGES.forEach(s=> sums[s.id] = 0);
@@ -3760,10 +3734,8 @@
                 try { _saveBtnHtml = saveBtn.innerHTML; } catch(e) {}
                 try { saveBtn.disabled = true; saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Salvando...'; } catch(e) {}
             }
-            console.log('Form submit triggered');
             const idEl = F('leadId') || $('#lead-id');
             const id = idEl ? idEl.value : '';
-            console.log('Lead ID:', id);
             
             const nameValue = (F('leadName')||$('#lead-name')).value || '';
             const emailValue = (F('leadEmail')||$('#lead-email')).value || '';
@@ -3801,8 +3773,6 @@
             const createdAtValue = (document.getElementById('lead-created-at') || { value: '' }).value;
             const formaPagamentoValue = (document.getElementById('lead-forma-pagamento')||{value:''}).value || '';
             
-            console.log('Form values:', {nameValue, emailValue, phoneValue, cpfValue, sourceValue, statusValue, stageIdValue, notesValue, consumoValue, estimativaValue, orcamentoValue, formattedUltimoContato});
-            console.log('Status element:', statusEl, 'Status value:', statusValue, 'Stage ID:', stageIdValue);
             
             // Check if files are present
             const filesEl = (F('leadAnexos')||$('#leadAnexos'));
@@ -3830,7 +3800,6 @@
             if (!id && createdAtValue) fd.append('created_at', createdAtValue + ' 00:00:00');
             // Always include data_inicio (Data de Entrada) when present so updates keep the chosen date
             if (createdAtValue) {
-                console.log('Data de Entrada (data_inicio) to send:', createdAtValue);
                 fd.append('data_inicio', createdAtValue);
                 // also append created_at for compatibility so the server receives the exact timestamp (useful for debugging)
                 try { fd.append('created_at', createdAtValue + ' 00:00:00'); } catch(e) {}
@@ -3841,7 +3810,6 @@
             if (hasFiles) {
                 for (let i=0;i<filesEl.files.length;i++) {
                     fd.append('anexos[]', filesEl.files[i]);
-                    console.log('Appending file:', filesEl.files[i].name, filesEl.files[i].size, 'bytes');
                 }
             }
             
@@ -3851,12 +3819,8 @@
             try {
                 const action = id ? 'update' : 'add';
                 const url = apiBase + '?action=' + action;
-                console.log('Sending request to:', url, hasFiles ? '(with files)' : '(no files)');
-                console.log('Action:', action, 'ID:', id);
                 const res = await fetch(url, { method: 'POST', headers, body });
-                console.log('Response status:', res.status);
                 const txt = await res.text();
-                console.log('Response text:', txt);
                 let payload = null;
                 try { payload = JSON.parse(txt); } catch(e) { 
                     console.warn('Failed to parse JSON:', e); 
@@ -3868,7 +3832,6 @@
                     alert('Falha ao salvar: ' + msg);
                     return;
                 }
-                console.log('Save successful, reloading leads...');
                 try {
                     await fetchLeads();
                 } catch (reloadErr) {
