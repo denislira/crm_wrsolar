@@ -613,7 +613,7 @@
 
     function populateLeadFilterOptions(){
         const filterEstado = document.getElementById('filterEstado');
-        const filterCidadeList = document.getElementById('filterCidadeList');
+        const filterCidade = document.getElementById('filterCidade');
         if (filterEstado) {
             const current = String(CURRENT_ESTADO_FILTER || '').trim().toUpperCase();
             const states = getStateOptionsFromLeads(allLeads);
@@ -626,14 +626,21 @@
             });
             filterEstado.value = current;
         }
-        if (filterCidadeList) {
+        if (filterCidade) {
+            const current = String(CURRENT_CIDADE_FILTER || '').trim();
             const cidades = getCityOptionsFromLeads(allLeads, CURRENT_ESTADO_FILTER);
-            filterCidadeList.innerHTML = '';
+            filterCidade.innerHTML = '<option value="">Todas cidades</option>';
             cidades.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c;
-                filterCidadeList.appendChild(opt);
+                opt.textContent = c;
+                filterCidade.appendChild(opt);
             });
+            filterCidade.value = current;
+            if (current && filterCidade.value !== current) {
+                CURRENT_CIDADE_FILTER = '';
+                filterCidade.value = '';
+            }
         }
     }
 
@@ -3990,20 +3997,10 @@
 
         const filterCidadeEl = $('#filterCidade');
         if (filterCidadeEl) {
-            filterCidadeEl.addEventListener('input', (e)=>{
-                clearTimeout(FILTER_CITY_TIMER);
-                const value = e.target.value || '';
-                if (value.trim().length < FILTER_CITY_MIN_CHARS) {
-                    CURRENT_CIDADE_FILTER = '';
-                    persistLeadFilters();
-                    renderAll();
-                    return;
-                }
-                FILTER_CITY_TIMER = setTimeout(() => {
-                    CURRENT_CIDADE_FILTER = value;
-                    persistLeadFilters();
-                    renderAll();
-                }, 1000);
+            filterCidadeEl.addEventListener('change', (e)=>{
+                CURRENT_CIDADE_FILTER = e.target.value || '';
+                persistLeadFilters();
+                renderAll();
             });
         }
 
@@ -4011,8 +4008,8 @@
         if (filterEstadoEl) {
             filterEstadoEl.addEventListener('change', (e)=>{
                 CURRENT_ESTADO_FILTER = e.target.value || '';
-                persistLeadFilters();
                 populateLeadFilterOptions();
+                persistLeadFilters();
                 renderAll();
             });
         }

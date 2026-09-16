@@ -53,8 +53,9 @@ include 'includes/header.php';
                     <div class="advanced-filters-grid">
                         <div class="position-relative">
                             <label class="form-label small text-muted mb-1" for="filterCidade">Cidade</label>
-                            <input id="filterCidade" class="form-control form-control-sm" list="filterCidadeList" placeholder="Todas cidades">
-                            <datalist id="filterCidadeList"></datalist>
+                            <select id="filterCidade" class="form-select form-select-sm">
+                                <option value="">Todas cidades</option>
+                            </select>
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-1" for="filterEstado">Estado</label>

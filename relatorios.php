@@ -186,6 +186,8 @@ $timelineTypes = [];
 $avgDaysToClose = null;
 $avgTicket = null;
 $sources = [];
+$leadsByCityUf = [];
+$leadsByUf = [];
 $sourceFilterOptions = [];
 $timeDistribution = array_fill(1, 7, 0);
 $trendSeries = [];
@@ -322,6 +324,50 @@ try {
                 $sstmt = $pdo->prepare("SELECT COALESCE(NULLIF({$sourceCol},''),'Sem origem') AS source, COUNT(*) AS cnt FROM leads WHERE {$filterWhere} GROUP BY COALESCE(NULLIF({$sourceCol},''),'Sem origem') ORDER BY cnt DESC");
                 $sstmt->execute($filterParams);
                 $sources = $sstmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        if (in_array('cidade', $leadCols, true)) {
+                $ufExpr = "''";
+                foreach (['uf','estado','state'] as $ufCol) {
+                        if (in_array($ufCol, $leadCols, true)) {
+                                $ufExpr = "UPPER(TRIM({$ufCol}))";
+                                break;
+                        }
+                }
+                $cityNameExpr = "TRIM(SUBSTRING_INDEX(cidade, '-', 1))";
+                $cityUfExpr = "CASE
+                        WHEN cidade IS NULL OR TRIM(cidade) = '' THEN 'Sem cidade'
+                        WHEN {$ufExpr} REGEXP '^[A-Z]{2}$' THEN CONCAT({$cityNameExpr}, ' - ', {$ufExpr})
+                        WHEN UPPER(TRIM(SUBSTRING_INDEX(cidade, '-', -1))) REGEXP '^[A-Z]{2}$' AND cidade LIKE '%-%' THEN CONCAT({$cityNameExpr}, ' - ', UPPER(TRIM(SUBSTRING_INDEX(cidade, '-', -1))))
+                        ELSE TRIM(cidade)
+                END";
+                $ufOnlyExpr = "CASE
+                        WHEN {$ufExpr} REGEXP '^[A-Z]{2}$' THEN {$ufExpr}
+                        WHEN UPPER(TRIM(SUBSTRING_INDEX(cidade, '-', -1))) REGEXP '^[A-Z]{2}$' AND cidade LIKE '%-%' THEN UPPER(TRIM(SUBSTRING_INDEX(cidade, '-', -1)))
+                        ELSE 'Sem UF'
+                END";
+
+                $cityStmt = $pdo->prepare(
+                        "SELECT {$cityUfExpr} AS label, COUNT(*) AS cnt
+                         FROM leads
+                         WHERE {$filterWhere}
+                         GROUP BY label
+                         ORDER BY cnt DESC, label ASC
+                         LIMIT 15"
+                );
+                $cityStmt->execute($filterParams);
+                $leadsByCityUf = $cityStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $ufStmt = $pdo->prepare(
+                        "SELECT {$ufOnlyExpr} AS label, COUNT(*) AS cnt
+                         FROM leads
+                         WHERE {$filterWhere}
+                         GROUP BY label
+                         ORDER BY cnt DESC, label ASC
+                         LIMIT 15"
+                );
+                $ufStmt->execute($filterParams);
+                $leadsByUf = $ufStmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
         try {
@@ -1981,6 +2027,26 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
                         </div>
                     </div>
 
+                    <!-- Location Charts -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-lg-8">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-city"></i> Leads por Cidade e UF</div>
+                                <div class="chart-container">
+                                    <canvas id="chartLeadsByCityUf"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="report-card">
+                                <div class="report-card-title"><i class="fa fa-map-marker-alt"></i> Leads por Estado UF</div>
+                                <div class="chart-container">
+                                    <canvas id="chartLeadsByUf"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Quick Stats -->
                     <div class="row g-3 mb-4">
                         <div class="col-lg-6">
@@ -2783,6 +2849,8 @@ const REPORT_CONVERSION_RATE = <?php echo json_encode($conversionRate, JSON_HEX_
 const REPORT_AVG_DAYS_TO_CLOSE = <?php echo json_encode($avgDaysToClose, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_AVG_TICKET = <?php echo json_encode($avgTicket, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_SOURCES = <?php echo json_encode($sources, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_LEADS_BY_CITY_UF = <?php echo json_encode($leadsByCityUf, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_LEADS_BY_UF = <?php echo json_encode($leadsByUf, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_TIME_DISTRIBUTION = <?php echo json_encode($timeDistribution, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_TRENDS_SERIES = <?php echo json_encode($trendSeries, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_USERS_RANKING = <?php echo json_encode($usersRanking, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
@@ -3216,6 +3284,69 @@ function renderLeadsByStageChart() {
             } 
         } 
     });
+}
+
+function renderLeadsByLocationCharts() {
+    const cityEl = document.getElementById('chartLeadsByCityUf');
+    if (cityEl) {
+        destroyChart('chartLeadsByCityUf');
+        const rows = Array.isArray(REPORT_LEADS_BY_CITY_UF) ? REPORT_LEADS_BY_CITY_UF : [];
+        const labels = rows.length ? rows.map(r => r.label || 'Sem cidade') : ['Sem dados'];
+        const values = rows.length ? rows.map(r => Number(r.cnt || 0)) : [0];
+        chartInstances['chartLeadsByCityUf'] = new Chart(cityEl, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Leads',
+                    data: values,
+                    backgroundColor: labels.map((_, i) => defaultPalette(i)),
+                    borderRadius: 6,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: context => `${formatNumber(context.parsed.x || 0)} leads` } }
+                },
+                scales: {
+                    x: { beginAtZero: true, ticks: { precision: 0 } },
+                    y: { ticks: { autoSkip: false } }
+                }
+            }
+        });
+    }
+
+    const ufEl = document.getElementById('chartLeadsByUf');
+    if (ufEl) {
+        destroyChart('chartLeadsByUf');
+        const rows = Array.isArray(REPORT_LEADS_BY_UF) ? REPORT_LEADS_BY_UF : [];
+        const labels = rows.length ? rows.map(r => r.label || 'Sem UF') : ['Sem dados'];
+        const values = rows.length ? rows.map(r => Number(r.cnt || 0)) : [0];
+        chartInstances['chartLeadsByUf'] = new Chart(ufEl, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: labels.map((_, i) => defaultPalette(i)),
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: { callbacks: { label: context => `${context.label}: ${formatNumber(context.parsed || 0)} leads` } }
+                }
+            }
+        });
+    }
 }
 
 function renderConversionDonutChart() {
@@ -4438,6 +4569,7 @@ function renderReports(){
         renderKPIs();
         renderLeadsMonthlyChart();
         renderLeadsByStageChart();
+        renderLeadsByLocationCharts();
         renderConversionDonutChart();
         renderSourcesPieChart();
         renderCreatedClosedChart();

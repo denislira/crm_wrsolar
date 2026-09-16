@@ -24,6 +24,17 @@ function wrcrm_email_ensure_schema(PDO $pdo): void
         CONSTRAINT fk_crm_emails_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+    foreach ([
+        'from_email' => "ALTER TABLE crm_emails ADD COLUMN from_email VARCHAR(255) DEFAULT NULL AFTER user_id",
+        'from_name' => "ALTER TABLE crm_emails ADD COLUMN from_name VARCHAR(255) DEFAULT NULL AFTER from_email",
+        'smtp_scope' => "ALTER TABLE crm_emails ADD COLUMN smtp_scope ENUM('user','system') NOT NULL DEFAULT 'system' AFTER from_name"
+    ] as $column => $sql) {
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM crm_emails LIKE " . $pdo->quote($column));
+            if (!$stmt || !$stmt->fetch(PDO::FETCH_ASSOC)) $pdo->exec($sql);
+        } catch (Throwable $ignored) {}
+    }
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_email_attachments (
         id INT AUTO_INCREMENT PRIMARY KEY,
         email_id INT NOT NULL,
@@ -35,6 +46,90 @@ function wrcrm_email_ensure_schema(PDO $pdo): void
         INDEX idx_crm_email_attachments_email (email_id),
         CONSTRAINT fk_crm_email_attachments_email FOREIGN KEY (email_id) REFERENCES crm_emails(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function wrcrm_email_user_smtp_key(int $userId): string
+{
+    return 'smtp_user_' . $userId;
+}
+
+function wrcrm_email_user_scope_key(int $userId): string
+{
+    return 'smtp_user_scope_' . $userId;
+}
+
+function wrcrm_email_normalize_smtp(array $smtp, bool $keepPass = true): array
+{
+    return [
+        'host' => trim((string)($smtp['host'] ?? '')),
+        'port' => (int)($smtp['port'] ?? 0),
+        'secure' => in_array(($smtp['secure'] ?? ''), ['ssl', 'tls'], true) ? $smtp['secure'] : '',
+        'user' => trim((string)($smtp['user'] ?? '')),
+        'pass' => $keepPass ? (string)($smtp['pass'] ?? '') : '',
+        'from_email' => trim((string)($smtp['from_email'] ?? '')),
+        'from_name' => trim((string)($smtp['from_name'] ?? '')),
+        'auth' => !empty($smtp['auth']) ? 1 : 0,
+    ];
+}
+
+function wrcrm_email_user_profile(PDO $pdo, int $userId): array
+{
+    $stmt = $pdo->prepare('SELECT username, email, nome_completo FROM users WHERE id = ? LIMIT 1');
+    $stmt->execute([$userId]);
+    return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+}
+
+function wrcrm_email_get_system_smtp(): array
+{
+    $settings = wrcrm_read_settings();
+    return wrcrm_email_normalize_smtp(is_array($settings['smtp'] ?? null) ? $settings['smtp'] : []);
+}
+
+function wrcrm_email_get_user_smtp(PDO $pdo, int $userId): array
+{
+    $row = wrcrm_db_setting_get($pdo, wrcrm_email_user_smtp_key($userId));
+    return wrcrm_email_normalize_smtp(is_array($row['value'] ?? null) ? $row['value'] : []);
+}
+
+function wrcrm_email_save_user_smtp(PDO $pdo, int $userId, array $smtp): bool
+{
+    $current = wrcrm_email_get_user_smtp($pdo, $userId);
+    $smtp = wrcrm_email_normalize_smtp($smtp);
+    if ($smtp['pass'] === '') $smtp['pass'] = $current['pass'] ?? '';
+    return wrcrm_db_setting_set($pdo, wrcrm_email_user_smtp_key($userId), $smtp, true, $userId);
+}
+
+function wrcrm_email_save_user_scope(PDO $pdo, int $userId, string $scope): bool
+{
+    return wrcrm_db_setting_set($pdo, wrcrm_email_user_scope_key($userId), in_array($scope, ['user', 'system'], true) ? $scope : 'user', false, $userId);
+}
+
+function wrcrm_email_public_account(PDO $pdo, int $userId): array
+{
+    $profile = wrcrm_email_user_profile($pdo, $userId);
+    $userSmtp = wrcrm_email_get_user_smtp($pdo, $userId);
+    $systemSmtp = wrcrm_email_get_system_smtp();
+    $scopeRow = wrcrm_db_setting_get($pdo, wrcrm_email_user_scope_key($userId));
+    $preferredScope = in_array(($scopeRow['value'] ?? ''), ['user', 'system'], true) ? $scopeRow['value'] : 'user';
+    $userAvailable = !empty($userSmtp['host']) && filter_var(($userSmtp['from_email'] ?: $userSmtp['user']), FILTER_VALIDATE_EMAIL);
+    $activeScope = $preferredScope === 'user' && $userAvailable ? 'user' : 'system';
+    $active = $activeScope === 'user' ? $userSmtp : $systemSmtp;
+    $userSafe = $userSmtp;
+    $systemSafe = $systemSmtp;
+    $userSafe['pass'] = '';
+    $systemSafe['pass'] = '';
+
+    return [
+        'active_scope' => $activeScope,
+        'preferred_scope' => $preferredScope,
+        'active_email' => trim($active['from_email'] ?: $active['user'] ?: ($profile['email'] ?? '')),
+        'active_name' => trim($active['from_name'] ?: ($profile['nome_completo'] ?? '') ?: ($profile['username'] ?? '')),
+        'user_smtp' => $userSafe,
+        'user_has_password' => !empty($userSmtp['pass']),
+        'system_smtp' => $systemSafe,
+        'system_available' => !empty($systemSmtp['host']) && filter_var(($systemSmtp['from_email'] ?: $systemSmtp['user']), FILTER_VALIDATE_EMAIL),
+        'profile_email' => $profile['email'] ?? '',
+    ];
 }
 
 function wrcrm_email_addresses(string $value): array
@@ -138,10 +233,9 @@ function wrcrm_email_mime_message(array $mail, array $attachments, string $fromE
     return ['recipients' => array_values(array_unique(array_merge($to, $cc, $bcc))), 'headers' => $headers, 'body' => $body];
 }
 
-function wrcrm_send_composed_email(array $mail, array $attachments = []): bool
+function wrcrm_send_composed_email(array $mail, array $attachments = [], ?array $smtpOverride = null): bool
 {
-    $settings = wrcrm_read_settings();
-    $smtp = is_array($settings['smtp'] ?? null) ? $settings['smtp'] : [];
+    $smtp = $smtpOverride !== null ? $smtpOverride : wrcrm_email_get_system_smtp();
     $fromEmail = trim($smtp['from_email'] ?? '') ?: trim($smtp['user'] ?? '');
     $fromName = trim($smtp['from_name'] ?? '') ?: 'WRCRM';
     if (!$fromEmail || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Configure um remetente válido na aba SMTP.');
@@ -185,4 +279,3 @@ function wrcrm_send_composed_email(array $mail, array $attachments = []): bool
         $send('QUIT'); fclose($fp); return true;
     } catch (Throwable $e) { if (is_resource($fp)) fclose($fp); throw $e; }
 }
-

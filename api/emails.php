@@ -18,8 +18,33 @@ function email_attachments(PDO $pdo, int $emailId, int $userId): array {
     $stmt=$pdo->prepare('SELECT a.* FROM crm_email_attachments a JOIN crm_emails e ON e.id=a.email_id WHERE a.email_id=? AND e.user_id=? ORDER BY a.id');
     $stmt->execute([$emailId,$userId]); return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
+function email_account_payload(PDO $pdo, int $userId): array {
+    return ['success'=>true,'account'=>wrcrm_email_public_account($pdo,$userId)];
+}
 
 try {
+    if ($action === 'account') {
+        email_json(email_account_payload($pdo,$userId));
+    }
+    if ($action === 'save_account') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') email_json(['success'=>false,'message'=>'Método não permitido.'],405);
+        if (empty($_SESSION['email_csrf']) || !hash_equals($_SESSION['email_csrf'], (string)($_POST['csrf_token'] ?? ''))) email_json(['success'=>false,'message'=>'Sessão expirada. Atualize a página e tente novamente.'],419);
+        $smtp = [
+            'host'=>trim((string)($_POST['host']??'')),
+            'port'=>(int)($_POST['port']??0),
+            'secure'=>trim((string)($_POST['secure']??'')),
+            'user'=>trim((string)($_POST['user']??'')),
+            'pass'=>(string)($_POST['pass']??''),
+            'from_email'=>trim((string)($_POST['from_email']??'')),
+            'from_name'=>trim((string)($_POST['from_name']??'')),
+            'auth'=>isset($_POST['auth']) && in_array((string)$_POST['auth'], ['1','true','on'], true) ? 1 : 0,
+        ];
+        $from = $smtp['from_email'] ?: $smtp['user'];
+        if ($from !== '' && !filter_var($from,FILTER_VALIDATE_EMAIL)) email_json(['success'=>false,'message'=>'Informe um e-mail remetente válido.'],422);
+        if (!wrcrm_email_save_user_smtp($pdo,$userId,$smtp)) email_json(['success'=>false,'message'=>'Não foi possível salvar o e-mail do perfil.'],500);
+        wrcrm_email_save_user_scope($pdo,$userId,(string)($_POST['preferred_scope'] ?? 'user'));
+        email_json(['success'=>true,'message'=>'E-mail do perfil salvo.','account'=>wrcrm_email_public_account($pdo,$userId)]);
+    }
     if ($action === 'list') {
         $folder = $_GET['folder'] ?? 'sent';
         if (!in_array($folder,['sent','draft','failed','trash'],true)) $folder='sent';
@@ -83,9 +108,17 @@ try {
         if (!empty($_FILES['attachments'])) wrcrm_email_store_uploads($pdo,$userId,$id,$_FILES['attachments']);
         $pdo->commit();
         if ($action==='save') email_json(['success'=>true,'message'=>'Rascunho salvo.','id'=>$id]);
+        $account = wrcrm_email_public_account($pdo,$userId);
+        $smtp = $account['active_scope'] === 'user' ? wrcrm_email_get_user_smtp($pdo,$userId) : wrcrm_email_get_system_smtp();
+        if (empty($smtp['host'])) throw new RuntimeException($account['active_scope'] === 'user' ? 'Configure o SMTP do seu perfil antes de enviar.' : 'Configure o SMTP do sistema antes de enviar.');
+        $fromEmail = trim($smtp['from_email'] ?: $smtp['user']);
+        if (!$fromEmail || !filter_var($fromEmail,FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Configure um remetente válido para enviar.');
+        $fromName = trim($smtp['from_name'] ?: $account['active_name'] ?: 'WRCRM');
+        $st=$pdo->prepare('UPDATE crm_emails SET from_email=?,from_name=?,smtp_scope=? WHERE id=? AND user_id=?');
+        $st->execute([$fromEmail,$fromName,$account['active_scope'],$id,$userId]);
         $mail=email_owned($pdo,$id,$userId); $attachments=email_attachments($pdo,$id,$userId);
         foreach($attachments as &$a) $a['path']=wrcrm_email_attachment_dir($userId,$id).'/'.$a['stored_name'];
-        try { wrcrm_send_composed_email($mail,$attachments); $st=$pdo->prepare("UPDATE crm_emails SET status='sent',sent_at=NOW(),error_message=NULL WHERE id=? AND user_id=?"); $st->execute([$id,$userId]); email_json(['success'=>true,'message'=>'E-mail enviado com sucesso.','id'=>$id]); }
+        try { wrcrm_send_composed_email($mail,$attachments,$smtp); $st=$pdo->prepare("UPDATE crm_emails SET status='sent',sent_at=NOW(),error_message=NULL WHERE id=? AND user_id=?"); $st->execute([$id,$userId]); email_json(['success'=>true,'message'=>'E-mail enviado com sucesso.','id'=>$id]); }
         catch(Throwable $e){$st=$pdo->prepare("UPDATE crm_emails SET status='failed',error_message=? WHERE id=? AND user_id=?");$st->execute([mb_substr($e->getMessage(),0,2000),$id,$userId]);throw $e;}
     }
     if (in_array($action,['trash','restore','delete_attachment'],true)) {
