@@ -1,5 +1,6 @@
 const fs = require('fs');
 const http = require('http');
+const https = require('https');
 const path = require('path');
 const pino = require('pino');
 const baileys = require('@adiwajshing/baileys');
@@ -86,6 +87,9 @@ const API_PORT = Number(process.env.API_PORT || 3001);
 const INTERNAL_SECRET = process.env.BAILEYS_INTERNAL_SECRET || '';
 const EMPRESA_TOKEN = process.env.BAILEYS_EMPRESA_TOKEN || 'wrcrm-9999';
 const CLIENT_KEY = process.env.BAILEYS_CLIENT_KEY || '';
+const INCOMING_WEBHOOK_URL = process.env.BAILEYS_INCOMING_WEBHOOK_URL || 'http://127.0.0.1/WRCRM/api/wa_incoming_message.php';
+const SEND_INTERVAL_MS = Math.max(1000, Number(process.env.WA_SEND_INTERVAL_MS || 8000));
+const SEND_JITTER_MS = Math.max(0, Number(process.env.WA_SEND_JITTER_MS || 3000));
 
 let sock = null;
 let httpServer = null;
@@ -96,6 +100,9 @@ let manualDisconnect = false;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
 let currentState = { connected: false, info: 'iniciando servico Baileys' };
+let sendQueue = [];
+let sendQueueProcessing = false;
+let lastSendAt = 0;
 
 function ensureDir(filePath) {
   const dir = path.dirname(filePath);
@@ -181,6 +188,99 @@ async function sendText(phone, text) {
   };
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function enqueueSend(phone, text) {
+  return new Promise((resolve, reject) => {
+    const job = {
+      phone,
+      text,
+      queued_at: new Date().toISOString(),
+      resolve,
+      reject
+    };
+    sendQueue.push(job);
+    writeState({ send_queue_size: sendQueue.length });
+    processSendQueue().catch(err => logger.error({ err }, 'Falha no processamento da fila de envio'));
+  });
+}
+
+async function processSendQueue() {
+  if (sendQueueProcessing) return;
+  sendQueueProcessing = true;
+  try {
+    while (sendQueue.length) {
+      const job = sendQueue[0];
+      try {
+        const elapsed = Date.now() - lastSendAt;
+        const jitter = SEND_JITTER_MS ? Math.floor(Math.random() * SEND_JITTER_MS) : 0;
+        const waitMs = Math.max(0, SEND_INTERVAL_MS + jitter - elapsed);
+        if (waitMs > 0) {
+          writeState({ send_queue_size: sendQueue.length, info: 'fila de envio WhatsApp aguardando ' + Math.ceil(waitMs / 1000) + 's' });
+          await sleep(waitMs);
+        }
+        const result = await sendText(job.phone, job.text);
+        lastSendAt = Date.now();
+        sendQueue.shift();
+        writeState({ send_queue_size: sendQueue.length, last_message_sent_at: new Date().toISOString() });
+        job.resolve(result);
+      } catch (err) {
+        sendQueue.shift();
+        writeState({ send_queue_size: sendQueue.length });
+        job.reject(err);
+      }
+    }
+  } finally {
+    sendQueueProcessing = false;
+    writeState({ send_queue_size: sendQueue.length });
+  }
+}
+
+function extractMessageText(message) {
+  if (!message) return '';
+  if (message.conversation) return String(message.conversation);
+  if (message.extendedTextMessage && message.extendedTextMessage.text) return String(message.extendedTextMessage.text);
+  if (message.imageMessage && message.imageMessage.caption) return String(message.imageMessage.caption);
+  if (message.videoMessage && message.videoMessage.caption) return String(message.videoMessage.caption);
+  return '';
+}
+
+async function postIncomingMessage(payload) {
+  if (!INCOMING_WEBHOOK_URL) return;
+  const body = JSON.stringify(payload);
+  const target = new URL(INCOMING_WEBHOOK_URL);
+  const transport = target.protocol === 'https:' ? https : http;
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Content-Length': Buffer.byteLength(body)
+  };
+  if (INTERNAL_SECRET) headers['X-Internal-Secret'] = INTERNAL_SECRET;
+  await new Promise((resolve) => {
+    const req = transport.request({
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || (target.protocol === 'https:' ? 443 : 80),
+      path: target.pathname + target.search,
+      method: 'POST',
+      headers,
+      timeout: 8000
+    }, (res) => {
+      res.resume();
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        logger.warn({ status: res.statusCode }, 'Webhook de mensagem recebida retornou erro');
+      }
+      resolve();
+    });
+    req.on('timeout', () => { req.destroy(); resolve(); });
+    req.on('error', (err) => { logger.warn({ err }, 'Falha ao enviar mensagem recebida ao WRCRM'); resolve(); });
+    req.write(body);
+    req.end();
+  });
+}
+
 function startHttpApi() {
   if (httpServer) return;
   httpServer = http.createServer(async (req, res) => {
@@ -209,8 +309,8 @@ function startHttpApi() {
 
       if (req.method === 'POST' && url.pathname === '/send') {
         const payload = await readBody(req);
-        const result = await sendText(payload.telefone || payload.phone, payload.mensagem || payload.text);
-        return jsonResponse(res, 200, { ok: true, success: true, ...result });
+        const result = await enqueueSend(payload.telefone || payload.phone, payload.mensagem || payload.text);
+        return jsonResponse(res, 200, { ok: true, success: true, queued: true, ...result });
       }
 
       if (req.method === 'POST' && url.pathname === '/disconnect') {
@@ -327,6 +427,29 @@ async function startSocket({ fresh = false, reason = 'start' } = {}) {
           writeState({ info: 'sessão inválida; gere um novo QR Code' });
         }
       }
+    });
+
+    sock.ev.on('messages.upsert', (event) => {
+      const messages = event && Array.isArray(event.messages) ? event.messages : [];
+      messages.forEach((msg) => {
+        try {
+          if (!msg || !msg.key || msg.key.fromMe) return;
+          const remoteJid = msg.key.remoteJid || '';
+          if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid === 'status@broadcast') return;
+          const phone = remoteJid.split('@')[0].replace(/\D/g, '');
+          const text = extractMessageText(msg.message || {});
+          postIncomingMessage({
+            phone,
+            text,
+            push_name: msg.pushName || '',
+            message_id: msg.key.id || '',
+            timestamp: msg.messageTimestamp || null,
+            remote_jid: remoteJid
+          }).catch(err => logger.warn({ err }, 'Erro assíncrono no webhook de entrada'));
+        } catch (err) {
+          logger.warn({ err }, 'Falha ao processar mensagem recebida');
+        }
+      });
     });
   } catch (err) {
     logger.error({ err }, 'Falha ao iniciar Baileys');

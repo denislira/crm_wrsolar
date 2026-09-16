@@ -1331,6 +1331,23 @@ body.theme-dark .edit-user-modal .avatar-box {
                                             <button id="btnRefreshWa" class="btn btn-outline-secondary btn-sm">Atualizar/Renovar</button>
                                             <button id="btnDisconnectWa" class="btn btn-danger btn-sm d-none">Desconectar</button>
                                         </div>
+                                        <div class="form-check form-switch mt-3">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="waAutoCreateLeads" checked>
+                                            <label class="form-check-label small" for="waAutoCreateLeads">Criar lead para números novos recebidos no WhatsApp</label>
+                                        </div>
+                                        <div class="mt-3">
+                                            <label class="form-label small mb-1" for="waLeadCaptureMode">Quando uma conversa recebida vira lead</label>
+                                            <select id="waLeadCaptureMode" class="form-select form-select-sm">
+                                                <option value="new_only">Somente números que nunca existiram</option>
+                                                <option value="closed_after_days">Números novos e atendimentos encerrados após prazo</option>
+                                            </select>
+                                        </div>
+                                        <div class="mt-2" id="waReopenAfterDaysWrap">
+                                            <label class="form-label small mb-1" for="waReopenAfterDays">Dias após conclusão/encerramento</label>
+                                            <input id="waReopenAfterDays" class="form-control form-control-sm" type="number" min="1" max="3650" value="30">
+                                        </div>
+                                        <button id="btnSaveWaSettings" class="btn btn-success btn-sm mt-3" type="button">Salvar configurações do WhatsApp</button>
+                                        <div id="waSettingsFeedback" class="small text-muted mt-2"></div>
                                         <small class="d-block text-muted mt-2">O QR é gerado automaticamente pelo Baileys ao clicar em Obter QR Code ou Atualizar/Renovar.</small>
                                     </div>
                                     <div id="waHelpCard" class="p-3 rounded shadow-sm" style="min-width:320px; max-width:520px; background:#fff;">
@@ -2438,7 +2455,7 @@ document.getElementById('changePasswordForm').addEventListener('submit', functio
 });
 </script>
 
-<script src="<?php echo rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\'); ?>/assets/js/wa_integration.js"></script>
+<script src="<?php echo rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\'); ?>/assets/js/wa_integration.js?v=20260916"></script>
 <script>
     (async function(){
         try{

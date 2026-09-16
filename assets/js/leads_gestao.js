@@ -805,9 +805,11 @@
             }
             // compute presence of SEM STATUS (stage_id === 0 or null)
             const prevSem = SEMSTATUS_PRESENT;
-            SEMSTATUS_PRESENT = allLeads.some(x => x.stage_id == null || Number(x.stage_id) === 0);
+            const prevWhats = WHATSAPP_PRESENT;
+            WHATSAPP_PRESENT = true;
+            SEMSTATUS_PRESENT = allLeads.some(x => !isWhatsappInboxLead(x) && (x.stage_id == null || Number(x.stage_id) === 0));
             // if presence changed and stages already loaded, rebuild columns
-            if (prevSem !== SEMSTATUS_PRESENT && STAGES && STAGES.length) {
+            if ((prevSem !== SEMSTATUS_PRESENT || prevWhats !== WHATSAPP_PRESENT) && STAGES && STAGES.length) {
                 try { buildColumns(); } catch(e){}
             }
             renderAll();
@@ -1076,6 +1078,8 @@
     let ANUNCIOS_PRESENT = false;
     // whether the Indicações column should be shown (only when there are referral submissions)
     let INDICADOS_PRESENT = false;
+    // WhatsApp inbox column: leads created from new inbound WhatsApp conversations.
+    let WHATSAPP_PRESENT = true;
     // Sem Status column: present when there are leads with stage_id === 0
     let SEMSTATUS_PRESENT = false;
     // user preference whether to show Sem Status column (persisted)
@@ -1084,6 +1088,13 @@
     let ANUNCIOS_SHOWN = (localStorage.getItem('showAnuncios') !== '0');
     // user preference whether to show Indicações column (persisted)
     let INDICADOS_SHOWN = (localStorage.getItem('showIndicados') !== '0');
+    let WHATSAPP_SHOWN = (localStorage.getItem('showWhatsappLeads') !== '0');
+    function isWhatsappInboxLead(lead) {
+        const source = normalizeText(lead && lead.source);
+        const status = normalizeText(lead && lead.status);
+        const noStage = lead && (lead.stage_id == null || Number(lead.stage_id) === 0);
+        return noStage && source === 'whatsapp' && status === 'whatsapp';
+    }
     async function fetchStages(){
         try{
             const res = await fetch('includes/funil_stages_api.php?action=list'); if (!res.ok) throw new Error('Falha ao carregar estágios');
@@ -1274,6 +1285,20 @@
             } catch(e){ console.warn('failed creating anuncios column', e); }
         }
         // Insert Indicações column next (if present and user enabled)
+        if (WHATSAPP_PRESENT && WHATSAPP_SHOWN) {
+            try {
+                const waWrap = document.createElement('div'); waWrap.className = 'kanban-column'; waWrap.dataset.stageId = 'whatsapp'; waWrap.dataset.stageName = 'WhatsApp';
+                waWrap.dataset.color = '#25D366';
+                const waHeader = document.createElement('div'); waHeader.className = 'kanban-header';
+                const waTitle = document.createElement('span'); waTitle.className = 'kanban-title'; waTitle.textContent = 'WhatsApp';
+                const waCount = document.createElement('span'); waCount.className = 'badge bg-light text-muted ms-2'; waCount.id = 'count-whatsapp'; waCount.textContent = '0';
+                waHeader.appendChild(waTitle); waHeader.appendChild(waCount);
+                applyKanbanHeaderColor(waHeader, waWrap.dataset.color);
+                const waContent = document.createElement('div'); waContent.className = 'column-content'; waContent.id = 'col-whatsapp';
+                waWrap.appendChild(waHeader); waWrap.appendChild(waContent);
+                wrap.appendChild(waWrap);
+            } catch(e){ console.warn('failed creating WhatsApp column', e); }
+        }
         if (INDICADOS_PRESENT && INDICADOS_SHOWN) {
             try {
                 const indWrap = document.createElement('div'); indWrap.className = 'kanban-column'; indWrap.dataset.stageId = 'indicados'; indWrap.dataset.stageName = 'Indicações';
@@ -2375,10 +2400,13 @@
         const groupedByStage = {};
         STAGES.forEach(s=> groupedByStage[String(s.id)] = []);
         groupedByStage.sem_status = [];
+        groupedByStage.whatsapp = [];
 
         filtered.forEach(l=>{
             let stageKey = '0';
-            if (typeof l.stage_id === 'undefined' || l.stage_id === null || Number(l.stage_id) === 0) {
+            if (isWhatsappInboxLead(l)) {
+                stageKey = 'whatsapp';
+            } else if (typeof l.stage_id === 'undefined' || l.stage_id === null || Number(l.stage_id) === 0) {
                 stageKey = 'sem_status';
             } else if (l.stage_id) {
                 stageKey = String(l.stage_id);
@@ -2412,6 +2440,8 @@
 
         const semStatusCount = document.getElementById('count-sem_status');
         if (semStatusCount) semStatusCount.textContent = String((groupedByStage.sem_status || []).length);
+        const whatsappCount = document.getElementById('count-whatsapp');
+        if (whatsappCount) whatsappCount.textContent = String((groupedByStage.whatsapp || []).length);
 
         // highlight largest stage by value
         const largest = Object.keys(sums).reduce((mx,k)=> sums[k] > (sums[mx]||0) ? k : mx, Object.keys(sums)[0]);
@@ -2508,6 +2538,10 @@
             try {
                 // Prevent dropping any cards into 'Indicações' column
                 if (stageId === 'indicados') {
+                    flashFeedback(colContent, false);
+                    return;
+                }
+                if (stageId === 'whatsapp') {
                     flashFeedback(colContent, false);
                     return;
                 }
@@ -3468,6 +3502,20 @@
                 });
             }
         } catch(e){ console.warn('sem status toggle setup failed', e); }
+
+        // WhatsApp toggle button
+        try {
+            const waBtn = document.getElementById('toggleWhatsappBtn');
+            if (waBtn) {
+                waBtn.classList.toggle('active', WHATSAPP_SHOWN);
+                waBtn.addEventListener('click', ()=>{
+                    WHATSAPP_SHOWN = !WHATSAPP_SHOWN;
+                    localStorage.setItem('showWhatsappLeads', WHATSAPP_SHOWN ? '1' : '0');
+                    waBtn.classList.toggle('active', WHATSAPP_SHOWN);
+                    try { buildColumns(); renderAll(); } catch(e){ console.warn('Failed toggling WhatsApp column', e); }
+                });
+            }
+        } catch(e){ console.warn('whatsapp toggle setup failed', e); }
 
         // Anuncios toggle button
         try {
