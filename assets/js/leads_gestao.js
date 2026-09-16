@@ -1092,8 +1092,10 @@
     function isWhatsappInboxLead(lead) {
         const source = normalizeText(lead && lead.source);
         const status = normalizeText(lead && lead.status);
+        const phone = String((lead && lead.phone) || '').toLowerCase();
         const noStage = lead && (lead.stage_id == null || Number(lead.stage_id) === 0);
-        return noStage && source === 'whatsapp' && status === 'whatsapp';
+        const fromWhatsapp = source === 'whatsapp' || status === 'whatsapp' || phone.indexOf('wa_lid:') === 0;
+        return noStage && fromWhatsapp;
     }
     async function fetchStages(){
         try{

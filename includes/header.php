@@ -1,5 +1,8 @@
 <?php 
 if (session_status() === PHP_SESSION_NONE) session_start(); 
+if (!headers_sent()) {
+  header('Content-Type: text/html; charset=utf-8');
+}
 include_once 'includes/permissions.php';
 include_once 'includes/settings_storage.php';
 ?>
