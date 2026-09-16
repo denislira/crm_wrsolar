@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/config.php';
-if (getenv('BAILEYS_CLIENT_KEY') === false && is_readable(__DIR__ . '/../.env')) {
+if (is_readable(__DIR__ . '/../.env')) {
     foreach (file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
         if (str_starts_with(trim($line), '#') || !str_contains($line, '=')) continue;
         [$key, $value] = explode('=', $line, 2);
         $key = trim($key); $value = trim(trim($value), "\"'");
-        if ($key === 'BAILEYS_CLIENT_KEY' && $value !== '') { putenv($key . '=' . $value); break; }
+        if (str_starts_with($key, 'BAILEYS_') && $value !== '' && getenv($key) === false) {
+            putenv($key . '=' . $value);
+        }
     }
 }
 function wa_baileys_config() {

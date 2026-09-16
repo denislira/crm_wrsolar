@@ -1,4 +1,5 @@
 const fs = require('fs');
+const http = require('http');
 const path = require('path');
 const pino = require('pino');
 const baileys = require('@adiwajshing/baileys');
@@ -80,8 +81,14 @@ const STORAGE_PATH = process.env.STORAGE_PATH || defaultStoragePath;
 const COMMAND_PATH = process.env.COMMAND_PATH || path.join(path.dirname(STORAGE_PATH), 'wa_command.json');
 const RESULT_PATH = process.env.RESULT_PATH || path.join(path.dirname(STORAGE_PATH), 'wa_result.json');
 const AUTH_FILE = process.env.AUTH_FILE || path.join(__dirname, 'auth_info.json');
+const API_HOST = process.env.API_HOST || '127.0.0.1';
+const API_PORT = Number(process.env.API_PORT || 3001);
+const INTERNAL_SECRET = process.env.BAILEYS_INTERNAL_SECRET || '';
+const EMPRESA_TOKEN = process.env.BAILEYS_EMPRESA_TOKEN || 'wrcrm-9999';
+const CLIENT_KEY = process.env.BAILEYS_CLIENT_KEY || '';
 
 let sock = null;
+let httpServer = null;
 let saveCredsHandler = null;
 let lastCommandId = null;
 let restarting = false;
@@ -119,6 +126,116 @@ function writeState(partial) {
     service_heartbeat_at: new Date().toISOString()
   };
   writeJson(STORAGE_PATH, currentState);
+}
+
+function jsonResponse(res, statusCode, payload) {
+  const body = JSON.stringify(payload);
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'Content-Length': Buffer.byteLength(body)
+  });
+  res.end(body);
+}
+
+function isAuthorized(req) {
+  if (INTERNAL_SECRET && req.headers['x-internal-secret'] !== INTERNAL_SECRET) return false;
+  if (EMPRESA_TOKEN && req.headers['x-empresa-token'] && req.headers['x-empresa-token'] !== EMPRESA_TOKEN) return false;
+  if (CLIENT_KEY && req.headers['x-client-key'] && req.headers['x-client-key'] !== CLIENT_KEY) return false;
+  return true;
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.on('data', chunk => {
+      raw += chunk;
+      if (raw.length > 1024 * 1024) {
+        reject(new Error('Payload muito grande.'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (!raw) return resolve({});
+      try {
+        resolve(JSON.parse(raw));
+      } catch (err) {
+        reject(new Error('JSON invalido.'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+async function sendText(phone, text) {
+  if (!sock || !currentState.connected) throw new Error('WhatsApp nao esta conectado.');
+  const digits = String(phone || '').replace(/\D/g, '');
+  const message = String(text || '').trim();
+  if (digits.length < 10 || digits.length > 15) throw new Error('Numero de telefone invalido.');
+  if (!message) throw new Error('A mensagem nao pode estar vazia.');
+  const jid = digits + '@s.whatsapp.net';
+  const sent = await sock.sendMessage(jid, { text: message });
+  return {
+    message_id: sent && sent.key ? sent.key.id : null,
+    to: jid
+  };
+}
+
+function startHttpApi() {
+  if (httpServer) return;
+  httpServer = http.createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url || '/', `http://${req.headers.host || API_HOST + ':' + API_PORT}`);
+      if (!isAuthorized(req)) return jsonResponse(res, 401, { ok: false, error: 'unauthorized' });
+
+      if (req.method === 'GET' && url.pathname === '/health') {
+        return jsonResponse(res, 200, { ok: true, connected: !!currentState.connected, service_running: true });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/qr') {
+        const renew = url.searchParams.get('renew') === '1' || url.searchParams.get('fresh') === '1';
+        if (renew && !restarting) {
+          startSocket({ fresh: true, reason: 'api_renew_qr' }).catch(err => logger.error({ err }, 'Falha ao renovar QR via API'));
+        } else if (!currentState.connected && !currentState.qr_data && !restarting) {
+          startSocket({ fresh: false, reason: 'api_qr' }).catch(err => logger.error({ err }, 'Falha ao solicitar QR via API'));
+        }
+        return jsonResponse(res, 200, {
+          ok: true,
+          connected: !!currentState.connected,
+          qr: currentState.qr_data || null,
+          info: currentState.info || ''
+        });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/send') {
+        const payload = await readBody(req);
+        const result = await sendText(payload.telefone || payload.phone, payload.mensagem || payload.text);
+        return jsonResponse(res, 200, { ok: true, success: true, ...result });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/disconnect') {
+        manualDisconnect = true;
+        try {
+          if (sock && typeof sock.logout === 'function') await sock.logout();
+        } catch (err) {
+          logger.warn({ err }, 'Falha ao executar logout via API');
+        }
+        closeSocket();
+        removeAuth();
+        writeState({ connected: false, qr_data: null, info: 'desconectado manualmente' });
+        return jsonResponse(res, 200, { ok: true, connected: false });
+      }
+
+      return jsonResponse(res, 404, { ok: false, error: 'not_found' });
+    } catch (err) {
+      logger.error({ err }, 'Erro na API HTTP');
+      return jsonResponse(res, 500, { ok: false, error: err && err.message ? err.message : String(err) });
+    }
+  });
+  httpServer.listen(API_PORT, API_HOST, () => {
+    writeState({ api_url: `http://${API_HOST}:${API_PORT}`, info: currentState.info || 'API Baileys iniciada' });
+    logger.info({ host: API_HOST, port: API_PORT }, 'API HTTP Baileys iniciada');
+  });
 }
 
 function removeAuth() {
@@ -278,6 +395,7 @@ setInterval(pollCommand, 1500);
 
 process.on('SIGINT', () => {
   closeSocket();
+  if (httpServer) httpServer.close();
   writeState({ service_running: false, info: 'servico encerrado' });
   process.exit(0);
 });
@@ -293,4 +411,5 @@ process.on('unhandledRejection', (reason) => {
 });
 
 logger.info({ storage: STORAGE_PATH, command: COMMAND_PATH, auth: AUTH_FILE }, 'Iniciando wa-service');
+startHttpApi();
 startSocket({ fresh: false, reason: 'service_start' });
