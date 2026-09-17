@@ -20,6 +20,7 @@
     let KANBAN_COLUMN_CACHE = {};
     let KANBAN_COLUMN_RENDERED = {};
     let CURRENT_EDIT_LEAD_LOCKED = false;
+    let leadPanelRequestSeq = 0;
     let CITY_DATA_CACHE = null;
     let CITY_DATA_LOADING = null;
     let CITY_SUGGESTION_TIMER = null;
@@ -2320,10 +2321,15 @@
             const openBtn = document.createElement('button');
             openBtn.className='btn btn-sm btn-outline-secondary p-1';
             openBtn.type='button';
+            openBtn.classList.add('lead-panel-open-btn');
             openBtn.innerHTML = '<i class="fa fa-eye" aria-hidden="true"></i>';
             openBtn.title = 'Abrir';
             openBtn.setAttribute('aria-label','Abrir');
-            openBtn.addEventListener('click', ()=> openPanel(lead.id));
+            openBtn.addEventListener('click', (e)=> {
+                e.preventDefault();
+                e.stopPropagation();
+                openPanel(lead.id);
+            });
             actTd.appendChild(openBtn);
 
             tr.appendChild(chkTd); tr.appendChild(nameTd); tr.appendChild(compTd); tr.appendChild(statusTd); tr.appendChild(phoneTd); tr.appendChild(valTd); tr.appendChild(scoreTd); tr.appendChild(createdTd); tr.appendChild(updatedTd); tr.appendChild(actTd);
@@ -2629,7 +2635,9 @@
 
     async function openPanel(id){
         const lead = allLeads.find(l=>String(l.id)===String(id)); if (!lead) return;
+        const requestId = ++leadPanelRequestSeq;
         const p = $('#leadDetailContent'); p.innerHTML = '';
+        p.dataset.leadId = String(id);
         const title = document.createElement('h4'); title.className='lead-detail-title'; title.textContent = lead.name || '(sem nome)';
         const status = document.createElement('div'); status.className='lead-detail-status mb-2';
         (async ()=>{
@@ -2871,6 +2879,7 @@
         // fetch and render movements
         const timeline = timelineWrap.querySelector('#timeline'); timeline.innerHTML = '<div class="small text-muted">Carregando...</div>';
         const moves = await fetchMovements(id);
+        if (requestId !== leadPanelRequestSeq || p.dataset.leadId !== String(id)) return;
         // ensure movements render newest-first (decrescente)
         try { if (moves && moves.length) moves.sort((a,b)=> new Date(b.created_at) - new Date(a.created_at)); } catch(e) { /* ignore sort errors */ }
         if (moves && moves.length) {
@@ -2879,6 +2888,7 @@
             let usersMap = {};
             try {
                 const ur = await fetch('includes/leads_api.php?action=get_users');
+                if (requestId !== leadPanelRequestSeq || p.dataset.leadId !== String(id)) return;
                 if (ur.ok) {
                     const us = await ur.json();
                     if (Array.isArray(us)) us.forEach(u=> usersMap[String(u.id)] = u.username || (u.email||('user:'+u.id)) );
@@ -2889,6 +2899,7 @@
             let primaryColor = null;
             try {
                 const app = await loadAppearance();
+                if (requestId !== leadPanelRequestSeq || p.dataset.leadId !== String(id)) return;
                 primaryColor = (app && (app.primary_color || app.primary || app.color_primary)) ? (app.primary_color || app.primary || app.color_primary) : null;
             } catch(e) { primaryColor = null; }
 
@@ -2970,6 +2981,7 @@
         }
 
         await remindersPromise;
+        if (requestId !== leadPanelRequestSeq || p.dataset.leadId !== String(id)) return;
         try { fetchLeadAiInsight(id); } catch(e){ console.warn('failed loading lead AI insight', e); }
         panel.classList.remove('hidden');
         // add margin to kanban when panel is open
@@ -2979,6 +2991,7 @@
     }
 
     function closePanel(){ 
+        leadPanelRequestSeq++;
         $('#leadDetailsPanel').classList.add('hidden'); 
         // remove margin from kanban when panel is closed
         const kanbanWrap = $('#kanbanWrap'); if (kanbanWrap) kanbanWrap.classList.remove('panel-open');
@@ -3026,6 +3039,8 @@
 
     function fetchLeadAiInsight(leadId) {
         const wrap = document.getElementById('leadAiInsight'); if (!wrap) return;
+        const detail = document.getElementById('leadDetailContent');
+        if (!detail || detail.dataset.leadId !== String(leadId)) return;
         wrap.innerHTML = `
             <div class="lead-ai-insight-head">
                 <span><i class="fa-solid fa-wand-magic-sparkles"></i> Insight do cliente</span>
@@ -3037,6 +3052,8 @@
         fetch('api/ai_lead_insight.php?lead_id=' + encodeURIComponent(leadId))
             .then(r => r.json())
             .then(data => {
+                const detail = document.getElementById('leadDetailContent');
+                if (!detail || detail.dataset.leadId !== String(leadId)) return;
                 if (!data || !data.success) {
                     wrap.innerHTML = `
                         <div class="lead-ai-insight-head"><span><i class="fa-solid fa-wand-magic-sparkles"></i> Insight do cliente</span></div>
@@ -3053,6 +3070,8 @@
                 `;
             })
             .catch(err => {
+                const detail = document.getElementById('leadDetailContent');
+                if (!detail || detail.dataset.leadId !== String(leadId)) return;
                 wrap.innerHTML = '<div class="text-danger small">Erro ao gerar insight do cliente.</div>';
                 console.error(err);
             });
@@ -4195,6 +4214,7 @@
             if (panel.contains(e.target)) return;
             if (modal && modal.contains(e.target)) return;
             if (e.target.closest && e.target.closest('.lead-card')) return;
+            if (e.target.closest && e.target.closest('.lead-panel-open-btn')) return;
             closePanel();
         });
 
