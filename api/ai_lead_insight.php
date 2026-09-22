@@ -8,6 +8,12 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
+// The AI call can take several seconds. Release PHP's per-session lock so it
+// cannot block opening/closing another lead while the insight is generated.
+if (function_exists('session_write_close')) {
+    session_write_close();
+}
+
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/ai_settings.php';
 

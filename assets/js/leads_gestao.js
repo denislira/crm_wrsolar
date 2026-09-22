@@ -25,6 +25,9 @@
     let KANBAN_LOADING = true;
     let CURRENT_EDIT_LEAD_LOCKED = false;
     let leadPanelRequestSeq = 0;
+    let leadPanelAbortController = null;
+    const LEAD_AI_INSIGHT_CACHE_TTL = 5 * 60 * 1000;
+    const LEAD_AI_INSIGHT_CACHE_PREFIX = 'wrcrm.leadAiInsight.v1.';
     let CITY_DATA_CACHE = null;
     let CITY_DATA_LOADING = null;
     let CITY_SUGGESTION_TIMER = null;
@@ -2651,16 +2654,20 @@
         setTimeout(()=> el.style.boxShadow = prev, 700);
     }
 
-    async function fetchMovements(leadId){
-        const res = await fetch(apiBase + '?action=movements&lead_id=' + encodeURIComponent(leadId));
+    async function fetchMovements(leadId, signal){
+        const res = await fetch(apiBase + '?action=movements&lead_id=' + encodeURIComponent(leadId), { signal });
         if (!res.ok) return [];
         try { return await res.json(); } catch(e){ return []; }
     }
 
     async function openPanel(id){
+        const requestId = ++leadPanelRequestSeq;
+        if (leadPanelAbortController) leadPanelAbortController.abort();
+        leadPanelAbortController = new AbortController();
+        const signal = leadPanelAbortController.signal;
         let lead = allLeads.find(l=>String(l.id)===String(id)); if (!lead) return;
         try {
-            const detailRes = await fetch(apiBase + '?action=get&id=' + encodeURIComponent(id));
+            const detailRes = await fetch(apiBase + '?action=get&id=' + encodeURIComponent(id), { signal });
             if (detailRes.ok) {
                 const detailedLead = await detailRes.json();
                 if (detailedLead && !detailedLead.error) {
@@ -2669,8 +2676,11 @@
                     if (cachedIndex >= 0) allLeads[cachedIndex] = { ...allLeads[cachedIndex], ...detailedLead };
                 }
             }
-        } catch (e) { /* use the lightweight cached lead if detail fetch fails */ }
-        const requestId = ++leadPanelRequestSeq;
+        } catch (e) {
+            if (e && e.name === 'AbortError') return;
+            /* use the lightweight cached lead if detail fetch fails */
+        }
+        if (requestId !== leadPanelRequestSeq || signal.aborted) return;
         const p = $('#leadDetailContent'); p.innerHTML = '';
         p.dataset.leadId = String(id);
         const title = document.createElement('h4'); title.className='lead-detail-title'; title.textContent = lead.name || '(sem nome)';
@@ -2909,11 +2919,16 @@
 
             // load compact reminders for this lead
             let remindersPromise = Promise.resolve();
-            try { remindersPromise = fetchRemindersForLead(id); } catch(e){ console.warn('failed loading reminders', e); }
+            try { remindersPromise = fetchRemindersForLead(id, signal); } catch(e){ console.warn('failed loading reminders', e); }
 
         // fetch and render movements
         const timeline = timelineWrap.querySelector('#timeline'); timeline.innerHTML = '<div class="small text-muted">Carregando...</div>';
-        const moves = await fetchMovements(id);
+        let moves = [];
+        try {
+            moves = await fetchMovements(id, signal);
+        } catch (e) {
+            if (e && e.name === 'AbortError') return;
+        }
         if (requestId !== leadPanelRequestSeq || p.dataset.leadId !== String(id)) return;
         // ensure movements render newest-first (decrescente)
         try { if (moves && moves.length) moves.sort((a,b)=> new Date(b.created_at) - new Date(a.created_at)); } catch(e) { /* ignore sort errors */ }
@@ -2922,7 +2937,7 @@
             // fetch users mapping to resolve consultant names (changed_by)
             let usersMap = {};
             try {
-                const ur = await fetch('includes/leads_api.php?action=get_users');
+                const ur = await fetch('includes/leads_api.php?action=get_users', { signal });
                 if (requestId !== leadPanelRequestSeq || p.dataset.leadId !== String(id)) return;
                 if (ur.ok) {
                     const us = await ur.json();
@@ -3017,7 +3032,7 @@
 
         await remindersPromise;
         if (requestId !== leadPanelRequestSeq || p.dataset.leadId !== String(id)) return;
-        try { fetchLeadAiInsight(id); } catch(e){ console.warn('failed loading lead AI insight', e); }
+        try { fetchLeadAiInsight(id, signal, requestId); } catch(e){ console.warn('failed loading lead AI insight', e); }
         panel.classList.remove('hidden');
         // add margin to kanban when panel is open
         if (kanbanWrap) kanbanWrap.classList.add('panel-open');
@@ -3027,16 +3042,20 @@
 
     function closePanel(){ 
         leadPanelRequestSeq++;
+        if (leadPanelAbortController) {
+            leadPanelAbortController.abort();
+            leadPanelAbortController = null;
+        }
         $('#leadDetailsPanel').classList.add('hidden'); 
         // remove margin from kanban when panel is closed
         const kanbanWrap = $('#kanbanWrap'); if (kanbanWrap) kanbanWrap.classList.remove('panel-open');
     }
 
     // fetch and render a compact reminders block inside the lead details panel
-    function fetchRemindersForLead(leadId) {
+    function fetchRemindersForLead(leadId, signal) {
         const wrap = document.getElementById('leadReminders'); if (!wrap) return;
         wrap.innerHTML = '<strong>Lembretes:</strong> carregando...';
-        return fetch('includes/reminders_api.php?action=list&lead_id=' + encodeURIComponent(leadId))
+        return fetch('includes/reminders_api.php?action=list&lead_id=' + encodeURIComponent(leadId), { signal })
             .then(r => r.json())
             .then(rows => {
                 wrap.innerHTML = '';
@@ -3060,7 +3079,10 @@
                 });
                 if (rows.length > 3) { const more = document.createElement('div'); more.className='small text-muted mt-1'; more.textContent='Ver todos em Integração → Lembretes'; list.appendChild(more); }
                 wrap.appendChild(list);
-            }).catch(err=>{ wrap.innerHTML = '<div class="text-danger small">Erro ao carregar lembretes</div>'; console.error(err); });
+            }).catch(err=>{
+                if (err && err.name === 'AbortError') return;
+                wrap.innerHTML = '<div class="text-danger small">Erro ao carregar lembretes</div>'; console.error(err);
+            });
     }
 
     function renderLeadAiInsightText(text) {
@@ -3072,10 +3094,48 @@
         }).join('');
     }
 
-    function fetchLeadAiInsight(leadId) {
+    function getCachedLeadAiInsight(leadId) {
+        try {
+            const key = LEAD_AI_INSIGHT_CACHE_PREFIX + String(leadId);
+            const cached = JSON.parse(sessionStorage.getItem(key) || 'null');
+            if (!cached || !cached.savedAt || !cached.data || Date.now() - cached.savedAt >= LEAD_AI_INSIGHT_CACHE_TTL) {
+                sessionStorage.removeItem(key);
+                return null;
+            }
+            return cached.data;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function cacheLeadAiInsight(leadId, data) {
+        try {
+            sessionStorage.setItem(
+                LEAD_AI_INSIGHT_CACHE_PREFIX + String(leadId),
+                JSON.stringify({ savedAt: Date.now(), data })
+            );
+        } catch (e) { /* cache is optional */ }
+    }
+
+    function renderLeadAiInsight(wrap, data) {
+        wrap.innerHTML = `
+            <div class="lead-ai-insight-head">
+                <span><i class="fa-solid fa-wand-magic-sparkles"></i> Insight do cliente</span>
+                <span class="lead-ai-insight-time">${escapeText(data.checked_at || '')}</span>
+            </div>
+            <div class="lead-ai-insight-body">${renderLeadAiInsightText(data.insight || '')}</div>
+        `;
+    }
+
+    function fetchLeadAiInsight(leadId, signal, requestId) {
         const wrap = document.getElementById('leadAiInsight'); if (!wrap) return;
         const detail = document.getElementById('leadDetailContent');
         if (!detail || detail.dataset.leadId !== String(leadId)) return;
+        const cached = getCachedLeadAiInsight(leadId);
+        if (cached) {
+            renderLeadAiInsight(wrap, cached);
+            return;
+        }
         wrap.innerHTML = `
             <div class="lead-ai-insight-head">
                 <span><i class="fa-solid fa-wand-magic-sparkles"></i> Insight do cliente</span>
@@ -3084,11 +3144,11 @@
             <div class="lead-ai-insight-skeleton"></div>
             <div class="lead-ai-insight-skeleton short"></div>
         `;
-        fetch('api/ai_lead_insight.php?lead_id=' + encodeURIComponent(leadId))
+        fetch('api/ai_lead_insight.php?lead_id=' + encodeURIComponent(leadId), { signal })
             .then(r => r.json())
             .then(data => {
                 const detail = document.getElementById('leadDetailContent');
-                if (!detail || detail.dataset.leadId !== String(leadId)) return;
+                if (!detail || detail.dataset.leadId !== String(leadId) || requestId !== leadPanelRequestSeq || signal.aborted) return;
                 if (!data || !data.success) {
                     wrap.innerHTML = `
                         <div class="lead-ai-insight-head"><span><i class="fa-solid fa-wand-magic-sparkles"></i> Insight do cliente</span></div>
@@ -3096,17 +3156,13 @@
                     `;
                     return;
                 }
-                wrap.innerHTML = `
-                    <div class="lead-ai-insight-head">
-                        <span><i class="fa-solid fa-wand-magic-sparkles"></i> Insight do cliente</span>
-                        <span class="lead-ai-insight-time">${escapeText(data.checked_at || '')}</span>
-                    </div>
-                    <div class="lead-ai-insight-body">${renderLeadAiInsightText(data.insight || '')}</div>
-                `;
+                cacheLeadAiInsight(leadId, data);
+                renderLeadAiInsight(wrap, data);
             })
             .catch(err => {
+                if (err && err.name === 'AbortError') return;
                 const detail = document.getElementById('leadDetailContent');
-                if (!detail || detail.dataset.leadId !== String(leadId)) return;
+                if (!detail || detail.dataset.leadId !== String(leadId) || requestId !== leadPanelRequestSeq) return;
                 wrap.innerHTML = '<div class="text-danger small">Erro ao gerar insight do cliente.</div>';
                 console.error(err);
             });
