@@ -22,6 +22,7 @@
     const KANBAN_BATCH_SIZE = 7;
     let KANBAN_COLUMN_CACHE = {};
     let KANBAN_COLUMN_RENDERED = {};
+    let KANBAN_LOADING = true;
     let CURRENT_EDIT_LEAD_LOCKED = false;
     let leadPanelRequestSeq = 0;
     let CITY_DATA_CACHE = null;
@@ -165,12 +166,31 @@
         URL.revokeObjectURL(url);
     }
 
+    function kanbanColumnSkeletonMarkup(){
+        return '<div class="kanban-column-loader" aria-hidden="true"><div class="kanban-skeleton-card shimmer"></div><div class="kanban-skeleton-card shimmer"></div><div class="kanban-skeleton-card shimmer short"></div></div>';
+    }
+    function syncKanbanLoadingUi(text){
+        const wrap = document.getElementById('kanbanWrap');
+        if (!wrap) return;
+        wrap.classList.toggle('is-loading', KANBAN_LOADING);
+        wrap.setAttribute('aria-busy', KANBAN_LOADING ? 'true' : 'false');
+        if (typeof text === 'string') wrap.setAttribute('aria-label', text);
+        if (!KANBAN_LOADING) {
+            wrap.querySelectorAll('.kanban-skeleton,.kanban-column-loader').forEach(el => el.remove());
+            wrap.removeAttribute('aria-label');
+            return;
+        }
+        const columns = wrap.querySelectorAll('.kanban-column .column-content');
+        if (!columns.length) return;
+        const initialSkeleton = wrap.querySelector('.kanban-skeleton');
+        if (initialSkeleton) initialSkeleton.remove();
+        columns.forEach(column => {
+            if (!column.querySelector('.kanban-column-loader')) column.innerHTML = kanbanColumnSkeletonMarkup();
+        });
+    }
     function setPreloaderVisible(visible, text){
-        const el = document.getElementById('leadsPreloader');
-        if (!el) return;
-        const txt = document.getElementById('leadsPreloaderText');
-        if (typeof text === 'string' && txt) txt.textContent = text;
-        el.classList.toggle('hidden', !visible);
+        KANBAN_LOADING = !!visible;
+        syncKanbanLoadingUi(text || 'Carregando Kanban...');
     }
     function showPreloader(text){ setPreloaderVisible(true, text || 'Carregando...'); }
     function hidePreloader(){ setPreloaderVisible(false); }
@@ -1360,6 +1380,7 @@
             } catch(e){ console.warn('failed creating Sem Status column', e); }
         }
         // Set up top scrollbar synchronization
+        if (KANBAN_LOADING) syncKanbanLoadingUi('Carregando leads nas colunas...');
         syncTopScrollbar();
         setupLeadsThemeObserver();
         syncLeadsTheme();
@@ -4329,7 +4350,9 @@
         showPreloader('Carregando dados...');
         try{
             restoreLeadFilters();
-            await fetchStatuses(); await fetchStages(); await fetchLeads();
+            await Promise.all([fetchStatuses(), fetchStages()]);
+            await fetchLeads();
+            hidePreloader();
             // fetch anuncios and render KPI/card
             try { const ads = await fetchAnuncios(); if (ads && ads.length) { const adsCol = document.getElementById('anunciosFixedColumn'); if (adsCol) adsCol.classList.remove('d-none'); } } catch(e){}
             setupDragDrop(); setupHandlers();

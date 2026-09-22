@@ -10,15 +10,7 @@ checkAccessOrRedirect('leads_gestao');
 $pageTitle = 'Gestão de Leads';
 include 'includes/header.php';
 ?>
-<link rel="stylesheet" href="assets/css/leads_gestao.css">
-
-<!-- Preloader: shown until initial render completes (Kanban/List) -->
-<div id="leadsPreloader" class="leads-preloader" role="status" aria-live="polite">
-    <div class="leads-preloader-inner text-center">
-        <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
-        <div id="leadsPreloaderText" class="mt-2 small text-muted">Carregando...</div>
-    </div>
-</div>
+<link rel="stylesheet" href="assets/css/leads_gestao.css?v=<?php echo (int)@filemtime(__DIR__ . '/assets/css/leads_gestao.css'); ?>">
 
 <div class="d-flex">
     <?php include 'includes/sidebar.php'; ?>
