@@ -131,31 +131,12 @@ include 'includes/header.php';
             <div id="topScrollbar" class="kanban-top-scrollbar">
                 <div id="topScrollbarContent"></div>
             </div>
-            <div id="kanbanWrap" class="kanban-wrap">
-                <div class="kanban-skeleton" aria-hidden="true">
-                    <div class="kanban-skeleton-column">
-                        <div class="kanban-skeleton-header shimmer"></div>
-                        <div class="kanban-skeleton-card shimmer"></div>
-                        <div class="kanban-skeleton-card shimmer"></div>
-                        <div class="kanban-skeleton-card shimmer short"></div>
-                    </div>
-                    <div class="kanban-skeleton-column">
-                        <div class="kanban-skeleton-header shimmer"></div>
-                        <div class="kanban-skeleton-card shimmer"></div>
-                        <div class="kanban-skeleton-card shimmer short"></div>
-                        <div class="kanban-skeleton-card shimmer"></div>
-                    </div>
-                    <div class="kanban-skeleton-column">
-                        <div class="kanban-skeleton-header shimmer"></div>
-                        <div class="kanban-skeleton-card shimmer"></div>
-                        <div class="kanban-skeleton-card shimmer"></div>
-                        <div class="kanban-skeleton-card shimmer short"></div>
-                    </div>
-                    <div class="kanban-skeleton-column">
-                        <div class="kanban-skeleton-header shimmer"></div>
-                        <div class="kanban-skeleton-card shimmer short"></div>
-                        <div class="kanban-skeleton-card shimmer"></div>
-                        <div class="kanban-skeleton-card shimmer"></div>
+            <div id="kanbanWrap" class="kanban-wrap is-loading" aria-busy="true" aria-label="Carregando Kanban...">
+                <div class="kanban-loading-overlay" aria-hidden="true">
+                    <div class="kanban-loading-box">
+                        <span class="spinner-border text-primary" aria-hidden="true"></span>
+                        <strong>Carregando Kanban...</strong>
+                        <span class="small text-muted">Aguarde enquanto os leads são organizados.</span>
                     </div>
                 </div>
             </div>

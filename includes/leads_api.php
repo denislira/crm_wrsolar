@@ -60,6 +60,12 @@ $action = $_REQUEST['action'] ?? 'list';
 // Consider user with role_id==1 or the initial superuser (id==1) as admin
 $isAdmin = (isset($_SESSION['role_id']) && $_SESSION['role_id'] == 1) || ($userId == 1);
 
+// This API is read-only with regard to session data. Release PHP's session
+// lock early so list/KPI requests cannot block opening another lead's details.
+if (function_exists('session_write_close')) {
+    session_write_close();
+}
+
 // Simple logger to help diagnose 500 errors during development
 function _leads_api_log($msg) {
     $logDir = realpath(__DIR__ . '/../logs') ?: (__DIR__ . '/../logs');
@@ -878,7 +884,7 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
         // intentionally not sent here so saving a lead remains fast.
         try {
             if ($fromStatus !== $resolvedStatus || $fromStageId !== $resolvedStageId) {
-                $changedBy = $_SESSION['user_id'] ?? null;
+                $changedBy = $userId ?? null;
                 _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $resolvedStatus, $changedBy, 'Atualização via edit', 0);
             }
         } catch (Exception $e) { /* swallow */ }
@@ -889,7 +895,7 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
                 $oldNotes = isset($prev['notes']) ? $prev['notes'] : '';
                 $newNotes = $data['notes'] ?? '';
                 if (trim($oldNotes) !== trim($newNotes)) {
-                    $changedBy = $_SESSION['user_id'] ?? null;
+                    $changedBy = $userId ?? null;
                     $noteLog = 'Notas atualizadas';
                     // include short diffs for traceability
                     $snippetOld = mb_substr((string)$oldNotes, 0, 1000);
@@ -1005,7 +1011,7 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
         // Email notifications are intentionally not sent during this request.
         try {
             // use session user_id as changed_by if available
-            $changedBy = $_SESSION['user_id'] ?? null;
+            $changedBy = $userId ?? null;
             _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $data['status'], $changedBy, null, 0);
         } catch (Exception $e) { /* swallow */ }
 

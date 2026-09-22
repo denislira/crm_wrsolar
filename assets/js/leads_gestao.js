@@ -20,9 +20,11 @@
     // A lista completa continua em allLeads; filtros, pesquisas, KPIs e
     // contadores permanecem baseados no conjunto completo.
     const KANBAN_BATCH_SIZE = 7;
+    const KANBAN_PRELOADER_MIN_MS = 600;
     let KANBAN_COLUMN_CACHE = {};
     let KANBAN_COLUMN_RENDERED = {};
     let KANBAN_LOADING = true;
+    let KANBAN_LOADING_SEQ = 0;
     let CURRENT_EDIT_LEAD_LOCKED = false;
     let leadPanelRequestSeq = 0;
     let leadPanelAbortController = null;
@@ -169,9 +171,6 @@
         URL.revokeObjectURL(url);
     }
 
-    function kanbanColumnSkeletonMarkup(){
-        return '<div class="kanban-column-loader" aria-hidden="true"><div class="kanban-skeleton-card shimmer"></div><div class="kanban-skeleton-card shimmer"></div><div class="kanban-skeleton-card shimmer short"></div></div>';
-    }
     function syncKanbanLoadingUi(text){
         const wrap = document.getElementById('kanbanWrap');
         if (!wrap) return;
@@ -179,17 +178,19 @@
         wrap.setAttribute('aria-busy', KANBAN_LOADING ? 'true' : 'false');
         if (typeof text === 'string') wrap.setAttribute('aria-label', text);
         if (!KANBAN_LOADING) {
-            wrap.querySelectorAll('.kanban-skeleton,.kanban-column-loader').forEach(el => el.remove());
+            wrap.querySelectorAll('.kanban-skeleton,.kanban-column-loader,.kanban-loading-overlay').forEach(el => el.remove());
             wrap.removeAttribute('aria-label');
             return;
         }
-        const columns = wrap.querySelectorAll('.kanban-column .column-content');
-        if (!columns.length) return;
-        const initialSkeleton = wrap.querySelector('.kanban-skeleton');
-        if (initialSkeleton) initialSkeleton.remove();
-        columns.forEach(column => {
-            if (!column.querySelector('.kanban-column-loader')) column.innerHTML = kanbanColumnSkeletonMarkup();
-        });
+        wrap.querySelectorAll('.kanban-skeleton,.kanban-column-loader').forEach(el => el.remove());
+        let overlay = wrap.querySelector('.kanban-loading-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'kanban-loading-overlay';
+            overlay.setAttribute('aria-hidden', 'true');
+            overlay.innerHTML = '<div class="kanban-loading-box"><span class="spinner-border text-primary" aria-hidden="true"></span><strong>Carregando Kanban...</strong><span class="small text-muted">Aguarde enquanto os leads são organizados.</span></div>';
+            wrap.appendChild(overlay);
+        }
     }
     function setPreloaderVisible(visible, text){
         KANBAN_LOADING = !!visible;
@@ -806,6 +807,9 @@
     }
 
     async function fetchLeads(){
+        const loadingSeq = ++KANBAN_LOADING_SEQ;
+        const loadingStartedAt = Date.now();
+        showPreloader('Carregando leads no Kanban...');
         try {
             const res = await fetch(apiBase + '?action=list');
             if (!res.ok) throw new Error('Falha ao carregar leads');
@@ -835,11 +839,17 @@
             if ((prevSem !== SEMSTATUS_PRESENT || prevWhats !== WHATSAPP_PRESENT) && STAGES && STAGES.length) {
                 try { buildColumns(); } catch(e){}
             }
+            const remaining = KANBAN_PRELOADER_MIN_MS - (Date.now() - loadingStartedAt);
+            if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
             renderAll();
+            await nextPaint();
             updateTrashedCount();
         } catch (err) {
             console.error('fetchLeads error:', err);
             throw err;
+        } finally {
+            // A requisição mais nova é responsável por retirar o preloading.
+            if (loadingSeq === KANBAN_LOADING_SEQ) hidePreloader();
         }
     }
 
@@ -2666,6 +2676,13 @@
         leadPanelAbortController = new AbortController();
         const signal = leadPanelAbortController.signal;
         let lead = allLeads.find(l=>String(l.id)===String(id)); if (!lead) return;
+        const p = $('#leadDetailContent');
+        p.dataset.leadId = String(id);
+        p.innerHTML = '<div class="lead-detail-loading"><span class="spinner-border text-primary" aria-hidden="true"></span><span>Carregando detalhes do lead...</span></div>';
+        const openingPanel = $('#leadDetailsPanel');
+        openingPanel.classList.remove('hidden');
+        const openingKanbanWrap = $('#kanbanWrap');
+        if (openingKanbanWrap) openingKanbanWrap.classList.add('panel-open');
         try {
             const detailRes = await fetch(apiBase + '?action=get&id=' + encodeURIComponent(id), { signal });
             if (detailRes.ok) {
@@ -2681,7 +2698,7 @@
             /* use the lightweight cached lead if detail fetch fails */
         }
         if (requestId !== leadPanelRequestSeq || signal.aborted) return;
-        const p = $('#leadDetailContent'); p.innerHTML = '';
+        p.innerHTML = '';
         p.dataset.leadId = String(id);
         const title = document.createElement('h4'); title.className='lead-detail-title'; title.textContent = lead.name || '(sem nome)';
         const status = document.createElement('div'); status.className='lead-detail-status mb-2';
