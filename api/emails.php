@@ -1,6 +1,9 @@
 <?php
 session_start();
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 if (empty($_SESSION['user_id'])) { http_response_code(401); echo json_encode(['success'=>false,'message'=>'Não autorizado']); exit; }
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/email_center.php';

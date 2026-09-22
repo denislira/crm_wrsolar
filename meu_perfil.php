@@ -6,14 +6,7 @@ if (empty($_SESSION['user_id'])) {
         exit;
 }
 $user_id = (int) $_SESSION['user_id'];
-try {
-    $colStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'ai_bot_mode'");
-    if (!$colStmt || !$colStmt->fetch()) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN ai_bot_mode VARCHAR(20) NOT NULL DEFAULT 'chatbot3'");
-    }
-} catch (Throwable $e) {
-    // The profile keeps working even if this optional preference column is unavailable.
-}
+// Schema migrations are handled manually, outside the page request.
 // fetch user info (best-effort)
 $user = null;
 try {
@@ -1995,6 +1988,10 @@ include __DIR__ . '/includes/sidebar.php';
                 const res = await fetch('api/update_profile.php', { method: 'POST', body: fd, credentials: 'same-origin' });
                 const data = await res.json();
                 if (data.success) {
+                    const savedBotMode = fd.get('ai_bot_mode');
+                    if (savedBotMode && typeof window.__cacheAiAssistantAvatarMode === 'function') {
+                        window.__cacheAiAssistantAvatarMode(String(savedBotMode));
+                    }
                     const name = document.getElementById('pf_nome_completo') ? document.getElementById('pf_nome_completo').value : '';
                     if (document.getElementById('profile_name_display')) document.getElementById('profile_name_display').textContent = name || '<?php echo htmlspecialchars($user['username'] ?? ''); ?>';
                     if (document.getElementById('profile_email_display')) document.getElementById('profile_email_display').textContent = document.getElementById('pf_email').value;
@@ -2052,6 +2049,10 @@ include __DIR__ . '/includes/sidebar.php';
                     }
                     if (!res.ok || !json.success) {
                         throw new Error(json.message || 'Não foi possível salvar o perfil.');
+                    }
+                    const savedBotMode = fd.get('ai_bot_mode');
+                    if (savedBotMode && typeof window.__cacheAiAssistantAvatarMode === 'function') {
+                        window.__cacheAiAssistantAvatarMode(String(savedBotMode));
                     }
                     applyInlineProfileData(json.profile || {});
                     exitInlineProfileEdit(btnInline);

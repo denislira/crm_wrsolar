@@ -4,6 +4,8 @@ require_once __DIR__ . '/email_notifications.php';
 
 function wrcrm_email_ensure_schema(PDO $pdo): void
 {
+    // Estrutura criada exclusivamente pelas migrations manuais.
+    return;
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_emails (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,

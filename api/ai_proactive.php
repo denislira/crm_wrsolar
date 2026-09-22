@@ -12,22 +12,6 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/ai_settings.php';
 require_once __DIR__ . '/../includes/ai_crm_tools.php';
 
-function wrcrm_ai_proactive_ensure_chat_table(PDO $pdo): void
-{
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS ai_chat_messages (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
-            role ENUM('user','assistant') NOT NULL,
-            message TEXT NOT NULL,
-            data_context JSON DEFAULT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_ai_chat_user_created (user_id, created_at),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
-}
-
 $ai = wrcrm_get_ai_settings(true);
 if (empty($ai['enabled']) || empty($ai['api_key']) || empty($ai['proactive_enabled'])) {
     echo json_encode(['success' => false, 'message' => 'IA proativa desativada']);
@@ -87,7 +71,6 @@ if (empty($result['success'])) {
 $message = trim((string)$result['content']);
 $saved = false;
 try {
-    wrcrm_ai_proactive_ensure_chat_table($pdo);
     $chatContext = $context;
     $chatContext['proactive'] = [
         'prompt' => $prompt,

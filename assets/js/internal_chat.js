@@ -1,6 +1,6 @@
 (function(){
   const apiUrl = 'api/internal_chat.php';
-  const pollMs = 12000;
+  const defaultPollMs = 30000;
   const state = {
     open: false,
     conversations: [],
@@ -414,8 +414,29 @@
 
   document.addEventListener('DOMContentLoaded', function(){
     if (!window.currentUserId) return;
-    buildWidget();
-    loadSummary();
-    setInterval(refreshAll, pollMs);
+    const start = () => {
+      if (window.__internalChatStarted) return;
+      window.__internalChatStarted = true;
+      buildWidget();
+      loadSummary();
+      const settingsPromise = window.wrcrmAiPublicSettings
+        ? window.wrcrmAiPublicSettings.get().then(ai => ({ success: true, ai }))
+        : fetch('api/get_ai_settings.php?status=1', { credentials: 'same-origin' }).then(res => res.ok ? res.json() : null);
+      settingsPromise
+        .then(data => {
+          const seconds = Number(data && data.ai && data.ai.chat_poll_interval_seconds) || 30;
+          const pollMs = Math.max(10000, Math.min(300000, seconds * 1000));
+          setInterval(refreshAll, pollMs);
+        })
+        .catch(() => setInterval(refreshAll, defaultPollMs));
+    };
+    // The leads page is the heaviest screen. Let its Kanban finish before
+    // starting chat requests, while keeping chat interaction available.
+    if (document.getElementById('kanbanWrap')) {
+      window.addEventListener('wrcrm:leads-ready', start, { once: true });
+      setTimeout(start, 10000);
+    } else {
+      start();
+    }
   });
 })();

@@ -10,15 +10,6 @@ $userId = $_SESSION['user_id'];
 $action = $_REQUEST['action'] ?? 'list';
 
 try {
-    // Ensure table exists
-    $pdo->exec("CREATE TABLE IF NOT EXISTS lead_statuses (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NULL,
-        name VARCHAR(255) NOT NULL,
-        position INT NOT NULL DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
     // Read POST/JSON input
     $data = $_POST;
     if (empty($data)) {

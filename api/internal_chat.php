@@ -15,62 +15,7 @@ $action = $_GET['action'] ?? $_POST['action'] ?? 'summary';
     $chatCutoff = date('Y-m-d H:i:s', strtotime('-48 hours'));
     $todayDate = date('Y-m-d');
 
-function chatEnsureTables(PDO $pdo): void {
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS internal_chat_conversations (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          type ENUM('global', 'direct') NOT NULL DEFAULT 'direct',
-          created_by INT NOT NULL,
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS internal_chat_participants (
-          conversation_id INT NOT NULL,
-          user_id INT NOT NULL,
-          last_read_message_id INT DEFAULT NULL,
-          joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (conversation_id, user_id),
-          INDEX idx_internal_chat_participants_user (user_id),
-          FOREIGN KEY (conversation_id) REFERENCES internal_chat_conversations(id) ON DELETE CASCADE,
-          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS internal_chat_reads (
-          conversation_id INT NOT NULL,
-          user_id INT NOT NULL,
-          last_read_message_id INT DEFAULT NULL,
-          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (conversation_id, user_id),
-          INDEX idx_internal_chat_reads_user (user_id),
-          FOREIGN KEY (conversation_id) REFERENCES internal_chat_conversations(id) ON DELETE CASCADE,
-          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS internal_chat_messages (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          conversation_id INT NOT NULL,
-          sender_id INT NOT NULL,
-          body TEXT NOT NULL,
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_internal_chat_messages_conversation (conversation_id, id),
-          FOREIGN KEY (conversation_id) REFERENCES internal_chat_conversations(id) ON DELETE CASCADE,
-          FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
-
-    try {
-        $stmt = $pdo->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'internal_chat_conversations' AND COLUMN_NAME = 'type' LIMIT 1");
-        $columnType = strtolower((string) $stmt->fetchColumn());
-        if ($columnType && strpos($columnType, 'global') === false) {
-            $pdo->exec("ALTER TABLE internal_chat_conversations MODIFY COLUMN type ENUM('global', 'direct') NOT NULL DEFAULT 'direct'");
-        }
-    } catch (Throwable $e) {}
-
+function chatEnsureGlobalConversation(PDO $pdo): void {
     $stmt = $pdo->prepare("SELECT id FROM internal_chat_conversations WHERE type = 'global' ORDER BY id ASC LIMIT 1");
     $stmt->execute();
     $globalId = (int) $stmt->fetchColumn();
@@ -181,7 +126,7 @@ function chatDirectConversation(PDO $pdo, int $userId, int $otherUserId): int {
 }
 
 try {
-    chatEnsureTables($pdo);
+    chatEnsureGlobalConversation($pdo);
     $userColumns = chatUserColumns($pdo);
 
     if ($action === 'users') {

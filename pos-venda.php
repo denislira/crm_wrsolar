@@ -12,7 +12,7 @@ require_once __DIR__ . '/includes/movements.php';
 checkAccessOrRedirect('pos-venda');
 
 // ── Auto-migration: extra columns ─────────────────────────
-try {
+if (false) try {
     $cols = $pdo->query("SHOW COLUMNS FROM pos_venda")->fetchAll(PDO::FETCH_COLUMN);
     if (!in_array('client_type',    $cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN client_type     VARCHAR(50)  DEFAULT 'Degustação'");
     if (!in_array('performance_pct',$cols)) $pdo->exec("ALTER TABLE pos_venda ADD COLUMN performance_pct DECIMAL(5,1) DEFAULT NULL");
@@ -106,7 +106,7 @@ if ($missingSchemaMessage) {
     exit;
 }
 
-try {
+if (false) try {
     $c = $pdo->query("SHOW COLUMNS FROM projetos LIKE 'client_status'")->fetchAll();
     if (empty($c)) $pdo->exec("ALTER TABLE projetos ADD COLUMN client_status VARCHAR(50) DEFAULT 'Assinante'");
     $movedCol = $pdo->query("SHOW COLUMNS FROM projetos LIKE 'moved_to_post_sale'")->fetchAll();
@@ -870,36 +870,8 @@ $stmt = $pdo->prepare(
 $stmt->execute([]);
 $posVendas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$teamTasksAvailable = false;
-try {
-    $teamTasksAvailable = (bool)$pdo->query("SHOW TABLES LIKE 'team_tasks'")->fetchColumn();
-} catch (Exception $e) { /* ignore */ }
-
-$createAutoTask = function ($token, $title, $description, $dueDate, $team = 'Administrativo') use ($pdo, $teamTasksAvailable) {
-    if (!$teamTasksAvailable) return;
-    if (!$dueDate || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dueDate)) return;
-
-    try {
-        $marker = '[' . $token . ']';
-        $exists = $pdo->prepare('SELECT id FROM team_tasks WHERE user_id = ? AND descricao LIKE ? LIMIT 1');
-        $exists->execute([$_SESSION['user_id'], '%' . $marker . '%']);
-        if ($exists->fetchColumn()) return;
-
-        $ins = $pdo->prepare('INSERT INTO team_tasks (user_id, equipe, titulo, descricao, status, responsavel, data_vencimento, criado_em, atualizado_em) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
-        $ins->execute([
-            $_SESSION['user_id'],
-            $team,
-            $title,
-            $description . ' ' . $marker,
-            'Pendente',
-            $_SESSION['username'] ?? null,
-            $dueDate,
-        ]);
-    } catch (Exception $e) { /* ignore */ }
-};
-
 // ensure pos_venda has points_total
-try {
+if (false) try {
     $cols = $pdo->query("SHOW COLUMNS FROM pos_venda")->fetchAll(PDO::FETCH_COLUMN);
     if (!in_array('points_total', $cols)) {
         $pdo->exec("ALTER TABLE pos_venda ADD COLUMN points_total INT NOT NULL DEFAULT 0");
@@ -907,7 +879,7 @@ try {
 } catch (Exception $e) { /* ignore */ }
 
 // One-time data migration: populate existing referrals' points and recompute pos_venda.points_total
-try {
+if (false) try {
     $cnt = $pdo->query("SELECT COUNT(*) FROM pos_venda_referrals WHERE points_awarded IS NULL OR points_awarded = 0")->fetchColumn();
     if (intval($cnt) > 0) {
         $pdo->beginTransaction();
@@ -961,49 +933,6 @@ foreach ($posVendas as &$pv) {
     $payStatus = strtolower(trim((string)($pv['payment_status'] ?? '')));
     $pv['payment_ok'] = ($payStatus === 'pago');
     $ct   = $pv['client_type'] ?? 'Degustação';
-
-    // Preventive maintenance trigger every 6 months from last check-up (or installation when absent).
-    $checkBase = null;
-    if (!empty($pv['last_checkup']) && $pv['last_checkup'] !== '0000-00-00') {
-        $checkBase = new DateTime($pv['last_checkup']);
-    } elseif ($instDt) {
-        $checkBase = clone $instDt;
-    }
-    if ($checkBase && !$isEx) {
-        $checkDue = (clone $checkBase)->modify('+6 months');
-        if ($now >= $checkDue) {
-            $checkToken = 'AUTO_CHECKUP_' . (int)$pv['id'] . '_' . $checkDue->format('Ymd');
-            $createAutoTask(
-                $checkToken,
-                'Lembrete: agendar limpeza tecnica - ' . $pv['client_name'],
-                'Entrar em contato com o cliente para agendar limpeza/check-up preventivo de 6 meses.',
-                $checkDue->format('Y-m-d'),
-                'Administrativo'
-            );
-        }
-    }
-
-    // Annual renewal trigger on installation anniversary.
-    if ($instDt && !$isEx) {
-        $annivMonth = (int)$instDt->format('m');
-        $annivDay = (int)$instDt->format('d');
-        $currentYear = (int)$now->format('Y');
-        $annivCurrent = new DateTime($currentYear . '-' . str_pad((string)$annivMonth, 2, '0', STR_PAD_LEFT) . '-01');
-        $maxDay = (int)$annivCurrent->format('t');
-        $annivCurrent->setDate($currentYear, $annivMonth, min($annivDay, $maxDay));
-
-        $yearsElapsed = $currentYear - (int)$instDt->format('Y');
-        if ($yearsElapsed >= 1 && $now >= $annivCurrent) {
-            $renewToken = 'AUTO_RENOV_' . (int)$pv['id'] . '_' . $currentYear;
-            $createAutoTask(
-                $renewToken,
-                'Gerar OS de visita tecnica preventiva - ' . $pv['client_name'],
-                'Gerar ordem de servico de renovacao anual para visita tecnica preventiva.',
-                $annivCurrent->format('Y-m-d'),
-                'Tecnica'
-            );
-        }
-    }
 
     // Annual maintenance only allowed for paid customers after degustation period.
     $pv['maintenance_locked'] = (!$isEx && $m >= 12 && !$pv['payment_ok']);

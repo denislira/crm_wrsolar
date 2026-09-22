@@ -19,12 +19,7 @@ function reminders_team_column_exists($pdo) {
 }
 
 function reminders_ensure_team_column($pdo) {
-    try {
-        if (!reminders_team_column_exists($pdo)) {
-            $pdo->exec('ALTER TABLE reminders ADD COLUMN team_id INT DEFAULT NULL AFTER responsavel_id');
-            try { $pdo->exec('ALTER TABLE reminders ADD INDEX idx_reminders_team_id (team_id)'); } catch (Exception $e) {}
-        }
-    } catch (Exception $e) {}
+    // Estrutura criada exclusivamente pelas migrations manuais.
 }
 
 function reminders_finish_json_response($payload) {

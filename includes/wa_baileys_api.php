@@ -24,11 +24,6 @@ function wa_baileys_config() {
         'reopen_after_days' => 30,
     ];
     try {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_integracao_config (id TINYINT UNSIGNED PRIMARY KEY, api_url VARCHAR(500) NOT NULL, internal_secret TEXT NOT NULL, empresa_id INT NOT NULL, empresa_token TEXT NOT NULL, enabled TINYINT(1) NOT NULL DEFAULT 1, auto_create_leads TINYINT(1) NOT NULL DEFAULT 1, lead_capture_mode VARCHAR(40) NOT NULL DEFAULT 'new_only', reopen_after_days INT NOT NULL DEFAULT 30, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
-        try { $pdo->exec("ALTER TABLE whatsapp_integracao_config ADD COLUMN enabled TINYINT(1) NOT NULL DEFAULT 1"); } catch (Throwable $ignored) {}
-        try { $pdo->exec("ALTER TABLE whatsapp_integracao_config ADD COLUMN auto_create_leads TINYINT(1) NOT NULL DEFAULT 1"); } catch (Throwable $ignored) {}
-        try { $pdo->exec("ALTER TABLE whatsapp_integracao_config ADD COLUMN lead_capture_mode VARCHAR(40) NOT NULL DEFAULT 'new_only'"); } catch (Throwable $ignored) {}
-        try { $pdo->exec("ALTER TABLE whatsapp_integracao_config ADD COLUMN reopen_after_days INT NOT NULL DEFAULT 30"); } catch (Throwable $ignored) {}
         $seed = $pdo->prepare('INSERT IGNORE INTO whatsapp_integracao_config (id, api_url, internal_secret, empresa_id, empresa_token, enabled, auto_create_leads, lead_capture_mode, reopen_after_days) VALUES (1, ?, ?, ?, ?, 1, 1, ?, ?)');
         $seed->execute([$defaults['url'], $defaults['secret'], $defaults['empresa_id'], $defaults['empresa_token'], $defaults['lead_capture_mode'], $defaults['reopen_after_days']]);
         $row = $pdo->query('SELECT api_url, internal_secret, empresa_id, empresa_token, enabled, auto_create_leads, lead_capture_mode, reopen_after_days FROM whatsapp_integracao_config WHERE id = 1')->fetch(PDO::FETCH_ASSOC);

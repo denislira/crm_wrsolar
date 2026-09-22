@@ -28,38 +28,14 @@ function columnExists($pdo, $table, $column) {
 }
 
 function ensureTeamColumnExists($pdo) {
-    try {
-        if (!columnExists($pdo, 'team_tasks', 'team_id')) {
-            $pdo->exec("ALTER TABLE team_tasks ADD COLUMN team_id INT DEFAULT NULL AFTER equipe");
-            try {
-                $pdo->exec("ALTER TABLE team_tasks ADD INDEX idx_team_tasks_team_id (team_id)");
-            } catch (Exception $e) {}
-        }
-    } catch (Exception $e) {
-        // ignore
-    }
+    // Estrutura criada exclusivamente pelas migrations manuais.
 }
 
 /**
  * Ensure activities table exists (silent on failure).
  */
 function ensureActivityTableExists($pdo) {
-    try {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS team_tasks_activities (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            task_id INT DEFAULT NULL,
-            action VARCHAR(50) NOT NULL,
-            user_id INT DEFAULT NULL,
-            username VARCHAR(150) DEFAULT NULL,
-            details TEXT,
-            equipe VARCHAR(150) DEFAULT NULL,
-            titulo VARCHAR(255) DEFAULT NULL,
-            responsavel VARCHAR(150) DEFAULT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-    } catch (Exception $e) {
-        // ignore
-    }
+    // Estrutura criada exclusivamente pelas migrations manuais.
 }
 
 function logTaskActivity($pdo, $data) {

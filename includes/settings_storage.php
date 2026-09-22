@@ -19,6 +19,19 @@ function wrcrm_settings_path(): string
     return __DIR__ . '/../storage/settings.json';
 }
 
+function wrcrm_settings_cache_key(): string
+{
+    return 'wrcrm.crm_settings.v1';
+}
+
+function wrcrm_clear_settings_cache(): void
+{
+    unset($GLOBALS['wrcrm_settings_request_cache']);
+    if (function_exists('apcu_delete')) {
+        @apcu_delete(wrcrm_settings_cache_key());
+    }
+}
+
 function wrcrm_ensure_settings_file(): void
 {
     $settingsPath = wrcrm_settings_path();
@@ -36,6 +49,17 @@ function wrcrm_ensure_settings_file(): void
 function wrcrm_load_settings(bool $ensureFile = true): array
 {
     global $pdo;
+    if (isset($GLOBALS['wrcrm_settings_request_cache']) && is_array($GLOBALS['wrcrm_settings_request_cache'])) {
+        return $GLOBALS['wrcrm_settings_request_cache'];
+    }
+    if (function_exists('apcu_fetch')) {
+        $apcuHit = false;
+        $apcuValue = @apcu_fetch(wrcrm_settings_cache_key(), $apcuHit);
+        if ($apcuHit && is_array($apcuValue)) {
+            $GLOBALS['wrcrm_settings_request_cache'] = $apcuValue;
+            return $apcuValue;
+        }
+    }
     if ($ensureFile) {
         wrcrm_ensure_settings_file();
     }
@@ -78,6 +102,10 @@ function wrcrm_load_settings(bool $ensureFile = true): array
         } catch (Throwable $e) {}
     }
 
+    $GLOBALS['wrcrm_settings_request_cache'] = $settings;
+    if (function_exists('apcu_store')) {
+        @apcu_store(wrcrm_settings_cache_key(), $settings, 300);
+    }
     return $settings;
 }
 
@@ -102,6 +130,7 @@ function wrcrm_save_settings(array $settings): bool
             if (isset($settings['notifications']) && is_array($settings['notifications'])) {
                 $ok = wrcrm_db_setting_set($pdo, 'notifications', $settings['notifications'], false, isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null) && $ok;
             }
+            if ($ok) wrcrm_clear_settings_cache();
             return $ok;
         } catch (Throwable $e) {
             return false;
@@ -110,5 +139,7 @@ function wrcrm_save_settings(array $settings): bool
 
     $dir = dirname(wrcrm_settings_path());
     if (!is_dir($dir)) @mkdir($dir, 0755, true);
-    return @file_put_contents(wrcrm_settings_path(), json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX) !== false;
+    $saved = @file_put_contents(wrcrm_settings_path(), json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX) !== false;
+    if ($saved) wrcrm_clear_settings_cache();
+    return $saved;
 }

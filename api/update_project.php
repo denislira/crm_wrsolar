@@ -115,34 +115,6 @@ if (empty($sets)) {
     exit;
 }
 
-// ensure columns exist when needed (safe migration)
-try {
-    $columnsToCheck = [
-        'client_status' => "VARCHAR(50) DEFAULT 'Assinante'",
-        'status_changed_at' => 'DATETIME DEFAULT NULL',
-        'moved_to_post_sale' => 'TINYINT(1) NOT NULL DEFAULT 0',
-        'payment_method_id' => 'INT DEFAULT NULL',
-        'payment_type' => "VARCHAR(50) DEFAULT NULL",
-        'payment_status' => "VARCHAR(50) DEFAULT NULL",
-        'contract' => 'TEXT DEFAULT NULL',
-        'projeto' => 'VARCHAR(255) DEFAULT NULL',
-        'due_days' => 'INT DEFAULT 30',
-        'logistics_tracking_code' => 'VARCHAR(255) DEFAULT NULL',
-        'logistics_delivery_date' => 'DATE DEFAULT NULL',
-        'inspection_photos' => 'TEXT DEFAULT NULL',
-        'technical_checklist' => 'TEXT DEFAULT NULL',
-        'docs_checklist' => 'TEXT DEFAULT NULL',
-        'doc_attachments' => 'TEXT DEFAULT NULL'
-    ];
-    foreach ($columnsToCheck as $colName => $definition) {
-        $col = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = ?");
-        $col->execute([$colName]);
-        if (!$col->fetchColumn()) {
-            $pdo->exec("ALTER TABLE projetos ADD COLUMN {$colName} {$definition}");
-        }
-    }
-} catch (Exception $e) { /* ignore */ }
-
 try {
     $leadId = null;
     $statusChanged = false;

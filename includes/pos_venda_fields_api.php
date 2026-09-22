@@ -21,18 +21,6 @@ if (!in_array($fieldKey, $allowedFieldKeys, true)) {
 }
 
 try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS pos_venda_field_options (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        field_key VARCHAR(40) NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        position INT NOT NULL DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_pv_field_options_user_field (user_id, field_key),
-        INDEX idx_pv_field_options_position (position)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
     $seedDefaults = static function (PDO $pdo, int $uid, string $key): void {
         $defaults = [
             'client_type' => ['Degustacao', 'Cortesia', 'Embaixador', 'Assinante Ativo'],

@@ -16,18 +16,40 @@ function wrcrm_default_ai_settings(): array
         'max_tokens' => 900,
         'proactive_enabled' => 0,
         'proactive_interval_minutes' => 30,
+        'chat_poll_interval_seconds' => 30,
         'proactive_prompts' => "Analise leads parados ha mais de 7 dias e sugira prioridades.\nAnalise gargalos do funil dos ultimos 30 dias.\nAnalise fontes com alto volume e baixa conversao no mes.",
         'draggable_launcher_enabled' => 0,
         'prompt' => "Voce e um analista comercial senior do WRCRM e fala com um usuario interno do CRM, como vendedor ou gestor.\nClientes, leads, projetos e contatos citados nos dados sao terceiros: nunca trate o usuario como se ele fosse um desses clientes e nunca dirija a resposta ao nome de um cliente.\nAnalise somente os dados fornecidos.\nNao invente numeros, nomes, percentuais ou causas.\nSe faltar informacao, diga que o dado nao esta disponivel.\nRetorne de 3 a 5 insights praticos, curtos e acionaveis para a gestao comercial.\nEscreva em portugues do Brasil.",
     ];
 }
 
+function wrcrm_ai_settings_cache_key(): string
+{
+    return 'wrcrm.ai_settings.v1';
+}
+
+function wrcrm_clear_ai_settings_cache(): void
+{
+    unset($GLOBALS['wrcrm_ai_settings_request_cache']);
+    if (function_exists('apcu_delete')) {
+        @apcu_delete(wrcrm_ai_settings_cache_key());
+    }
+}
+
 function wrcrm_get_ai_settings(bool $includeSecret = false): array
 {
     global $pdo;
-    $ai = null;
+    $ai = $GLOBALS['wrcrm_ai_settings_request_cache'] ?? null;
 
-    if (isset($pdo) && $pdo instanceof PDO) {
+    if ($ai === null && function_exists('apcu_fetch')) {
+        $apcuHit = false;
+        $apcuValue = @apcu_fetch(wrcrm_ai_settings_cache_key(), $apcuHit);
+        if ($apcuHit && is_array($apcuValue)) {
+            $ai = $apcuValue;
+        }
+    }
+
+    if ($ai === null && isset($pdo) && $pdo instanceof PDO) {
         try {
             $dbSetting = wrcrm_db_setting_get($pdo, 'ai_reports');
             if ($dbSetting && is_array($dbSetting['value'])) {
@@ -46,6 +68,11 @@ function wrcrm_get_ai_settings(bool $includeSecret = false): array
                 wrcrm_db_setting_set($pdo, 'ai_reports', $ai, true, isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null);
             } catch (Throwable $e) {}
         }
+    }
+
+    $GLOBALS['wrcrm_ai_settings_request_cache'] = $ai;
+    if (function_exists('apcu_store')) {
+        @apcu_store(wrcrm_ai_settings_cache_key(), $ai, 300);
     }
 
     $ai = array_merge(wrcrm_default_ai_settings(), $ai);
@@ -90,7 +117,9 @@ function wrcrm_save_ai_settings(array $ai): bool
 
     if (isset($pdo) && $pdo instanceof PDO) {
         try {
-            return wrcrm_db_setting_set($pdo, 'ai_reports', $merged, true, isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null);
+            $saved = wrcrm_db_setting_set($pdo, 'ai_reports', $merged, true, isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null);
+            if ($saved) wrcrm_clear_ai_settings_cache();
+            return $saved;
         } catch (Throwable $e) {
             return false;
         }
@@ -98,7 +127,9 @@ function wrcrm_save_ai_settings(array $ai): bool
 
     $settings = wrcrm_load_settings(true);
     $settings['ai_reports'] = $merged;
-    return (bool)@file_put_contents(wrcrm_settings_path(), json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    $saved = (bool)@file_put_contents(wrcrm_settings_path(), json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    if ($saved) wrcrm_clear_ai_settings_cache();
+    return $saved;
 }
 
 function wrcrm_call_ai_chat(array $messages, ?array $override = null): array

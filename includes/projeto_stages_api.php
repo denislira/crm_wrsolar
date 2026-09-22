@@ -9,61 +9,14 @@ $userId = $_SESSION['user_id'];
 $action = $_REQUEST['action'] ?? 'list';
 
 try {
-    // ensure table exists
-    $pdo->exec("CREATE TABLE IF NOT EXISTS projeto_stages (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        is_initial TINYINT(1) NOT NULL DEFAULT 0,
-        color VARCHAR(7) DEFAULT '#6c757d',
-        card_color VARCHAR(7) DEFAULT '#ffffff',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
     $colCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projeto_stages'");
     $colCheck->execute();
     $existingCols = $colCheck->fetchAll(PDO::FETCH_COLUMN);
 
     $positionCol = in_array('position', $existingCols, true) ? 'position' : null;
-    if (!$positionCol) {
-        $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN position INT NOT NULL DEFAULT 0");
-        $pdo->exec("SET @p=0; UPDATE projeto_stages SET position = (@p := @p + 1) ORDER BY id ASC");
-        $existingCols[] = 'position';
-        $positionCol = 'position';
-    }
+    if (!$positionCol) $positionCol = in_array('stage_order', $existingCols, true) ? 'stage_order' : 'id';
 
     $nameCol = in_array('name', $existingCols, true) ? 'name' : (in_array('stage_name', $existingCols, true) ? 'stage_name' : 'name');
-
-    if (!in_array('is_initial', $existingCols, true)) {
-        $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN is_initial TINYINT(1) NOT NULL DEFAULT 0");
-        $existingCols[] = 'is_initial';
-    }
-
-    if (!in_array('post_sale_enabled', $existingCols, true)) {
-        $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_enabled TINYINT(1) NOT NULL DEFAULT 0");
-        $existingCols[] = 'post_sale_enabled';
-    }
-
-    if (!in_array('post_sale_target_stage_id', $existingCols, true)) {
-        $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_target_stage_id INT DEFAULT NULL");
-        $existingCols[] = 'post_sale_target_stage_id';
-    }
-
-    if (!in_array('post_sale_days', $existingCols, true)) {
-        $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_days INT NOT NULL DEFAULT 90");
-        $existingCols[] = 'post_sale_days';
-    }
-
-    // Ensure history table exists
-    $pdo->exec("CREATE TABLE IF NOT EXISTS projeto_stages_history (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        stage_id INT NULL,
-        user_id INT NULL,
-        action VARCHAR(50) NOT NULL,
-        changes JSON DEFAULT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX (stage_id), INDEX (user_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
     if ($action === 'list') {
         $cols = ['id', "{$nameCol} AS name", 'is_initial', 'color', 'card_color', 'position', 'post_sale_enabled', 'post_sale_target_stage_id', 'post_sale_days'];

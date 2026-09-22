@@ -24,17 +24,6 @@ if ($target_user !== $user_id && !hasPermission('configuracoes')) {
 $storageDir = __DIR__ . '/../uploads';
 if (!is_dir($storageDir)) @mkdir($storageDir, 0755, true);
 
-// ensure users table has avatar column (best-effort)
-try {
-    $check = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'avatar'");
-    $check->execute();
-    if ($check->fetchColumn() == 0) {
-        $pdo->exec("ALTER TABLE `users` ADD COLUMN `avatar` VARCHAR(255) DEFAULT NULL");
-    }
-} catch (Exception $e) {
-    // ignore schema modification errors (we still continue)
-}
-
 if (isset($_POST['remove']) && $_POST['remove'] == '1') {
     // remove avatar
     try {

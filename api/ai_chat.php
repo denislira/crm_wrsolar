@@ -19,25 +19,8 @@ function wrcrm_ai_chat_json(array $payload): void
     exit;
 }
 
-function wrcrm_ai_chat_ensure_tables(PDO $pdo): void
-{
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS ai_chat_messages (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
-            role ENUM('user','assistant') NOT NULL,
-            message TEXT NOT NULL,
-            data_context JSON DEFAULT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_ai_chat_user_created (user_id, created_at),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
-}
-
 $userId = (int)$_SESSION['user_id'];
 $action = $_GET['action'] ?? $_POST['action'] ?? 'ask';
-wrcrm_ai_chat_ensure_tables($pdo);
 
 if ($action === 'history') {
     $stmt = $pdo->prepare("SELECT role, message, created_at FROM ai_chat_messages WHERE user_id = ? ORDER BY id DESC LIMIT 20");

@@ -14,6 +14,8 @@ function ce_stage_owner_id(): int {
 }
 
 function ce_ensure_stage_tables(PDO $pdo): void {
+    // Estrutura criada exclusivamente pelas migrations manuais.
+    return;
     $pdo->exec("CREATE TABLE IF NOT EXISTS consultoria_externa_itens (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,

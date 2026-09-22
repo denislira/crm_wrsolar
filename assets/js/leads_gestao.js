@@ -16,7 +16,10 @@
     let CURRENT_STALLED_ONLY = false;
     let CURRENT_DATE_FROM = '';
     let CURRENT_DATE_TO = '';
-    const KANBAN_BATCH_SIZE = 10;
+    // Renderiza poucos cards por vez para manter o Kanban leve.
+    // A lista completa continua em allLeads; filtros, pesquisas, KPIs e
+    // contadores permanecem baseados no conjunto completo.
+    const KANBAN_BATCH_SIZE = 7;
     let KANBAN_COLUMN_CACHE = {};
     let KANBAN_COLUMN_RENDERED = {};
     let CURRENT_EDIT_LEAD_LOCKED = false;
@@ -819,10 +822,10 @@
 
     async function updateTrashedCount(){
         try {
-            const res = await fetch(apiBase + '?action=list_trash');
+            const res = await fetch(apiBase + '?action=count_trash');
             if (!res.ok) return;
-            const trashed = await res.json();
-            const count = trashed.length;
+            const data = await res.json();
+            const count = Number(data.count || 0);
             const el = $('#kpiTrashed');
             if (el) el.textContent = count;
         } catch (err) {
@@ -2634,7 +2637,18 @@
     }
 
     async function openPanel(id){
-        const lead = allLeads.find(l=>String(l.id)===String(id)); if (!lead) return;
+        let lead = allLeads.find(l=>String(l.id)===String(id)); if (!lead) return;
+        try {
+            const detailRes = await fetch(apiBase + '?action=get&id=' + encodeURIComponent(id));
+            if (detailRes.ok) {
+                const detailedLead = await detailRes.json();
+                if (detailedLead && !detailedLead.error) {
+                    lead = { ...lead, ...detailedLead };
+                    const cachedIndex = allLeads.findIndex(l => String(l.id) === String(id));
+                    if (cachedIndex >= 0) allLeads[cachedIndex] = { ...allLeads[cachedIndex], ...detailedLead };
+                }
+            }
+        } catch (e) { /* use the lightweight cached lead if detail fetch fails */ }
         const requestId = ++leadPanelRequestSeq;
         const p = $('#leadDetailContent'); p.innerHTML = '';
         p.dataset.leadId = String(id);
@@ -3101,8 +3115,19 @@
         }).catch(err=>console.error(err));
     }
 
-    function populateLeadForm(lead){
+    async function populateLeadForm(lead){
         if (!lead) return;
+        try {
+            const detailRes = await fetch(apiBase + '?action=get&id=' + encodeURIComponent(lead.id));
+            if (detailRes.ok) {
+                const detailedLead = await detailRes.json();
+                if (detailedLead && !detailedLead.error) {
+                    lead = { ...lead, ...detailedLead };
+                    const cachedIndex = allLeads.findIndex(l => String(l.id) === String(lead.id));
+                    if (cachedIndex >= 0) allLeads[cachedIndex] = { ...allLeads[cachedIndex], ...detailedLead };
+                }
+            }
+        } catch (e) { /* continue with cached lead data */ }
         setLeadModalEditLocked(false);
         // close the details panel when opening the edit modal
         closePanel();
@@ -3200,7 +3225,10 @@
         setLeadModalEditLocked(leadHasProject(lead));
         const m = new bootstrap.Modal($('#leadModal'));
         const titleEl = F('leadModalTitle') || $('#leadModalTitle');
-        if (titleEl) titleEl.textContent = leadHasProject(lead) ? 'Lead (somente leitura)' : 'Editar Lead';
+        if (titleEl) {
+            const leadIdLabel = lead && lead.id != null ? ` ${lead.id}` : '';
+            titleEl.textContent = leadHasProject(lead) ? `Lead${leadIdLabel} (somente leitura)` : `Editar Lead${leadIdLabel}`;
+        }
         // apply configured primary color (if any)
         try { loadAppearance().then(a=>{ const color = (a && (a.primary_color || a.primary || a.color_primary)) ? (a.primary_color||a.primary||a.color_primary) : null; if (color) applyLeadModalPrimaryColor(color); }); } catch(e){}
         m.show();
@@ -3825,8 +3853,20 @@
             }
             if (id) fd.append('id', id);
             
-            // Append files if present
-            if (hasFiles) {
+            // Anexos de leads existentes são enviados exclusivamente pelo botão
+            // "Enviar anexos". No cadastro de um lead novo, ainda podem ser
+            // enviados junto porque o lead ainda não possui ID.
+            if (id && hasFiles) {
+                alert('Para enviar anexos de um lead existente, use o botão "Enviar anexos" antes de salvar.');
+                leadFormSubmitting = false;
+                const pendingSaveBtn = document.getElementById('save-lead');
+                if (pendingSaveBtn) {
+                    pendingSaveBtn.disabled = false;
+                    if (_saveBtnHtml) pendingSaveBtn.innerHTML = _saveBtnHtml;
+                }
+                return;
+            }
+            if (!id && hasFiles) {
                 for (let i=0;i<filesEl.files.length;i++) {
                     fd.append('anexos[]', filesEl.files[i]);
                 }
@@ -3851,10 +3891,22 @@
                     alert('Falha ao salvar: ' + msg);
                     return;
                 }
-                try {
+                // Atualiza apenas o lead alterado; recarregar toda a lista aqui
+                // deixava o salvamento lento em bases maiores.
+                if (id) {
+                    try {
+                        const updatedRes = await fetch(apiBase + '?action=get&id=' + encodeURIComponent(id));
+                        if (updatedRes.ok) {
+                            const updatedLead = await updatedRes.json();
+                            const idx = allLeads.findIndex(l => String(l.id) === String(id));
+                            if (idx >= 0) allLeads[idx] = { ...allLeads[idx], ...updatedLead, score: updatedLead.score ?? computeScore(updatedLead) };
+                            else allLeads.push({ ...updatedLead, score: updatedLead.score ?? computeScore(updatedLead) });
+                            populateLeadFilterOptions();
+                            renderAll();
+                        }
+                    } catch (refreshErr) { console.warn('Failed to refresh saved lead:', refreshErr); }
+                } else {
                     await fetchLeads();
-                } catch (reloadErr) {
-                    console.warn('Failed to reload leads, will continue anyway:', reloadErr);
                 }
                 const modalInst = bootstrap.Modal.getInstance($('#leadModal')) || new bootstrap.Modal($('#leadModal'));
                 modalInst.hide();
@@ -3989,7 +4041,16 @@
                     // table header filter indicators and the top cards are in sync.
                     renderKpis();
                     renderAll();
+                    if (icon) { icon.classList.remove('fa-refresh'); icon.classList.add('fa-check'); }
+                    refreshLeadsBtn.title = 'Kanban atualizado agora';
+                    refreshLeadsBtn.setAttribute('aria-label', 'Kanban atualizado agora');
+                    setTimeout(() => {
+                        if (icon) { icon.classList.remove('fa-check'); icon.classList.add('fa-refresh'); }
+                        refreshLeadsBtn.title = 'Atualizar Kanban';
+                        refreshLeadsBtn.setAttribute('aria-label', 'Atualizar Kanban');
+                    }, 1800);
                 } catch (err) {
+                    refreshLeadsBtn.title = 'Erro ao atualizar Kanban';
                     alert('Não foi possível atualizar o Kanban.');
                 } finally {
                     refreshLeadsBtn.disabled = false;
@@ -4280,6 +4341,7 @@
             // ensure view mode applied after initial data load
             renderAll();
             await nextPaint();
+            window.dispatchEvent(new Event('wrcrm:leads-ready'));
             
             // Autocomplete de responsável para lembrete
             const reminderResponsavelInput = document.getElementById('reminderResponsavel');

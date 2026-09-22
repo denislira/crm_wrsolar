@@ -11,16 +11,7 @@ $user_id = (int) $_SESSION['user_id'];
 
 function wrcrm_ensure_ai_bot_mode_column(PDO $pdo): void
 {
-    static $done = false;
-    if ($done) return;
-    $done = true;
-    try {
-        $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'ai_bot_mode'");
-        if ($stmt && $stmt->fetch()) return;
-        $pdo->exec("ALTER TABLE users ADD COLUMN ai_bot_mode VARCHAR(20) NOT NULL DEFAULT 'chatbot3'");
-    } catch (Throwable $e) {
-        // Ignore migration errors and keep working with the available schema.
-    }
+    // Estrutura criada exclusivamente pelas migrations manuais.
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

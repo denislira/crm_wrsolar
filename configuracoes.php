@@ -1505,6 +1505,14 @@ body.theme-dark .edit-user-modal .avatar-box {
                                         <input class="form-control" id="ai_proactive_interval_reports" name="proactive_interval_minutes" type="number" min="1" max="1440" step="1" value="30">
                                         <small class="text-muted d-block mt-1">Menor valor permitido: 1 minuto.</small>
                                     </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label d-flex align-items-center gap-2" for="ai_chat_poll_interval_reports">
+                                            <span>Atualização do chat (segundos)</span>
+                                            <i class="fa-solid fa-circle-info text-primary" title="Define o intervalo de consulta de novas mensagens do chat interno."></i>
+                                        </label>
+                                        <input class="form-control" id="ai_chat_poll_interval_reports" name="chat_poll_interval_seconds" type="number" min="10" max="300" step="1" value="30">
+                                        <small class="text-muted d-block mt-1">Entre 10 e 300 segundos.</small>
+                                    </div>
                                     <div class="col-md-8">
                                         <label class="form-label d-flex align-items-center gap-2" for="ai_proactive_prompts_reports">
                                             <span>O que analisar automaticamente</span>
@@ -2005,18 +2013,6 @@ body.theme-dark .edit-user-modal .avatar-box {
                                             <td><input class="form-check-input" type="checkbox" name="recipients[lead_created][]" value="responsible"></td>
                                         </tr>
                                         <tr>
-                                            <td>Concluir venda de lead</td>
-                                            <td><input class="form-check-input notification-event" type="checkbox" name="events[lead_sale_completed]" data-event="lead_sale_completed"></td>
-                                            <td><input class="form-check-input" type="checkbox" name="recipients[lead_sale_completed][]" value="creator"></td>
-                                            <td><input class="form-check-input" type="checkbox" name="recipients[lead_sale_completed][]" value="responsible"></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Mudar etapa do funil</td>
-                                            <td><input class="form-check-input notification-event" type="checkbox" name="events[lead_stage_changed]" data-event="lead_stage_changed"></td>
-                                            <td><input class="form-check-input" type="checkbox" name="recipients[lead_stage_changed][]" value="creator"></td>
-                                            <td><input class="form-check-input" type="checkbox" name="recipients[lead_stage_changed][]" value="responsible"></td>
-                                        </tr>
-                                        <tr>
                                             <td>Login realizado com sucesso</td>
                                             <td><input class="form-check-input notification-event" type="checkbox" name="events[login_success]" data-event="login_success"></td>
                                             <td colspan="2" class="text-muted small">Envia para o próprio e-mail do usuário</td>
@@ -2028,11 +2024,6 @@ body.theme-dark .edit-user-modal .avatar-box {
                                         </tr>
                                     </tbody>
                                 </table>
-                            </div>
-                            <div class="mt-3">
-                                <label class="form-label">Etapas que contam como venda concluída</label>
-                                <textarea id="sale_stage_names" name="sale_stage_names" class="form-control" rows="3" placeholder="Venda concluída, Ganho, Fechado"></textarea>
-                                <small class="text-muted">Separe por vírgula ou uma etapa por linha. O nome precisa bater com a etapa do funil.</small>
                             </div>
                         </form>
                         <div class="d-flex justify-content-end gap-2 mt-3">
@@ -2416,6 +2407,13 @@ document.getElementById('editUserForm').addEventListener('submit', function(e) {
             alert(data.message);
         }
         if (data.success) {
+            const editedUserId = Number(formData.get('id') || 0);
+            const savedBotMode = formData.get('ai_bot_mode');
+            if (editedUserId === Number(window.currentUserId || 0)
+                && savedBotMode
+                && typeof window.__cacheAiAssistantAvatarMode === 'function') {
+                window.__cacheAiAssistantAvatarMode(String(savedBotMode));
+            }
             location.reload();
         }
     });
@@ -3192,6 +3190,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 document.getElementById('ai_proactive_enabled_reports').checked = !!Number(ai.proactive_enabled || 0);
                 document.getElementById('ai_draggable_launcher_enabled_reports').checked = !!Number(ai.draggable_launcher_enabled || 0);
                 document.getElementById('ai_proactive_interval_reports').value = ai.proactive_interval_minutes || 30;
+                document.getElementById('ai_chat_poll_interval_reports').value = ai.chat_poll_interval_seconds || 30;
                 document.getElementById('ai_proactive_prompts_reports').value = ai.proactive_prompts || '';
                 const keyInput = document.getElementById('ai_api_key_reports');
                 const hint = document.getElementById('ai_key_hint_reports');
@@ -3223,6 +3222,9 @@ document.addEventListener('DOMContentLoaded', function(){
             const data = await res.json();
             if (!res.ok || !data.success) {
                 throw new Error(data.message || 'Erro ao salvar IA');
+            }
+            if (window.wrcrmAiPublicSettings && data.ai) {
+                window.wrcrmAiPublicSettings.set(data.ai);
             }
             return data;
         }
@@ -3322,7 +3324,6 @@ document.addEventListener('DOMContentLoaded', function(){
                     const event = match ? match[1] : '';
                     input.checked = Array.isArray(recipients[event]) && recipients[event].indexOf(input.value) !== -1;
                 });
-                document.getElementById('sale_stage_names').value = Array.isArray(n.sale_stage_names) ? n.sale_stage_names.join('\n') : '';
             }catch(e){ console.error('Erro ao carregar notificações', e); }
         }
 
@@ -3333,8 +3334,6 @@ document.addEventListener('DOMContentLoaded', function(){
                 reminder_created: true,
                 task_created: true,
                 lead_created: false,
-                lead_sale_completed: false,
-                lead_stage_changed: false,
                 login_success: false,
                 login_failed_3: false
             },
@@ -3342,12 +3341,9 @@ document.addEventListener('DOMContentLoaded', function(){
                 reminder_created: ['creator', 'responsible'],
                 task_created: ['creator', 'responsible'],
                 lead_created: [],
-                lead_sale_completed: [],
-                lead_stage_changed: [],
                 login_success: [],
                 login_failed_3: []
             },
-            sale_stage_names: ['Venda concluída', 'Venda concluida', 'Concluído', 'Concluido', 'Ganho', 'Fechado']
         };
 
         function applyNotificationDefaults(){
@@ -3363,10 +3359,6 @@ document.addEventListener('DOMContentLoaded', function(){
                 input.checked = allowed.indexOf(input.value) !== -1;
             });
 
-            const saleStageField = document.getElementById('sale_stage_names');
-            if (saleStageField) {
-                saleStageField.value = (defaultNotificationState.sale_stage_names || []).join('\n');
-            }
         }
 
         if (defaultNotificationsBtn) {

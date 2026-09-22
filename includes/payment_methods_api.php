@@ -36,16 +36,6 @@ if (!hasPermission($requiredPermission)) {
 }
 
 try {
-    // Ensure code column exists and is indexed.
-    $codeColumn = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_methods' AND COLUMN_NAME = 'code'");
-    if (!$codeColumn->fetchColumn()) {
-        $pdo->exec("ALTER TABLE payment_methods ADD COLUMN code INT NULL AFTER name");
-    }
-    $codeIndex = $pdo->query("SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_methods' AND INDEX_NAME = 'idx_payment_methods_code'");
-    if (!$codeIndex->fetchColumn()) {
-        $pdo->exec("CREATE INDEX idx_payment_methods_code ON payment_methods(code)");
-    }
-
     // Fill missing codes preserving old scope separation when available.
     $scopeColumn = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_methods' AND COLUMN_NAME = 'scope'");
     if ($scopeColumn->fetchColumn()) {

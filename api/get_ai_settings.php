@@ -22,6 +22,7 @@ if (isset($_GET['status'])) {
             'enabled' => (int)($ai['enabled'] ?? 0),
             'proactive_enabled' => (int)($ai['proactive_enabled'] ?? 0),
             'proactive_interval_minutes' => (int)($ai['proactive_interval_minutes'] ?? 30),
+            'chat_poll_interval_seconds' => (int)($ai['chat_poll_interval_seconds'] ?? 30),
             'draggable_launcher_enabled' => (int)($ai['draggable_launcher_enabled'] ?? 0),
         ],
     ]);

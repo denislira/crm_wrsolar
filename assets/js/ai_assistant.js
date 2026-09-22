@@ -9,6 +9,40 @@
     return node;
   }
 
+  const AVATAR_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+
+  function avatarCacheKey() {
+    return 'wrcrm.aiAssistant.avatarMode.' + String(window.currentUserId || 'current');
+  }
+
+  function readCachedAvatarMode() {
+    try {
+      const cached = JSON.parse(localStorage.getItem(avatarCacheKey()) || 'null');
+      if (!cached || Number(cached.expiresAt || 0) < Date.now()) return '';
+      return ['none', 'head', 'body', 'chatbot1', 'chatbot3'].includes(cached.mode) ? cached.mode : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function cacheAvatarMode(mode) {
+    const normalized = ['none', 'head', 'body', 'chatbot1', 'chatbot3'].includes(mode) ? mode : 'chatbot3';
+    try {
+      localStorage.setItem(avatarCacheKey(), JSON.stringify({
+        mode: normalized,
+        expiresAt: Date.now() + AVATAR_CACHE_TTL_MS
+      }));
+    } catch (e) {}
+    return normalized;
+  }
+
+  window.__cacheAiAssistantAvatarMode = function(mode) {
+    const normalized = cacheAvatarMode(mode);
+    if (typeof window.__setAiAssistantAvatarMode === 'function') {
+      window.__setAiAssistantAvatarMode(normalized);
+    }
+  };
+
   function addMessage(list, role, text) {
     const home = document.getElementById('aiAssistantHome');
     if (home) home.classList.add('chat-active');
@@ -208,7 +242,9 @@
       title: 'IA do CRM',
       'aria-label': 'Abrir IA do CRM'
     });
-    launcher.innerHTML = '<img class="ai-assistant-robot-icon" src="assets/img/robot1.png" alt="">';
+    // Só revele o launcher depois de carregar a preferência visual do usuário.
+    launcher.innerHTML = '<img class="ai-assistant-robot-icon" alt="">';
+    launcher.style.visibility = 'hidden';
     const dragBadge = el('span', { class: 'ai-assistant-drag-badge', 'aria-hidden': 'true' }, '+');
     launcher.appendChild(dragBadge);
     const panel = el('section', {
@@ -308,6 +344,7 @@
 
     const avatarState = {
       mode: 'chatbot3',
+      ready: false,
       speechTimer: null
     };
 
@@ -319,6 +356,8 @@
       launcher.hidden = normalized === 'none';
       launcher.classList.toggle('bot-mode-body', normalized === 'body');
       if (normalized === 'none') {
+        avatarState.ready = true;
+        launcher.style.visibility = 'hidden';
         panel.classList.remove('open');
         document.body.classList.remove('ai-assistant-open');
         return;
@@ -329,7 +368,21 @@
       }
       const launcherImg = launcher.querySelector('.ai-assistant-robot-icon');
       const titleImg = title.querySelector('.ai-assistant-title-icon');
-      if (launcherImg) launcherImg.src = src;
+      if (launcherImg) {
+        if (!avatarState.ready) {
+          const revealLauncher = () => {
+            avatarState.ready = true;
+            launcher.style.visibility = 'visible';
+          };
+          launcherImg.addEventListener('load', revealLauncher, { once: true });
+          launcherImg.addEventListener('error', revealLauncher, { once: true });
+          launcherImg.src = src;
+          if (launcherImg.complete) revealLauncher();
+        } else {
+          launcherImg.src = src;
+          launcher.style.visibility = 'visible';
+        }
+      }
       if (titleImg) titleImg.src = src;
       if (normalized === 'body' && previousMode !== 'body' && !localStorage.getItem('aiAssistant.launcherBottom')) {
         syncLauncherPosition(defaultLauncherPos.right, 130);
@@ -543,10 +596,17 @@
   }
 
   async function initAssistant() {
+    if (window.__aiAssistantInitStarted) return;
+    window.__aiAssistantInitStarted = true;
     try {
-      const settingsRes = await fetch('api/get_ai_settings.php?status=1');
-      const settingsData = await settingsRes.json();
-      const ai = settingsData && settingsData.success ? (settingsData.ai || {}) : {};
+      let ai = {};
+      if (window.wrcrmAiPublicSettings) {
+        ai = await window.wrcrmAiPublicSettings.get();
+      } else {
+        const settingsRes = await fetch('api/get_ai_settings.php?status=1');
+        const settingsData = await settingsRes.json();
+        ai = settingsData && settingsData.success ? (settingsData.ai || {}) : {};
+      }
       if (!Number(ai.enabled || 0)) return;
       buildAssistant();
       await loadAssistantPreferences(ai);
@@ -556,17 +616,33 @@
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initAssistant);
-  } else {
-    initAssistant();
+  function startAssistantAfterPageLoad() {
+    if (document.getElementById('kanbanWrap')) {
+      window.addEventListener('wrcrm:leads-ready', initAssistant, { once: true });
+      setTimeout(initAssistant, 12000);
+    } else {
+      initAssistant();
+    }
   }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startAssistantAfterPageLoad);
+  else startAssistantAfterPageLoad();
 
   async function loadAssistantPreferences(aiSettings) {
+    const cachedMode = readCachedAvatarMode();
+    if (cachedMode) {
+      if (typeof window.__setAiAssistantAvatarMode === 'function') {
+        window.__setAiAssistantAvatarMode(cachedMode);
+      }
+      const cachedAi = aiSettings || {};
+      if (typeof window.__setAiAssistantDragEnabled === 'function') {
+        window.__setAiAssistantDragEnabled(!!Number(cachedAi.draggable_launcher_enabled || 0));
+      }
+      return;
+    }
     try {
       const profileRes = await fetch('api/get_my_profile.php');
       const profileData = await profileRes.json();
-      const userMode = profileData && profileData.success && profileData.user ? profileData.user.ai_bot_mode : 'chatbot3';
+      const userMode = cacheAvatarMode(profileData && profileData.success && profileData.user ? profileData.user.ai_bot_mode : 'chatbot3');
       if (typeof window.__setAiAssistantAvatarMode === 'function') {
         window.__setAiAssistantAvatarMode(userMode || 'chatbot3');
       }
@@ -574,7 +650,12 @@
       if (typeof window.__setAiAssistantDragEnabled === 'function') {
         window.__setAiAssistantDragEnabled(!!Number(ai.draggable_launcher_enabled || 0));
       }
-    } catch (e) {}
+    } catch (e) {
+      const fallbackMode = cacheAvatarMode('chatbot3');
+      if (typeof window.__setAiAssistantAvatarMode === 'function') {
+        window.__setAiAssistantAvatarMode(fallbackMode);
+      }
+    }
   }
 
   function setupContextualAssistant(parts) {

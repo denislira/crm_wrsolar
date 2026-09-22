@@ -3,6 +3,7 @@
 // Usage:
 // GET  ?action=list           -> returns JSON list of active leads for current user
 // GET  ?action=list_trash     -> returns JSON list of trashed leads for current user
+// GET  ?action=count_trash    -> returns only the trashed lead count
 // POST action=add             -> add new lead (name,email,phone,source,status)
 // POST action=update          -> update lead by id
 // POST action=delete          -> move lead to trash by id
@@ -100,24 +101,8 @@ function ensure_utf8_local($s) {
 // to avoid performing metadata queries or DDL on each request. Migrations should be
 // applied manually using the scripts/ tools (for example scripts/add_new_leads_columns.php).
 
-try {
-    $t = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pos_venda_referrals'");
-    $t->execute();
-    if ((bool)$t->fetchColumn()) {
-        $colChk = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pos_venda_referrals'");
-        $colChk->execute();
-        $colsRaw = $colChk->fetchAll(PDO::FETCH_COLUMN);
-        $cols = array_map('strtolower', $colsRaw ?: []);
-        if (!in_array('transferred_to_kanban', $cols, true)) {
-            $pdo->exec("ALTER TABLE pos_venda_referrals ADD COLUMN transferred_to_kanban TINYINT(1) NOT NULL DEFAULT 0");
-        }
-        if (!in_array('promoted_at', $cols, true)) {
-            $pdo->exec("ALTER TABLE pos_venda_referrals ADD COLUMN promoted_at DATETIME DEFAULT NULL");
-        }
-    }
-} catch (Exception $e) {
-    // ignore schema migration failures on request
-}
+// Database migrations are intentionally not executed from the request path.
+// Apply schema changes through the scripts/database migration files instead.
 
 // Helper: inserts a movement record (best-effort, swallow errors)
 function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $fromStatus, $toStatus, $changedBy = null, $note = null, $isAlert = 0) {
@@ -128,6 +113,49 @@ function _log_lead_movement($pdo, $leadId, $userId, $fromStageId, $toStageId, $f
         // log but don't break main flow
         @file_put_contents(__DIR__ . '/../logs/lead_movements.log', "[".date('Y-m-d H:i:s')."] movement log failed: " . $e->getMessage() . "\n", FILE_APPEND | LOCK_EX);
     }
+}
+
+function _lead_attachment_has_filepath(PDO $pdo) {
+    static $has = null;
+    if ($has !== null) return $has;
+    try {
+        $q = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads_attachments' AND COLUMN_NAME = 'filepath'");
+        $q->execute();
+        $has = (bool)$q->fetchColumn();
+    } catch (Throwable $e) { $has = false; }
+    return $has;
+}
+
+function _store_lead_attachment(PDO $pdo, $leadId, $userId, $filename, $mimetype, $tmpPath) {
+    $blob = null;
+    $relativePath = null;
+    $size = @filesize($tmpPath) ?: 0;
+    $baseDir = __DIR__ . '/../storage/lead_attachments/' . (int)$leadId;
+
+    if (_lead_attachment_has_filepath($pdo)) {
+        if (!is_dir($baseDir)) @mkdir($baseDir, 0750, true);
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        $safeExt = $ext !== '' && preg_match('/^[a-z0-9]{1,10}$/', $ext) ? '.' . $ext : '';
+        $storedName = bin2hex(random_bytes(16)) . $safeExt;
+        $target = $baseDir . DIRECTORY_SEPARATOR . $storedName;
+        if (@move_uploaded_file($tmpPath, $target) || @copy($tmpPath, $target)) {
+            $relativePath = 'storage/lead_attachments/' . (int)$leadId . '/' . $storedName;
+            try {
+                $stmt = $pdo->prepare('INSERT INTO leads_attachments (lead_id, user_id, filename, mimetype, filepath, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())');
+                $stmt->execute([(int)$leadId, $userId, $filename, $mimetype, $relativePath, $size]);
+                return true;
+            } catch (Throwable $e) {
+                @unlink($target);
+                _leads_api_log('File attachment metadata insert failed: ' . $e->getMessage());
+            }
+        }
+    }
+
+    $blob = @file_get_contents($tmpPath);
+    if ($blob === false) return false;
+    $stmt = $pdo->prepare('INSERT INTO leads_attachments (lead_id, user_id, filename, mimetype, data, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
+    $stmt->execute([(int)$leadId, $userId, $filename, $mimetype, $blob]);
+    return true;
 }
 
 function _log_lead_update($pdo, $leadId, $userId, $fieldName, $oldValue = null, $newValue = null) {
@@ -182,12 +210,17 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
             $hasProjetosTable = false;
         }
 
+        // Aggregate projects once instead of running EXISTS + MIN subqueries for
+        // every lead returned by the Kanban.
+        $projectJoinSql = $hasProjetosTable
+            ? ' LEFT JOIN (SELECT lead_id, 1 AS has_project, MIN(created_at) AS project_created_at FROM projetos GROUP BY lead_id) project_summary ON project_summary.lead_id = leads.id '
+            : '';
         $projectFlagSql = $hasProjetosTable
-            ? "(CASE WHEN EXISTS(SELECT 1 FROM projetos p WHERE p.lead_id = leads.id) THEN 1 ELSE 0 END) AS has_project, (SELECT MIN(p.created_at) FROM projetos p WHERE p.lead_id = leads.id) AS project_created_at"
+            ? 'COALESCE(project_summary.has_project, 0) AS has_project, project_summary.project_created_at'
             : '0 AS has_project, NULL AS project_created_at';
 
         try {
-            $stmt = $pdo->prepare('SELECT id, user_id, name, cidade, email, phone, cpf_cnpj, source, status, stage_id, notes, consumo_cliente, estimativa_projeto_kwh, orcamento_value, envio_proposta, ultimo_contato, forma_pagamento, anexos_filename, anexos_mimetype, created_at, data_inicio, updated_at, deleted, deleted_at, ' . $projectFlagSql . ' FROM leads WHERE deleted = 0 ORDER BY created_at DESC');
+            $stmt = $pdo->prepare('SELECT leads.id, leads.user_id, leads.name, leads.cidade, leads.email, leads.phone, leads.cpf_cnpj, leads.source, leads.status, leads.stage_id, leads.notes, leads.consumo_cliente, leads.estimativa_projeto_kwh, leads.orcamento_value, leads.envio_proposta, leads.ultimo_contato, leads.forma_pagamento, leads.anexos_filename, leads.anexos_mimetype, leads.created_at, leads.data_inicio, leads.updated_at, leads.deleted, leads.deleted_at, ' . $projectFlagSql . ' FROM leads' . $projectJoinSql . ' WHERE leads.deleted = 0 ORDER BY leads.created_at DESC');
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
@@ -198,26 +231,25 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
         foreach ($rows as &$r) { if (!isset($r['orcamento_value'])) $r['orcamento_value'] = 0; }
         unset($r);
 
-        // Attach attachments summary (count + filenames) for each lead
+        // Return only attachment counts; full lists are loaded by action=get.
         try {
             $leadIds = array_column($rows, 'id');
             if (!empty($leadIds)) {
                 // build placeholder list
                 $placeholders = implode(',', array_fill(0, count($leadIds), '?'));
                 $params = $leadIds;
-                $sql = 'SELECT lead_id, id AS attachment_id, filename FROM leads_attachments WHERE lead_id IN (' . $placeholders . ') ORDER BY id ASC';
+                $sql = 'SELECT lead_id, COUNT(*) AS attachment_count FROM leads_attachments WHERE lead_id IN (' . $placeholders . ') GROUP BY lead_id';
                 $attStmt = $pdo->prepare($sql);
                 $attStmt->execute($params);
                 $atts = $attStmt->fetchAll(PDO::FETCH_ASSOC);
                 $map = [];
                 foreach ($atts as $a) {
                     $lid = $a['lead_id'];
-                    if (!isset($map[$lid])) $map[$lid] = [];
-                    $map[$lid][] = ['attachment_id' => $a['attachment_id'], 'filename' => $a['filename']];
+                    $map[$lid] = (int)$a['attachment_count'];
                 }
                 foreach ($rows as &$r) {
-                    $r['anexos_count'] = isset($map[$r['id']]) ? count($map[$r['id']]) : 0;
-                    $r['anexos_files'] = isset($map[$r['id']]) ? $map[$r['id']] : [];
+                    $r['anexos_count'] = $map[$r['id']] ?? 0;
+                    $r['anexos_files'] = [];
                 }
                 unset($r);
             }
@@ -242,26 +274,25 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
         foreach ($rows as &$r) { if (!isset($r['orcamento_value'])) $r['orcamento_value'] = 0; }
         unset($r);
 
-        // Attach attachments summary (count + filenames) for each lead
+        // Return only attachment counts; full lists are loaded by action=get.
         try {
             $leadIds = array_column($rows, 'id');
             if (!empty($leadIds)) {
                 // build placeholder list
                 $placeholders = implode(',', array_fill(0, count($leadIds), '?'));
                 $params = $leadIds;
-                $sql = 'SELECT lead_id, id AS attachment_id, filename FROM leads_attachments WHERE lead_id IN (' . $placeholders . ') ORDER BY id ASC';
+                $sql = 'SELECT lead_id, COUNT(*) AS attachment_count FROM leads_attachments WHERE lead_id IN (' . $placeholders . ') GROUP BY lead_id';
                 $attStmt = $pdo->prepare($sql);
                 $attStmt->execute($params);
                 $atts = $attStmt->fetchAll(PDO::FETCH_ASSOC);
                 $map = [];
                 foreach ($atts as $a) {
                     $lid = $a['lead_id'];
-                    if (!isset($map[$lid])) $map[$lid] = [];
-                    $map[$lid][] = ['attachment_id' => $a['attachment_id'], 'filename' => $a['filename']];
+                    $map[$lid] = (int)$a['attachment_count'];
                 }
                 foreach ($rows as &$r) {
-                    $r['anexos_count'] = isset($map[$r['id']]) ? count($map[$r['id']]) : 0;
-                    $r['anexos_files'] = isset($map[$r['id']]) ? $map[$r['id']] : [];
+                    $r['anexos_count'] = $map[$r['id']] ?? 0;
+                    $r['anexos_files'] = [];
                 }
                 unset($r);
             }
@@ -269,6 +300,12 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
             // ignore attachment summary errors
         }
         echo json_encode($rows);
+        exit;
+    }
+
+    if ($action === 'count_trash') {
+        $stmt = $pdo->query('SELECT COUNT(*) FROM leads WHERE deleted = 1');
+        echo json_encode(['count' => (int)$stmt->fetchColumn()]);
         exit;
     }
 
@@ -321,29 +358,21 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
         $file = $_FILES['anexos'];
         $errors = is_array($file['error']) ? $file['error'] : [$file['error']];
         $inserted = 0; $firstName = null; $firstType = null; $firstBlob = null;
-        $insertAtt = $pdo->prepare('INSERT INTO leads_attachments (lead_id, user_id, filename, mimetype, data, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
         for ($i = 0; $i < count($file['name']); $i++) {
             if (!isset($file['error'][$i]) || $file['error'][$i] !== UPLOAD_ERR_OK) continue;
             $fname = $file['name'][$i];
             $ftype = $file['type'][$i] ?? 'application/octet-stream';
             $tmp = $file['tmp_name'][$i];
-            $blob = file_get_contents($tmp);
             try {
-                $insertAtt->execute([(int)$leadId, $userId, $fname, $ftype, $blob]);
-                if ($inserted === 0) { $firstName = $fname; $firstType = $ftype; $firstBlob = $blob; }
+                _store_lead_attachment($pdo, (int)$leadId, $userId, $fname, $ftype, $tmp);
                 $inserted++;
             } catch (Exception $e) {
                 _leads_api_log('Failed inserting attachment (upload_attachment): ' . $e->getMessage());
             }
         }
 
-        // For backward compatibility: if legacy leads.anexos fields exist, update with first attachment
-        if ($inserted > 0 && $firstName !== null) {
-            try {
-                $upd = $pdo->prepare('UPDATE leads SET anexos = ?, anexos_filename = ?, anexos_mimetype = ? WHERE id = ?');
-                $upd->execute([$firstBlob, $firstName, $firstType, (int)$leadId]);
-            } catch (Exception $e) { /* ignore */ }
-        }
+        // Novos anexos ficam somente em leads_attachments. Os campos BLOB
+        // legados continuam disponíveis para arquivos antigos.
 
         // Return updated lead record
         try {
@@ -580,33 +609,22 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
                 }
             }
 
-            $insertAtt = $pdo->prepare('INSERT INTO leads_attachments (lead_id, user_id, filename, mimetype, data, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
             $firstName = null; $firstType = null; $firstBlob = null; $inserted = 0;
             for ($i = 0; $i < count($file['name']); $i++) {
                 if (!isset($file['error'][$i]) || $file['error'][$i] !== UPLOAD_ERR_OK) continue;
                 $fname = $file['name'][$i];
                 $ftype = $file['type'][$i] ?? 'application/octet-stream';
                 $tmp = $file['tmp_name'][$i];
-                $blob = file_get_contents($tmp);
                 try {
-                    $insertAtt->execute([$leadId, $userId, $fname, $ftype, $blob]);
-                    if ($inserted === 0) { $firstName = $fname; $firstType = $ftype; $firstBlob = $blob; }
+                    _store_lead_attachment($pdo, $leadId, $userId, $fname, $ftype, $tmp);
                     $inserted++;
                 } catch (Exception $e) {
                     _leads_api_log('Failed inserting attachment: ' . $e->getMessage());
                 }
             }
 
-            // Update leads main table to keep legacy single-file fields populated with the first attachment (if any)
-            if ($inserted > 0 && $firstName !== null) {
-                try {
-                    $upd = $pdo->prepare('UPDATE leads SET anexos = ?, anexos_filename = ?, anexos_mimetype = ? WHERE id = ?');
-                    $upd->bindParam(1, $firstBlob, PDO::PARAM_LOB);
-                    $upd->execute([$firstBlob, $firstName, $firstType, $leadId]);
-                } catch (Exception $e) {
-                    _leads_api_log('Failed updating lead with first attachment: ' . $e->getMessage());
-                }
-            }
+            // Novos anexos ficam somente em leads_attachments. Os campos BLOB
+            // legados continuam disponíveis para arquivos antigos.
         }
         // Create an initial immutable movement entry using the lead's own created_at and user_id.
         // This avoids inserting a generic "Lead criado" movement when the lead already has created_at/user information.
@@ -659,9 +677,6 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
 
     if ($action === 'update') {
         if (empty($data['id'])) { throw new Exception('Missing id'); }
-
-        // TEST LOG - immediate to confirm logging works
-        file_put_contents(__DIR__ . '/../logs/test_update.log', '[' . date('Y-m-d H:i:s') . '] UPDATE started - ID: ' . ($data['id'] ?? 'NONE') . ' - data_inicio: ' . ($data['data_inicio'] ?? 'NONE') . "\n", FILE_APPEND);
 
         // parse forma_pagamento from incoming data (ensure defined)
         $formaPagamento = null;
@@ -822,27 +837,22 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
                 }
             }
 
-            $insertAtt = $pdo->prepare('INSERT INTO leads_attachments (lead_id, user_id, filename, mimetype, data, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
             $firstName = null; $firstType = null; $firstBlob = null; $inserted = 0;
             for ($i = 0; $i < count($file['name']); $i++) {
                 if (!isset($file['error'][$i]) || $file['error'][$i] !== UPLOAD_ERR_OK) continue;
                 $fname = $file['name'][$i];
                 $ftype = $file['type'][$i] ?? 'application/octet-stream';
                 $tmp = $file['tmp_name'][$i];
-                $blob = file_get_contents($tmp);
                 try {
-                    $insertAtt->execute([$data['id'], $userId, $fname, $ftype, $blob]);
-                    if ($inserted === 0) { $firstName = $fname; $firstType = $ftype; $firstBlob = $blob; }
+                    _store_lead_attachment($pdo, $data['id'], $userId, $fname, $ftype, $tmp);
                     $inserted++;
                 } catch (Exception $e) {
                     _leads_api_log('Failed inserting attachment (update): ' . $e->getMessage());
                 }
             }
 
-            if ($inserted > 0 && $firstName !== null) {
-                $updateAnexos = ', anexos=?, anexos_filename=?, anexos_mimetype=?';
-                $params = array_merge($params, [$firstBlob, $firstName, $firstType]);
-            }
+        // Novos anexos ficam somente em leads_attachments. O campo BLOB legado
+        // continua sendo usado apenas para arquivos antigos já existentes.
         }
 
         // Append id for WHERE clause
@@ -864,13 +874,12 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
             exit;
         }
 
-        // If status or stage changed, log movement
+        // If status or stage changed, log movement. Email notifications are
+        // intentionally not sent here so saving a lead remains fast.
         try {
             if ($fromStatus !== $resolvedStatus || $fromStageId !== $resolvedStageId) {
                 $changedBy = $_SESSION['user_id'] ?? null;
                 _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $resolvedStatus, $changedBy, 'Atualização via edit', 0);
-                wrcrm_notify_lead_stage_changed($pdo, (int)$data['id'], $changedBy ?: $userId, $fromStatus, $resolvedStatus);
-                wrcrm_notify_lead_sale_completed($pdo, (int)$data['id'], $changedBy ?: $userId, $resolvedStatus);
             }
         } catch (Exception $e) { /* swallow */ }
 
@@ -892,7 +901,7 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
             }
         } catch (Exception $e) { /* swallow */ }
 
-        echo json_encode(['ok' => true]);
+        echo json_encode(['ok' => true, 'id' => (int)$data['id']]);
         exit;
     }
 
@@ -992,15 +1001,12 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
             _log_lead_update($pdo, (int)$data['id'], $userId, 'stage_id', $fromStageId, $resolvedStageId);
         }
 
-        // Log immutable movement for audit & metrics (best-effort)
+        // Log immutable movement for audit & metrics (best-effort).
+        // Email notifications are intentionally not sent during this request.
         try {
             // use session user_id as changed_by if available
             $changedBy = $_SESSION['user_id'] ?? null;
             _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $data['status'], $changedBy, null, 0);
-            if ($fromStatus !== $p0 || (string)$fromStageId !== (string)$resolvedStageId) {
-                wrcrm_notify_lead_stage_changed($pdo, (int)$data['id'], $changedBy ?: $userId, $fromStatus, $p0);
-                wrcrm_notify_lead_sale_completed($pdo, (int)$data['id'], $changedBy ?: $userId, $p0);
-            }
         } catch (Exception $e) { /* swallow */ }
 
         // Auto-create task DISABLED - tasks should be created manually only
@@ -1061,29 +1067,37 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
 
         // If a specific attachment id requested, serve from leads_attachments
         if ($fileId) {
-            $att = $pdo->prepare('SELECT filename, mimetype, data FROM leads_attachments WHERE id = ? LIMIT 1');
+            $attSql = _lead_attachment_has_filepath($pdo)
+                ? 'SELECT filename, mimetype, filepath, data FROM leads_attachments WHERE id = ? LIMIT 1'
+                : 'SELECT filename, mimetype, NULL AS filepath, data FROM leads_attachments WHERE id = ? LIMIT 1';
+            $att = $pdo->prepare($attSql);
             $att->execute([$fileId]);
             $row = $att->fetch(PDO::FETCH_ASSOC);
-            if (!$row || !$row['data']) { http_response_code(404); echo json_encode(['error' => 'File not found']); exit; }
+            $physical = !empty($row['filepath']) ? realpath(__DIR__ . '/../' . ltrim($row['filepath'], '/\\')) : false;
+            if (!$row || (!$physical && empty($row['data']))) { http_response_code(404); echo json_encode(['error' => 'File not found']); exit; }
             header('Content-Type: ' . ($row['mimetype'] ?: 'application/octet-stream'));
             header('Content-Disposition: attachment; filename="' . ($row['filename'] ?: 'anexo') . '"');
-            header('Content-Length: ' . strlen($row['data']));
-            echo $row['data'];
+            if ($physical) { header('Content-Length: ' . filesize($physical)); readfile($physical); }
+            else { header('Content-Length: ' . strlen($row['data'])); echo $row['data']; }
             exit;
         }
 
         // try attachments table first (supports multiple)
-        $a = $pdo->prepare('SELECT id, filename, mimetype, data FROM leads_attachments WHERE lead_id = ? ORDER BY id ASC');
+        $aSql = _lead_attachment_has_filepath($pdo)
+            ? 'SELECT id, filename, mimetype, filepath, data FROM leads_attachments WHERE lead_id = ? ORDER BY id ASC'
+            : 'SELECT id, filename, mimetype, NULL AS filepath, data FROM leads_attachments WHERE lead_id = ? ORDER BY id ASC';
+        $a = $pdo->prepare($aSql);
         $a->execute([$leadId]);
         $atts = $a->fetchAll(PDO::FETCH_ASSOC);
         if ($atts && count($atts) > 0) {
             // legacy behavior: serve first attachment if multiple exist
             $first = $atts[0];
-            if (!$first['data']) { http_response_code(404); echo json_encode(['error' => 'File not found']); exit; }
+            $physical = !empty($first['filepath']) ? realpath(__DIR__ . '/../' . ltrim($first['filepath'], '/\\')) : false;
+            if (!$physical && empty($first['data'])) { http_response_code(404); echo json_encode(['error' => 'File not found']); exit; }
             header('Content-Type: ' . ($first['mimetype'] ?: 'application/octet-stream'));
             header('Content-Disposition: attachment; filename="' . ($first['filename'] ?: 'anexo') . '"');
-            header('Content-Length: ' . strlen($first['data']));
-            echo $first['data'];
+            if ($physical) { header('Content-Length: ' . filesize($physical)); readfile($physical); }
+            else { header('Content-Length: ' . strlen($first['data'])); echo $first['data']; }
             exit;
         }
 
@@ -1114,7 +1128,10 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
         }
 
         // Ensure the attachment exists
-        $att = $pdo->prepare('SELECT id, lead_id, filename FROM leads_attachments WHERE id = ? LIMIT 1');
+        $attSql = _lead_attachment_has_filepath($pdo)
+            ? 'SELECT id, lead_id, filename, filepath FROM leads_attachments WHERE id = ? LIMIT 1'
+            : 'SELECT id, lead_id, filename, NULL AS filepath FROM leads_attachments WHERE id = ? LIMIT 1';
+        $att = $pdo->prepare($attSql);
         $att->execute([$fileId]);
         $row = $att->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
@@ -1130,6 +1147,10 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
 
         // Delete the attachment
         try {
+            if (!empty($row['filepath'])) {
+                $physical = realpath(__DIR__ . '/../' . ltrim($row['filepath'], '/\\'));
+                if ($physical && is_file($physical)) @unlink($physical);
+            }
             $del = $pdo->prepare('DELETE FROM leads_attachments WHERE id = ?');
             $del->execute([$fileId]);
             // Log success for audit
@@ -1139,24 +1160,6 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
             http_response_code(500);
             echo json_encode(['error' => 'Failed to delete attachment']);
             exit;
-        }
-
-        // If this was referenced in the legacy leads.anexos fields, update to first remaining attachment or clear fields
-        try {
-            $a = $pdo->prepare('SELECT id, filename, mimetype, data FROM leads_attachments WHERE lead_id = ? ORDER BY id ASC LIMIT 1');
-            $a->execute([$leadId]);
-            $first = $a->fetch(PDO::FETCH_ASSOC);
-            if ($first) {
-                // promote first attachment into legacy columns
-                $upd = $pdo->prepare('UPDATE leads SET anexos = ?, anexos_filename = ?, anexos_mimetype = ? WHERE id = ?');
-                $upd->execute([$first['data'], $first['filename'], $first['mimetype'], $leadId]);
-            } else {
-                $upd = $pdo->prepare('UPDATE leads SET anexos = NULL, anexos_filename = NULL, anexos_mimetype = NULL WHERE id = ?');
-                $upd->execute([$leadId]);
-            }
-        } catch (Exception $e) {
-            // non-fatal
-            _leads_api_log('Failed promoting/clearing legacy attachment fields: ' . $e->getMessage());
         }
 
         echo json_encode(['ok' => true]);

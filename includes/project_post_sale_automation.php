@@ -32,32 +32,19 @@ if (!function_exists('runProjectPostSaleAutomation')) {
             $hasPostSaleEnabled = in_array('post_sale_enabled', $existingCols, true);
             $hasPostSaleTargetStage = in_array('post_sale_target_stage_id', $existingCols, true);
 
-            // If columns don't exist, create them
-            if (!$hasPostSaleEnabled) {
-                $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_enabled TINYINT(1) NOT NULL DEFAULT 0");
-            }
-            if (!$hasPostSaleTargetStage) {
-                $pdo->exec("ALTER TABLE projeto_stages ADD COLUMN post_sale_target_stage_id INT DEFAULT NULL");
-            }
+            if (!$hasPostSaleEnabled || !$hasPostSaleTargetStage) return 0;
 
             $projectColCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = 'status_changed_at'");
             $projectColCheck->execute();
-            if (!$projectColCheck->fetchColumn()) {
-                $pdo->exec("ALTER TABLE projetos ADD COLUMN status_changed_at DATETIME DEFAULT NULL AFTER status");
-                $pdo->exec("UPDATE projetos SET status_changed_at = COALESCE(updated_at, created_at) WHERE status_changed_at IS NULL");
-            }
+            if (!$projectColCheck->fetchColumn()) return 0;
 
             $dueDaysColCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = 'due_days'");
             $dueDaysColCheck->execute();
-            if (!$dueDaysColCheck->fetchColumn()) {
-                $pdo->exec("ALTER TABLE projetos ADD COLUMN due_days INT DEFAULT 30 AFTER closed_date");
-            }
+            if (!$dueDaysColCheck->fetchColumn()) return 0;
 
             $movedFlagColCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = 'moved_to_post_sale'");
             $movedFlagColCheck->execute();
-            if (!$movedFlagColCheck->fetchColumn()) {
-                $pdo->exec("ALTER TABLE projetos ADD COLUMN moved_to_post_sale TINYINT(1) NOT NULL DEFAULT 0 AFTER status_changed_at");
-            }
+            if (!$movedFlagColCheck->fetchColumn()) return 0;
         } catch (Exception $e) {
             return 0;
         }

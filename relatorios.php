@@ -68,10 +68,11 @@ $last24Leads = [];
 $last24Total = 0;
 $last24Proposta = 0;
 $last24Atendimento = 0;
-try {
+$hasDeleted = in_array('deleted', $leadCols, true);
+$dateCol = in_array('data_inicio', $leadCols, true) ? 'data_inicio' : (in_array('created_at', $leadCols, true) ? 'created_at' : 'data_inicio');
+if ($activeTab === 'daily') try {
     // best-effort schema detection
-    $leadColsStmtDaily = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
-    $leadColsDaily = $leadColsStmtDaily->fetchAll(PDO::FETCH_COLUMN);
+    $leadColsDaily = $leadCols;
     $hasDeleted = in_array('deleted', $leadColsDaily, true);
     // prefer data_inicio as the canonical lead entry date; fallback to created_at if missing
     $dateCol = in_array('data_inicio', $leadColsDaily, true) ? 'data_inicio' : (in_array('created_at', $leadColsDaily, true) ? 'created_at' : 'data_inicio');
@@ -191,15 +192,20 @@ $leadsByUf = [];
 $sourceFilterOptions = [];
 $timeDistribution = array_fill(1, 7, 0);
 $trendSeries = [];
+$loadLeadTotals = in_array($activeTab, ['overview', 'funnel', 'temporal', 'sources', 'financeiro'], true);
+$loadCoreReports = in_array($activeTab, ['overview', 'temporal', 'sources', 'financeiro'], true);
+$loadStageReports = in_array($activeTab, ['overview', 'funnel', 'temporal', 'consultores'], true);
+$loadMonthlyReports = in_array($activeTab, ['overview', 'temporal', 'financeiro'], true);
+$loadConversionSummary = in_array($activeTab, ['overview', 'funnel'], true);
 
-try {
+if ($loadLeadTotals) try {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE {$filterWhere}");
         $stmt->execute($filterParams);
         $leadsTotal = (int)$stmt->fetchColumn();
 } catch (Exception $e) { $leadsTotal = 0; }
 
 // funil_stages (name, color, position) - defensive column detection
-try {
+if ($loadStageReports) try {
         $colsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
         $cols = $colsStmt->fetchAll(PDO::FETCH_COLUMN);
         $nameCol = in_array('name', $cols) ? 'name' : (in_array('stage_name', $cols) ? 'stage_name' : 'name');
@@ -229,7 +235,7 @@ $reportMonthsEnd = $fEnd;
 $reportMonthsWhere = "{$dateCol} >= ? AND {$dateCol} <= ?{$baseDelCond}{$srcCond}";
 $reportMonthsParams = array_merge([$reportMonthsStart->format('Y-m-d H:i:s'), $reportMonthsEnd->format('Y-m-d H:i:s')], $srcParams);
 
-try {
+if ($loadMonthlyReports) try {
         $m = $pdo->prepare("SELECT DATE_FORMAT({$dateCol}, '%Y-%m') as ym, COUNT(*) as cnt FROM leads WHERE {$reportMonthsWhere} GROUP BY ym ORDER BY ym ASC");
         $m->execute($reportMonthsParams);
         $monthsRows = $m->fetchAll(PDO::FETCH_ASSOC);
@@ -237,9 +243,7 @@ try {
 
 // Last 12 months closed — based on funil_stages.is_conversion = 1 (primary),
 // with optional fallback to closed_at or is_conversation if that column doesn't exist.
-try {
-        $leadColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
-        $leadCols = $leadColsStmt->fetchAll(PDO::FETCH_COLUMN);
+if ($loadCoreReports) try {
         $hasClosedAt = in_array('closed_at', $leadCols);
         $hasIsConversation = in_array('is_conversation', $leadCols);
         $valueCol = null;
@@ -401,10 +405,8 @@ try {
 
 } catch (Exception $e) { /* ignore and continue */ }
 
-try {
+if ($loadCoreReports) try {
         if (empty($sources)) {
-                $leadColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
-                $leadCols = $leadColsStmt->fetchAll(PDO::FETCH_COLUMN);
                 $sourceCol = null;
                 foreach (['source','origem','lead_source'] as $sc) {
                         if (in_array($sc, $leadCols, true)) { $sourceCol = $sc; break; }
@@ -418,25 +420,38 @@ try {
 } catch (Exception $e) { /* ignore */ }
 
 try {
-        $leadColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
-        $leadColsForSourceOptions = $leadColsStmt->fetchAll(PDO::FETCH_COLUMN);
+        $leadColsForSourceOptions = $leadCols;
         $sourceOptionsCol = null;
         foreach (['source','origem','lead_source'] as $sc) {
                 if (in_array($sc, $leadColsForSourceOptions, true)) { $sourceOptionsCol = $sc; break; }
         }
         if ($sourceOptionsCol) {
-                $sourceOptionsWhere = "{$dateCol} >= ? AND {$dateCol} <= ?{$baseDelCond}";
-                $sourceOptionsStmt = $pdo->prepare(
-                        "SELECT COALESCE(NULLIF({$sourceOptionsCol},''),'') AS value,
-                                COALESCE(NULLIF({$sourceOptionsCol},''),'Sem origem') AS source,
-                                COUNT(*) AS cnt
-                         FROM leads
-                         WHERE {$sourceOptionsWhere}
-                         GROUP BY value, source
-                         ORDER BY source ASC"
-                );
-                $sourceOptionsStmt->execute([$fStartStr, $fEndStr]);
-                $sourceFilterOptions = $sourceOptionsStmt->fetchAll(PDO::FETCH_ASSOC);
+                $sourceCacheKey = sha1($sourceOptionsCol . '|' . $dateCol . '|' . $fStartStr . '|' . $fEndStr . '|' . ($hasDeleted ? '1' : '0'));
+                $sourceCache = $_SESSION['report_source_options_cache'] ?? null;
+                if (is_array($sourceCache)
+                        && ($sourceCache['key'] ?? '') === $sourceCacheKey
+                        && (int)($sourceCache['expires_at'] ?? 0) >= time()
+                        && is_array($sourceCache['rows'] ?? null)) {
+                        $sourceFilterOptions = $sourceCache['rows'];
+                } else {
+                        $sourceOptionsWhere = "{$dateCol} >= ? AND {$dateCol} <= ?{$baseDelCond}";
+                        $sourceOptionsStmt = $pdo->prepare(
+                                "SELECT COALESCE(NULLIF({$sourceOptionsCol},''),'') AS value,
+                                        COALESCE(NULLIF({$sourceOptionsCol},''),'Sem origem') AS source,
+                                        COUNT(*) AS cnt
+                                 FROM leads
+                                 WHERE {$sourceOptionsWhere}
+                                 GROUP BY value, source
+                                 ORDER BY source ASC"
+                        );
+                        $sourceOptionsStmt->execute([$fStartStr, $fEndStr]);
+                        $sourceFilterOptions = $sourceOptionsStmt->fetchAll(PDO::FETCH_ASSOC);
+                        $_SESSION['report_source_options_cache'] = [
+                                'key' => $sourceCacheKey,
+                                'expires_at' => time() + 300,
+                                'rows' => $sourceFilterOptions,
+                        ];
+                }
         }
         foreach ($filterSources as $selectedSource) {
                 $selectedSource = (string)$selectedSource;
@@ -461,7 +476,8 @@ $activityByUser = [];
 $conversionBySource = [];
 $avgActivitiesPerLead = null;
 $stageDropoffs = [];
-try {
+$requestAiInsights = $activeTab === 'temporal' && isset($_GET['ai_insights']) && (string)$_GET['ai_insights'] === '1';
+if ($activeTab === 'temporal') try {
     // activity counts (use filter date range)
     $actStmt = $pdo->prepare("SELECT COUNT(*) FROM activity_log WHERE created_at >= ? AND created_at <= ?");
     $actStmt->execute([$fStartStr, $fEndStr]);
@@ -477,8 +493,7 @@ try {
     $activityByUser = $abu->fetchAll(PDO::FETCH_ASSOC);
 
     // conversion by source in period — primary: funil_stages.is_conversion = 1
-    $leadColsCheck = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
-    $leadColsList = $leadColsCheck->fetchAll(PDO::FETCH_COLUMN);
+    $leadColsList = $leadCols;
     $hasClosedAtCol = in_array('closed_at', $leadColsList, true);
     $hasIsConversationCol = in_array('is_conversation', $leadColsList, true);
     $fsColsCheck = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
@@ -568,7 +583,7 @@ try {
     if (empty($temporalInsights)) $temporalInsights[] = 'Nenhum problema crítico detectado no período; continue monitorando os indicadores.';
 
     $aiSettings = wrcrm_get_ai_settings(true);
-    if (!empty($aiSettings['enabled']) && !empty($aiSettings['api_key'])) {
+    if ($requestAiInsights && !empty($aiSettings['enabled']) && !empty($aiSettings['api_key'])) {
         $aiPayload = [
             'periodo' => [
                 'inicio' => $fStartStr,
@@ -613,6 +628,8 @@ try {
             $temporalInsightsStatus = 'Regras locais';
             $temporalInsightsError = (string)($aiResult['message'] ?? 'IA indisponivel');
         }
+    } elseif ($requestAiInsights) {
+        $temporalInsightsStatus = 'IA não configurada';
     } else {
         $temporalInsightsStatus = 'Regras locais';
     }
@@ -626,7 +643,7 @@ try {
 }
 
 // Timeline
-try {
+if ($activeTab === 'temporal') try {
         $actColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'activity_log'");
         $actCols = $actColsStmt->fetchAll(PDO::FETCH_COLUMN);
         $select = ['a.message','a.created_at'];
@@ -650,9 +667,7 @@ try {
 
 // Final stage and conversion — uses funil_stages.is_conversion = 1 when available
 $finalStageCount = 0; $conversionRate = 0.0;
-try {
-        $leadColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
-        $leadCols = $leadColsStmt->fetchAll(PDO::FETCH_COLUMN);
+if ($loadConversionSummary) try {
         $hasStageId = in_array('stage_id', $leadCols, true);
 
         $fsConvColStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'");
@@ -684,7 +699,7 @@ try {
 
 // Consultores/Usuários ranking
 $usersRanking = [];
-try {
+if ($activeTab === 'consultores') try {
         // Determine stage column that controls pipeline summation (for compatibility across installs)
         $stageIncludeCol = null;
         try {
@@ -731,7 +746,7 @@ try {
 
 // Tasks per user (if team_tasks table exists)
 $usersTasks = [];
-try {
+if ($activeTab === 'consultores') try {
         $tasksQuery = "
                 SELECT 
                         u.id,
@@ -756,7 +771,7 @@ try {
 // Movements per user (lead_movements) and leads updated in the period.
 $movementsByUser = [];
 $dateUpdatesByUser = [];
-try {
+if ($activeTab === 'consultores') try {
     $mvSrcCond = !empty($filterSources)
         ? " AND COALESCE(NULLIF(l.source,''),'') IN (" . implode(',', array_fill(0, count($filterSources), '?')) . ")"
         : '';
@@ -803,9 +818,8 @@ try {
 }
 
 // --- Filtered status counts and last-24h summary ---
-try {
-    $leadColsStmt2 = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'");
-    $leadCols2 = $leadColsStmt2->fetchAll(PDO::FETCH_COLUMN);
+if ($activeTab === 'overview') try {
+    $leadCols2 = $leadCols;
     $dateCol2 = in_array('data_inicio', $leadCols2, true) ? 'data_inicio' : (in_array('created_at', $leadCols2, true) ? 'created_at' : 'data_inicio');
     $hasDeleted2 = in_array('deleted', $leadCols2, true);
 
@@ -854,8 +868,8 @@ $paymentDistribution  = [];     // à vista vs financiado
 $avgKwp               = null;   // kWp médio
 $avgTicketKwp         = null;   // R$/kWp médio
 
-try {
-    $qLeadCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'")->fetchAll(PDO::FETCH_COLUMN);
+if (in_array($activeTab, ['qualificacao', 'financeiro'], true)) try {
+    $qLeadCols = $leadCols;
     $hasIsSQL    = in_array('is_sql', $qLeadCols, true);
     $hasDisqual  = in_array('disqualification_reason', $qLeadCols, true);
     $hasLost     = in_array('lost_reason', $qLeadCols, true);
@@ -873,7 +887,7 @@ try {
     $qStageNameCol = in_array('stage_name', $qStageCols, true) ? 'stage_name' : (in_array('name', $qStageCols, true) ? 'name' : null);
     $qStageJoin = $hasStageId ? ' LEFT JOIN funil_stages qfs ON qfs.id = l.stage_id' : '';
 
-    $qualDelBase = $hasDeleted2 ? " AND deleted = 0" : "";
+    $qualDelBase = $hasDeleted ? " AND deleted = 0" : "";
     $qualDateBase = in_array('data_inicio', $qLeadCols, true) ? 'data_inicio' : (in_array('created_at', $qLeadCols, true) ? 'created_at' : 'data_inicio');
     $qualSrcCond = $srcCond; // reuse source condition built earlier
     $qualBaseWhere = "{$qualDateBase} >= ? AND {$qualDateBase} <= ?{$qualDelBase}{$qualSrcCond}";
@@ -898,7 +912,7 @@ try {
         $sqlFallbackParts[] = "LOWER(COALESCE(l.status, '')) LIKE '%proposta%'";
         if ($hasOrcamento) $sqlFallbackParts[] = 'COALESCE(l.orcamento_value, 0) > 0';
         $sqlFallbackCond = implode(' OR ', $sqlFallbackParts);
-        $aliasedQualWhere = "l.{$qualDateBase} >= ? AND l.{$qualDateBase} <= ?" . ($hasDeleted2 ? ' AND l.deleted = 0' : '') . str_replace('source', 'l.source', $qualSrcCond);
+        $aliasedQualWhere = "l.{$qualDateBase} >= ? AND l.{$qualDateBase} <= ?" . ($hasDeleted ? ' AND l.deleted = 0' : '') . str_replace('source', 'l.source', $qualSrcCond);
         $sqlFallbackStmt = $pdo->prepare("SELECT COUNT(DISTINCT l.id) FROM leads l{$qStageJoin} WHERE ({$sqlFallbackCond}) AND {$aliasedQualWhere}");
         $sqlFallbackStmt->execute($qualBaseParams);
         $totalSql = (int)$sqlFallbackStmt->fetchColumn();
@@ -939,7 +953,7 @@ try {
     $lostReasonExpr = $hasLost
         ? "COALESCE(NULLIF(TRIM(l.lost_reason), ''), CONCAT('Não informado — ', {$stageLabelExpr}))"
         : $stageLabelExpr;
-    $aliasedQualWhere = "l.{$qualDateBase} >= ? AND l.{$qualDateBase} <= ?" . ($hasDeleted2 ? ' AND l.deleted = 0' : '') . str_replace('source', 'l.source', $qualSrcCond);
+    $aliasedQualWhere = "l.{$qualDateBase} >= ? AND l.{$qualDateBase} <= ?" . ($hasDeleted ? ' AND l.deleted = 0' : '') . str_replace('source', 'l.source', $qualSrcCond);
     $lostStmt = $pdo->prepare("SELECT {$lostReasonExpr} AS reason, COUNT(DISTINCT l.id) AS cnt FROM leads l{$qStageJoin} WHERE {$lostCondition} AND {$aliasedQualWhere} GROUP BY reason ORDER BY cnt DESC LIMIT 10");
     $lostStmt->execute($qualBaseParams);
     $lostReasons = $lostStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -985,8 +999,8 @@ $slaAlertLeads     = [];     // leads sem contato >24h
 $staleLeads        = [];     // leads parados na mesma etapa >7 dias
 $staleThreshDays   = 7;
 
-try {
-    $slaLeadCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'")->fetchAll(PDO::FETCH_COLUMN);
+if ($activeTab === 'sla') try {
+    $slaLeadCols = $leadCols;
     $hasFirstContact = in_array('first_contact_at', $slaLeadCols, true);
     $hasUltimoCtato  = in_array('ultimo_contato', $slaLeadCols, true);
     $slaDateCol      = in_array('data_inicio', $slaLeadCols, true) ? 'data_inicio' : (in_array('created_at', $slaLeadCols, true) ? 'created_at' : 'data_inicio');
@@ -1044,8 +1058,8 @@ try {
 // ============================================================
 $consultorComparison = [];
 
-try {
-    $ccLeadCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads'")->fetchAll(PDO::FETCH_COLUMN);
+if ($activeTab === 'consultores') try {
+    $ccLeadCols = $leadCols;
     $ccDateCol  = in_array('data_inicio', $ccLeadCols, true) ? 'data_inicio' : (in_array('created_at', $ccLeadCols, true) ? 'created_at' : 'data_inicio');
     $ccDelBase  = in_array('deleted', $ccLeadCols, true) ? " AND l.deleted = 0" : "";
     $ccHasLost  = in_array('lost_reason', $ccLeadCols, true);
@@ -1116,7 +1130,7 @@ $externalConsultantsByPayment = [];
 $externalConsultantsRecent = [];
 $externalConsultantsInsights = [];
 
-try {
+if ($activeTab === 'consultores_externos') try {
     $ceTableStmt = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'consultoria_externa_itens'");
         $ceTableStmt->execute();
         $hasExternalTable = (bool)$ceTableStmt->fetchColumn();
@@ -1299,7 +1313,7 @@ $adsTopCampaigns = [];
 $adsRecentLeads = [];
 $adsWarnings = [];
 
-try {
+if ($activeTab === 'anuncios') try {
     $adsTablesStmt = $pdo->prepare("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('whatsapp_click_events','leads_anuncios')");
     $adsTablesStmt->execute();
     $adsTables = $adsTablesStmt->fetchAll(PDO::FETCH_COLUMN);
@@ -1704,6 +1718,20 @@ body.theme-dark .illustrated-funnel-desc { color: #b8c7dc !important; }
     .illustrated-funnel-detail { grid-template-columns: 70px 1fr; }
     .illustrated-funnel-flow::after { width: 22px; }
 }
+
+/* Visão visual do funil */
+.funnel-visual-shell{position:relative;overflow:hidden;padding:1.5rem 1.5rem 2rem;border:1px solid #e4eaf2;border-radius:22px;background:radial-gradient(circle at 50% 38%,rgba(31,147,255,.08),transparent 34%),linear-gradient(145deg,#fff 0%,#f9fbfd 100%);box-shadow:0 18px 48px rgba(35,61,91,.09);color:#0b1f3a}.funnel-visual-title{text-align:center;margin-bottom:1.65rem}.funnel-visual-title h2{margin:0;font-size:clamp(2rem,4vw,3.3rem);font-weight:850;letter-spacing:-.055em;color:#071a35}.funnel-visual-title h2 strong{font-weight:850}.funnel-visual-title p{margin:.35rem 0 0;color:#5f6f85;font-size:clamp(.9rem,1.7vw,1.15rem)}
+.funnel-visual-overview{width:min(720px,78%);min-height:78px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:20px;padding:15px 24px;border:1px solid #e0e7f0;border-radius:14px;background:linear-gradient(135deg,#e9eef4,#f4f6f9 52%,#e7edf4);box-shadow:0 10px 25px rgba(50,75,105,.08)}.funnel-visual-overview>i{color:#526984;font-size:2rem}.funnel-visual-overview>strong{font-size:1.65rem;white-space:nowrap}.funnel-visual-overview>span{width:1px;height:36px;background:#b9c6d5}.funnel-visual-overview>p{margin:0;color:#344b68;font-size:1rem}.funnel-visual-down{text-align:center;height:52px;color:#2494f0;font-size:2rem;line-height:52px;filter:drop-shadow(0 3px 3px rgba(36,148,240,.2))}
+.funnel-visual-grid{display:grid;grid-template-columns:minmax(190px,1fr) minmax(430px,2.15fr) minmax(210px,1.05fr);gap:2.25rem;align-items:center;max-width:1240px;margin:0 auto}.funnel-visual-waiting{position:relative;padding:28px 18px 22px;text-align:center;border:1px solid #f5bd60;border-radius:14px;background:linear-gradient(145deg,#fff,#fff9ef);box-shadow:0 14px 32px rgba(229,143,17,.09)}.funnel-visual-waiting::after{content:'➜';position:absolute;right:-37px;top:46%;color:#bbc7d5;font-size:2.1rem}.funnel-visual-waiting-icon{width:64px;height:64px;margin:0 auto 14px;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#ff9f16,#f38200);font-size:1.8rem;box-shadow:0 10px 22px rgba(242,130,0,.22)}.funnel-visual-waiting h3,.funnel-visual-loss h3{margin:0;color:#0b1f3a;font-size:1.12rem;font-weight:800}.funnel-visual-waiting>strong{display:block;margin-top:5px;color:#eb8500;font-size:2.8rem;line-height:1;font-weight:850}.funnel-visual-waiting>small,.funnel-visual-loss-summary>small{display:block;color:#3f5269;font-size:.9rem}.funnel-visual-waiting>div,.funnel-visual-loss-summary>div{margin-top:14px;padding:8px 10px;border-radius:8px;background:rgba(241,160,38,.1);color:#40536a;font-size:.78rem;font-weight:650}
+.funnel-visual-center{display:flex;flex-direction:column;align-items:center;gap:7px;filter:drop-shadow(0 14px 20px rgba(23,93,155,.13))}.funnel-visual-step{position:relative;width:var(--step-width);min-height:82px;display:grid;grid-template-columns:60px minmax(0,1fr) 105px;align-items:center;gap:14px;padding:10px 30px;color:#fff;background:linear-gradient(135deg,color-mix(in srgb,var(--step-tone) 88%,#fff),color-mix(in srgb,var(--step-tone) 90%,#071a35));clip-path:polygon(0 0,100% 0,94% 100%,6% 100%);transition:transform .2s ease,filter .2s ease}.funnel-visual-step:hover{z-index:2;transform:scale(1.018);filter:saturate(1.12) brightness(1.03)}.funnel-visual-step::after{content:'';position:absolute;inset:2px 5%;border-top:1px solid rgba(255,255,255,.28);pointer-events:none}.funnel-visual-step-icon{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.18);font-size:1.35rem;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}.funnel-visual-step>strong{font-size:clamp(.92rem,1.5vw,1.15rem);font-weight:800;line-height:1.1}.funnel-visual-step-metric{min-height:52px;padding-left:18px;border-left:1px solid rgba(255,255,255,.28);display:flex;flex-direction:column;justify-content:center}.funnel-visual-step-metric b{font-size:1.55rem;line-height:1;font-weight:850}.funnel-visual-step-metric small{font-size:.77rem}.funnel-visual-step-metric em{margin-top:3px;font-size:.78rem;font-style:normal;font-weight:750}.funnel-visual-no-stage{padding:2rem;color:#718096;text-align:center}
+.funnel-visual-loss{overflow:hidden;border:1px solid #ffadb1;border-radius:14px;background:#fff8f8;box-shadow:0 14px 32px rgba(223,56,64,.08)}.funnel-visual-loss-summary{padding:22px 16px 16px;text-align:center}.funnel-visual-loss-summary>span{width:60px;height:60px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#fb4d55,#db252d);font-size:1.65rem;box-shadow:0 10px 22px rgba(219,37,45,.2)}.funnel-visual-loss-summary>strong{display:block;margin-top:6px;color:#d1262d;font-size:2.6rem;line-height:1;font-weight:850}.funnel-visual-loss-summary>div{background:rgba(229,63,70,.08)}.funnel-visual-loss-list{padding:12px;border-top:1px solid #ffd9db;display:grid;gap:9px}.funnel-visual-loss-item{display:grid;grid-template-columns:38px minmax(0,1fr);gap:10px;align-items:center;padding:11px;border-radius:10px;background:#ffecee}.funnel-visual-loss-icon{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:#fff;background:#ea363e}.funnel-visual-loss-item div{min-width:0}.funnel-visual-loss-item strong,.funnel-visual-loss-item b,.funnel-visual-loss-item small{display:block}.funnel-visual-loss-item strong{color:#172a45;font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.funnel-visual-loss-item b{color:#cf2028;font-size:1.35rem;line-height:1.05}.funnel-visual-loss-item small{color:#53657b;font-size:.67rem}
+.funnel-visual-empty{padding:4rem 1rem;display:flex;flex-direction:column;align-items:center;color:#718096}.funnel-visual-empty i{font-size:2.2rem;margin-bottom:.75rem}.funnel-visual-empty strong{color:#334155}.funnel-visual-empty span{font-size:.82rem;margin-top:.25rem}
+body.theme-dark .funnel-visual-shell,body.dark-mode .funnel-visual-shell{color:#e9f2ff;border-color:rgba(148,163,184,.18);background:radial-gradient(circle at 50% 38%,rgba(31,147,255,.1),transparent 35%),linear-gradient(145deg,#0d1828,#111f32)}body.theme-dark .funnel-visual-title h2,body.dark-mode .funnel-visual-title h2,body.theme-dark .funnel-visual-waiting h3,body.dark-mode .funnel-visual-waiting h3,body.theme-dark .funnel-visual-loss h3,body.dark-mode .funnel-visual-loss h3{color:#eef6ff}body.theme-dark .funnel-visual-title p,body.dark-mode .funnel-visual-title p{color:#9fb0c5}body.theme-dark .funnel-visual-overview,body.dark-mode .funnel-visual-overview{border-color:#32455e;background:linear-gradient(135deg,#17263a,#1c2d43)}body.theme-dark .funnel-visual-overview>p,body.dark-mode .funnel-visual-overview>p{color:#c5d4e7}body.theme-dark .funnel-visual-waiting,body.dark-mode .funnel-visual-waiting{border-color:rgba(245,158,11,.38);background:linear-gradient(145deg,#182230,#251e14)}body.theme-dark .funnel-visual-waiting>small,body.dark-mode .funnel-visual-waiting>small,body.theme-dark .funnel-visual-loss-summary>small,body.dark-mode .funnel-visual-loss-summary>small{color:#b8c8da}body.theme-dark .funnel-visual-loss,body.dark-mode .funnel-visual-loss{border-color:rgba(248,113,113,.35);background:#24181f}body.theme-dark .funnel-visual-loss-list,body.dark-mode .funnel-visual-loss-list{border-color:rgba(248,113,113,.18)}body.theme-dark .funnel-visual-loss-item,body.dark-mode .funnel-visual-loss-item{background:rgba(239,68,68,.11)}body.theme-dark .funnel-visual-loss-item strong,body.dark-mode .funnel-visual-loss-item strong{color:#f2f6fb}body.theme-dark .funnel-visual-loss-item small,body.dark-mode .funnel-visual-loss-item small{color:#aebed0}
+@media(max-width:1100px){.funnel-visual-grid{grid-template-columns:minmax(155px,.8fr) minmax(390px,2fr) minmax(180px,.9fr);gap:1.5rem}.funnel-visual-step{grid-template-columns:48px minmax(0,1fr) 86px;padding-left:22px;padding-right:22px}.funnel-visual-step-icon{width:42px;height:42px}.funnel-visual-waiting::after{display:none}}
+@media(max-width:860px){.funnel-visual-shell{padding:1.25rem .9rem}.funnel-visual-overview{width:100%;gap:11px}.funnel-visual-overview>i{font-size:1.45rem}.funnel-visual-overview>strong{font-size:1.1rem}.funnel-visual-overview>p{font-size:.8rem}.funnel-visual-grid{grid-template-columns:1fr 1fr;align-items:stretch}.funnel-visual-center{grid-column:1/-1;grid-row:1}.funnel-visual-waiting,.funnel-visual-loss{grid-row:2}.funnel-visual-step{width:var(--step-width)}}
+@media(max-width:575px){.funnel-visual-title h2{font-size:1.8rem}.funnel-visual-overview{display:grid;grid-template-columns:auto 1fr;min-height:auto;text-align:left}.funnel-visual-overview>span{display:none}.funnel-visual-overview>p{grid-column:2}.funnel-visual-grid{grid-template-columns:1fr;gap:1rem}.funnel-visual-center,.funnel-visual-waiting,.funnel-visual-loss{grid-column:1;grid-row:auto}.funnel-visual-center{order:1}.funnel-visual-waiting{order:2}.funnel-visual-loss{order:3}.funnel-visual-step{width:100%;min-height:72px;grid-template-columns:42px minmax(0,1fr) 75px;gap:9px;padding:8px 18px;clip-path:polygon(0 0,100% 0,96% 100%,4% 100%)}.funnel-visual-step-icon{width:38px;height:38px;font-size:1rem}.funnel-visual-step-metric{padding-left:10px}.funnel-visual-step-metric b{font-size:1.2rem}}
+.funnel-visual-overview{margin-bottom:2rem}.funnel-visual-waiting::after{display:none}
+.funnel-visual-connectors{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;overflow:visible}.funnel-visual-title,.funnel-visual-overview,.funnel-visual-grid{position:relative;z-index:2}.funnel-connector-path{fill:none;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;filter:url(#funnelArrowGlow);opacity:.9}.funnel-connector-path.waiting{stroke:url(#funnelArrowWaiting)}.funnel-connector-path.center{stroke:url(#funnelArrowCenter)}.funnel-connector-path.loss{stroke:url(#funnelArrowLoss)}.funnel-connector-origin{vector-effect:non-scaling-stroke;stroke-width:3;filter:url(#funnelArrowGlow)}.funnel-connector-origin.waiting{fill:#fff7e6;stroke:#f59e0b}.funnel-connector-origin.center{fill:#eef8ff;stroke:#1687e8}.funnel-connector-origin.loss{fill:#fff0f1;stroke:#e62d36}body.theme-dark .funnel-visual-connectors,body.dark-mode .funnel-visual-connectors{opacity:.88}@media(max-width:860px){.funnel-visual-connectors{display:none}}
 .funnel-stage-wrapper:nth-child(1) { animation-delay: 0.1s; }
 .funnel-stage-wrapper:nth-child(2) { animation-delay: 0.2s; }
 .funnel-stage-wrapper:nth-child(3) { animation-delay: 0.3s; }
@@ -1721,6 +1749,7 @@ body.theme-dark .illustrated-funnel-desc { color: #b8c7dc !important; }
 #reportTabs.nav-pills .nav-link { border-radius: 8px; padding: 0.75rem 1.5rem; font-weight: 500; color: #64748b; transition: all 0.3s; margin-right: 0.5rem; background: #fff; border: 2px solid #e2e8f0; }
 #reportTabs.nav-pills .nav-link:hover { background: #f8fafc; color: var(--blue-700); border-color: var(--blue-700); transform: translateY(-2px); }
 #reportTabs.nav-pills .nav-link.active { background: linear-gradient(135deg, var(--blue-700) 0%, var(--blue-900) 100%); color: #fff; border-color: var(--blue-700); box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb),0.3); }
+#reportTabs { scroll-margin-top: 90px; }
 #reportTabs.nav-pills .nav-link i { margin-right: 0.5rem; }
 body.theme-dark #reportTabs.nav-pills .nav-link { color: #c3d5ea !important; background: rgba(255,255,255,0.03) !important; border-color: rgba(255,255,255,0.08) !important; }
 body.theme-dark #reportTabs.nav-pills .nav-link:hover { background: rgba(255,255,255,0.08) !important; color: #e6eef8 !important; border-color: rgba(255,255,255,0.18) !important; }
@@ -1953,7 +1982,7 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?php echo $activeTab==='temporal'?'active':''; ?>" id="temporal-tab" data-bs-toggle="pill" data-bs-target="#temporal" type="button" role="tab">
+                    <button class="nav-link <?php echo $activeTab==='temporal'?'active':''; ?>" id="temporal-tab" data-tab="temporal" data-bs-toggle="pill" data-bs-target="#temporal" type="button" role="tab">
                         <i class="fa fa-chart-line"></i> Análise Temporal
                     </button>
                 </li>
@@ -2149,8 +2178,19 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
                                     <span><i class="fa fa-lightbulb"></i> Insights automáticos (Análise Temporal)</span>
                                     <?php
                                         $insightBadgeClass = $temporalInsightsSource === 'ia' ? 'bg-success' : ($temporalInsightsSource === 'fallback_error' ? 'bg-warning text-dark' : 'bg-secondary');
+                                        $aiInsightParams = $_GET;
+                                        $aiInsightParams['tab'] = 'temporal';
+                                        $aiInsightParams['ai_insights'] = '1';
+                                        $aiInsightUrl = 'relatorios.php?' . http_build_query($aiInsightParams);
                                     ?>
-                                    <span class="badge <?php echo $insightBadgeClass; ?>"><?php echo htmlspecialchars($temporalInsightsStatus, ENT_QUOTES, 'UTF-8'); ?></span>
+                                    <span class="d-flex align-items-center gap-2">
+                                        <span class="badge <?php echo $insightBadgeClass; ?>"><?php echo htmlspecialchars($temporalInsightsStatus, ENT_QUOTES, 'UTF-8'); ?></span>
+                                        <?php if ($temporalInsightsSource !== 'ia'): ?>
+                                            <a class="btn btn-sm btn-outline-primary" href="<?php echo htmlspecialchars($aiInsightUrl, ENT_QUOTES, 'UTF-8'); ?>">
+                                                <i class="fa fa-wand-magic-sparkles"></i> Analisar com IA
+                                            </a>
+                                        <?php endif; ?>
+                                    </span>
                                 </div>
                                 <?php if (!empty($temporalInsightsError)): ?>
                                     <div class="alert alert-warning py-2 small mb-3">
@@ -2779,9 +2819,9 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
 </div>
 
 <!-- Chart.js -->
-<script src="assets/js/chart.min.js"></script>
-<!-- html2pdf (bundles html2canvas + jsPDF) for accurate PDF export of the on-screen report -->
-<script src="assets/js/html2pdf.bundle.min.js"></script>
+<?php if ($activeTab !== 'sla'): ?>
+<script src="assets/js/chart.min.js" defer></script>
+<?php endif; ?>
 <script>
 // ── Source dropdown logic ──
 function toggleSourceDropdown() {
@@ -2797,13 +2837,21 @@ function toggleAllSources(el) {
 
 function persistTabOnClick() {
     document.querySelectorAll('#reportTabs .nav-link[data-tab]').forEach(function(btn){
-        btn.addEventListener('click', function(){
+        btn.addEventListener('click', function(event){
+            // Impede o Bootstrap de trocar para um painel ainda sem os dados da nova aba.
+            // A navegação abaixo fará uma única atualização já com o relatório correto.
+            event.preventDefault();
+            event.stopImmediatePropagation();
             var selectedTab = this.getAttribute('data-tab');
             if (!selectedTab) return;
+            if (typeof REPORT_ACTIVE_TAB !== 'undefined' && selectedTab === REPORT_ACTIVE_TAB) return;
             var url = new URL(window.location);
             url.searchParams.set('tab', selectedTab);
-            window.history.replaceState({}, '', url.toString());
-        });
+            url.hash = 'reportTabs';
+            // A aba é um relatório independente: recarregue apenas a seleção atual.
+            // Isso evita manter gráficos e dados de todas as abas na mesma sessão do navegador.
+            window.location.assign(url.toString());
+        }, true);
     });
 }
 
@@ -2912,6 +2960,7 @@ const REPORT_ADS_DAILY = <?php echo json_encode($adsDailyRows ?? [], JSON_HEX_TA
 const REPORT_ADS_TOP_BUTTONS = <?php echo json_encode($adsTopButtons ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_ADS_TOP_CAMPAIGNS = <?php echo json_encode($adsTopCampaigns ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 const REPORT_ADS_RECENT_LEADS = <?php echo json_encode($adsRecentLeads ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+const REPORT_ACTIVE_TAB = <?php echo json_encode($activeTab, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 
 
 let chartInstances = {};
@@ -3768,8 +3817,6 @@ function renderIllustratedFunnelLegacy() {
     `;
 }
 
-// Layout requested for the funnel report: 1 stage on the left, 5 in the
-// central progression and 3 outcome stages on the right.
 function renderIllustratedFunnel() {
     const container = document.getElementById('illustratedFunnel');
     if (!container) return;
@@ -3778,32 +3825,73 @@ function renderIllustratedFunnel() {
         label: s.name || 'Sem nome', value: counts[i] || 0,
         color: s.color || defaultPalette(i), order: i
     }));
-    if (!stages.length) { container.innerHTML = '<p class="text-muted text-center py-5">Nenhuma etapa cadastrada.</p>'; return; }
+    if (!stages.length) {
+        container.innerHTML = '<div class="funnel-visual-empty"><i class="fa-solid fa-filter-circle-xmark"></i><strong>Nenhuma etapa cadastrada</strong><span>Configure as etapas para visualizar o funil.</span></div>';
+        return;
+    }
 
-    // The configured order is preserved. With the standard 9 stages this is
-    // exactly 1 / 5 / 3, while unusual configurations remain usable.
     const left = stages.slice(0, 1);
     const center = stages.slice(1, 6);
     const right = stages.slice(6, 9);
     const esc = value => escapeHtml(String(value));
-    const step = (s, i, total) => {
-        const width = Math.max(38, 100 - (i * (total > 1 ? 13 : 0)));
-        return `<div class="illustrated-funnel-step" style="--w:${width}%;--c:${esc(s.color)}"><span>${esc(s.label)}<small>${formatNumber(s.value)} leads</small></span></div>`;
-    };
-    const group = (items, cls, title, subtitle) => `<div class="illustrated-funnel-group ${cls}">
-        ${title ? `<div class="illustrated-funnel-group-title">${title}</div>` : ''}
-        ${subtitle ? `<div class="illustrated-funnel-group-subtitle">${subtitle}</div>` : ''}
-        ${items.length ? items.map((s, i) => step(s, i, items.length)).join('<div class="illustrated-funnel-arrow">↓</div>') : '<span class="text-muted">Sem etapas</span>'}
-    </div>`;
     const total = stages.reduce((sum, s) => sum + s.value, 0);
-    container.innerHTML = `<div class="illustrated-funnel-total">Total do Funil ${formatNumber(total)}</div>
-    <div class="illustrated-funnel-three">
-        ${group(left, 'side left', '', '')}
-        <div class="illustrated-funnel-group central">
-            <div class="illustrated-funnel-group-subtitle">${formatNumber(center.reduce((sum, s) => sum + s.value, 0))} leads - contato realizado/Desqualificado</div>
-            ${center.length ? center.map((s, i) => step(s, i, center.length)).join('<div class="illustrated-funnel-arrow">↓</div>') : '<span class="text-muted">Sem etapas</span>'}
+    const leftTotal = left.reduce((sum, s) => sum + s.value, 0);
+    const centerTotal = center.reduce((sum, s) => sum + s.value, 0);
+    const rightTotal = right.reduce((sum, s) => sum + s.value, 0);
+    const workedTotal = centerTotal + rightTotal;
+    const pct = value => total > 0 ? ((value / total) * 100).toFixed(1).replace('.', ',') : '0,0';
+    const icons = ['fa-file-lines', 'fa-user-check', 'fa-handshake', 'fa-coins', 'fa-circle-check'];
+    const tones = ['#1687e8', '#13b8b1', '#6e8dad', '#f6c515', '#16bd43'];
+    const centerSteps = center.length ? center.map((s, i) => {
+        const width = Math.max(58, 100 - (i * 10));
+        const tone = tones[i] || s.color || defaultPalette(i);
+        return `<div class="funnel-visual-step" style="--step-width:${width}%;--step-tone:${esc(tone)}">
+            <span class="funnel-visual-step-icon"><i class="fa-solid ${icons[i] || 'fa-circle'}"></i></span>
+            <strong>${esc(s.label)}</strong>
+            <span class="funnel-visual-step-metric"><b>${formatNumber(s.value)}</b><small>leads</small><em>${pct(s.value)}%</em></span>
+        </div>`;
+    }).join('') : '<div class="funnel-visual-no-stage">Sem etapas centrais</div>';
+    const rightItems = right.length ? right.map((s, i) => `<div class="funnel-visual-loss-item">
+        <span class="funnel-visual-loss-icon"><i class="fa-solid ${i === 0 ? 'fa-user-xmark' : i === 1 ? 'fa-clock' : 'fa-circle-minus'}"></i></span>
+        <div><strong>${esc(s.label)}</strong><b>${formatNumber(s.value)}</b><small>leads · ${pct(s.value)}% do total</small></div>
+    </div>`).join('') : '<div class="funnel-visual-no-stage">Sem etapas de saída</div>';
+    const leftStage = left[0];
+
+    container.innerHTML = `<div class="funnel-visual-shell">
+        <svg class="funnel-visual-connectors" viewBox="0 0 1200 700" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <defs>
+                <linearGradient id="funnelArrowWaiting" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset="1" stop-color="#ffbd42"/></linearGradient>
+                <linearGradient id="funnelArrowLoss" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#e62d36"/><stop offset="1" stop-color="#ff6870"/></linearGradient>
+                <linearGradient id="funnelArrowCenter" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#1687e8"/><stop offset="1" stop-color="#62b9ff"/></linearGradient>
+                <marker id="funnelArrowWaitingHead" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,4.5 L0,9 Z" fill="#ffbd42"/></marker>
+                <marker id="funnelArrowLossHead" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,4.5 L0,9 Z" fill="#ff6870"/></marker>
+                <marker id="funnelArrowCenterHead" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,4.5 L0,9 Z" fill="#62b9ff"/></marker>
+                <filter id="funnelArrowGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <circle class="funnel-connector-origin waiting" cx="120" cy="455" r="5"/>
+            <path class="funnel-connector-path waiting" d="M120 455 C75 285 145 145 397 61" marker-end="url(#funnelArrowWaitingHead)"/>
+            <circle class="funnel-connector-origin center" cx="600" cy="355" r="5"/>
+            <path class="funnel-connector-path center" d="M600 355 C600 275 600 175 600 104" marker-end="url(#funnelArrowCenterHead)"/>
+            <circle class="funnel-connector-origin loss" cx="1080" cy="350" r="5"/>
+            <path class="funnel-connector-path loss" d="M1080 350 C1110 205 1010 120 807 61" marker-end="url(#funnelArrowLossHead)"/>
+        </svg>
+        <header class="funnel-visual-title"><h2>Total do Funil <strong>${formatNumber(total)}</strong></h2><p>Visão geral do fluxo de leads no período</p></header>
+        <div class="funnel-visual-overview">
+            <i class="fa-solid fa-users"></i><strong>${formatNumber(workedTotal)} leads</strong><span></span><p>Contato realizado / Desqualificado</p>
         </div>
-        ${group(right, 'side right', '', '')}
+        <div class="funnel-visual-grid">
+            <aside class="funnel-visual-waiting">
+                <span class="funnel-visual-waiting-icon"><i class="fa-regular fa-clock"></i></span>
+                <h3>${leftStage ? esc(leftStage.label) : 'Aguardando ação'}</h3>
+                <strong>${formatNumber(leftTotal)}</strong><small>leads</small>
+                <div>${pct(leftTotal)}% do total</div>
+            </aside>
+            <main class="funnel-visual-center">${centerSteps}</main>
+            <aside class="funnel-visual-loss">
+                <div class="funnel-visual-loss-summary"><span><i class="fa-solid fa-ban"></i></span><h3>Sem Interesse</h3><strong>${formatNumber(rightTotal)}</strong><small>leads</small><div>${pct(rightTotal)}% do total</div></div>
+                <div class="funnel-visual-loss-list">${rightItems}</div>
+            </aside>
+        </div>
     </div>`;
 }
 
@@ -4565,34 +4653,59 @@ function renderAdsReports() {
 
 function renderReports(){
     try {
-        applyChartThemeDefaults();
-        renderKPIs();
-        renderLeadsMonthlyChart();
-        renderLeadsByStageChart();
-        renderLeadsByLocationCharts();
-        renderConversionDonutChart();
-        renderSourcesPieChart();
-        renderCreatedClosedChart();
-        renderTimeDistributionChart();
-        renderTrendsChart();
-        renderFunnel();
-        renderIllustratedFunnel();
-        renderTopSourcesTable();
-        renderStagesDetailTable();
-        renderTopSellersChart();
-        renderUserTasksChart();
-        renderTopSellersTable();
-        renderUsersTasksTable();
-        renderDailyCharts();
-        renderFilteredStatusChart();
-        renderTemporalInsights();
-        renderActivityByUser();
-        // New modules
-        renderQualificationCharts();
-        renderSLACharts();
-        renderFinanceiroCharts();
-        renderExternalConsultantsCharts();
-        renderAdsReports();
+        if (typeof window.Chart !== 'undefined') applyChartThemeDefaults();
+        switch (REPORT_ACTIVE_TAB) {
+            case 'overview':
+                renderKPIs();
+                renderLeadsMonthlyChart();
+                renderLeadsByStageChart();
+                renderLeadsByLocationCharts();
+                renderConversionDonutChart();
+                renderFilteredStatusChart();
+                renderStagesDetailTable();
+                break;
+            case 'funnel':
+                renderFunnel();
+                renderIllustratedFunnel();
+                renderStagesDetailTable();
+                break;
+            case 'temporal':
+                renderCreatedClosedChart();
+                renderTimeDistributionChart();
+                renderTrendsChart();
+                renderTemporalInsights();
+                renderActivityByUser();
+                break;
+            case 'consultores':
+                renderTopSellersChart();
+                renderUserTasksChart();
+                renderTopSellersTable();
+                renderUsersTasksTable();
+                renderSLACharts();
+                break;
+            case 'sources':
+                renderSourcesPieChart();
+                renderTopSourcesTable();
+                break;
+            case 'daily':
+                renderDailyCharts();
+                break;
+            case 'qualificacao':
+                renderQualificationCharts();
+                break;
+            case 'financeiro':
+                renderFinanceiroCharts();
+                break;
+            case 'consultores_externos':
+                renderExternalConsultantsCharts();
+                break;
+            case 'anuncios':
+                renderAdsReports();
+                break;
+            case 'sla':
+                // Esta aba usa KPIs e tabelas renderizados diretamente pelo PHP.
+                break;
+        }
     } catch(e) { 
         console.error('Render reports failed', e); 
     }
@@ -4614,6 +4727,24 @@ function resetFilters() {
 function exportReport(format) {
     if (String(format).toLowerCase() !== 'pdf') {
         alert('Exportação para ' + String(format).toUpperCase() + ' será implementada em breve!');
+        return;
+    }
+
+    // A biblioteca de PDF é pesada; baixe-a somente quando o usuário pedir a exportação.
+    if (typeof window.html2pdf !== 'function') {
+        if (window.__reportPdfLoading) return;
+        window.__reportPdfLoading = true;
+        const script = document.createElement('script');
+        script.src = 'assets/js/html2pdf.bundle.min.js';
+        script.onload = function () {
+            window.__reportPdfLoading = false;
+            exportReport('pdf');
+        };
+        script.onerror = function () {
+            window.__reportPdfLoading = false;
+            alert('Não foi possível carregar o exportador PDF.');
+        };
+        document.head.appendChild(script);
         return;
     }
 

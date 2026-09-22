@@ -7,7 +7,7 @@ if (empty($_SESSION['email_csrf'])) $_SESSION['email_csrf'] = bin2hex(random_byt
 try { wrcrm_email_ensure_schema($pdo); } catch (Throwable $e) { $emailSetupError = $e->getMessage(); }
 include __DIR__ . '/includes/header.php';
 ?>
-<link rel="stylesheet" href="assets/css/email_center.css">
+<link rel="stylesheet" href="assets/css/email_center.css?v=<?= (int)@filemtime(__DIR__ . '/assets/css/email_center.css') ?>">
 <div class="d-flex">
   <?php include __DIR__ . '/includes/sidebar.php'; ?>
   <main class="flex-grow-1 email-page">
@@ -74,29 +74,64 @@ include __DIR__ . '/includes/header.php';
   </form>
 </div>
 
-<div class="modal fade" id="emailViewModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><div><h5 class="modal-title" id="viewSubject"></h5><small class="text-muted" id="viewMeta"></small></div><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="viewRecipients" class="small text-muted mb-3"></div><div id="viewBody" class="email-view-body"></div><div id="viewAttachments" class="mt-4"></div></div><div class="modal-footer" id="viewActions"></div></div></div></div>
+<div class="modal fade" id="emailViewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header email-view-header">
+        <div class="email-view-heading">
+          <span class="email-view-heading-icon"><i class="fa-regular fa-paper-plane"></i></span>
+          <div><span class="email-view-eyebrow">Mensagem enviada</span><h5 class="modal-title" id="viewSubject"></h5><small id="viewMeta"></small></div>
+        </div>
+        <button class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body email-view-modal-body">
+        <section class="email-view-recipient-card">
+          <span class="email-view-section-icon"><i class="fa-regular fa-user"></i></span>
+          <div><span class="email-view-section-label">Detalhes do envio</span><div id="viewRecipients"></div></div>
+        </section>
+        <section class="email-view-message-card">
+          <div class="email-view-message-label"><i class="fa-regular fa-envelope-open"></i> Conteúdo da mensagem</div>
+          <div id="viewBody" class="email-view-body"></div>
+        </section>
+        <section id="viewAttachments" class="email-view-attachments"></section>
+      </div>
+      <div class="modal-footer email-view-footer" id="viewActions"></div>
+    </div>
+  </div>
+</div>
 <div class="modal fade" id="emailAccountModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
     <form class="modal-content" id="emailAccountForm">
-      <div class="modal-header"><div><h5 class="modal-title">E-mail do perfil</h5><small class="text-muted" id="emailAccountSummary"></small></div><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-header">
+        <div class="email-account-modal-title"><span><i class="fa-regular fa-envelope"></i></span><div><h5 class="modal-title">E-mail do perfil</h5><small id="emailAccountSummary"></small></div></div>
+        <button class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
       <div class="modal-body">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['email_csrf']) ?>">
-        <div class="row g-3">
-          <div class="col-12"><label class="form-label">Enviar usando</label><select class="form-select" name="preferred_scope" id="accountPreferredScope"><option value="user">Meu e-mail do perfil</option><option value="system">E-mail do sistema</option></select></div>
-          <div class="col-12"><label class="form-label">Host SMTP</label><input class="form-control" name="host" id="accountSmtpHost" placeholder="smtp.seudominio.com"></div>
-          <div class="col-6"><label class="form-label">Porta</label><input class="form-control" name="port" id="accountSmtpPort" type="number" placeholder="587"></div>
-          <div class="col-6"><label class="form-label">Segurança</label><select class="form-select" name="secure" id="accountSmtpSecure"><option value="">Nenhuma</option><option value="tls">TLS</option><option value="ssl">SSL</option></select></div>
-          <div class="col-12"><label class="form-label">Usuário SMTP</label><input class="form-control" name="user" id="accountSmtpUser" placeholder="seuemail@dominio.com"></div>
-          <div class="col-12"><label class="form-label">Senha SMTP</label><input class="form-control" name="pass" id="accountSmtpPass" type="password" autocomplete="new-password" placeholder="Deixe em branco para manter a senha atual"><small class="text-muted" id="accountSmtpPassHint"></small></div>
-          <div class="col-12"><label class="form-label">E-mail remetente</label><input class="form-control" name="from_email" id="accountSmtpFromEmail" type="email" placeholder="seuemail@dominio.com"></div>
-          <div class="col-12"><label class="form-label">Nome do remetente</label><input class="form-control" name="from_name" id="accountSmtpFromName" placeholder="Seu nome"></div>
-          <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="auth" id="accountSmtpAuth" value="1" checked><label class="form-check-label" for="accountSmtpAuth">Requer autenticação</label></div></div>
+        <div class="email-account-grid">
+          <section class="email-account-section">
+            <div class="email-account-section-title"><i class="fa-solid fa-server"></i><div><strong>Servidor SMTP</strong><small>Conexão para o envio das mensagens</small></div></div>
+            <div class="email-account-field"><label class="form-label" for="accountPreferredScope">Enviar usando</label><select class="form-select" name="preferred_scope" id="accountPreferredScope"><option value="user">Meu e-mail do perfil</option><option value="system">E-mail do sistema</option></select></div>
+            <div class="email-account-field"><label class="form-label" for="accountSmtpHost">Host SMTP</label><input class="form-control" name="host" id="accountSmtpHost" placeholder="smtp.seudominio.com"></div>
+            <div class="row g-3">
+              <div class="col-6"><div class="email-account-field"><label class="form-label" for="accountSmtpPort">Porta</label><input class="form-control" name="port" id="accountSmtpPort" type="number" placeholder="587"></div></div>
+              <div class="col-6"><div class="email-account-field"><label class="form-label" for="accountSmtpSecure">Segurança</label><select class="form-select" name="secure" id="accountSmtpSecure"><option value="">Nenhuma</option><option value="tls">TLS</option><option value="ssl">SSL</option></select></div></div>
+            </div>
+            <div class="email-auth-switch"><div><strong>Autenticação SMTP</strong><small>Usar usuário e senha no servidor</small></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="auth" id="accountSmtpAuth" value="1" checked><label class="visually-hidden" for="accountSmtpAuth">Requer autenticação</label></div></div>
+          </section>
+          <section class="email-account-section">
+            <div class="email-account-section-title"><i class="fa-regular fa-id-card"></i><div><strong>Conta e remetente</strong><small>Identificação exibida nos e-mails</small></div></div>
+            <div class="email-account-field"><label class="form-label" for="accountSmtpUser">Usuário SMTP</label><input class="form-control" name="user" id="accountSmtpUser" placeholder="seuemail@dominio.com"></div>
+            <div class="email-account-field"><label class="form-label" for="accountSmtpPass">Senha SMTP</label><input class="form-control" name="pass" id="accountSmtpPass" type="password" autocomplete="new-password" placeholder="Deixe em branco para manter"><small class="email-field-hint" id="accountSmtpPassHint"></small></div>
+            <div class="email-account-field"><label class="form-label" for="accountSmtpFromEmail">E-mail remetente</label><input class="form-control" name="from_email" id="accountSmtpFromEmail" type="email" placeholder="seuemail@dominio.com"></div>
+            <div class="email-account-field"><label class="form-label" for="accountSmtpFromName">Nome do remetente</label><input class="form-control" name="from_name" id="accountSmtpFromName" placeholder="Seu nome ou empresa"></div>
+          </section>
         </div>
       </div>
-      <div class="modal-footer"><button class="btn btn-light" type="button" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" type="submit">Salvar e usar este e-mail</button></div>
+      <div class="modal-footer"><button class="btn btn-light" type="button" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" type="submit"><i class="fa-regular fa-floppy-disk me-2"></i>Salvar e usar este e-mail</button></div>
     </form>
   </div>
 </div>
 <div class="toast-container position-fixed bottom-0 end-0 p-3"><div id="emailToast" class="toast text-bg-dark" role="alert"><div class="d-flex"><div class="toast-body" id="emailToastText"></div><button class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div></div>
-<script src="assets/js/email_center.js"></script>
+<script src="assets/js/email_center.js?v=<?= (int)@filemtime(__DIR__ . '/assets/js/email_center.js') ?>"></script>
 <?php include __DIR__ . '/includes/footer.php'; ?>

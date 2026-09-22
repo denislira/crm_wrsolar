@@ -355,6 +355,7 @@
   </script>
   <?php endif; ?>
   <?php if (empty($noNavbar) && !empty($_SESSION['user_id'])): ?>
+  <script src="assets/js/ai_public_settings_cache.js"></script>
   <script src="assets/js/internal_chat.js"></script>
   <script src="assets/js/ai_assistant.js"></script>
   <?php endif; ?>

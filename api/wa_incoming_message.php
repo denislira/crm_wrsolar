@@ -173,9 +173,7 @@ function wa_incoming_days_since_date($raw): int {
 }
 
 function wa_incoming_ensure_profile_image_column(PDO $pdo): void {
-    try {
-        $pdo->exec("ALTER TABLE leads ADD COLUMN whatsapp_profile_image VARCHAR(500) DEFAULT NULL");
-    } catch (Throwable $ignored) {}
+    // Estrutura criada exclusivamente pelas migrations manuais.
 }
 
 function wa_incoming_download_profile_image(string $url, int $leadId, int $empresaId): string {
@@ -237,16 +235,6 @@ function wa_incoming_debug_notify(PDO $pdo, array $payload): void {
     @file_put_contents(__DIR__ . '/../logs/wa_incoming_message.log', '[' . date('c') . '] received_before_lead ' . json_encode($summary, JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND | LOCK_EX);
 
     try {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS alerts (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NULL,
-            project_id INT NULL,
-            type VARCHAR(50) DEFAULT 'notification',
-            message TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            is_read TINYINT DEFAULT 0
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
         $users = [];
         try {
             $stmt = $pdo->query('SELECT id FROM users WHERE COALESCE(role_level, 0) <= 1 ORDER BY id ASC LIMIT 10');

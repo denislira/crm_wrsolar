@@ -33,6 +33,7 @@ $prompt = trim((string)($_POST['prompt'] ?? ''));
 $temperature = isset($_POST['temperature']) ? (float)$_POST['temperature'] : 0.2;
 $maxTokens = isset($_POST['max_tokens']) ? (int)$_POST['max_tokens'] : 900;
 $proactiveInterval = isset($_POST['proactive_interval_minutes']) ? (int)$_POST['proactive_interval_minutes'] : 30;
+$chatPollInterval = isset($_POST['chat_poll_interval_seconds']) ? (int)$_POST['chat_poll_interval_seconds'] : 30;
 $proactivePrompts = trim((string)($_POST['proactive_prompts'] ?? ''));
 $draggableLauncherEnabled = isset($_POST['draggable_launcher_enabled']) && in_array((string)$_POST['draggable_launcher_enabled'], ['1', 'true', 'on'], true) ? 1 : 0;
 $provider = trim((string)($_POST['provider'] ?? 'openai_compatible'));
@@ -53,6 +54,7 @@ $ai = [
     'max_tokens' => max(100, min(4000, $maxTokens)),
     'proactive_enabled' => isset($_POST['proactive_enabled']) && in_array((string)$_POST['proactive_enabled'], ['1', 'true', 'on'], true) ? 1 : 0,
     'proactive_interval_minutes' => max(1, min(1440, $proactiveInterval)),
+    'chat_poll_interval_seconds' => max(10, min(300, $chatPollInterval)),
     'proactive_prompts' => $proactivePrompts,
     'draggable_launcher_enabled' => $draggableLauncherEnabled,
     'prompt' => $prompt !== '' ? $prompt : wrcrm_default_ai_settings()['prompt'],

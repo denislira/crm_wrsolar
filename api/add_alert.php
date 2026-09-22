@@ -26,17 +26,6 @@ $type = trim($_POST['type'] ?? 'notification');
 $message = trim($_POST['message'] ?? '');
 
 try {
-    // create alerts table if missing
-    $pdo->exec("CREATE TABLE IF NOT EXISTS alerts (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NULL,
-        project_id INT NULL,
-        type VARCHAR(50) DEFAULT 'notification',
-        message TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        is_read TINYINT DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
     $exists = $pdo->prepare('SELECT id FROM alerts WHERE user_id = ? AND project_id = ? AND type = ? AND message = ? LIMIT 1');
     $exists->execute([$_SESSION['user_id'], $project_id, $type, $message]);
     if ($existingId = $exists->fetchColumn()) {

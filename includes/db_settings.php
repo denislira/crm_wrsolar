@@ -2,17 +2,7 @@
 
 function wrcrm_db_settings_ensure(PDO $pdo): void
 {
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS crm_settings (
-            setting_key VARCHAR(120) PRIMARY KEY,
-            setting_value LONGTEXT NULL,
-            is_secret TINYINT(1) NOT NULL DEFAULT 0,
-            updated_by INT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_crm_settings_secret (is_secret)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
+    // Estrutura criada exclusivamente pelas migrations manuais.
 }
 
 function wrcrm_db_setting_get(PDO $pdo, string $key): ?array
@@ -47,4 +37,3 @@ function wrcrm_db_setting_set(PDO $pdo, string $key, $value, bool $isSecret = fa
     ");
     return $stmt->execute([$key, $encoded, $isSecret ? 1 : 0, $userId]);
 }
-

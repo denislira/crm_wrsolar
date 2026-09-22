@@ -13,17 +13,6 @@ require_once __DIR__ . '/includes/project_post_sale_automation.php';
 
 checkAccessOrRedirect('projetos');
 
-// Safe migration for payment method relation in projects.
-try {
-    $col = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projetos' AND COLUMN_NAME = 'payment_method_id'");
-    $col->execute();
-    if (!$col->fetchColumn()) {
-        $pdo->exec("ALTER TABLE projetos ADD COLUMN payment_method_id INT DEFAULT NULL");
-    }
-} catch (Exception $e) {
-    // Ignore migration errors and keep backward compatibility with payment_type fallback.
-}
-
 // Aplicar automação configurada por coluna antes de listar, para projetos elegíveis sumirem do kanban.
 runProjectPostSaleAutomation($pdo, (int) $_SESSION['user_id']);
 

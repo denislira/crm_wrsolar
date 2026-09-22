@@ -24,29 +24,6 @@ $toBoolean = static function ($value): bool {
 };
 
 try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS pos_venda_stages (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        position INT NOT NULL DEFAULT 0,
-        color VARCHAR(7) DEFAULT '#6c757d',
-        card_color VARCHAR(7) DEFAULT '#ffffff',
-        sla_renewal_target TINYINT(1) NOT NULL DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
-    $stageColumns = $pdo->query('SHOW COLUMNS FROM pos_venda_stages')->fetchAll(PDO::FETCH_COLUMN);
-    if (!in_array('card_color', $stageColumns, true)) {
-        $pdo->exec("ALTER TABLE pos_venda_stages ADD COLUMN card_color VARCHAR(7) DEFAULT '#ffffff' AFTER color");
-    }
-    if (!in_array('sla_renewal_target', $stageColumns, true)) {
-        $pdo->exec('ALTER TABLE pos_venda_stages ADD COLUMN sla_renewal_target TINYINT(1) NOT NULL DEFAULT 0 AFTER card_color');
-    }
-    if (!in_array('updated_at', $stageColumns, true)) {
-        $pdo->exec('ALTER TABLE pos_venda_stages ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at');
-    }
-
     if ($action === 'list') {
         $sql = 'SELECT id, name, position, color, card_color, sla_renewal_target FROM pos_venda_stages ';
         $sql .= $globalList ? 'ORDER BY position ASC, id ASC' : 'WHERE user_id = ? ORDER BY position ASC, id ASC';
