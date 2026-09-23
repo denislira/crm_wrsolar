@@ -26,7 +26,7 @@ include 'includes/header.php';
                         </button>
                         <span id="persistedFiltersNotice" class="persisted-filters-notice d-none" title="Filtros salvos e restaurados automaticamente">Filtros salvos</span>
                     </div>
-                    <button id="newLeadBtn" class="btn btn-primary btn-sm" style="min-width:160px;">Novo lead</button>
+                    <button id="newLeadBtn" class="btn btn-primary btn-sm" style="min-width:160px;" disabled>Novo lead</button>
                     <button id="exportLeadsBtn" class="btn btn-sm btn-outline-success" type="button" title="Baixar leads em planilha Excel"><i class="fa fa-file-excel" aria-hidden="true"></i> Exportar</button>
                     <a href="import_leads.php" class="btn btn-sm btn-outline-secondary" title="Importar leads via CSV" aria-label="Importar leads via CSV"><i class="fa fa-file-import" aria-hidden="true"></i></a>
                     <button id="funilConfigBtn" class="btn btn-sm btn-outline-primary btn-funil-config" title="Personalizar estágios do funil" aria-label="Personalizar estágios do funil" onclick="location.href='funil_config.php'"><i class="fa fa-diagram-project" aria-hidden="true"></i></button>
@@ -469,44 +469,6 @@ include 'includes/header.php';
             </div>
         </div>
     </div>
-
-    <script>
-    // wire lead modal open/save
-    document.addEventListener('DOMContentLoaded', () => {
-        const addBtn = document.getElementById('newLeadBtn');
-        const leadModalEl = document.getElementById('leadModal');
-        if(addBtn && leadModalEl){
-            const leadModal = new bootstrap.Modal(leadModalEl);
-            addBtn.addEventListener('click', ()=>{
-                document.getElementById('leadForm').reset();
-                document.getElementById('lead-id').value = '';
-                document.getElementById('leadModalTitle').textContent = 'Novo Lead';
-                ['leadModalReminderBtn','leadModalTaskBtn'].forEach(id => {
-                    const btn = document.getElementById(id);
-                    if (btn) { btn.classList.add('d-none'); btn.onclick = null; }
-                });
-                // set current date for ultimo_contato
-                const now = new Date().toISOString().slice(0,10);
-                document.getElementById('lead-ultimo-contato').value = now;
-                    // set current date for data_inicio (Data de Entrada) for new leads
-                    const createdEl = document.getElementById('lead-created-at');
-                    if (createdEl) { createdEl.value = now; createdEl.disabled = false; createdEl.readOnly = false; }
-                leadModal.show();
-                // populate status select if available
-                if (window.populateStatusSelect) window.populateStatusSelect();
-            });
-            document.getElementById('save-lead').addEventListener('click', (e)=>{
-                const form = document.getElementById('leadForm');
-                // Prefer requestSubmit when available (triggers form submit handlers)
-                if (form.requestSubmit) {
-                    form.requestSubmit();
-                } else {
-                    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-                }
-            });
-        }
-    });
-    </script>
 
     <!-- Modal: Gerenciar Formas de Pagamento -->
     <div id="paymentMethodsModal" class="modal fade" tabindex="-1" aria-hidden="true">

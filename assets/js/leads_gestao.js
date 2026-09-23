@@ -3484,6 +3484,7 @@
             try { loadAppearance().then(a=>{ const color = (a && (a.primary_color || a.primary || a.color_primary)) ? (a.primary_color||a.primary||a.color_primary) : null; if (color) applyLeadModalPrimaryColor(color); }); } catch(e){}
             m.show(); 
         });
+            newLeadBtn.disabled = false;
         }
 
         // Drag-and-drop zone for attachments
