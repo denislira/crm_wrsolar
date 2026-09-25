@@ -25,6 +25,7 @@
     let KANBAN_COLUMN_RENDERED = {};
     let KANBAN_LOADING = true;
     let KANBAN_LOADING_SEQ = 0;
+    let KANBAN_RENDER_READY = Promise.resolve();
     let CURRENT_EDIT_LEAD_LOCKED = false;
     let leadPanelRequestSeq = 0;
     let leadPanelAbortController = null;
@@ -179,8 +180,20 @@
         if (typeof text === 'string') wrap.setAttribute('aria-label', text);
         if (!KANBAN_LOADING) {
             wrap.querySelectorAll('.kanban-skeleton,.kanban-column-loader,.kanban-loading-overlay').forEach(el => el.remove());
+            const listWrap = document.getElementById('listWrap');
+            if (listWrap) listWrap.querySelectorAll('.grid-loading-overlay').forEach(el => el.remove());
             wrap.removeAttribute('aria-label');
             return;
+        }
+        if (getViewMode() === 'list') {
+            const listWrap = document.getElementById('listWrap');
+            if (listWrap && !listWrap.querySelector('.grid-loading-overlay')) {
+                const gridOverlay = document.createElement('div');
+                gridOverlay.className = 'grid-loading-overlay';
+                gridOverlay.setAttribute('aria-hidden', 'true');
+                gridOverlay.innerHTML = '<div class="grid-loading-box"><div class="kanban-loading-orbit"><span></span><span></span><span></span></div><strong>Carregando lista de leads...</strong><span class="small text-muted">Preparando os dados da grade...</span><div class="kanban-loading-progress"><i></i></div></div>';
+                listWrap.appendChild(gridOverlay);
+            }
         }
         wrap.querySelectorAll('.kanban-skeleton,.kanban-column-loader').forEach(el => el.remove());
         let overlay = wrap.querySelector('.kanban-loading-overlay');
@@ -188,7 +201,7 @@
             overlay = document.createElement('div');
             overlay.className = 'kanban-loading-overlay';
             overlay.setAttribute('aria-hidden', 'true');
-            overlay.innerHTML = '<div class="kanban-loading-box"><span class="spinner-border text-primary" aria-hidden="true"></span><strong>Carregando Kanban...</strong><span class="small text-muted">Aguarde enquanto os leads são organizados.</span></div>';
+            overlay.innerHTML = '<div class="kanban-loading-box"><div class="kanban-loading-orbit"><span></span><span></span><span></span></div><strong>Carregando Kanban...</strong><span class="small text-muted">Organizando colunas e leads...</span><div class="kanban-loading-progress"><i></i></div></div>';
             wrap.appendChild(overlay);
         }
     }
@@ -198,8 +211,38 @@
     }
     function showPreloader(text){ setPreloaderVisible(true, text || 'Carregando...'); }
     function hidePreloader(){ setPreloaderVisible(false); }
+    function showKanbanSoftLoading(text){
+        const wrap = document.getElementById('kanbanWrap');
+        if (!wrap) return;
+        let el = wrap.querySelector('.kanban-soft-loading');
+        if (!el) {
+            el = document.createElement('div');
+            el.className = 'kanban-soft-loading';
+            wrap.appendChild(el);
+        }
+        el.innerHTML = '<div class="kanban-loading-box"><div class="kanban-loading-orbit"><span></span><span></span><span></span></div><strong>' + (text || 'Salvando...') + '</strong><div class="kanban-loading-progress"><i></i></div></div>';
+        el.classList.add('is-visible');
+    }
+    function hideKanbanSoftLoading(){
+        const el = document.querySelector('#kanbanWrap .kanban-soft-loading');
+        if (el) el.classList.remove('is-visible');
+    }
     function nextPaint(){
         return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+    function waitKanbanVisualSettled(){
+        return new Promise(resolve => {
+            let frames = 0;
+            const settle = () => {
+                frames++;
+                if (frames >= 4) {
+                    setTimeout(resolve, 180);
+                    return;
+                }
+                requestAnimationFrame(settle);
+            };
+            requestAnimationFrame(settle);
+        });
     }
 
     function syncAdvancedFiltersUi(){
@@ -806,10 +849,11 @@
         });
     }
 
-    async function fetchLeads(){
+    async function fetchLeads(options = {}){
+        const showLoading = options.showLoading !== false;
         const loadingSeq = ++KANBAN_LOADING_SEQ;
         const loadingStartedAt = Date.now();
-        showPreloader('Carregando leads no Kanban...');
+        if (showLoading) showPreloader('Carregando leads no Kanban...');
         try {
             const res = await fetch(apiBase + '?action=list');
             if (!res.ok) throw new Error('Falha ao carregar leads');
@@ -842,14 +886,22 @@
             const remaining = KANBAN_PRELOADER_MIN_MS - (Date.now() - loadingStartedAt);
             if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
             renderAll();
-            await nextPaint();
+            // Some auxiliary columns can trigger a second render when their
+            // visibility changes. Wait until the render promise stabilizes.
+            let renderPromise = KANBAN_RENDER_READY;
+            while (true) {
+                await renderPromise;
+                if (renderPromise === KANBAN_RENDER_READY) break;
+                renderPromise = KANBAN_RENDER_READY;
+            }
+            await waitKanbanVisualSettled();
             updateTrashedCount();
         } catch (err) {
             console.error('fetchLeads error:', err);
             throw err;
         } finally {
             // A requisição mais nova é responsável por retirar o preloading.
-            if (loadingSeq === KANBAN_LOADING_SEQ) hidePreloader();
+            if (showLoading && loadingSeq === KANBAN_LOADING_SEQ) hidePreloader();
         }
     }
 
@@ -2055,6 +2107,7 @@
             if (indicadosBtn) indicadosBtn.classList.add('d-none');
             if (btn) btn.innerHTML = '<i class="fa fa-th-list"></i>';
         }
+        if (KANBAN_LOADING) syncKanbanLoadingUi('Carregando dados da visualização...');
     }
 
     function renderGrid(){
@@ -2409,7 +2462,7 @@
         try { renderKpis(); } catch(e) { console.warn('renderKpis failed', e); }
         // switch to alternate views if requested: 'list' => table
         const vm = getViewMode();
-        if (vm === 'list') { renderGrid(); return; }
+        if (vm === 'list') { renderGrid(); KANBAN_RENDER_READY = Promise.resolve(); return; }
         clearColumns();
         resetKanbanColumnState();
         const filtered = getFilteredLeads();
@@ -2471,9 +2524,11 @@
 
         renderKpis();
         updateBulkDeleteVisibility();
+        let anunciosLoad = Promise.resolve();
+        let indicadosLoad = Promise.resolve();
         // populate Anúncios column (fetch latest and render as cards)
         try {
-            fetchAnuncios().then(rows=>{
+            anunciosLoad = fetchAnuncios().then(rows=>{
                 try {
                     const col = document.getElementById('col-anuncios');
                     if (!col) return;
@@ -2496,7 +2551,7 @@
 
         // populate Indicações column
         try {
-            fetchIndicados().then(rows=>{
+            indicadosLoad = fetchIndicados().then(rows=>{
                 try {
                     const col = document.getElementById('col-indicados');
                     if (!col) return;
@@ -2513,6 +2568,7 @@
                 } catch(e){ console.warn('renderIndicados failed', e); }
             }).catch(()=>{});
         } catch(e) { /* ignore */ }
+        KANBAN_RENDER_READY = Promise.all([anunciosLoad, indicadosLoad]).then(() => nextPaint());
     }
 
     function setupDragDrop(){
@@ -2615,6 +2671,10 @@
                         if (targetCount) targetCount.textContent = String(Number(targetCount.textContent || 0) + 1);
                     }
 
+                    showKanbanSoftLoading('Salvando posição...');
+                    // Let the browser paint the card in its new column before
+                    // the network request and background synchronization run.
+                    await nextPaint();
                     await updateStatus(id, stageName, { stage_id: stageId });
                     const item = allLeads.find(x=>String(x.id)===String(id)); if (item) { item.status = stageName; item.stage_id = stageId; item.updated_at = (new Date()).toISOString(); }
                     const dragging = document.querySelector('.lead-card.dragging');
@@ -2625,13 +2685,15 @@
                     }
                     // Re-read the persisted lead so the Kanban is rebuilt in the
                     // destination column immediately, including lazy-loaded columns.
-                    await fetchLeads();
+                    await fetchLeads({ showLoading: false });
+                    hideKanbanSoftLoading();
                     flashFeedback(colContent, true);
                 }
             } catch(err){
                 flashFeedback(colContent, false);
+                hideKanbanSoftLoading();
                 console.error(err);
-                try { await fetchLeads(); } catch (_) {}
+                try { await fetchLeads({ showLoading: false }); } catch (_) {}
             }
         });
 
@@ -4418,6 +4480,10 @@
             wrap.scrollLeft = scrollLeft - walk;
         });
     }
+
+    // Apply the saved view synchronously, before async data loading, so the
+    // Kanban never flashes when the user last selected the grid/list view.
+    try { setViewMode(getViewMode()); } catch (e) { /* DOM may not be ready */ }
 
     // initial
     document.addEventListener('DOMContentLoaded', async ()=>{

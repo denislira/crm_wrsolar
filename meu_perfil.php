@@ -33,37 +33,13 @@ if (!in_array($profileAiBotMode, ['none', 'head', 'body', 'chatbot1', 'chatbot3'
     $profileAiBotMode = 'chatbot3';
 }
 
-// Server-side fetch of profile-related data as a reliable fallback
+// Lists are loaded lazily via api/profile_data.php. Keeping the initial request
+// limited to the profile shell prevents hundreds of rows from blocking the page.
 $profile_leads = [];
 $profile_projects = [];
 $profile_movements = [];
 $profile_reminders = [];
 $profile_tasks = [];
-try {
-    $tstmt = $pdo->prepare('SELECT * FROM team_tasks WHERE user_id = ? OR responsavel_id = ? OR responsavel = ? ORDER BY data_vencimento ASC, criado_em DESC LIMIT 500');
-    $tstmt->execute([$user_id, $user_id, $user['username'] ?? '']);
-    $profile_tasks = $tstmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) { /* ignore */ }
-try {
-    $lstmt = $pdo->prepare('SELECT id, user_id, name, email, phone, status, source, created_at FROM leads WHERE user_id = ? ORDER BY created_at DESC LIMIT 500');
-    $lstmt->execute([$user_id]);
-    $profile_leads = $lstmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) { }
-try {
-    $pjstmt = $pdo->prepare('SELECT id, user_id, client_name, proposal_value, status, created_at FROM projetos WHERE user_id = ? ORDER BY created_at DESC LIMIT 500');
-    $pjstmt->execute([$user_id]);
-    $profile_projects = $pjstmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) { /* projetos may not exist */ }
-try {
-    $mstmt = $pdo->prepare('SELECT id, lead_id, user_id, from_stage_id, to_stage_id, from_status, to_status, changed_by, note, is_alert, created_at FROM lead_movements WHERE user_id = ? OR changed_by = ? ORDER BY created_at DESC LIMIT 1000');
-    $mstmt->execute([$user_id, $user['username'] ?? '']);
-    $profile_movements = $mstmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) { }
-try {
-    $rstmt = $pdo->prepare('SELECT r.id, r.lead_id, r.message, r.remind_at, r.status, r.created_at, l.name AS lead_name FROM reminders r LEFT JOIN leads l ON l.id = r.lead_id WHERE r.created_by = ? ORDER BY r.created_at DESC LIMIT 500');
-    $rstmt->execute([$user_id]);
-    $profile_reminders = $rstmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) { }
 
 // Build usersMap for avatar display
 $usersMap = [];
@@ -991,9 +967,99 @@ include __DIR__ . '/includes/sidebar.php';
             max-width: 100%;
         }
     }
+
+    /* Visual exclusivo da página Meu Perfil */
+    .profile-page {
+        --profile-accent: <?php echo htmlspecialchars($primary_color); ?>;
+        --profile-accent-dark: <?php echo htmlspecialchars($primary_dark); ?>;
+        --profile-border: #e7ecf3;
+        --profile-muted: #64748b;
+        background: #f6f8fb;
+        padding: 1.5rem !important;
+    }
+    .profile-page > .container-fluid { max-width: 1480px; margin: 0 auto; }
+    .profile-page .profile-header-gradient {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 22px;
+        padding: 1.65rem 1.8rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 14px 36px rgba(15,23,42,.12);
+    }
+    .profile-page .profile-header-gradient::after {
+        content: '';
+        position: absolute;
+        width: 280px; height: 280px;
+        right: -70px; top: -145px;
+        border-radius: 50%;
+        background: rgba(255,255,255,.09);
+        pointer-events: none;
+    }
+    .profile-page .profile-header-gradient h2 { font-size: 1.65rem; letter-spacing: -.025em; }
+    .profile-page #perfilTabs {
+        display: inline-flex;
+        gap: .35rem;
+        padding: .35rem;
+        margin-bottom: 1.25rem !important;
+        border: 1px solid var(--profile-border);
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 4px 16px rgba(15,23,42,.04);
+    }
+    .profile-page #perfilTabs .nav-link { border-radius: 10px; padding: .58rem 1rem; font-size: .88rem; }
+    .profile-page .profile-card,
+    .profile-page .tasks-panel {
+        border: 1px solid var(--profile-border);
+        border-radius: 18px;
+        background: #fff;
+        box-shadow: 0 7px 24px rgba(15,23,42,.055);
+    }
+    .profile-page .profile-card:hover,
+    .profile-page .tasks-panel:hover { transform: none; box-shadow: 0 10px 30px rgba(15,23,42,.075); }
+    .profile-page .profile-section-title::before { display: none; }
+    .profile-page .profile-section-title { font-size: 1rem; color: #172033; }
+    .profile-page .profile-avatar-large {
+        width: 116px; height: 116px;
+        border: 4px solid #fff;
+        outline: 1px solid var(--profile-border);
+        box-shadow: 0 8px 25px rgba(15,23,42,.13);
+    }
+    .profile-page .profile-info-item { padding: .8rem .15rem; border-color: var(--profile-border); }
+    .profile-page .profile-info-label { font-size: .69rem; color: #8491a5; letter-spacing: .08em; }
+    .profile-page .profile-info-value { color: #172033; font-size: .92rem; font-weight: 600; }
+    .profile-page .tasks-panel { padding: 1.15rem; }
+    .profile-page .tasks-panel-header { padding: .15rem .15rem .9rem; border-bottom: 1px solid var(--profile-border); }
+    .profile-page .scrollable-list { scrollbar-gutter: stable; }
+    .profile-page .profile-panel-header { padding: 1rem 1.1rem; background: linear-gradient(180deg,#fff,#fbfcfe); }
+    .profile-page .profile-panel-icon { border: 0; background: color-mix(in srgb, var(--profile-accent) 11%, white); }
+    .profile-page .profile-panel-count { border: 0; background: #f1f5f9; color: #526074; }
+    .profile-page .profile-list-item { padding: .85rem 1.1rem; }
+    .profile-page .profile-list-item:hover { background: #f8fafc; }
+    .profile-page .profile-load-more { border: 0; background: #eef5ff; color: var(--profile-accent); }
+    .profile-page .profile-load-more:hover { background: var(--profile-accent); color: #fff; }
+    .profile-page .profile-loading-state,
+    .profile-page .profile-empty-state {
+        min-height: 150px; display: grid; place-items: center; text-align: center; color: #8491a5;
+    }
+    .profile-page .profile-loading-state i { color: var(--profile-accent); font-size: 1.25rem; }
+    .profile-page .profile-item-icon {
+        width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center;
+        border-radius: 11px; background: #f1f5f9; color: var(--profile-accent);
+    }
+    body.theme-dark .profile-page { background: #0b1220; }
+    body.theme-dark .profile-page #perfilTabs { background: #111b2d; border-color: rgba(255,255,255,.08); }
+    @media (max-width: 768px) {
+        .profile-page { padding: .85rem !important; }
+        .profile-page .profile-header-gradient { padding: 1.25rem; border-radius: 17px; }
+        .profile-page .profile-header-gradient > .d-flex { align-items: flex-start !important; gap: 1rem; }
+        .profile-page #perfilTabs { display: flex; width: 100%; }
+        .profile-page #perfilTabs .nav-item { flex: 1; }
+        .profile-page #perfilTabs .nav-link { width: 100%; padding: .55rem .4rem; }
+    }
 </style>
 
-<main class="flex-grow-1 p-4 main-content-scroll">
+<main class="flex-grow-1 p-4 main-content-scroll profile-page">
     <div class="container-fluid">
         <!-- Header com gradiente -->
         <div class="profile-header-gradient">
@@ -1241,7 +1307,7 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         <?php endif; ?>
                     </div>
-                    <?php if (count($profile_tasks) > 5): ?>
+                    <?php if (true): ?>
                         <div class="profile-list-footer">
                             <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileTasksList">
                                 <i class="fas fa-plus"></i> Carregar mais
@@ -1358,7 +1424,7 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         <?php endif; ?>
                     </div>
-                    <?php if (count($profile_leads) > 5): ?>
+                    <?php if (true): ?>
                         <div class="profile-list-footer">
                             <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileLeadsList">
                                 <i class="fas fa-plus"></i> Carregar mais
@@ -1398,7 +1464,7 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         <?php endif; ?>
                     </div>
-                    <?php if (count($profile_projects) > 5): ?>
+                    <?php if (true): ?>
                         <div class="profile-list-footer">
                             <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileProjectsList">
                                 <i class="fas fa-plus"></i> Carregar mais
@@ -1457,7 +1523,7 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         <?php endif; ?>
                     </div>
-                    <?php if (count($profile_movements) > 5): ?>
+                    <?php if (true): ?>
                         <div class="profile-list-footer">
                             <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileMovementsList">
                                 <i class="fas fa-plus"></i> Carregar mais
@@ -1499,7 +1565,7 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         <?php endif; ?>
                     </div>
-                    <?php if (count($profile_reminders) > 5): ?>
+                    <?php if (true): ?>
                         <div class="profile-list-footer">
                             <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileRemindersList">
                                 <i class="fas fa-plus"></i> Carregar mais
@@ -1675,7 +1741,7 @@ include __DIR__ . '/includes/sidebar.php';
 <script type="module">
     const PROFILE_USER_ID = <?php echo json_encode($user_id); ?>;
     const usersMap = <?php echo json_encode($usersMap ?? []); ?>;
-    const profileTasks = <?php echo json_encode($profile_tasks); ?>;
+    let profileTasks = <?php echo json_encode($profile_tasks); ?>;
 
     // helper methods to call team_tasks API
     async function fetchTasks(filters = {}) {
@@ -1810,8 +1876,54 @@ include __DIR__ . '/includes/sidebar.php';
         });
     }
 
+    function renderProfileItem(section, item) {
+        const el = document.createElement('div');
+        el.className = section === 'tasks' ? 'task-card profile-list-item' : 'list-item profile-list-item';
+        if (section === 'leads') el.innerHTML = `<div class="d-flex align-items-center gap-3"><span class="profile-item-icon"><i class="fas fa-user"></i></span><div class="min-width-0 flex-grow-1"><h6 class="mb-1">${escapeHtml(item.name||'Lead')}</h6><div class="small text-muted text-truncate">${escapeHtml(item.email||'Sem e-mail')} · ${escapeHtml(item.phone||'Sem telefone')}</div></div><span class="badge bg-primary">${escapeHtml(item.status||'Novo')}</span></div>`;
+        else if (section === 'projects') el.innerHTML = `<div class="d-flex align-items-center gap-3"><span class="profile-item-icon"><i class="fas fa-briefcase"></i></span><div class="min-width-0 flex-grow-1"><h6 class="mb-1">${escapeHtml(item.client_name||'Projeto')}</h6><div class="small text-success fw-semibold">R$ ${Number(item.proposal_value||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div><span class="badge bg-success">${escapeHtml(item.status||'')}</span></div>`;
+        else if (section === 'reminders') el.innerHTML = `<div class="d-flex align-items-center gap-3"><span class="profile-item-icon"><i class="far fa-bell"></i></span><div class="min-width-0 flex-grow-1"><h6 class="mb-1">${escapeHtml(item.message||'Lembrete')}</h6><div class="small text-muted">${escapeHtml(item.remind_at||'Sem data')} · ${escapeHtml(item.lead_name||('Lead #'+(item.lead_id||'')))}</div></div></div>`;
+        else if (section === 'movements') el.innerHTML = `<div class="d-flex align-items-center gap-3"><span class="profile-item-icon"><i class="fas fa-exchange-alt"></i></span><div class="min-width-0 flex-grow-1"><h6 class="mb-1">Lead #${escapeHtml(item.lead_id||'')} · ${escapeHtml(item.changed_by||'Usuário')}</h6><div class="small text-muted">${escapeHtml(item.from_status||'Início')} → ${escapeHtml(item.to_status||'Atualizado')} · ${escapeHtml(item.created_at||'')}</div></div></div>`;
+        else {
+            const status = item.status || 'Pendente';
+            const statusClass = status === 'Concluída' ? 'badge-concluida' : (status === 'Em andamento' ? 'badge-andamento' : 'badge-pendente');
+            el.innerHTML = `<div class="task-card-header"><h6 class="task-card-title">${escapeHtml(item.titulo||'Tarefa')}</h6><span class="badge-custom ${statusClass}">${escapeHtml(status)}</span></div><div class="task-card-meta"><span class="task-meta-pill"><i class="far fa-calendar"></i>${escapeHtml(item.data_vencimento||'Sem data')}</span></div><p class="task-description">${escapeHtml(item.descricao||'Sem descrição')}</p><div class="task-card-actions"><button class="btn btn-sm btn-outline-primary" onclick="openEditTaskModal(${Number(item.id)})"><i class="fas fa-pen"></i></button><button class="btn btn-sm btn-outline-danger" data-task-id="${Number(item.id)}" onclick="deleteTaskConfirm(this)"><i class="fas fa-trash"></i></button></div>`;
+        }
+        return el;
+    }
+
+    async function loadProfileSection(section, page = 1) {
+        const ids = {tasks:'profileTasksList', leads:'profileLeadsList', projects:'profileProjectsList', movements:'profileMovementsList', reminders:'profileRemindersList'};
+        const wrap = document.getElementById(ids[section]);
+        if (!wrap) return;
+        if (page === 1) wrap.innerHTML = '<div class="profile-loading-state"><div><i class="fas fa-circle-notch fa-spin mb-2"></i><div class="small">Carregando dados</div></div></div>';
+        try {
+            const res = await fetch('api/profile_data.php?section=' + encodeURIComponent(section) + '&page=' + page + '&limit=10');
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message || 'Falha ao carregar');
+            if (page === 1) wrap.innerHTML = '';
+            if (section === 'tasks') profileTasks = page === 1 ? data.items : profileTasks.concat(data.items);
+            data.items.forEach(item => {
+                wrap.appendChild(renderProfileItem(section, item));
+                return;
+                const el = document.createElement('div'); el.className = 'list-item profile-list-item';
+                if (section === 'leads') el.innerHTML = `<div class="d-flex justify-content-between"><div><h6 class="mb-1 fw-semibold">${escapeHtml(item.name||'Lead')}</h6><small class="text-muted">${escapeHtml(item.email||'')} ${escapeHtml(item.phone||'')}</small></div><span class="badge bg-primary">${escapeHtml(item.status||'')}</span></div>`;
+                else if (section === 'projects') el.innerHTML = `<div class="d-flex justify-content-between"><strong>${escapeHtml(item.client_name||'Projeto')}</strong><span class="badge bg-success">${escapeHtml(item.status||'')}</span></div>`;
+                else if (section === 'reminders') el.innerHTML = `<strong>${escapeHtml(item.message||'')}</strong><div class="small text-muted">${escapeHtml(item.remind_at||'')} · ${escapeHtml(item.lead_name||item.lead_id||'')}</div>`;
+                else if (section === 'movements') el.innerHTML = `<div class="small"><strong>${escapeHtml(item.changed_by||item.user_id||'')}</strong> · ${escapeHtml(item.created_at||'')}</div><div class="small text-muted">Lead #${escapeHtml(item.lead_id||'')} · ${escapeHtml(item.from_status||'')} → ${escapeHtml(item.to_status||'')}</div>`;
+                else el.innerHTML = `<div class="d-flex justify-content-between"><strong>${escapeHtml(item.titulo||item.title||item.nome||'Tarefa')}</strong><span class="small text-muted">${escapeHtml(item.data_vencimento||'')}</span></div>`;
+                wrap.appendChild(el);
+            });
+            if (!data.items.length && page === 1) wrap.innerHTML = '<div class="profile-empty-state"><div><i class="far fa-folder-open fa-2x mb-2 opacity-50"></i><div>Nenhum registro encontrado</div></div></div>';
+            const countBadge = wrap.closest('.profile-modern-panel')?.querySelector('.profile-panel-count');
+            if (countBadge) countBadge.textContent = `${wrap.querySelectorAll('.profile-list-item').length}${data.has_more ? '+' : ''} registros`;
+            const more = wrap.parentElement?.querySelector('.profile-load-more');
+            if (more) { more.classList.toggle('is-hidden', !data.has_more); more.dataset.page = String(page + 1); more.onclick = () => loadProfileSection(section, page + 1); }
+        } catch (e) { wrap.innerHTML = '<div class="text-center text-danger py-4">Erro ao carregar dados.</div>'; console.error(e); }
+    }
+
     document.addEventListener('DOMContentLoaded', ()=>{
         bindLoadMoreLists();
+        ['tasks','leads','projects','movements','reminders'].forEach(section => loadProfileSection(section));
         // Avatar upload handlers
         const avatarInput = document.getElementById('avatarInput');
         const btnUpload = document.getElementById('btnUploadAvatar');
