@@ -32,6 +32,7 @@ $green = isset($_POST['green']) ? trim($_POST['green']) : null;
 $yellow = isset($_POST['yellow']) ? trim($_POST['yellow']) : null;
 $sidebarTextColor = isset($_POST['sidebar_text_color']) ? trim($_POST['sidebar_text_color']) : null;
 $navbarBgColor = isset($_POST['navbar_bg_color']) ? trim($_POST['navbar_bg_color']) : null;
+$loginBackgroundOverlay = isset($_POST['login_background_overlay']) && $_POST['login_background_overlay'] === '1';
 
 if ($primary && preg_match('/^#[0-9A-Fa-f]{6}$/', $primary)) $appearance['primary_color'] = $primary;
 if ($primaryDark && preg_match('/^#[0-9A-Fa-f]{6}$/', $primaryDark)) $appearance['primary_dark'] = $primaryDark;
@@ -39,6 +40,7 @@ if ($green && preg_match('/^#[0-9A-Fa-f]{6}$/', $green)) $appearance['green'] = 
 if ($yellow && preg_match('/^#[0-9A-Fa-f]{6}$/', $yellow)) $appearance['yellow'] = $yellow;
 if ($sidebarTextColor && preg_match('/^#[0-9A-Fa-f]{6}$/', $sidebarTextColor)) $appearance['sidebar_text_color'] = $sidebarTextColor;
 if ($navbarBgColor && preg_match('/^#[0-9A-Fa-f]{6}$/', $navbarBgColor)) $appearance['navbar_bg_color'] = $navbarBgColor;
+$appearance['login_background_overlay'] = $loginBackgroundOverlay;
 
 // Handle login background upload (wallpaper)
 if (!empty($_FILES['login_background']) && $_FILES['login_background']['error'] === UPLOAD_ERR_OK) {

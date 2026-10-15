@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 include 'includes/config.php';
 include 'includes/email_notifications.php';
+require_once 'includes/settings_storage.php';
 
 function isConsultorRoleFromSessionOrUser($roleId) {
     // Only treat as external consultant when role is 'consultor_externo'
@@ -42,10 +43,9 @@ $loginPrimary = '#0b6ac1';
 $loginPrimaryDark = '#073b6b';
 $loginGreen = '#4bbf4b';
 $loginYellow = '#ffd24a';
-$settingsPath = __DIR__ . '/storage/settings.json';
-if (file_exists($settingsPath)) {
-    $rawAppearance = @file_get_contents($settingsPath);
-    $appearanceSettings = $rawAppearance ? json_decode($rawAppearance, true) : [];
+$loginBackgroundOverlay = true;
+$appearanceSettings = wrcrm_load_settings(true);
+if (is_array($appearanceSettings)) {
     if (!empty($appearanceSettings['primary_color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $appearanceSettings['primary_color'])) {
         $loginPrimary = $appearanceSettings['primary_color'];
     }
@@ -65,7 +65,21 @@ if (file_exists($settingsPath)) {
             $loginBackground = $candidate;
         }
     }
+    if (array_key_exists('login_background_overlay', $appearanceSettings)) {
+        $loginBackgroundOverlay = (bool) $appearanceSettings['login_background_overlay'];
+    }
 }
+
+// The uploaded background keeps a fixed filename; append its modification
+// time so browsers fetch the new image after an appearance change.
+$loginBackgroundVersion = '';
+$loginBackgroundPath = __DIR__ . '/' . ltrim($loginBackground, '/\\');
+if (is_file($loginBackgroundPath)) {
+    $loginBackgroundVersion = '?v=' . (int) filemtime($loginBackgroundPath);
+}
+$loginBackgroundOverlayCss = $loginBackgroundOverlay
+    ? "linear-gradient(135deg, {$loginPrimaryDark}b3 0%, {$loginPrimary}99 50%, {$loginGreen}80 100%),"
+    : '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'];
@@ -139,8 +153,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             height: 100vh;
             width: 100vw;
             background: 
-                linear-gradient(135deg, <?php echo htmlspecialchars($loginPrimaryDark, ENT_QUOTES, 'UTF-8'); ?>b3 0%, <?php echo htmlspecialchars($loginPrimary, ENT_QUOTES, 'UTF-8'); ?>99 50%, <?php echo htmlspecialchars($loginGreen, ENT_QUOTES, 'UTF-8'); ?>80 100%),
-                url('<?php echo htmlspecialchars($loginBackground, ENT_QUOTES, 'UTF-8'); ?>');
+                <?php echo htmlspecialchars($loginBackgroundOverlayCss, ENT_QUOTES, 'UTF-8'); ?>
+                url('<?php echo htmlspecialchars($loginBackground . $loginBackgroundVersion, ENT_QUOTES, 'UTF-8'); ?>');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;

@@ -1656,6 +1656,10 @@ body.theme-dark .edit-user-modal .avatar-box {
                                         <input type="checkbox" class="form-check-input" id="removeLoginBackgroundChk" />
                                         <label class="form-check-label" for="removeLoginBackgroundChk">Remover fundo personalizado do login</label>
                                     </div>
+                                    <div class="form-check mt-2">
+                                        <input type="checkbox" class="form-check-input" id="loginBackgroundOverlayChk" checked />
+                                        <label class="form-check-label" for="loginBackgroundOverlayChk">Mostrar filtro de cor sobre a foto</label>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-12 col-xl-7">
@@ -2764,6 +2768,7 @@ document.addEventListener('DOMContentLoaded', function(){
         const removeChk = document.getElementById('removeLogoChk');
         const removeCollapsedChk = document.getElementById('removeLogoCollapsedChk');
         const removeLoginBgChk = document.getElementById('removeLoginBackgroundChk');
+        const loginBackgroundOverlayChk = document.getElementById('loginBackgroundOverlayChk');
         const currentLoginBackground = document.getElementById('currentLoginBackground');
         const primaryInput = document.getElementById('primary_color');
         const primaryDarkInput = document.getElementById('primary_dark');
@@ -2806,6 +2811,9 @@ document.addEventListener('DOMContentLoaded', function(){
                 }
                 if (s.login_background && currentLoginBackground) {
                     currentLoginBackground.src = s.login_background;
+                }
+                if (loginBackgroundOverlayChk && Object.prototype.hasOwnProperty.call(s, 'login_background_overlay')) {
+                    loginBackgroundOverlayChk.checked = !!s.login_background_overlay;
                 }
                 if (s.primary_color) primaryInput.value = s.primary_color;
                 if (s.primary_dark) primaryDarkInput.value = s.primary_dark;
@@ -2877,6 +2885,7 @@ document.addEventListener('DOMContentLoaded', function(){
             if (removeChk.checked) fd.append('remove_logo', '1');
             if (removeCollapsedChk && removeCollapsedChk.checked) fd.append('remove_logo_collapsed', '1');
             if (removeLoginBgChk && removeLoginBgChk.checked) fd.append('remove_login_background', '1');
+            if (loginBackgroundOverlayChk) fd.append('login_background_overlay', loginBackgroundOverlayChk.checked ? '1' : '0');
             fd.append('primary_color', primaryInput.value || '');
             fd.append('primary_dark', primaryDarkInput.value || '');
             fd.append('green', greenInput.value || '');

@@ -13,7 +13,8 @@ $appearance = array_intersect_key($appearance, array_flip([
     'navbar_bg_color',
     'logo',
     'logo_collapsed',
-    'login_background'
+    'login_background',
+    'login_background_overlay'
 ]));
 header('Content-Type: application/json');
 echo json_encode(['success' => true, 'appearance' => $appearance]);

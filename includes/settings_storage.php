@@ -11,6 +11,7 @@ function wrcrm_default_settings(): array
         'yellow' => '#ffd24a',
         'sidebar_text_color' => '#ffffff',
         'navbar_bg_color' => '#ffffff',
+        'login_background_overlay' => true,
     ];
 }
 
@@ -91,7 +92,7 @@ function wrcrm_load_settings(bool $ensureFile = true): array
                     foreach (array_keys(wrcrm_default_settings()) as $appearanceKey) {
                         if (array_key_exists($appearanceKey, $settings)) $appearance[$appearanceKey] = $settings[$appearanceKey];
                     }
-                    foreach (['logo', 'logo_collapsed', 'login_background'] as $assetKey) {
+                    foreach (['logo', 'logo_collapsed', 'login_background', 'login_background_overlay'] as $assetKey) {
                         if (array_key_exists($assetKey, $settings)) $appearance[$assetKey] = $settings[$assetKey];
                     }
                     wrcrm_db_setting_set($pdo, 'appearance', $appearance, false, isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null);
@@ -120,7 +121,7 @@ function wrcrm_save_settings(array $settings): bool
             foreach (array_keys(wrcrm_default_settings()) as $appearanceKey) {
                 if (array_key_exists($appearanceKey, $settings)) $appearance[$appearanceKey] = $settings[$appearanceKey];
             }
-            foreach (['logo', 'logo_collapsed', 'login_background'] as $assetKey) {
+            foreach (['logo', 'logo_collapsed', 'login_background', 'login_background_overlay'] as $assetKey) {
                 if (array_key_exists($assetKey, $settings)) $appearance[$assetKey] = $settings[$assetKey];
             }
             $ok = wrcrm_db_setting_set($pdo, 'appearance', $appearance, false, isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null) && $ok;

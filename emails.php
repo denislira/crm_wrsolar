@@ -25,6 +25,7 @@ include __DIR__ . '/includes/header.php';
       </aside>
       <section class="email-content">
         <header class="email-content-header">
+          <a class="email-back-leads" href="leads_gestao.php" title="Voltar para Gestão de Leads" aria-label="Voltar para Gestão de Leads"><i class="fa-solid fa-arrow-left"></i></a>
           <div><h1>E-mails</h1><p id="folderSubtitle">Mensagens enviadas pelo CRM</p></div>
           <button class="email-account-pill" id="emailAccountBtn" type="button" title="Configurar e-mail do perfil">
             <i class="fa-regular fa-envelope"></i>

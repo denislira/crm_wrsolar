@@ -1769,6 +1769,13 @@ body.theme-dark #reportTabs.nav-pills .nav-link.active { background: rgba(var(--
 .kpi-card.red { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); }
 
 </style>
+<style>
+/* Give the central funnel a little more room on desktop screens. */
+.funnel-visual-grid { grid-template-columns: minmax(220px,1fr) minmax(500px,2.15fr) minmax(240px,1.05fr); max-width:1440px; width:100%; }
+@media (max-width:1100px) and (min-width:861px) {
+    .funnel-visual-grid { grid-template-columns: minmax(175px,.9fr) minmax(430px,2fr) minmax(195px,1fr); max-width:100%; }
+}
+</style>
 
 <div class="d-flex">
     <?php include 'includes/sidebar.php'; ?>
@@ -3836,6 +3843,9 @@ function renderIllustratedFunnel() {
 
     const left = stages.slice(0, 1);
     const center = stages.slice(1, 6);
+    // Keep configured stages such as Consórcio and append conversion as a
+    // separate final step in the visual funnel.
+    center.push({ label: 'Venda Concluída', value: Number(REPORT_FINAL_STAGE_COUNT || 0), color: '#16bd43', order: center.length });
     const right = stages.slice(6, 9);
     const esc = value => escapeHtml(String(value));
     const total = stages.reduce((sum, s) => sum + s.value, 0);
@@ -3847,9 +3857,12 @@ function renderIllustratedFunnel() {
     const icons = ['fa-file-lines', 'fa-user-check', 'fa-handshake', 'fa-coins', 'fa-circle-check'];
     const tones = ['#1687e8', '#13b8b1', '#6e8dad', '#f6c515', '#16bd43'];
     const centerSteps = center.length ? center.map((s, i) => {
-        const width = Math.max(58, 100 - (i * 10));
-        const tone = tones[i] || s.color || defaultPalette(i);
-        const label = i === center.length - 1 ? 'Venda Concluída' : s.label;
+        // Taper every step progressively, including the appended conversion.
+        const width = Math.max(62, 100 - (i * 7));
+        const isConsorcio = /cons[oó]rcio/i.test(s.label || '');
+        const isFinancing = /financiamento|financeiro/i.test(s.label || '');
+        const tone = isConsorcio ? '#9bcf32' : (isFinancing ? '#c99600' : (s.color || tones[i] || defaultPalette(i)));
+        const label = s.label;
         return `<div class="funnel-visual-step" style="--step-width:${width}%;--step-tone:${esc(tone)}">
             <span class="funnel-visual-step-icon"><i class="fa-solid ${icons[i] || 'fa-circle'}"></i></span>
             <strong>${esc(label)}</strong>
