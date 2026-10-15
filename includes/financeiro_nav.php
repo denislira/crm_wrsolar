@@ -6,5 +6,4 @@
   <a class="btn btn-sm <?= ($financeiroView ?? '') === 'resumo' ? 'btn-primary' : 'btn-outline-primary' ?>" href="financeiro_modulo.php?view=resumo">Fluxo e resumo</a>
   <a class="btn btn-sm <?= ($financeiroView ?? '') === 'notas' ? 'btn-primary' : 'btn-outline-primary' ?>" href="financeiro_modulo.php?view=notas">Notas fiscais</a>
   <a class="btn btn-sm <?= ($financeiroView ?? '') === 'importar' ? 'btn-primary' : 'btn-outline-primary' ?>" href="financeiro_modulo.php?view=importar">Importar Excel/CSV</a>
-  <?php if (function_exists('isDirector') && isDirector() && hasPermission('configuracoes')): ?><a class="btn btn-sm btn-outline-secondary" href="financeiro_acessos.php">Permissões de usuários</a><?php endif; ?>
 </div>

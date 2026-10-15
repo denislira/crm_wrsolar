@@ -6,6 +6,8 @@ require_once __DIR__.'/includes/config.php';
 require_once __DIR__.'/includes/permissions.php';
 require_once __DIR__.'/includes/financeiro_lib.php';
 checkAccessOrRedirect('configuracoes');
+header('Location: configuracoes.php#permissions');
+exit;
 if (!isDirector()) { http_response_code(403); exit('Acesso restrito à direção.'); }
 $error='';
 if ($_SERVER['REQUEST_METHOD']==='POST') {
