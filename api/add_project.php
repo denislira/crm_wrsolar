@@ -8,6 +8,7 @@ if (!isset($_SESSION['user_id'])) {
 
 include '../includes/config.php';
 include '../includes/permissions.php';
+require_once '../includes/financeiro_crm_sync.php';
 
 function normalizeProjectDecimal($value, $emptyValue = 0.0) {
     $raw = trim((string)$value);
@@ -159,6 +160,7 @@ try {
         $docs_checklist,
         null
     ]);
+    financeiro_sincronizar_projeto($pdo, (int)$pdo->lastInsertId());
     echo json_encode(['success' => true, 'message' => 'Projeto criado com sucesso']);
 } catch (Exception $e) {
     http_response_code(500);

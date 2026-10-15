@@ -9,6 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 
 include '../includes/config.php';
 include '../includes/permissions.php';
+include_once '../includes/avatar_image.php';
 
 $user_id = (int) $_SESSION['user_id'];
 // allow admins to upload for any user via ?user_id=ID
@@ -65,51 +66,17 @@ if (!empty($file['error']) && $file['error'] !== UPLOAD_ERR_OK) {
     exit;
 }
 
-// use getimagesize() to reliably detect image files
-$imgInfo = @getimagesize($file['tmp_name']);
-$ext = null;
-if ($imgInfo && !empty($imgInfo['mime'])) {
-    $mime = $imgInfo['mime'];
-    // map common mime types to extensions
-    $map = ['image/png'=>'.png','image/jpeg'=>'.jpg','image/gif'=>'.gif','image/webp'=>'.webp'];
-    if (isset($map[$mime])) $ext = $map[$mime];
-}
-
-// fallback: try original filename extension
-if ($ext === null) {
-    $orig = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (isset($allowed_ext[$orig])) $ext = $allowed_ext[$orig];
-}
-
-if ($ext === null) {
-    echo json_encode(['success'=>false,'message'=>'Tipo de arquivo não suportado ou arquivo inválido','files'=>$file]);
+if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name']) || !@getimagesize($file['tmp_name'])) {
+    echo json_encode(['success'=>false,'message'=>'Arquivo de imagem inválido ou upload incompleto.']);
     exit;
 }
 
-// prepare upload path
-$targetName = 'uploads/avatar_'.$target_user.$ext;
-$targetPath = __DIR__ . '/../' . $targetName;
-
 try {
-    // sanity checks
-    if (empty($file['tmp_name']) || !file_exists($file['tmp_name'])) throw new Exception('Arquivo temporário não encontrado: ' . ($file['tmp_name'] ?? '')); 
-    if (!is_uploaded_file($file['tmp_name'])) {
-        // not always true in certain environments; attempt move anyway and include diagnostic
-        // but prefer to fail with clear message
-        throw new Exception('Arquivo não foi enviado via HTTP POST (is_uploaded_file falhou)');
-    }
-
-    if (!is_dir(dirname($targetPath))) @mkdir(dirname($targetPath), 0755, true);
-    if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
-        // try copy as fallback to surface error
-        if (!@copy($file['tmp_name'], $targetPath)) throw new Exception('Falha ao mover arquivo (move_uploaded_file e copy falharam)');
-    }
-    @chmod($targetPath, 0644);
-    // update users table
+    $targetName = wrcrm_save_avatar_image($file['tmp_name'], $target_user);
     $stmt = $pdo->prepare('UPDATE users SET avatar = ? WHERE id = ?');
     $stmt->execute([$targetName, $target_user]);
     echo json_encode(['success'=>true,'message'=>'Avatar salvo','avatar'=>$targetName]);
-} catch (Exception $e) {
+} catch (Throwable $e) {
     $diag = ['message'=>$e->getMessage(), 'files'=>$file, 'php_ini'=>['upload_max_filesize'=>ini_get('upload_max_filesize'),'post_max_size'=>ini_get('post_max_size')]];
     echo json_encode(['success'=>false,'message'=>'Erro ao salvar avatar','diag'=>$diag]);
 }

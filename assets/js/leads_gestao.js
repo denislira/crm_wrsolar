@@ -2,6 +2,9 @@
     // Enhanced Kanban implementation (totals, inactivity alerts, movement timeline)
     const apiBase = 'includes/leads_api.php';
     let allLeads = [];
+    let SERVER_SUMMARY = null;
+    let SERVER_GRID_META = null;
+    let SERVER_PAGING_ACTIVE = true;
     // grid sorting state: `key` is one of 'name','source','status' or null; dir is 1 (asc) or -1 (desc)
     let GRID_SORT_BY = null;
     let GRID_SORT_DIR = 1;
@@ -23,6 +26,7 @@
     const KANBAN_PRELOADER_MIN_MS = 600;
     let KANBAN_COLUMN_CACHE = {};
     let KANBAN_COLUMN_RENDERED = {};
+    let KANBAN_SERVER_META = {};
     let KANBAN_LOADING = true;
     let KANBAN_LOADING_SEQ = 0;
     let KANBAN_RENDER_READY = Promise.resolve();
@@ -35,6 +39,7 @@
     let CITY_DATA_LOADING = null;
     let CITY_SUGGESTION_TIMER = null;
     let FILTER_CITY_TIMER = null;
+    let SERVER_FILTER_TIMER = null;
     const FILTER_CITY_MIN_CHARS = 3;
     let ADVANCED_FILTERS_OPEN = false;
     const LEADS_FILTERS_STORAGE_KEY = 'wrcrm.leadsGestao.filters.v1';
@@ -205,6 +210,22 @@
             wrap.appendChild(overlay);
         }
     }
+
+    function serverFilterParams() {
+        const p = new URLSearchParams();
+        if (CURRENT_SEARCH) p.set('search', CURRENT_SEARCH);
+        if (CURRENT_SCORE_FILTER) p.set('score', CURRENT_SCORE_FILTER);
+        if (CURRENT_CIDADE_FILTER) p.set('city', CURRENT_CIDADE_FILTER);
+        if (CURRENT_DATE_FROM) p.set('date_from', CURRENT_DATE_FROM);
+        if (CURRENT_DATE_TO) p.set('date_to', CURRENT_DATE_TO);
+        if (GRID_FILTERS && Object.keys(GRID_FILTERS).length) p.set('grid_filters', JSON.stringify(GRID_FILTERS));
+        return p;
+    }
+
+    function reloadForServerFilters(delay = 0) {
+        clearTimeout(SERVER_FILTER_TIMER);
+        SERVER_FILTER_TIMER = setTimeout(() => { GRID_PAGE = 1; fetchLeads().catch(err => console.error(err)); }, delay);
+    }
     function setPreloaderVisible(visible, text){
         KANBAN_LOADING = !!visible;
         syncKanbanLoadingUi(text || 'Carregando Kanban...');
@@ -322,7 +343,7 @@
         }
         GRID_PAGE = 1; // reset to first page on sort
         // re-render grid view
-        try { renderGrid(); } catch(e){ console.warn('toggleGridSort render failed', e); }
+        try { reloadForServerFilters(); } catch(e){ console.warn('toggleGridSort render failed', e); }
     }
 
     function escapeText(s){ return s==null? '': String(s); }
@@ -855,20 +876,36 @@
         const loadingStartedAt = Date.now();
         if (showLoading) showPreloader('Carregando leads no Kanban...');
         try {
-            const res = await fetch(apiBase + '?action=list');
-            if (!res.ok) throw new Error('Falha ao carregar leads');
-            const text = await res.text();
-            let json;
-            try {
-                json = JSON.parse(text);
-            } catch (e) {
-                console.error('Failed to parse JSON:', e);
-                throw e;
+            const filters = serverFilterParams();
+            let rows = [];
+            if (getViewMode() === 'list') {
+                filters.set('mode', 'grid'); filters.set('page', String(GRID_PAGE)); filters.set('limit', String(GRID_PAGE_SIZE));
+                if (GRID_SORT_BY) { filters.set('sort', GRID_SORT_BY); filters.set('dir', GRID_SORT_DIR === 1 ? 'asc' : 'desc'); }
+                const res = await fetch('api/leads_paged.php?' + filters);
+                if (!res.ok) throw new Error('Falha ao carregar leads');
+                const json = await res.json(); if (!json.success) throw new Error(json.error || 'Falha ao carregar leads');
+                rows = json.items || []; SERVER_GRID_META = json;
+                const summaryParams = serverFilterParams(); summaryParams.set('mode','summary');
+                const summaryRes = await fetch('api/leads_paged.php?' + summaryParams);
+                SERVER_SUMMARY = summaryRes.ok ? await summaryRes.json() : null;
+            } else {
+                KANBAN_SERVER_META = {};
+                const summaryParams = serverFilterParams(); summaryParams.set('mode','summary');
+                const summaryRes = await fetch('api/leads_paged.php?' + summaryParams);
+                SERVER_SUMMARY = summaryRes.ok ? await summaryRes.json() : null;
+                const stageKeys = ['0', ...STAGES.map(s => String(s.id))];
+                const requests = stageKeys.map(async stageKey => {
+                    const p = serverFilterParams(); p.set('mode','stage'); p.set('stage_id',stageKey); p.set('page','1'); p.set('limit','20');
+                    const response = await fetch('api/leads_paged.php?' + p);
+                    if (!response.ok) return [];
+                    const payload = await response.json();
+                    KANBAN_SERVER_META[stageKey === '0' ? 'sem_status' : stageKey] = {page:Number(payload.page||1), total:Number(payload.total||0), has_more:!!payload.has_more, loading:false};
+                    return payload.items || [];
+                });
+                rows = (await Promise.all(requests)).flat();
+                SERVER_GRID_META = null;
             }
-            if (json.error) {
-                throw new Error(json.error);
-            }
-            allLeads = json.map(l => ({...l, score: l.score ?? computeScore(l)}));
+            allLeads = rows.map(l => ({...l, score: l.score ?? computeScore(l)}));
             populateLeadFilterOptions();
             const filterCidade = document.getElementById('filterCidade');
             if (filterCidade) {
@@ -1608,7 +1645,10 @@
             } catch(e) { /* ignore lead parse errors */ }
         });
         const conv = allLeads.length ? (allLeads.filter(l=>l.status==='Ganhou').length / allLeads.length * 100).toFixed(1) : '0.0';
-        $('#kpiActive').textContent = active.length;
+        const serverTotal = SERVER_SUMMARY && SERVER_SUMMARY.success ? Number(SERVER_SUMMARY.total || 0) : null;
+        const serverValue = SERVER_SUMMARY && SERVER_SUMMARY.success ? Number(SERVER_SUMMARY.value || 0) : null;
+        if (serverValue !== null) totalValue = serverValue;
+        $('#kpiActive').textContent = serverTotal !== null ? serverTotal : active.length;
         $('#kpiHot').textContent = hot;
         $('#kpiValue').textContent = toCurrency(totalValue);
         $('#kpiConv').textContent = conv + '%';
@@ -1626,7 +1666,8 @@
     function updateColumnLoadHint(stageKey){
         const col = document.getElementById('col-' + stageKey);
         if (!col) return;
-        const total = (KANBAN_COLUMN_CACHE[stageKey] || []).length;
+        const cachedTotal = (KANBAN_COLUMN_CACHE[stageKey] || []).length;
+        const total = KANBAN_SERVER_META[stageKey] ? Number(KANBAN_SERVER_META[stageKey].total || cachedTotal) : cachedTotal;
         const rendered = KANBAN_COLUMN_RENDERED[stageKey] || 0;
 
         let hint = col.querySelector('.column-load-hint');
@@ -1642,7 +1683,8 @@
             return;
         }
 
-        if (rendered < total) {
+        const serverMeta = KANBAN_SERVER_META[stageKey];
+        if (rendered < total || (serverMeta && serverMeta.has_more)) {
             hint.textContent = `Role para carregar mais (${rendered}/${total})`;
             hint.classList.remove('d-none');
             return;
@@ -1659,6 +1701,7 @@
         const rows = KANBAN_COLUMN_CACHE[stageKey] || [];
         const alreadyRendered = KANBAN_COLUMN_RENDERED[stageKey] || 0;
         if (alreadyRendered >= rows.length) {
+            loadNextServerStagePage(stageKey);
             updateColumnLoadHint(stageKey);
             return;
         }
@@ -1967,6 +2010,17 @@
         }
         const head = document.createElement('div'); head.className = 'd-flex align-items-center justify-content-between';
         const left = document.createElement('div'); left.className = 'd-flex align-items-center'; if (chk) left.appendChild(chk);
+        if (lead.whatsapp_profile_image && /^uploads\/whatsapp\/empresa_\d+\/leads\/lead_\d+\/profile\.(jpg|png|webp)$/.test(lead.whatsapp_profile_image)) {
+            const avatar = document.createElement('img');
+            avatar.src = lead.whatsapp_profile_image;
+            avatar.alt = '';
+            avatar.width = 32;
+            avatar.height = 32;
+            avatar.loading = 'lazy';
+            avatar.className = 'rounded-circle me-2';
+            avatar.style.objectFit = 'cover';
+            left.appendChild(avatar);
+        }
         const title = document.createElement('div'); title.className='title'; title.textContent = escapeText(lead.name || '(sem nome)');
         left.appendChild(title);
         const quickActions = document.createElement('div');
@@ -2108,6 +2162,22 @@
             if (btn) btn.innerHTML = '<i class="fa fa-th-list"></i>';
         }
         if (KANBAN_LOADING) syncKanbanLoadingUi('Carregando dados da visualização...');
+    }
+
+    async function loadNextServerStagePage(stageKey) {
+        const meta = KANBAN_SERVER_META[stageKey];
+        if (!meta || !meta.has_more || meta.loading) return;
+        meta.loading = true;
+        try {
+            const p = serverFilterParams(); p.set('mode','stage'); p.set('stage_id', stageKey === 'sem_status' ? '0' : stageKey); p.set('page',String(meta.page + 1)); p.set('limit','20');
+            const res = await fetch('api/leads_paged.php?' + p); const data = await res.json();
+            if (!res.ok || !data.success) return;
+            const added = (data.items || []).map(l => ({...l, score:l.score ?? computeScore(l)}));
+            KANBAN_COLUMN_CACHE[stageKey] = (KANBAN_COLUMN_CACHE[stageKey] || []).concat(added);
+            allLeads = allLeads.concat(added.filter(l => !allLeads.some(existing => String(existing.id) === String(l.id))));
+            Object.assign(meta, {page:data.page, has_more:data.has_more, total:data.total});
+            renderNextKanbanBatch(stageKey);
+        } finally { meta.loading = false; }
     }
 
     function renderGrid(){
@@ -2254,9 +2324,9 @@
                         } else {
                             delete GRID_FILTERS[key];
                         }
-                        GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid();
+                        GRID_PAGE = 1; persistLeadFilters(); popup.remove(); reloadForServerFilters();
                     });
-                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid(); });
+                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; persistLeadFilters(); popup.remove(); reloadForServerFilters(); });
                     btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
                 } else if (key === 'criado' || key === 'ultimo_contato') {
                     const from = document.createElement('input'); from.type = 'date'; from.className = 'form-control form-control-sm'; from.placeholder = 'De';
@@ -2268,9 +2338,9 @@
                     const clear = document.createElement('button'); clear.className = 'btn btn-sm btn-outline-secondary flex-grow-1'; clear.textContent = 'Limpar';
                     apply.addEventListener('click', ()=>{
                         GRID_FILTERS[key] = { from: from.value || '', to: to.value || '' };
-                        GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid();
+                        GRID_PAGE = 1; persistLeadFilters(); popup.remove(); reloadForServerFilters();
                     });
-                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid(); });
+                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; persistLeadFilters(); popup.remove(); reloadForServerFilters(); });
                     btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
                 } else {
                     const input = document.createElement('input'); input.type = 'text'; input.className = 'form-control form-control-sm'; input.placeholder = 'Filtrar...';
@@ -2279,8 +2349,8 @@
                     const btns = document.createElement('div'); btns.className = 'd-flex gap-2 mt-2';
                     const apply = document.createElement('button'); apply.className = 'btn btn-sm btn-primary flex-grow-1'; apply.textContent = 'Aplicar';
                     const clear = document.createElement('button'); clear.className = 'btn btn-sm btn-outline-secondary flex-grow-1'; clear.textContent = 'Limpar';
-                    apply.addEventListener('click', ()=>{ GRID_FILTERS[key] = input.value.trim(); GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid(); });
-                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; persistLeadFilters(); popup.remove(); renderGrid(); });
+                    apply.addEventListener('click', ()=>{ GRID_FILTERS[key] = input.value.trim(); GRID_PAGE = 1; persistLeadFilters(); popup.remove(); reloadForServerFilters(); });
+                    clear.addEventListener('click', ()=>{ delete GRID_FILTERS[key]; GRID_PAGE = 1; persistLeadFilters(); popup.remove(); reloadForServerFilters(); });
                     btns.appendChild(apply); btns.appendChild(clear); popup.appendChild(btns);
                 }
                 document.body.appendChild(popup);
@@ -2381,9 +2451,9 @@
             });
         }
         // pagination
-        const totalPages = Math.ceil(rows.length / GRID_PAGE_SIZE);
-        const start = (GRID_PAGE - 1) * GRID_PAGE_SIZE;
-        const end = start + GRID_PAGE_SIZE;
+        const totalPages = SERVER_GRID_META ? Math.max(1, Number(SERVER_GRID_META.pages || 1)) : Math.ceil(rows.length / GRID_PAGE_SIZE);
+        const start = SERVER_GRID_META ? 0 : (GRID_PAGE - 1) * GRID_PAGE_SIZE;
+        const end = SERVER_GRID_META ? rows.length : start + GRID_PAGE_SIZE;
         const pageRows = rows.slice(start, end);
         // render only pageRows
         pageRows.forEach(lead => {
@@ -2434,7 +2504,7 @@
             // previous button
             const prevLi = document.createElement('li'); prevLi.className = 'page-item' + (GRID_PAGE === 1 ? ' disabled' : '');
             const prevA = document.createElement('a'); prevA.className = 'page-link'; prevA.href = '#'; prevA.textContent = 'Anterior';
-            prevA.addEventListener('click', (e) => { e.preventDefault(); if (GRID_PAGE > 1) { GRID_PAGE--; renderGrid(); } });
+            prevA.addEventListener('click', async (e) => { e.preventDefault(); if (GRID_PAGE > 1) { GRID_PAGE--; SERVER_PAGING_ACTIVE ? await fetchLeads() : renderGrid(); } });
             prevLi.appendChild(prevA); ul.appendChild(prevLi);
             // page numbers (show up to 5 pages)
             const startPage = Math.max(1, GRID_PAGE - 2);
@@ -2442,13 +2512,13 @@
             for (let p = startPage; p <= endPage; p++) {
                 const li = document.createElement('li'); li.className = 'page-item' + (p === GRID_PAGE ? ' active' : '');
                 const a = document.createElement('a'); a.className = 'page-link'; a.href = '#'; a.textContent = p;
-                a.addEventListener('click', (e) => { e.preventDefault(); GRID_PAGE = p; renderGrid(); });
+                a.addEventListener('click', async (e) => { e.preventDefault(); GRID_PAGE = p; SERVER_PAGING_ACTIVE ? await fetchLeads() : renderGrid(); });
                 li.appendChild(a); ul.appendChild(li);
             }
             // next button
             const nextLi = document.createElement('li'); nextLi.className = 'page-item' + (GRID_PAGE === totalPages ? ' disabled' : '');
             const nextA = document.createElement('a'); nextA.className = 'page-link'; nextA.href = '#'; nextA.textContent = 'Próximo';
-            nextA.addEventListener('click', (e) => { e.preventDefault(); if (GRID_PAGE < totalPages) { GRID_PAGE++; renderGrid(); } });
+            nextA.addEventListener('click', async (e) => { e.preventDefault(); if (GRID_PAGE < totalPages) { GRID_PAGE++; SERVER_PAGING_ACTIVE ? await fetchLeads() : renderGrid(); } });
             nextLi.appendChild(nextA); ul.appendChild(nextLi);
             nav.appendChild(ul); paginationDiv.appendChild(nav); container.appendChild(paginationDiv);
         }
@@ -2491,6 +2561,10 @@
             const val = parseFloat(l.orcamento_value || 0) || 0;
             sums[normalizedStageKey] = (sums[normalizedStageKey] || 0) + val;
         });
+        const serverStages = {};
+        if (SERVER_SUMMARY && Array.isArray(SERVER_SUMMARY.stages)) {
+            SERVER_SUMMARY.stages.forEach(row => { serverStages[String(row.stage_id || 0)] = {count:Number(row.total||0), value:Number(row.value||0)}; });
+        }
 
         Object.keys(groupedByStage).forEach(stageKey => {
             if (document.getElementById('col-' + stageKey)) {
@@ -2501,17 +2575,17 @@
         STAGES.forEach(s=>{
             const countEl = document.getElementById('count-' + s.id);
             if (countEl) {
-                const cnt = (groupedByStage[String(s.id)] || []).length;
+                const cnt = serverStages[String(s.id)] ? serverStages[String(s.id)].count : (groupedByStage[String(s.id)] || []).length;
                 countEl.textContent = cnt;
             }
             const sumEl = document.getElementById('sum-' + s.id);
-            if (sumEl) sumEl.textContent = toCurrency(sums[s.id] || 0);
+            if (sumEl) sumEl.textContent = toCurrency(serverStages[String(s.id)] ? serverStages[String(s.id)].value : (sums[s.id] || 0));
             const colWrap = document.querySelector(`[data-stage-id='${s.id}']`);
             if (colWrap) colWrap.classList.remove('largest-stage');
         });
 
         const semStatusCount = document.getElementById('count-sem_status');
-        if (semStatusCount) semStatusCount.textContent = String((groupedByStage.sem_status || []).length);
+        if (semStatusCount) semStatusCount.textContent = String(serverStages['0'] ? serverStages['0'].count : (groupedByStage.sem_status || []).length);
         const whatsappCount = document.getElementById('count-whatsapp');
         if (whatsappCount) whatsappCount.textContent = String((groupedByStage.whatsapp || []).length);
 
@@ -2664,7 +2738,7 @@
                     const sourceColumn = movingCard ? movingCard.closest('.kanban-column') : null;
                     const sourceStageId = sourceColumn?.dataset?.stageId || null;
                     if (movingCard && colContent && sourceColumn !== colWrap) {
-                        colContent.appendChild(movingCard);
+                        colContent.prepend(movingCard);
                         const sourceCount = sourceStageId ? document.getElementById('count-' + sourceStageId) : null;
                         const targetCount = document.getElementById('count-' + stageId);
                         if (sourceCount) sourceCount.textContent = String(Math.max(0, Number(sourceCount.textContent || 0) - 1));
@@ -3478,7 +3552,7 @@
 
                 setViewMode(next);
                 await nextPaint();
-                renderAll();
+                await fetchLeads();
             });
         }
         const closeBtn = $('#closeLeadPanel');
@@ -4172,7 +4246,7 @@
         $('#searchInput').addEventListener('input', (e)=>{
             CURRENT_SEARCH = e.target.value;
             persistLeadFilters();
-            renderAll();
+            reloadForServerFilters(300);
         });
 
         const exportLeadsBtn = $('#exportLeadsBtn');
@@ -4220,7 +4294,7 @@
             CURRENT_DATE_FROM = ($('#filterDateStart')?.value || '').trim();
             CURRENT_DATE_TO = ($('#filterDateEnd')?.value || '').trim();
             persistLeadFilters();
-            renderAll();
+            reloadForServerFilters();
         };
 
         const applyDateFilterBtn = $('#applyDateFilterBtn');
@@ -4242,7 +4316,7 @@
         $('#filterScore').addEventListener('change', (e)=>{
             CURRENT_SCORE_FILTER = e.target.value;
             persistLeadFilters();
-            renderAll();
+            reloadForServerFilters();
         });
 
         const filterCidadeEl = $('#filterCidade');
@@ -4250,7 +4324,7 @@
             filterCidadeEl.addEventListener('change', (e)=>{
                 CURRENT_CIDADE_FILTER = e.target.value || '';
                 persistLeadFilters();
-                renderAll();
+                reloadForServerFilters();
             });
         }
 
@@ -4260,7 +4334,7 @@
                 CURRENT_ESTADO_FILTER = e.target.value || '';
                 populateLeadFilterOptions();
                 persistLeadFilters();
-                renderAll();
+                reloadForServerFilters();
             });
         }
 
@@ -4493,16 +4567,12 @@
             await Promise.all([fetchStatuses(), fetchStages()]);
             await fetchLeads();
             hidePreloader();
-            // fetch anuncios and render KPI/card
-            try { const ads = await fetchAnuncios(); if (ads && ads.length) { const adsCol = document.getElementById('anunciosFixedColumn'); if (adsCol) adsCol.classList.remove('d-none'); } } catch(e){}
             setupDragDrop(); setupHandlers();
             const trashedModal = $('#trashedModal');
             if (trashedModal) {
                 trashedModal.addEventListener('show.bs.modal', loadTrashedModal);
             }
             await loadPaymentMethods();
-            // ensure view mode applied after initial data load
-            renderAll();
             await nextPaint();
             window.dispatchEvent(new Event('wrcrm:leads-ready'));
             

@@ -49,6 +49,7 @@ if (!isset($_SESSION['user_id'])) {
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/permissions.php';
 require_once __DIR__ . '/email_notifications.php';
+require_once __DIR__ . '/financeiro_crm_sync.php';
 
 // Ensure FS_NAME_COL default (some installs use 'stage_name' column)
 if (!isset($FS_NAME_COL) || !$FS_NAME_COL) {
@@ -226,7 +227,12 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
             : '0 AS has_project, NULL AS project_created_at';
 
         try {
-            $stmt = $pdo->prepare('SELECT leads.id, leads.user_id, leads.name, leads.cidade, leads.email, leads.phone, leads.cpf_cnpj, leads.source, leads.status, leads.stage_id, leads.notes, leads.consumo_cliente, leads.estimativa_projeto_kwh, leads.orcamento_value, leads.envio_proposta, leads.ultimo_contato, leads.forma_pagamento, leads.anexos_filename, leads.anexos_mimetype, leads.created_at, leads.data_inicio, leads.updated_at, leads.deleted, leads.deleted_at, ' . $projectFlagSql . ' FROM leads' . $projectJoinSql . ' WHERE leads.deleted = 0 ORDER BY leads.created_at DESC');
+            $photoSelect = 'NULL AS whatsapp_profile_image';
+            try {
+                $photoColumn = $pdo->query("SHOW COLUMNS FROM leads LIKE 'whatsapp_profile_image'");
+                if ($photoColumn->fetch()) $photoSelect = 'leads.whatsapp_profile_image';
+            } catch (Throwable $ignored) {}
+            $stmt = $pdo->prepare('SELECT leads.id, leads.user_id, leads.name, leads.cidade, leads.email, leads.phone, leads.cpf_cnpj, leads.source, leads.status, leads.stage_id, leads.notes, leads.consumo_cliente, leads.estimativa_projeto_kwh, leads.orcamento_value, leads.envio_proposta, leads.ultimo_contato, leads.forma_pagamento, leads.anexos_filename, leads.anexos_mimetype, leads.created_at, leads.data_inicio, leads.updated_at, leads.deleted, leads.deleted_at, ' . $photoSelect . ', ' . $projectFlagSql . ' FROM leads' . $projectJoinSql . ' WHERE leads.deleted = 0 ORDER BY leads.created_at DESC');
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
@@ -677,6 +683,7 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
         } catch (Exception $e) { /* swallow errors - movement logging is best-effort */ }
 
         wrcrm_notify_lead_created($pdo, $leadId, $userId);
+        financeiro_sincronizar_lead_ganho($pdo, (int)$leadId);
         echo json_encode(['ok' => true, 'id' => $leadId]);
         exit;
     }
@@ -889,6 +896,8 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
             }
         } catch (Exception $e) { /* swallow */ }
 
+        financeiro_sincronizar_lead_ganho($pdo, (int)$data['id']);
+
         // If notes changed, record an immutable movement entry for history
         try {
             if (array_key_exists('notes', $data)) {
@@ -1014,6 +1023,8 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
             $changedBy = $userId ?? null;
             _log_lead_movement($pdo, (int)$data['id'], $userId, $fromStageId, $resolvedStageId, $fromStatus, $data['status'], $changedBy, null, 0);
         } catch (Exception $e) { /* swallow */ }
+
+        financeiro_sincronizar_lead_ganho($pdo, (int)$data['id']);
 
         // Auto-create task DISABLED - tasks should be created manually only
         /*

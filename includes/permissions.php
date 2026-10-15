@@ -5,7 +5,17 @@ function hasPermission($screen) {
     if (!isset($_SESSION['permissions'])) {
         return false;
     }
-    return in_array($screen, $_SESSION['permissions']);
+    if (!in_array($screen, $_SESSION['permissions'], true)) return false;
+    if ($screen !== 'financeiro') return true;
+    static $financeiroAllowed = null;
+    if ($financeiroAllowed !== null) return $financeiroAllowed;
+    if (empty($_SESSION['user_id']) || !isset($GLOBALS['pdo'])) return false;
+    try {
+        $stmt = $GLOBALS['pdo']->prepare('SELECT financeiro_permitido FROM users WHERE id=?');
+        $stmt->execute([(int)$_SESSION['user_id']]);
+        $financeiroAllowed = (bool)$stmt->fetchColumn();
+    } catch (Throwable $e) { $financeiroAllowed = false; }
+    return $financeiroAllowed;
 }
 
 function getUserRole() {

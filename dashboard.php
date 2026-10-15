@@ -231,9 +231,21 @@ include 'includes/sidebar.php';
 .channel-numbers { text-align:right; }
 .channel-numbers strong { display:block; font-size:.78rem; color:#1e293b; }
 .channel-numbers small { display:block; font-size:.64rem; color:#94a3b8; }
-.alert-sla-item { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid #f1f5f9; font-size:.85rem; }
-.alert-sla-item:last-child { border-bottom:none; }
-.badge-src { display:inline-block; padding:2px 8px; border-radius:20px; font-size:.73rem; font-weight:600; background:rgba(var(--bs-primary-rgb),.1); color:var(--blue-700); }
+.sla-list { display:flex; flex-direction:column; gap:.65rem; }
+.alert-sla-item { display:flex; align-items:center; gap:.75rem; padding:.78rem .7rem; border:1px solid #edf1f6; border-radius:14px; background:#fbfcfe; font-size:.85rem; transition:transform .18s, border-color .18s, box-shadow .18s; }
+.alert-sla-item:hover { transform:translateX(2px); border-color:#fecaca; box-shadow:0 5px 14px rgba(239,68,68,.08); }
+.sla-avatar { width:38px; height:38px; flex:0 0 38px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:#b91c1c; background:linear-gradient(135deg,#fee2e2,#fff1f2); font-weight:800; font-size:.82rem; }
+.sla-item-main { min-width:0; flex:1; }
+.sla-item-name { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1e293b; font-size:.86rem; }
+.sla-item-meta { display:flex; align-items:center; flex-wrap:wrap; gap:.35rem; margin-top:.22rem; color:#94a3b8; font-size:.7rem; }
+.badge-src { display:inline-block; padding:3px 8px; border-radius:20px; font-size:.68rem; font-weight:700; background:rgba(var(--bs-primary-rgb),.1); color:var(--blue-700); }
+.sla-wait { text-align:right; flex:0 0 auto; }
+.sla-wait strong { display:block; font-size:.84rem; }
+.sla-wait small { display:block; margin-top:2px; color:#94a3b8; font-size:.68rem; }
+.sla-open { width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; border-radius:9px; color:var(--blue-700); background:#eff6ff; text-decoration:none; transition:background .18s,color .18s; }
+.sla-open:hover { color:#fff; background:var(--blue-700); }
+.sla-footer { display:flex; justify-content:space-between; align-items:center; gap:.75rem; margin-top:.8rem; padding-top:.8rem; border-top:1px solid #f1f5f9; }
+.sla-footer-note { color:#94a3b8; font-size:.72rem; }
 .trend-up   { color:#10b981; } .trend-down { color:#ef4444; } .trend-flat { color:#94a3b8; }
 .consultant-row { display:grid; grid-template-columns:34px minmax(100px,1fr) minmax(110px,1.4fr) 48px; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #f1f5f9; }
 .consultant-row:last-child { border-bottom:none; }
@@ -286,7 +298,19 @@ body.theme-dark .chart-summary { background:rgba(255,255,255,.04); border-color:
     .consultant-track { display:none; }
 }
 body.theme-dark .alert-sla-item {
-    border-bottom-color: rgba(255,255,255,0.08) !important;
+    background:rgba(255,255,255,.035) !important;
+    border-color:rgba(255,255,255,0.08) !important;
+}
+body.theme-dark .alert-sla-item:hover { border-color:rgba(248,113,113,.45) !important; }
+body.theme-dark .sla-item-name { color:#e6eef8; }
+body.theme-dark .sla-avatar { background:rgba(248,113,113,.13); color:#fca5a5; }
+body.theme-dark .sla-footer { border-top-color:rgba(255,255,255,.08); }
+body.theme-dark .sla-open { background:rgba(147,197,253,.12); color:#93c5fd; }
+@media (max-width:575.98px) {
+    .alert-sla-item { gap:.55rem; padding:.65rem .55rem; }
+    .sla-avatar { width:34px; height:34px; flex-basis:34px; border-radius:10px; }
+    .sla-wait small { display:none; }
+    .sla-open { width:28px; height:28px; }
 }
 body.theme-dark .consultant-row {
     border-bottom-color: rgba(255,255,255,0.08) !important;
@@ -491,17 +515,19 @@ body.theme-dark .consultant-row {
     }
     ?>
     <?php if (!empty($slaAlertPreview)): ?>
+    <div class="sla-list">
         <?php foreach ($slaAlertPreview as $al):
             $createdDt = null;
             try { if ($al['created_at']) $createdDt = new DateTime((string)$al['created_at']); } catch (Exception $e) {}
             $hoursWaiting = $createdDt ? round((new DateTime())->getTimestamp() - $createdDt->getTimestamp()) / 3600 : null;
         ?>
         <div class="alert-sla-item">
+            <div class="sla-avatar" aria-hidden="true"><i class="fa fa-user-clock"></i></div>
             <div>
                 <strong class="d-block" style="font-size:.85rem;"><?= htmlspecialchars($al['name']) ?></strong>
                 <span class="badge-src"><?= htmlspecialchars($al['source']) ?></span>
             </div>
-            <div class="text-end">
+            <div class="sla-wait">
                 <span style="color:<?= ($hoursWaiting !== null && $hoursWaiting > 48) ? '#ef4444' : '#f59e0b' ?>; font-weight:700; font-size:.85rem;">
                     <?= $createdDt ? formatTimeAgoInBusiness($createdDt) : '—' ?>
                 </span>
@@ -509,6 +535,7 @@ body.theme-dark .consultant-row {
             </div>
         </div>
         <?php endforeach; ?>
+    </div>
         <?php if ($slaNoContact > count($slaAlertPreview)): ?>
             <div class="mt-2 text-center"><a href="relatorios.php?tab=sla" class="btn btn-sm btn-danger">+<?= $slaNoContact - count($slaAlertPreview) ?> mais → Ver todos</a></div>
         <?php endif; ?>

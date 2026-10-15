@@ -15,7 +15,7 @@ try {
     $screens = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
     // Merge known screens with a sensible default set, including new modules.
-    $defaultScreens = ['consultoria_externa','dashboard','projetos','pos-venda','relatorios','leads_gestao','integracao-equipes','fila_demandas','funil_config','configuracoes'];
+    $defaultScreens = ['consultoria_externa','dashboard','projetos','pos-venda','financeiro','relatorios','leads_gestao','integracao-equipes','fila_demandas','funil_config','configuracoes'];
     $screens = array_values(array_unique(array_merge($screens ?: [], $defaultScreens)));
 
     // get roles

@@ -22,6 +22,19 @@ function wa_incoming_phone_variants(string $digits): array {
     } elseif (strlen($digits) >= 10 && strlen($digits) <= 11) {
         $variants[] = '55' . $digits;
     }
+    // WhatsApp pode entregar o mesmo celular brasileiro com ou sem o nono digito.
+    foreach ($variants as $variant) {
+        $local = str_starts_with($variant, '55') ? substr($variant, 2) : $variant;
+        if (strlen($local) === 11 && $local[2] === '9') {
+            $withoutNine = substr($local, 0, 2) . substr($local, 3);
+            $variants[] = $withoutNine;
+            $variants[] = '55' . $withoutNine;
+        } elseif (strlen($local) === 10 && in_array($local[2], ['6', '7', '8', '9'], true)) {
+            $withNine = substr($local, 0, 2) . '9' . substr($local, 2);
+            $variants[] = $withNine;
+            $variants[] = '55' . $withNine;
+        }
+    }
     return array_values(array_unique(array_filter($variants)));
 }
 
@@ -63,6 +76,10 @@ function wa_incoming_find_latest_lead_by_phone(PDO $pdo, string $digits): ?array
     usort($matches, function($a, $b) {
         return strtotime($b['updated_at'] ?? $b['created_at'] ?? '1970-01-01') <=> strtotime($a['updated_at'] ?? $a['created_at'] ?? '1970-01-01');
     });
+    // Um atendimento ativo bloqueia a criacao mesmo que outro lead mais recente esteja encerrado.
+    foreach ($matches as $match) {
+        if (!wa_incoming_is_closed_lead($match) && !wa_incoming_is_final_stage($pdo, $match)) return $match;
+    }
     return $matches[0];
 }
 
@@ -99,6 +116,9 @@ function wa_incoming_is_final_stage(PDO $pdo, array $lead): bool {
 function wa_incoming_lead_closed_at(PDO $pdo, array $lead): ?string {
     $leadId = (int)($lead['id'] ?? 0);
     if ($leadId <= 0) return null;
+
+    // Movimentos e projetos antigos nao encerram um lead que hoje esta ativo.
+    if (!wa_incoming_is_closed_lead($lead) && !wa_incoming_is_final_stage($pdo, $lead)) return null;
 
     if ((int)($lead['deleted'] ?? 0) === 1 && !empty($lead['deleted_at'])) {
         return (string)$lead['deleted_at'];
@@ -294,6 +314,9 @@ $senderJid = trim((string)($payload['sender_jid'] ?? ''));
 $participantAlt = trim((string)($payload['participant_alt'] ?? ''));
 $idType = trim((string)($payload['id_tipo'] ?? $payload['id_type'] ?? ''));
 $mode = (string)($cfg['lead_capture_mode'] ?? 'new_only');
+$phoneJid = str_ends_with($remoteJid, '@s.whatsapp.net') ? $remoteJid : (str_ends_with($remoteJidAlt, '@s.whatsapp.net') ? $remoteJidAlt : '');
+if ($phoneJid !== '') $phone = wa_incoming_digits(explode('@', $phoneJid, 2)[0]);
+if (str_ends_with($remoteJid, '@lid') && $phoneJid === '') $phone = '';
 $hasRealPhone = strlen($phone) >= 10 && strlen($phone) <= 15;
 
 if (!$hasRealPhone && $mode === 'always_create') {
@@ -308,6 +331,16 @@ if (!$hasRealPhone && $mode === 'always_create') {
 try {
     wa_incoming_ensure_profile_image_column($pdo);
 
+    // GET_LOCK serializa a busca e o INSERT para o mesmo numero, inclusive entre workers PHP.
+    $lockPhones = wa_incoming_phone_variants($phone);
+    sort($lockPhones, SORT_STRING);
+    $lockName = 'wa_lead_' . substr(hash('sha256', (string)($cfg['empresa_id'] ?? 0) . ':' . $lockPhones[0]), 0, 56);
+    if ($mode !== 'always_create') {
+        $lockStmt = $pdo->prepare('SELECT GET_LOCK(?, 30)');
+        $lockStmt->execute([$lockName]);
+        if ((int)$lockStmt->fetchColumn() !== 1) throw new RuntimeException('Nao foi possivel obter trava do telefone');
+    }
+
     $existing = null;
     if ($mode !== 'always_create') {
         $existing = wa_incoming_find_latest_lead_by_phone($pdo, $phone);
@@ -318,6 +351,20 @@ try {
         $minDays = max(1, (int)($cfg['reopen_after_days'] ?? 30));
         $canCreateReturn = $mode === 'closed_after_days' && $closedAt !== null && $days >= $minDays;
         if (!$canCreateReturn) {
+            if ($profilePictureUrl !== '' && wa_incoming_column_exists($pdo, 'leads', 'whatsapp_profile_image')) {
+                try {
+                    $photoCheck = $pdo->prepare('SELECT whatsapp_profile_image FROM leads WHERE id = ?');
+                    $photoCheck->execute([(int)$existing['id']]);
+                    if (!$photoCheck->fetchColumn()) {
+                        $photoPath = wa_incoming_download_profile_image($profilePictureUrl, (int)$existing['id'], (int)($cfg['empresa_id'] ?? 0));
+                        if ($photoPath !== '') {
+                            $photoUpdate = $pdo->prepare('UPDATE leads SET whatsapp_profile_image = ? WHERE id = ?');
+                            $photoUpdate->execute([$photoPath, (int)$existing['id']]);
+                        }
+                    }
+                } catch (Throwable $ignored) {}
+            }
+            if ($mode !== 'always_create') $pdo->prepare('SELECT RELEASE_LOCK(?)')->execute([$lockName]);
             wa_incoming_json(['success' => true, 'created' => false, 'reason' => 'phone_exists', 'lead_id' => (int)$existing['id'], 'closed_at' => $closedAt, 'days_since_close' => $days]);
         }
     }
@@ -353,7 +400,7 @@ try {
     $leadId = (int)$pdo->lastInsertId();
     $localProfileImage = '';
 
-    if ($profilePictureUrl !== '') {
+    if ($profilePictureUrl !== '' && wa_incoming_column_exists($pdo, 'leads', 'whatsapp_profile_image')) {
         try {
             $localProfileImage = wa_incoming_download_profile_image($profilePictureUrl, $leadId, (int)($cfg['empresa_id'] ?? 0));
             if ($localProfileImage !== '') {
@@ -372,8 +419,12 @@ try {
 
     try { wrcrm_notify_lead_created($pdo, $leadId, $userId); } catch (Throwable $ignored) {}
 
+    if ($mode !== 'always_create') $pdo->prepare('SELECT RELEASE_LOCK(?)')->execute([$lockName]);
     wa_incoming_json(['success' => true, 'created' => true, 'lead_id' => $leadId, 'whatsapp_profile_image' => $localProfileImage]);
 } catch (Throwable $e) {
+    if (isset($lockName) && $mode !== 'always_create') {
+        try { $pdo->prepare('SELECT RELEASE_LOCK(?)')->execute([$lockName]); } catch (Throwable $ignored) {}
+    }
     @file_put_contents(__DIR__ . '/../logs/wa_incoming_message.log', '[' . date('c') . '] ' . $e->getMessage() . "\n", FILE_APPEND | LOCK_EX);
     wa_incoming_json(['success' => false, 'message' => 'server_error'], 500);
 }

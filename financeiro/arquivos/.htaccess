@@ -1,0 +1,2 @@
+# Os arquivos financeiros contêm dados pessoais e não devem ser servidos pelo Apache.
+Require all denied

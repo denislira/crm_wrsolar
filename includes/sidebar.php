@@ -173,6 +173,14 @@ body.sidebar-collapsed .app-sidebar #sidebarToggle { display:none; }
                 </a>
             </li>
             <?php endif; ?>
+            <?php if (function_exists('hasPermission') ? hasPermission('financeiro') : false): ?>
+            <li class="nav-item">
+                <a href="financeiro.php" class="nav-link <?php echo $current=='financeiro.php' ? 'active':''; ?>" data-tooltip="Financeiro">
+                    <span class="icon"><i class="fa-solid fa-wallet"></i></span>
+                    <span class="label">Financeiro</span>
+                </a>
+            </li>
+            <?php endif; ?>
             <?php if (function_exists('hasPermission') ? hasPermission('relatorios') : true): ?>
             <li class="nav-item">
                 <a href="relatorios.php" class="nav-link <?php echo $current=='relatorios.php' ? 'active':''; ?>" data-tooltip="Relatórios">

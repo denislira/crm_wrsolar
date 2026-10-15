@@ -2838,19 +2838,23 @@ function toggleAllSources(el) {
 function persistTabOnClick() {
     document.querySelectorAll('#reportTabs .nav-link[data-tab]').forEach(function(btn){
         btn.addEventListener('click', function(event){
-            // Impede o Bootstrap de trocar para um painel ainda sem os dados da nova aba.
-            // A navegação abaixo fará uma única atualização já com o relatório correto.
             event.preventDefault();
             event.stopImmediatePropagation();
             var selectedTab = this.getAttribute('data-tab');
             if (!selectedTab) return;
-            if (typeof REPORT_ACTIVE_TAB !== 'undefined' && selectedTab === REPORT_ACTIVE_TAB) return;
+
+            // Troca a aba no próprio documento, sem recarregar a página nem alterar o scroll.
+            if (window.bootstrap && bootstrap.Tab) {
+                bootstrap.Tab.getOrCreateInstance(this).show();
+            }
+
             var url = new URL(window.location);
             url.searchParams.set('tab', selectedTab);
-            url.hash = 'reportTabs';
-            // A aba é um relatório independente: recarregue apenas a seleção atual.
-            // Isso evita manter gráficos e dados de todas as abas na mesma sessão do navegador.
-            window.location.assign(url.toString());
+            url.hash = '';
+            window.history.replaceState({ tab: selectedTab }, '', url.toString());
+
+            // Os dados já estão disponíveis na página; renderiza apenas o conteúdo escolhido.
+            if (typeof renderReports === 'function') renderReports(selectedTab);
         }, true);
     });
 }
@@ -3868,12 +3872,12 @@ function renderIllustratedFunnel() {
                 <marker id="funnelArrowCenterHead" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,4.5 L0,9 Z" fill="#62b9ff"/></marker>
                 <filter id="funnelArrowGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
             </defs>
-            <circle class="funnel-connector-origin waiting" cx="120" cy="455" r="5"/>
-            <path class="funnel-connector-path waiting" d="M120 455 C75 285 145 145 397 61" marker-end="url(#funnelArrowWaitingHead)"/>
+            <circle class="funnel-connector-origin waiting" cx="205" cy="350" r="5"/>
+            <path class="funnel-connector-path waiting" d="M205 350 C190 275 270 205 430 145" marker-end="url(#funnelArrowWaitingHead)"/>
             <circle class="funnel-connector-origin center" cx="600" cy="355" r="5"/>
             <path class="funnel-connector-path center" d="M600 355 C600 275 600 175 600 104" marker-end="url(#funnelArrowCenterHead)"/>
-            <circle class="funnel-connector-origin loss" cx="1080" cy="350" r="5"/>
-            <path class="funnel-connector-path loss" d="M1080 350 C1110 205 1010 120 807 61" marker-end="url(#funnelArrowLossHead)"/>
+            <circle class="funnel-connector-origin loss" cx="995" cy="315" r="5"/>
+            <path class="funnel-connector-path loss" d="M995 315 C1010 250 930 205 770 145" marker-end="url(#funnelArrowLossHead)"/>
         </svg>
         <header class="funnel-visual-title"><h2>Total do Funil <strong>${formatNumber(total)}</strong></h2><p>Visão geral do fluxo de leads no período</p></header>
         <div class="funnel-visual-overview">
@@ -4651,10 +4655,10 @@ function renderAdsReports() {
     }
 }
 
-function renderReports(){
+function renderReports(tab){
     try {
         if (typeof window.Chart !== 'undefined') applyChartThemeDefaults();
-        switch (REPORT_ACTIVE_TAB) {
+        switch (tab || REPORT_ACTIVE_TAB) {
             case 'overview':
                 renderKPIs();
                 renderLeadsMonthlyChart();

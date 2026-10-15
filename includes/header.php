@@ -197,10 +197,30 @@ include_once 'includes/settings_storage.php';
             }
         ?>
       </div>
-      <div class="ms-auto d-flex align-items-center">
+      <div class="navbar-actions d-flex flex-grow-1 align-items-center">
         <?php if (session_status() === PHP_SESSION_NONE) session_start(); ?>
-        <?php $displayName = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username']) : 'Usuário'; ?>
-        <div class="me-2 d-none d-md-inline text-dark">Olá, <strong><?php echo $displayName; ?></strong></div>
+        <?php
+          $displayName = htmlspecialchars($_SESSION['username'] ?? 'Usuário', ENT_QUOTES, 'UTF-8');
+          $navbarAvatar = 'assets/img/avatar-placeholder.png';
+          if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
+              try {
+                  $avatarStmt = $pdo->prepare('SELECT avatar FROM users WHERE id = ? LIMIT 1');
+                  $avatarStmt->execute([(int) $_SESSION['user_id']]);
+                  $storedAvatar = trim((string) $avatarStmt->fetchColumn());
+                  if ($storedAvatar !== '' && strpos($storedAvatar, '..') === false && !preg_match('/^[\\\\\\/]/', $storedAvatar)) {
+                      $avatarFile = dirname(__DIR__) . DIRECTORY_SEPARATOR . str_replace(['/', '\\\\'], DIRECTORY_SEPARATOR, $storedAvatar);
+                      if (is_file($avatarFile)) $navbarAvatar = $storedAvatar;
+                  }
+              } catch (Throwable $e) {
+                  // Keep the default avatar if the profile photo cannot be loaded.
+              }
+          }
+          $navbarAvatar = htmlspecialchars($navbarAvatar, ENT_QUOTES, 'UTF-8');
+        ?>
+        <div class="me-auto d-none d-md-flex align-items-center gap-2 text-dark navbar-user-greeting">
+          <img src="<?php echo $navbarAvatar; ?>" class="navbar-user-avatar" alt="Foto de perfil de <?php echo $displayName; ?>">
+          <span class="d-flex flex-column lh-sm"><strong><?php echo $displayName; ?></strong><?php if (!empty($_SESSION['role_name'])): ?><small class="text-muted"><?php echo htmlspecialchars($_SESSION['role_name'], ENT_QUOTES, 'UTF-8'); ?></small><?php endif; ?></span>
+        </div>
         <?php if (isset($reqHost) && ($reqHost === 'localhost' || $reqHost === '127.0.0.1')): ?>
           <div class="me-2 d-none d-md-inline"><span class="badge bg-secondary">dev</span></div>
         <?php endif; ?>
@@ -554,7 +574,25 @@ include_once 'includes/settings_storage.php';
     width: 100%; 
   }
 
+  .navbar-user-avatar {
+    width: 40px !important;
+    height: 40px !important;
+    max-width: 40px !important;
+    max-height: 40px !important;
+    flex: 0 0 40px;
+    display: block !important;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: center;
+    border: 2px solid rgba(11, 106, 193, .18);
+    background: #eef4fa;
+  }
+
   @media (max-width: 767.98px) {
+    .navbar-actions {
+      margin-left: auto;
+      flex-grow: 0 !important;
+    }
     body {
       padding-top: 48px;
       overflow-x: hidden;
@@ -595,6 +633,11 @@ include_once 'includes/settings_storage.php';
 
     .navbar .dropdown-toggle::after {
       display: none;
+    }
+
+    .navbar-user-greeting {
+      white-space: nowrap;
+      font-size: .9rem;
     }
 
     #reminderBellMenu {

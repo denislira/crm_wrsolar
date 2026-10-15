@@ -436,16 +436,33 @@ async function startSocket({ fresh = false, reason = 'start' } = {}) {
           if (!msg || !msg.key || msg.key.fromMe) return;
           const remoteJid = msg.key.remoteJid || '';
           if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid === 'status@broadcast') return;
-          const phone = remoteJid.split('@')[0].replace(/\D/g, '');
+          const remoteJidAlt = msg.key.remoteJidAlt || '';
+          const phoneJid = remoteJid.endsWith('@s.whatsapp.net') ? remoteJid
+            : (remoteJidAlt.endsWith('@s.whatsapp.net') ? remoteJidAlt : '');
+          const phone = phoneJid ? phoneJid.split('@')[0].replace(/\D/g, '') : '';
           const text = extractMessageText(msg.message || {});
-          postIncomingMessage({
+          const payload = {
             phone,
             text,
             push_name: msg.pushName || '',
             message_id: msg.key.id || '',
             timestamp: msg.messageTimestamp || null,
-            remote_jid: remoteJid
-          }).catch(err => logger.warn({ err }, 'Erro assíncrono no webhook de entrada'));
+            remote_jid: remoteJid,
+            remote_jid_alt: remoteJidAlt
+          };
+          (async () => {
+            if (sock && typeof sock.profilePictureUrl === 'function') {
+              try {
+                payload.profile_picture_url = await Promise.race([
+                  sock.profilePictureUrl(remoteJid, 'preview', 3000),
+                  new Promise(resolve => setTimeout(() => resolve(''), 3500))
+                ]) || '';
+              } catch (err) {
+                // O contato pode ocultar a foto ou nao ter imagem.
+              }
+            }
+            await postIncomingMessage(payload);
+          })().catch(err => logger.warn({ err }, 'Erro assincrono no webhook de entrada'));
         } catch (err) {
           logger.warn({ err }, 'Falha ao processar mensagem recebida');
         }

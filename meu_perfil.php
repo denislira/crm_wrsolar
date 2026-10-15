@@ -6,6 +6,7 @@ if (empty($_SESSION['user_id'])) {
         exit;
 }
 $user_id = (int) $_SESSION['user_id'];
+if (empty($_SESSION['profile_password_csrf'])) $_SESSION['profile_password_csrf'] = bin2hex(random_bytes(32));
 // Schema migrations are handled manually, outside the page request.
 // fetch user info (best-effort)
 $user = null;
@@ -40,6 +41,21 @@ $profile_projects = [];
 $profile_movements = [];
 $profile_reminders = [];
 $profile_tasks = [];
+
+// Etapas reais do funil, usadas na aba Fluxo de Atendimento.
+$profile_funnel_stages = [];
+try {
+    $stageCols = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funil_stages'")->fetchAll(PDO::FETCH_COLUMN);
+    $stageNameCol = in_array('name', $stageCols, true) ? 'name' : (in_array('stage_name', $stageCols, true) ? 'stage_name' : 'name');
+    $stageOrderCol = in_array('position', $stageCols, true) ? 'position' : (in_array('stage_order', $stageCols, true) ? 'stage_order' : 'id');
+    $stageColorCol = in_array('color', $stageCols, true) ? 'color' : (in_array('stage_color', $stageCols, true) ? 'stage_color' : null);
+    $stageSelect = "id, {$stageNameCol} AS name, {$stageOrderCol} AS position";
+    $stageSelect .= $stageColorCol ? ", {$stageColorCol} AS color" : ", NULL AS color";
+    $stageSelect .= in_array('final_type', $stageCols, true) ? ", final_type" : ", 'none' AS final_type";
+    $profile_funnel_stages = $pdo->query("SELECT {$stageSelect} FROM funil_stages ORDER BY {$stageOrderCol} ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $profile_funnel_stages = [];
+}
 
 // Build usersMap for avatar display
 $usersMap = [];
@@ -213,6 +229,21 @@ include __DIR__ . '/includes/sidebar.php';
         padding: 0.75rem 0;
         border-bottom: 1px solid #f0f0f0;
     }
+    .profile-overview-grid { display:grid; grid-template-columns:minmax(230px,.72fr) minmax(0,2fr); gap:1.5rem; align-items:stretch; }
+    .profile-avatar-column { padding:1.25rem; border:1px solid #e8eef5; border-radius:16px; background:linear-gradient(145deg,#f8fbff,#f3f7fc); }
+    .profile-avatar-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.6rem; margin-bottom:1rem; }
+    .profile-avatar-actions .btn { width:100%; min-height:42px; display:inline-flex; align-items:center; justify-content:center; white-space:nowrap; }
+    .profile-details-column { min-width:0; padding:.25rem .35rem; }
+    .profile-details-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.5rem; padding-bottom:.8rem; border-bottom:1px solid #e8eef5; }
+    .profile-details-header h6 { margin:0 !important; color:#172033; font-size:1rem; font-weight:750; }
+    .profile-details-actions { display:flex; align-items:center; justify-content:flex-end; gap:.5rem; flex-wrap:wrap; }
+    .profile-details-actions .btn { min-height:38px; display:inline-flex; align-items:center; justify-content:center; gap:.45rem; padding:.45rem .85rem; border-radius:11px; font-weight:700; white-space:nowrap; }
+    .profile-edit-button { box-shadow:0 4px 12px rgba(5,150,105,.16); }
+    .profile-edit-button:hover { transform:translateY(-1px); box-shadow:0 6px 15px rgba(5,150,105,.23); }
+    .profile-info-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:1.5rem; }
+    .profile-info-grid .profile-info-item { min-width:0; }
+    .profile-details-column > hr { display:none; }
+    .profile-details-column > div:last-child { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.9rem 1rem; }
     .profile-info-item:last-child {
         border-bottom: none;
     }
@@ -537,23 +568,7 @@ include __DIR__ . '/includes/sidebar.php';
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     .scrollable-list {
-        max-height: 360px;
-        overflow-y: auto;
-        padding-right: 0;
-    }
-    .scrollable-list::-webkit-scrollbar {
-        width: 6px;
-    }
-    .scrollable-list::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
-    }
-    .scrollable-list::-webkit-scrollbar-thumb {
-        background: #cbd5e0;
-        border-radius: 10px;
-    }
-    .scrollable-list::-webkit-scrollbar-thumb:hover {
-        background: #a0aec0;
+        overflow: visible;
     }
     .tasks-panel {
         background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%);
@@ -787,6 +802,9 @@ include __DIR__ . '/includes/sidebar.php';
         background: #f1f5f9;
         color: #334155;
     }
+    #perfilTabContent > .tab-pane[hidden],
+    #perfilTabContent[data-active-pane="fluxo"] #pane-perfil,
+    #perfilTabContent[data-active-pane="perfil"] #pane-fluxo { display: none !important; }
     /* Modal edit task styles */
     .task-avatar { width:56px; height:56px; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:1.25rem; color:#fff; background:#6c757d; }
     .modal-header.colorful { background:linear-gradient(120deg, var(--blue-900) 0%, var(--blue-700) 100%); color:#fff; }
@@ -983,7 +1001,7 @@ include __DIR__ . '/includes/sidebar.php';
         overflow: hidden;
         border: 1px solid rgba(255,255,255,.18);
         border-radius: 22px;
-        padding: 1.65rem 1.8rem;
+        padding: 1.05rem 1.4rem;
         margin-bottom: 1rem;
         box-shadow: 0 14px 36px rgba(15,23,42,.12);
     }
@@ -996,7 +1014,7 @@ include __DIR__ . '/includes/sidebar.php';
         background: rgba(255,255,255,.09);
         pointer-events: none;
     }
-    .profile-page .profile-header-gradient h2 { font-size: 1.65rem; letter-spacing: -.025em; }
+    .profile-page .profile-header-gradient h2 { font-size: 1.35rem; letter-spacing: -.025em; }
     .profile-page #perfilTabs {
         display: inline-flex;
         gap: .35rem;
@@ -1017,6 +1035,75 @@ include __DIR__ . '/includes/sidebar.php';
     }
     .profile-page .profile-card:hover,
     .profile-page .tasks-panel:hover { transform: none; box-shadow: 0 10px 30px rgba(15,23,42,.075); }
+    .profile-page .profile-overview-layout > .col-12 > .profile-card {
+        position: relative;
+        overflow: hidden;
+        padding: 1.35rem;
+        background: linear-gradient(145deg, #ffffff 0%, #f8fbff 100%);
+    }
+    .profile-page .profile-overview-layout > .col-12 > .profile-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--profile-accent), #69aef5);
+    }
+    .profile-page .profile-overview-layout .profile-section-title {
+        margin: 0 0 1.15rem;
+        padding: 0 .25rem .9rem;
+        border-bottom: 1px solid var(--profile-border);
+        letter-spacing: -.01em;
+    }
+    .profile-page .profile-avatar-column {
+        border: 1px solid #e2ebf5;
+        background: linear-gradient(155deg, #f4f9ff 0%, #edf4fb 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+    }
+    .profile-page .profile-details-column {
+        padding: .35rem .55rem;
+    }
+    .profile-page .profile-info-item {
+        margin: 0;
+        padding: 1.05rem 1.2rem;
+        border: 1px solid #e2eaf3;
+        border-radius: 14px;
+        background: #fff;
+        transition: background .2s ease, border-color .2s ease;
+    }
+    .profile-page .profile-info-item:hover {
+        border-color: #bfd8f0;
+        background: #f8fbff;
+    }
+    .profile-page .profile-info-label i {
+        width: 16px;
+        color: var(--profile-accent);
+        text-align: center;
+    }
+    .profile-page .profile-info-value {
+        overflow-wrap: anywhere;
+    }
+    .profile-page .profile-info-item .edit-mode input,
+    .profile-page .profile-info-item .edit-mode textarea,
+    .profile-page .profile-info-item .edit-mode select {
+        margin-top: .45rem;
+        border: 1px solid #9bc5ee;
+        border-radius: 10px;
+        background: #f2f8ff;
+        color: #173a63;
+        font-weight: 600;
+        box-shadow: inset 0 1px 2px rgba(23,58,99,.04);
+        transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+    .profile-page .profile-info-item .edit-mode input:focus,
+    .profile-page .profile-info-item .edit-mode textarea:focus,
+    .profile-page .profile-info-item .edit-mode select:focus {
+        border-color: var(--profile-accent);
+        background: #fff;
+        box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--profile-accent) 16%, transparent);
+        outline: 0;
+    }
     .profile-page .profile-section-title::before { display: none; }
     .profile-page .profile-section-title { font-size: 1rem; color: #172033; }
     .profile-page .profile-avatar-large {
@@ -1025,12 +1112,39 @@ include __DIR__ . '/includes/sidebar.php';
         outline: 1px solid var(--profile-border);
         box-shadow: 0 8px 25px rgba(15,23,42,.13);
     }
-    .profile-page .profile-info-item { padding: .8rem .15rem; border-color: var(--profile-border); }
+    .profile-page .profile-info-item:last-child { border-bottom: 1px solid #e2eaf3; }
     .profile-page .profile-info-label { font-size: .69rem; color: #8491a5; letter-spacing: .08em; }
     .profile-page .profile-info-value { color: #172033; font-size: .92rem; font-weight: 600; }
     .profile-page .tasks-panel { padding: 1.15rem; }
+    .profile-page .profile-tasks-reminders-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.5rem; margin:1.5rem 0 0; }
+    .profile-page .profile-tasks-reminders-row > .col-lg-6 { display:flex; width:auto; max-width:none; min-width:0; padding:0; }
+    .profile-page .profile-tasks-reminders-row > .col-lg-6 > .tasks-panel,
+    .profile-page .profile-tasks-reminders-row > .col-lg-6 > .profile-modern-panel { display:flex; flex-direction:column; width:100%; height:100%; }
+    .profile-page .profile-tasks-reminders-row .profile-list-footer { margin-top:auto; }
+    .profile-insights { margin-top:1.5rem; }
+    .profile-insights-header { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
+    .profile-insights-header h3 { margin:0; color:#172033; font-size:1.12rem; font-weight:800; }
+    .profile-insights-header p { margin:.25rem 0 0; color:#64748b; font-size:.84rem; }
+    .profile-insights-period { padding:.42rem .75rem; border:1px solid #dce8f5; border-radius:999px; color:#315579; background:#fff; font-size:.76rem; font-weight:700; white-space:nowrap; }
+    .profile-insights-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+    .profile-insight-card, .profile-security-card { min-width:0; padding:1.2rem; border:1px solid #e3ebf4; border-radius:18px; background:#fff; box-shadow:0 7px 24px rgba(15,23,42,.055); }
+    .profile-insight-card h4, .profile-security-card h4 { margin:0; color:#172033; font-size:.95rem; font-weight:800; }
+    .profile-insight-card p, .profile-security-card p { margin:.3rem 0 .9rem; color:#64748b; font-size:.78rem; }
+    .profile-chart-frame { position:relative; height:220px; }
+    .profile-chart-frame canvas { width:100% !important; height:100% !important; }
+    .profile-insight-metric { display:flex; align-items:baseline; gap:.5rem; margin-bottom:.8rem; }
+    .profile-insight-metric strong { color:#0b6ac1; font-size:1.55rem; line-height:1; }
+    .profile-insight-metric span { color:#64748b; font-size:.78rem; }
+    .profile-insight-empty { min-height:220px; display:grid; place-items:center; color:#64748b; font-size:.82rem; text-align:center; }
+    .profile-advice-list { display:grid; align-content:start; gap:.65rem; min-height:220px; }
+    .profile-advice-item { padding:.75rem .85rem; border:1px solid #e4edf7; border-radius:12px; background:#f7faff; color:#31516d; font-size:.83rem; line-height:1.45; }
+    .profile-security-card { margin-top:1rem; }
+    .profile-security-form { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.8rem; align-items:end; }
+    .profile-security-form label { display:block; margin-bottom:.35rem; color:#31516d; font-size:.78rem; font-weight:700; }
+    .profile-security-form .form-control { min-height:42px; border-radius:10px; }
+    .profile-security-actions { display:flex; align-items:center; gap:.75rem; margin-top:1rem; flex-wrap:wrap; }
+    .profile-security-feedback { font-size:.82rem; }
     .profile-page .tasks-panel-header { padding: .15rem .15rem .9rem; border-bottom: 1px solid var(--profile-border); }
-    .profile-page .scrollable-list { scrollbar-gutter: stable; }
     .profile-page .profile-panel-header { padding: 1rem 1.1rem; background: linear-gradient(180deg,#fff,#fbfcfe); }
     .profile-page .profile-panel-icon { border: 0; background: color-mix(in srgb, var(--profile-accent) 11%, white); }
     .profile-page .profile-panel-count { border: 0; background: #f1f5f9; color: #526074; }
@@ -1048,11 +1162,31 @@ include __DIR__ . '/includes/sidebar.php';
         border-radius: 11px; background: #f1f5f9; color: var(--profile-accent);
     }
     body.theme-dark .profile-page { background: #0b1220; }
+    body.theme-dark .profile-avatar-column { background:rgba(255,255,255,.035); border-color:rgba(255,255,255,.09); }
+    body.theme-dark .profile-details-header { border-bottom-color:rgba(255,255,255,.09); }
+    body.theme-dark .profile-details-header h6 { color:#e6eef8; }
+    body.theme-dark .profile-page .profile-info-item,
+    body.theme-dark .profile-page .profile-info-item:last-child { background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.12) !important; }
+    body.theme-dark .profile-page .profile-info-item:hover { background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.2) !important; }
+    body.theme-dark .profile-insight-card, body.theme-dark .profile-security-card { background:#111d2d; border-color:rgba(255,255,255,.11); }
+    body.theme-dark .profile-insights-header h3, body.theme-dark .profile-insight-card h4, body.theme-dark .profile-security-card h4, body.theme-dark .profile-security-form label { color:#e6eef8; }
+    body.theme-dark .profile-insights-header p, body.theme-dark .profile-insight-card p, body.theme-dark .profile-security-card p, body.theme-dark .profile-insight-metric span { color:#b8c7dc; }
+    body.theme-dark .profile-insights-period { background:#17283d; color:#c7dcf4; border-color:rgba(255,255,255,.12); }
+    body.theme-dark .profile-security-form .form-control { background:#0c1726; color:#e6eef8; border-color:#30445d; }
+    body.theme-dark .profile-advice-item { background:#17283d; border-color:rgba(255,255,255,.1); color:#d9e9fa; }
     body.theme-dark .profile-page #perfilTabs { background: #111b2d; border-color: rgba(255,255,255,.08); }
     @media (max-width: 768px) {
         .profile-page { padding: .85rem !important; }
-        .profile-page .profile-header-gradient { padding: 1.25rem; border-radius: 17px; }
+        .profile-details-header { align-items:flex-start; flex-wrap:wrap; }
+        .profile-details-actions { width:100%; justify-content:flex-start; }
+        .profile-page .profile-header-gradient { padding: 1rem 1.15rem; border-radius: 17px; }
         .profile-page .profile-header-gradient > .d-flex { align-items: flex-start !important; gap: 1rem; }
+        .profile-page .profile-overview-grid { grid-template-columns:1fr; gap:1rem; }
+        .profile-page .profile-info-grid,
+        .profile-page .profile-details-column > div:last-child { grid-template-columns:1fr; }
+        .profile-insights-grid, .profile-security-form { grid-template-columns:1fr; }
+        .profile-page .profile-tasks-reminders-row { grid-template-columns:1fr; gap:1rem; margin-top:1rem; }
+        .profile-insights-header { align-items:flex-start; flex-direction:column; }
         .profile-page #perfilTabs { display: flex; width: 100%; }
         .profile-page #perfilTabs .nav-item { flex: 1; }
         .profile-page #perfilTabs .nav-link { width: 100%; padding: .55rem .4rem; }
@@ -1063,22 +1197,8 @@ include __DIR__ . '/includes/sidebar.php';
     <div class="container-fluid">
         <!-- Header com gradiente -->
         <div class="profile-header-gradient">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h2 class="mb-2" style="font-weight: 700;">Meu Perfil</h2>
-                    <p class="mb-0 opacity-75">Gerencie suas informações e acompanhe suas atividades</p>
-                    <div class="mt-2">
-                        <div id="profile_name_display" style="font-weight:700"><?php echo htmlspecialchars($profileNomeCompleto ?: ($user['username'] ?? '')); ?></div>
-                        <div id="profile_email_display" class="small text-white-50"><?php echo htmlspecialchars($profileEmail); ?></div>
-                        <div id="profile_bio_display" class="small text-white-50 mt-1"><?php echo nl2br(htmlspecialchars($profileBiografia)); ?></div>
-                    </div>
-                </div>
-                <div class="d-flex gap-2">
-                    <a href="logout.php" class="btn btn-outline-light btn-modern">
-                        <i class="fas fa-sign-out-alt me-2"></i>Sair
-                    </a>
-                </div>
-            </div>
+            <h2 class="mb-1" style="font-weight:700;">Meu Perfil</h2>
+            <p class="mb-0 opacity-75">Gerencie suas informações e acompanhe suas atividades</p>
         </div>
 
         <div id="profileDebug" class="mb-3 d-none">
@@ -1100,16 +1220,18 @@ include __DIR__ . '/includes/sidebar.php';
             </li>
         </ul>
 
-        <div class="tab-content" id="perfilTabContent">
+        <div class="tab-content" id="perfilTabContent" data-active-pane="perfil">
         <!-- TAB: Meu Perfil -->
         <div class="tab-pane fade show active" id="pane-perfil" role="tabpanel">
 
-        <div class="row g-4">
+        <div class="row g-4 profile-overview-layout">
             <!-- Coluna Esquerda - Foto e Informações -->
-            <div class="col-lg-4">
+            <div class="col-12">
                 <!-- Card Foto de Perfil -->
                 <div class="profile-card">
                     <h5 class="profile-section-title">Foto de Perfil</h5>
+                    <div class="profile-overview-grid">
+                    <div class="profile-avatar-column">
                     <div class="text-center mb-4">
                         <?php
                             // load avatar if present
@@ -1130,8 +1252,8 @@ include __DIR__ . '/includes/sidebar.php';
                         <label class="form-label fw-semibold small text-muted">Escolher nova foto</label>
                         <input id="avatarInput" type="file" accept="image/*" class="form-control" />
                     </div>
-                    <div class="d-flex gap-2 mb-4">
-                        <button id="btnUploadAvatar" class="btn btn-primary btn-modern flex-grow-1">
+                    <div class="profile-avatar-actions">
+                        <button id="btnUploadAvatar" class="btn btn-primary btn-modern">
                             <i class="fas fa-upload me-2"></i>Salvar
                         </button>
                         <button id="btnRemoveAvatar" class="btn btn-outline-danger btn-modern">
@@ -1139,12 +1261,17 @@ include __DIR__ . '/includes/sidebar.php';
                         </button>
                     </div>
                     <div id="avatarMsg" class="mt-3 mb-4"></div>
+                    </div>
+                    <section class="profile-details-column">
 
                     <!-- Informações Pessoais -->
                     <hr class="my-4">
-                    <div class="d-flex align-items-center justify-content-between">
+                    <div class="profile-details-header">
                         <h6 class="fw-bold mb-3 text-secondary">Informações Pessoais</h6>
-                        <button id="btnInlineEditProfile" type="button" class="btn btn-sm btn-success" title="Editar informações"><i class="fas fa-pen"></i></button>
+                        <div class="profile-details-actions">
+                            <button id="btnInlineCancel" type="button" class="btn btn-outline-secondary d-none"><i class="fas fa-times" aria-hidden="true"></i>Cancelar</button>
+                            <button id="btnInlineEditProfile" type="button" class="btn btn-success profile-edit-button" title="Editar informações pessoais"><i class="fas fa-pen" aria-hidden="true"></i><span>Editar</span></button>
+                        </div>
                     </div>
                     <div>
                         <div class="profile-info-item">
@@ -1203,7 +1330,7 @@ include __DIR__ . '/includes/sidebar.php';
                                 ?>
                             </div>
                             <div class="edit-mode d-none">
-                                <select class="form-select form-select-sm ai-bot-mode-select" name="ai_bot_mode">
+                                <select class="form-select form-select-sm ai-bot-mode-select" name="ai_bot_mode" data-current-mode="<?php echo htmlspecialchars($profileAiBotMode, ENT_QUOTES, 'UTF-8'); ?>">
                                     <option value="chatbot3" <?php echo $profileAiBotMode === 'chatbot3' ? 'selected' : ''; ?>>Copiloto</option>
                                     <option value="chatbot1" <?php echo $profileAiBotMode === 'chatbot1' ? 'selected' : ''; ?>>Chat IA</option>
                                     <option value="none" <?php echo $profileAiBotMode === 'none' ? 'selected' : ''; ?>>Nenhum</option>
@@ -1213,11 +1340,52 @@ include __DIR__ . '/includes/sidebar.php';
                             </div>
                         </div>
                     </div>
+                    </section>
+                    </div>
                 </div>
             </div>
 
-            <!-- Coluna Direita - Tarefas -->
-            <div class="col-lg-8">
+        </div>
+
+        <section class="profile-insights" aria-labelledby="profileInsightsTitle">
+            <div class="profile-insights-header">
+                <div>
+                    <h3 id="profileInsightsTitle"><i class="fas fa-chart-line me-2 text-primary" aria-hidden="true"></i>Sua atividade em números</h3>
+                    <p>Indicadores da sua carteira e das tarefas sob sua responsabilidade.</p>
+                </div>
+                <span class="profile-insights-period">Últimos 30 dias para novos leads</span>
+            </div>
+            <div id="profileInsightsStatus" class="small text-muted mb-2" role="status">Carregando indicadores...</div>
+            <div class="profile-insights-grid">
+                <article class="profile-insight-card">
+                    <h4>Novos leads</h4>
+                    <p>Evolução diária da sua carteira nos últimos 30 dias</p>
+                    <div class="profile-insight-metric"><strong id="profileLeads30Total">—</strong><span>leads no período</span></div>
+                    <div class="profile-chart-frame"><canvas id="profileLeadsTrendChart" role="img" aria-label="Leads criados por dia nos últimos 30 dias"></canvas></div>
+                </article>
+                <article class="profile-insight-card">
+                    <h4>Etapas dos leads</h4>
+                    <p>Distribuição atual dos seus leads por status</p>
+                    <div class="profile-insight-metric"><strong id="profileStagesTotal">—</strong><span>leads na carteira</span></div>
+                    <div class="profile-chart-frame"><canvas id="profileStagesChart" role="img" aria-label="Quantidade de leads por etapa"></canvas></div>
+                </article>
+                <article class="profile-insight-card">
+                    <h4>Situação das tarefas</h4>
+                    <p>Tarefas criadas por você ou atribuídas a você</p>
+                    <div class="profile-insight-metric"><strong id="profileTasksOverdue">—</strong><span>vencidas e não concluídas</span></div>
+                    <div class="profile-chart-frame"><canvas id="profileTasksChart" role="img" aria-label="Tarefas pendentes, em andamento e concluídas"></canvas></div>
+                </article>
+                <article class="profile-insight-card">
+                    <h4>O que observar</h4>
+                    <p>Leitura rápida dos indicadores para orientar o próximo passo</p>
+                    <div id="profileInsightsAdvice" class="profile-insight-empty">Carregando recomendações...</div>
+                </article>
+            </div>
+        </section>
+
+        <div class="profile-tasks-reminders-row">
+            <!-- Tarefas e lembretes compartilham a mesma linha no desktop. -->
+            <div class="col-lg-6">
                 <!-- Edit profile form -->
                 <!-- inline edit handled inside Informações Pessoais -->
 
@@ -1242,7 +1410,7 @@ include __DIR__ . '/includes/sidebar.php';
                             <span class="task-summary-chip"><i class="fas fa-check"></i> Concluídas <span class="chip-value"><?php echo (int) $taskCounts['Concluída']; ?></span></span>
                         </div>
                     </div>
-                    <div id="profileTasksList" class="scrollable-list" data-page-size="5" style="min-height:350px;">
+                    <div id="profileTasksList" class="scrollable-list" data-page-size="5">
                         <?php if (!empty($profile_tasks)): ?>
                             <?php foreach ($profile_tasks as $taskIndex => $t): ?>
                                 <?php
@@ -1388,19 +1556,74 @@ include __DIR__ . '/includes/sidebar.php';
                     </div>
                 </div>
 
+            </div>
+            <div class="col-lg-6">
+                <div class="profile-card profile-modern-panel">
+                    <div class="profile-panel-header">
+                        <h5 class="profile-panel-title"><span class="profile-panel-icon"><i class="far fa-bell"></i></span>Lembretes Criados</h5>
+                        <span class="profile-panel-count"><?php echo count($profile_reminders); ?> registros</span>
+                    </div>
+                    <div id="profileRemindersList" class="scrollable-list" data-page-size="5">
+                        <?php if (!empty($profile_reminders)): ?>
+                            <?php foreach ($profile_reminders as $reminderIndex => $r): ?>
+                                <div class="list-item profile-list-item <?php echo $reminderIndex >= 5 ? 'is-hidden' : ''; ?>">
+                                    <div class="d-flex align-items-start gap-3">
+                                        <div style="color:#667eea;font-size:1.5rem;">
+                                            <i class="far fa-bell"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1 fw-semibold"><?php echo htmlspecialchars($r['message']); ?></h6>
+                                            <p class="mb-0 small text-muted">
+                                                <i class="far fa-calendar-alt me-1"></i><?php echo htmlspecialchars($r['remind_at']); ?>
+                                                <span class="mx-2">•</span>
+                                                Lead: <strong><?php echo htmlspecialchars($r['lead_name'] ?? $r['lead_id']); ?></strong>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="text-center text-muted py-5">
+                                <i class="far fa-bell fa-3x mb-3 opacity-25"></i>
+                                <p>Nenhum lembrete encontrado.</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="profile-list-footer">
+                        <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileRemindersList">
+                            <i class="fas fa-plus"></i> Carregar mais
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Seções de Leads, Projetos, Movimentações e Lembretes -->
-        <div class="row g-4 mt-2">
+        <section class="profile-security-card" aria-labelledby="profileSecurityTitle">
+            <h4 id="profileSecurityTitle"><i class="fas fa-shield-alt me-2 text-primary" aria-hidden="true"></i>Segurança da conta</h4>
+            <p>Altere sua senha informando a senha atual. A nova senha deve ter pelo menos 12 caracteres.</p>
+            <form id="profilePasswordForm" autocomplete="off">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['profile_password_csrf'], ENT_QUOTES, 'UTF-8'); ?>">
+                <div class="profile-security-form">
+                    <div><label for="profileCurrentPassword">Senha atual</label><input id="profileCurrentPassword" class="form-control" name="current_password" type="password" autocomplete="current-password" required></div>
+                    <div><label for="profileNewPassword">Nova senha</label><input id="profileNewPassword" class="form-control" name="new_password" type="password" autocomplete="new-password" minlength="12" required></div>
+                    <div><label for="profileConfirmPassword">Confirmar nova senha</label><input id="profileConfirmPassword" class="form-control" name="confirm_password" type="password" autocomplete="new-password" minlength="12" required></div>
+                </div>
+                <div class="profile-security-actions">
+                    <button id="profilePasswordSave" class="btn btn-primary" type="submit"><i class="fas fa-key me-2" aria-hidden="true"></i>Alterar minha senha</button>
+                    <span id="profilePasswordFeedback" class="profile-security-feedback" role="status" aria-live="polite"></span>
+                </div>
+            </form>
+        </section>
+
+        <!-- Seções de Leads, Projetos e Movimentações -->
+        <div class="row g-4 mt-2" id="profileOnlySections">
             <div class="col-lg-6">
                 <div class="profile-card profile-modern-panel">
                     <div class="profile-panel-header">
                         <h5 class="profile-panel-title"><span class="profile-panel-icon"><i class="fas fa-user-tie"></i></span>Meus Leads</h5>
                         <span class="profile-panel-count"><?php echo count($profile_leads); ?> registros</span>
                     </div>
-                    <div id="profileLeadsList" class="scrollable-list" data-page-size="5" style="min-height:200px;">
+                    <div id="profileLeadsList" class="scrollable-list" data-page-size="5">
                         <?php if (!empty($profile_leads)): ?>
                             <?php foreach ($profile_leads as $leadIndex => $l): ?>
                                 <div class="list-item profile-list-item <?php echo $leadIndex >= 5 ? 'is-hidden' : ''; ?>">
@@ -1440,7 +1663,7 @@ include __DIR__ . '/includes/sidebar.php';
                         <h5 class="profile-panel-title"><span class="profile-panel-icon"><i class="fas fa-briefcase"></i></span>Meus Projetos</h5>
                         <span class="profile-panel-count"><?php echo count($profile_projects); ?> registros</span>
                     </div>
-                    <div id="profileProjectsList" class="scrollable-list" data-page-size="5" style="min-height:200px;">
+                    <div id="profileProjectsList" class="scrollable-list" data-page-size="5">
                         <?php if (!empty($profile_projects)): ?>
                             <?php foreach ($profile_projects as $projectIndex => $p): ?>
                                 <div class="list-item profile-list-item <?php echo $projectIndex >= 5 ? 'is-hidden' : ''; ?>">
@@ -1480,7 +1703,7 @@ include __DIR__ . '/includes/sidebar.php';
                         <h5 class="profile-panel-title"><span class="profile-panel-icon"><i class="fas fa-chart-line"></i></span>Histórico de Movimentações</h5>
                         <span class="profile-panel-count"><?php echo count($profile_movements); ?> registros</span>
                     </div>
-                    <div id="profileMovementsList" class="scrollable-list" data-page-size="5" style="min-height:200px;">
+                    <div id="profileMovementsList" class="scrollable-list" data-page-size="5">
                         <?php if (!empty($profile_movements)): ?>
                             <?php foreach ($profile_movements as $movementIndex => $m): ?>
                                 <div class="list-item profile-list-item movement-item <?php echo $movementIndex >= 5 ? 'is-hidden' : ''; ?>">
@@ -1533,52 +1756,62 @@ include __DIR__ . '/includes/sidebar.php';
                 </div>
             </div>
 
-            <div class="col-12">
-                <div class="profile-card profile-modern-panel">
-                    <div class="profile-panel-header">
-                        <h5 class="profile-panel-title"><span class="profile-panel-icon"><i class="far fa-bell"></i></span>Lembretes Criados</h5>
-                        <span class="profile-panel-count"><?php echo count($profile_reminders); ?> registros</span>
-                    </div>
-                    <div id="profileRemindersList" class="scrollable-list" data-page-size="5" style="min-height:200px;">
-                        <?php if (!empty($profile_reminders)): ?>
-                            <?php foreach ($profile_reminders as $reminderIndex => $r): ?>
-                                <div class="list-item profile-list-item <?php echo $reminderIndex >= 5 ? 'is-hidden' : ''; ?>">
-                                    <div class="d-flex align-items-start gap-3">
-                                        <div style="color:#667eea;font-size:1.5rem;">
-                                            <i class="far fa-bell"></i>
-                                        </div>
-                                        <div class="flex-grow-1">
-                                            <h6 class="mb-1 fw-semibold"><?php echo htmlspecialchars($r['message']); ?></h6>
-                                            <p class="mb-0 small text-muted">
-                                                <i class="far fa-calendar-alt me-1"></i><?php echo htmlspecialchars($r['remind_at']); ?>
-                                                <span class="mx-2">•</span>
-                                                Lead: <strong><?php echo htmlspecialchars($r['lead_name'] ?? $r['lead_id']); ?></strong>
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <div class="text-center text-muted py-5">
-                                <i class="far fa-bell fa-3x mb-3 opacity-25"></i>
-                                <p>Nenhum lembrete encontrado.</p>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                    <?php if (true): ?>
-                        <div class="profile-list-footer">
-                            <button type="button" class="btn btn-outline-primary btn-sm profile-load-more" data-load-more="#profileRemindersList">
-                                <i class="fas fa-plus"></i> Carregar mais
-                            </button>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
         </div>
         </div><!-- /pane-perfil -->
 
         <!-- TAB: Fluxo de Atendimento -->
-        <div class="tab-pane fade" id="pane-fluxo" role="tabpanel">
+        <div class="tab-pane fade" id="pane-fluxo" role="tabpanel" hidden>
+
+            <?php
+                $profileProgressiveStages = array_values(array_filter($profile_funnel_stages, static fn($stage) => ($stage['final_type'] ?? 'none') !== 'lost'));
+                $profileLostStages = array_values(array_filter($profile_funnel_stages, static fn($stage) => ($stage['final_type'] ?? 'none') === 'lost'));
+                $profileStageDescriptions = [
+                    'Em Atendimento' => 'Realize o primeiro contato, entenda a necessidade do cliente, confirme os dados essenciais e combine o próximo passo do atendimento.',
+                    'Qualificado' => 'Valide o perfil, a necessidade, o prazo e as condições do cliente. Com essas informações confirmadas, prepare a solução e a proposta adequadas.',
+                    'Proposta Enviada' => 'Apresente a proposta e confirme que o cliente a recebeu e compreendeu. Registre dúvidas, objeções e a data combinada para retorno.',
+                    'Em Negociação' => 'Conduza a negociação, esclareça objeções e alinhe escopo, valores e condições. Registre os acordos e mantenha uma próxima ação definida.',
+                    'Financiamento' => 'Reúna e confira os dados e documentos necessários, encaminhe a análise financeira e acompanhe a aprovação. Mantenha o cliente informado sobre pendências e prazos.',
+                    'Consórcio' => 'Apresente a modalidade e simule opções compatíveis com o perfil do cliente. Registre crédito, prazo e parcela de interesse para orientar a decisão.',
+                    'Assinatura' => 'Confirme o aceite das condições, revise os dados e conduza a documentação até a assinatura. Acompanhe eventuais pendências para concluir o fechamento.',
+                    'Aguardará' => 'Registre o motivo da espera e o prazo indicado pelo cliente. Agende o retorno para a data combinada e retome o contato nesse momento.',
+                ];
+                $normalizeProfileStageName = static function ($name) {
+                    $name = trim((string)$name);
+                    if (function_exists('mb_strtolower')) $name = mb_strtolower($name, 'UTF-8');
+                    else $name = strtolower($name);
+                    if (function_exists('iconv')) {
+                        $asciiName = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name);
+                        if ($asciiName !== false) $name = $asciiName;
+                    }
+                    return strtolower($name);
+                };
+                $profileStageDescriptionsNormalized = [];
+                foreach ($profileStageDescriptions as $descriptionStageName => $descriptionText) {
+                    $descriptionKey = $normalizeProfileStageName($descriptionStageName);
+                    $profileStageDescriptionsNormalized[$descriptionKey] = $descriptionText;
+                }
+                $describeUnmappedProfileStage = static function ($stageName, $finalType = 'none') use ($normalizeProfileStageName) {
+                    $name = $normalizeProfileStageName($stageName);
+                    if ($finalType === 'won') {
+                        return 'Etapa de fechamento concluído. Confirme o aceite e a documentação, registre o resultado e encaminhe as próximas providências ao cliente e à equipe responsável.';
+                    }
+                    if ($finalType === 'lost') {
+                        if (strpos($name, 'sem interesse') !== false) return 'Encerre o acompanhamento comercial quando o cliente confirmar que não deseja prosseguir. Registre as tentativas realizadas e o motivo informado.';
+                        if (strpos($name, 'desist') !== false) return 'Registre a decisão e o motivo da desistência, incluindo eventuais pendências ou objeções. Encerre as ações comerciais abertas e mantenha o histórico atualizado.';
+                        if (strpos($name, 'outra empresa') !== false || strpos($name, 'concorr') !== false) return 'Registre que o cliente optou por outro fornecedor e, se possível, o motivo da escolha. Essa informação ajuda a identificar oportunidades de melhoria.';
+                        return 'Etapa de encerramento sem venda. Registre o motivo e o contexto da decisão, conclua as ações pendentes e mantenha o histórico do lead para consulta.';
+                    }
+                    if (strpos($name, 'qualific') !== false) return 'Confirme necessidade, perfil, prazo e condições do cliente. Registre os critérios atendidos e as informações necessárias para avançar com uma proposta adequada.';
+                    if (strpos($name, 'proposta') !== false || strpos($name, 'orcamento') !== false) return 'Prepare ou apresente a proposta ao cliente, confirme o recebimento e registre dúvidas, ajustes solicitados e a próxima data de acompanhamento.';
+                    if (strpos($name, 'negoci') !== false) return 'Alinhe escopo, valores e condições, esclareça objeções e registre os acordos e pontos pendentes. Defina uma próxima ação com prazo.';
+                    if (strpos($name, 'financ') !== false || strpos($name, 'credito') !== false) return 'Confira os dados e documentos necessários, acompanhe a análise financeira e informe o cliente sobre o andamento, os prazos e eventuais pendências.';
+                    if (strpos($name, 'consor') !== false) return 'Apresente e simule opções compatíveis com o perfil do cliente. Registre crédito, prazo e parcela de interesse para orientar a decisão.';
+                    if (strpos($name, 'assin') !== false || strpos($name, 'contrato') !== false) return 'Revise as condições e os dados, conduza a documentação e acompanhe a assinatura. Registre pendências até a conclusão do fechamento.';
+                    if (strpos($name, 'aguard') !== false || strpos($name, 'retorno') !== false) return 'Registre o motivo da espera e a data combinada para retomar o contato. Agende a próxima ação e cumpra o prazo acordado com o cliente.';
+                    if (strpos($name, 'atendimento') !== false || strpos($name, 'novo') !== false || strpos($name, 'entrada') !== false || strpos($name, 'contato') !== false) return 'Faça contato com o cliente, compreenda sua necessidade, confirme os dados essenciais e registre a próxima ação do atendimento.';
+                    return 'Conduza o lead conforme o objetivo desta etapa, registre as interações e informações relevantes e defina a próxima ação necessária para avançar ou concluir o atendimento.';
+                };
+            ?>
 
             <!-- Fluxo de Venda Progressivo -->
             <h5 class="fw-bold mb-4" style="font-size:1.25rem;">
@@ -1586,6 +1819,31 @@ include __DIR__ . '/includes/sidebar.php';
             </h5>
 
             <div class="row g-4 mb-5">
+                <?php if (!empty($profileProgressiveStages)): ?>
+                    <?php foreach ($profileProgressiveStages as $stageIndex => $stage): ?>
+                        <?php
+                            $stageName = trim((string)($stage['name'] ?? ''));
+                            $stageDescriptionKey = $normalizeProfileStageName($stageName);
+                            $stageDescription = $profileStageDescriptionsNormalized[$stageDescriptionKey] ?? $describeUnmappedProfileStage($stageName, $stage['final_type'] ?? 'none');
+                        ?>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="fluxo-card" style="border-left-color:<?= htmlspecialchars($stage['color'] ?: '#3b82f6') ?>;">
+                                <div class="fluxo-card-header">
+                                    <span class="fluxo-number" style="background:<?= htmlspecialchars($stage['color'] ?: '#e2e8f0') ?>22;color:<?= htmlspecialchars($stage['color'] ?: '#475569') ?>;"><?= $stageIndex + 1 ?></span>
+                                    <?php if (($stage['final_type'] ?? 'none') === 'won'): ?><span class="fluxo-badge fluxo-badge-success" style="background:#dcfce7;color:#15803d;">SUCESSO</span><?php endif; ?>
+                                </div>
+                                <h6 class="fw-bold mb-2"><?= htmlspecialchars($stageName) ?></h6>
+                                <p class="text-muted small mb-0"><?= htmlspecialchars($stageDescription) ?></p>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="col-12"><p class="text-muted">Nenhuma etapa de venda cadastrada no funil.</p></div>
+                <?php endif; ?>
+            </div>
+
+            <?php if (false): // Conteúdo fixo legado; o fluxo visível vem exclusivamente do funil configurado. ?>
+            <div class="legacy-fixed-flow">
                 <!-- 1 - Em Atendimento -->
                 <div class="col-lg-4 col-md-6">
                     <div class="fluxo-card fluxo-border-green">
@@ -1732,12 +1990,77 @@ include __DIR__ . '/includes/sidebar.php';
                 </div>
             </div>
 
+            </div>
+            <?php endif; ?>
+
+            <h5 class="fw-bold mb-4" style="font-size:1.25rem;">
+                <i class="fas fa-times-circle me-2 text-danger"></i>Status de Perda ou Desistência
+            </h5>
+            <div class="row g-4">
+                <?php if (!empty($profileLostStages)): ?>
+                    <?php foreach ($profileLostStages as $stageIndex => $stage): ?>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="fluxo-card fluxo-border-red">
+                                <div class="fluxo-card-header">
+                                    <span class="fluxo-number fluxo-number-red"><?= $stageIndex + 1 ?></span>
+                                    <span class="fluxo-badge fluxo-badge-red">PERDA</span>
+                                </div>
+                                <?php
+                                    $stageName = trim((string)($stage['name'] ?? ''));
+                                    $stageDescriptionKey = $normalizeProfileStageName($stageName);
+                                    $stageDescription = $profileStageDescriptionsNormalized[$stageDescriptionKey] ?? $describeUnmappedProfileStage($stageName, 'lost');
+                                ?>
+                                <h6 class="fw-bold mb-2"><?= htmlspecialchars($stageName) ?></h6>
+                                <p class="text-muted small mb-0"><?= htmlspecialchars($stageDescription) ?></p>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="col-12"><p class="text-muted">Nenhum status de perda ou desistência cadastrado no funil.</p></div>
+                <?php endif; ?>
+            </div>
+
         </div><!-- /pane-fluxo -->
         </div><!-- /tab-content -->
+
+        <script>
+        (function () {
+            const tabs = document.getElementById('perfilTabs');
+            const panes = {
+                'tab-perfil': document.getElementById('pane-perfil'),
+                'tab-fluxo': document.getElementById('pane-fluxo')
+            };
+            if (!tabs || !panes['tab-perfil'] || !panes['tab-fluxo']) return;
+
+            const profileOnlySections = document.getElementById('profileOnlySections');
+            if (profileOnlySections && !panes['tab-perfil'].contains(profileOnlySections)) {
+                panes['tab-perfil'].appendChild(profileOnlySections);
+            }
+
+            tabs.addEventListener('click', function (event) {
+                const button = event.target.closest('[data-bs-target]');
+                if (!button || !panes[button.id]) return;
+
+                Object.entries(panes).forEach(function ([buttonId, pane]) {
+                    const isActive = buttonId === button.id;
+                    pane.hidden = !isActive;
+                    pane.style.setProperty('display', isActive ? 'block' : 'none', 'important');
+                    pane.classList.toggle('show', isActive);
+                    pane.classList.toggle('active', isActive);
+                    const tabButton = document.getElementById(buttonId);
+                    tabButton.classList.toggle('active', isActive);
+                    tabButton.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+                document.getElementById('perfilTabContent').dataset.activePane = button.id === 'tab-fluxo' ? 'fluxo' : 'perfil';
+            });
+        })();
+        </script>
 
     </div>
 </main>
 
+<script src="assets/js/chart.min.js"></script>
+<script src="assets/js/profile_insights.js?v=20261015-4" defer></script>
 <script type="module">
     const PROFILE_USER_ID = <?php echo json_encode($user_id); ?>;
     const usersMap = <?php echo json_encode($usersMap ?? []); ?>;
@@ -1814,6 +2137,9 @@ include __DIR__ . '/includes/sidebar.php';
             const view = it.querySelector('.view-mode');
             const input = it.querySelector('.edit-mode input, .edit-mode textarea, .edit-mode select');
             if (!field || !view || !input) return;
+            // O select ja vem com o valor canonico selecionado pelo PHP. O texto exibido
+            // no modo leitura e um rotulo (ex.: "Copiloto"), nao o value da opcao.
+            if (field === 'ai_bot_mode') return;
             if (field === 'biografia') {
                 input.value = (view.innerHTML || '').replace(/<br\s*\/?>/gi, '\n').replace(/&nbsp;/g, ' ').trim();
             } else {
@@ -1854,10 +2180,11 @@ include __DIR__ . '/includes/sidebar.php';
             it.querySelector('.view-mode')?.classList.remove('d-none');
             it.querySelector('.edit-mode')?.classList.add('d-none');
         });
-        btnInline.innerHTML = '<i class="fas fa-pen"></i>';
+        btnInline.innerHTML = '<i class="fas fa-pen" aria-hidden="true"></i><span>Editar</span>';
+        btnInline.title = 'Editar informações pessoais';
         btnInline.disabled = false;
         const cancelBtn = document.getElementById('btnInlineCancel');
-        if (cancelBtn) cancelBtn.remove();
+        cancelBtn?.classList.add('d-none');
     }
     function bindLoadMoreLists(scope = document) {
         scope.querySelectorAll('[data-load-more]').forEach(button => {
@@ -1897,7 +2224,7 @@ include __DIR__ . '/includes/sidebar.php';
         if (!wrap) return;
         if (page === 1) wrap.innerHTML = '<div class="profile-loading-state"><div><i class="fas fa-circle-notch fa-spin mb-2"></i><div class="small">Carregando dados</div></div></div>';
         try {
-            const res = await fetch('api/profile_data.php?section=' + encodeURIComponent(section) + '&page=' + page + '&limit=10');
+            const res = await fetch('api/profile_data.php?section=' + encodeURIComponent(section) + '&page=' + page + '&limit=5');
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.message || 'Falha ao carregar');
             if (page === 1) wrap.innerHTML = '';
@@ -1922,7 +2249,6 @@ include __DIR__ . '/includes/sidebar.php';
     }
 
     document.addEventListener('DOMContentLoaded', ()=>{
-        bindLoadMoreLists();
         ['tasks','leads','projects','movements','reminders'].forEach(section => loadProfileSection(section));
         // Avatar upload handlers
         const avatarInput = document.getElementById('avatarInput');
@@ -2128,18 +2454,35 @@ include __DIR__ . '/includes/sidebar.php';
     document.addEventListener('DOMContentLoaded', ()=>{
         hydrateInlineProfileViewFromHeader();
         const btnInline = document.getElementById('btnInlineEditProfile');
+        const cancelBtn = document.getElementById('btnInlineCancel');
         if (!btnInline) return;
         let editing = false;
+        cancelBtn?.addEventListener('click', () => {
+            if (!editing) return;
+            exitInlineProfileEdit(btnInline);
+            editing = false;
+        });
         btnInline.addEventListener('click', async ()=>{
             const items = document.querySelectorAll('.profile-info-item');
             if (!editing) {
                 // enter edit mode
                 syncInlineProfileInputsFromView();
+                const modeSelect = document.querySelector('.ai-bot-mode-select');
+                if (modeSelect) {
+                    let currentMode = modeSelect.dataset.currentMode || modeSelect.value || 'chatbot3';
+                    try {
+                        const response = await fetch('api/get_my_profile.php', { credentials: 'same-origin' });
+                        const data = await response.json();
+                        if (response.ok && data.success && data.user?.ai_bot_mode) currentMode = data.user.ai_bot_mode;
+                    } catch (error) { /* Mantem o valor carregado com a pagina. */ }
+                    if (currentMode === 'speech') currentMode = 'body';
+                    modeSelect.value = Array.from(modeSelect.options).some(option => option.value === currentMode) ? currentMode : 'chatbot3';
+                    modeSelect.dataset.currentMode = modeSelect.value;
+                }
                 items.forEach(it=>{ it.querySelector('.view-mode')?.classList.add('d-none'); it.querySelector('.edit-mode')?.classList.remove('d-none'); });
-                btnInline.innerHTML = '<i class="fas fa-check"></i>';
-                const cancelBtn = document.createElement('button'); cancelBtn.type='button'; cancelBtn.className='btn btn-sm btn-outline-secondary ms-2'; cancelBtn.id='btnInlineCancel'; cancelBtn.innerHTML='<i class="fas fa-times"></i>';
-                btnInline.insertAdjacentElement('afterend', cancelBtn);
-                cancelBtn.addEventListener('click', ()=>{ location.reload(); });
+                btnInline.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i><span>Salvar</span>';
+                btnInline.title = 'Salvar informações pessoais';
+                cancelBtn?.classList.remove('d-none');
                 editing = true;
             } else {
                 const fd = new FormData();
@@ -2167,6 +2510,8 @@ include __DIR__ . '/includes/sidebar.php';
                         window.__cacheAiAssistantAvatarMode(String(savedBotMode));
                     }
                     applyInlineProfileData(json.profile || {});
+                    const modeSelect = document.querySelector('.ai-bot-mode-select');
+                    if (modeSelect && json.profile?.ai_bot_mode) modeSelect.dataset.currentMode = json.profile.ai_bot_mode;
                     exitInlineProfileEdit(btnInline);
                     editing = false;
                 } catch(e){

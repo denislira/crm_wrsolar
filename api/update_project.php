@@ -10,6 +10,7 @@ include '../includes/config.php';
 include '../includes/permissions.php';
 require_once '../includes/project_post_sale_automation.php';
 require_once '../includes/movements.php';
+require_once '../includes/financeiro_crm_sync.php';
 
 function normalizeProjectDecimal($value, $emptyValue = 0.0) {
     $raw = trim((string)$value);
@@ -272,6 +273,7 @@ try {
     // This keeps migration timing consistent without relying on a page reload.
     $automationUserId = (int)($prevProject['user_id'] ?? $_SESSION['user_id']);
     runProjectPostSaleAutomation($pdo, $automationUserId);
+    financeiro_sincronizar_projeto($pdo, $id);
 
     echo json_encode(['success' => true, 'message' => 'Projeto atualizado com sucesso']);
 } catch (Exception $e) {

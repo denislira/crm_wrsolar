@@ -1,0 +1,4 @@
+Tipo,Numero,Emissao,Contraparte,Valor,Observacao
+saida,NF-S-115,06/10/2026,Renato Ruso,10700.00,Nota fiscal de saída da entrada
+entrada,NF-E-115,06/10/2026,Fornecedor teste,27100.00,Nota fiscal de entrada do kit
+direta,NF-D-115,06/10/2026,Renato Ruso,8000.00,Nota fiscal direta da parcela
