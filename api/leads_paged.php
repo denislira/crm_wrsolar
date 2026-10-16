@@ -34,7 +34,21 @@ if (is_array($gridFilters)) {
     if (!empty($gridFilters['status'])) {
         $statuses=is_array($gridFilters['status'])?$gridFilters['status']:[$gridFilters['status']];
         $statuses=array_values(array_filter(array_map('strval',$statuses)));
-        if($statuses){$where[]='EXISTS(SELECT 1 FROM funil_stages fs WHERE fs.id=l.stage_id AND fs.stage_name IN ('.implode(',',array_fill(0,count($statuses),'?')).')'; array_push($params,...$statuses);}
+        if($statuses){$where[]='EXISTS(SELECT 1 FROM funil_stages fs WHERE fs.id=l.stage_id AND fs.stage_name IN ('.implode(',',array_fill(0,count($statuses),'?')).'))'; array_push($params,...$statuses);}
+    }
+    // Header filters are applied before pagination, so they search the full dataset.
+    if (isset($gridFilters['score']) && trim((string)$gridFilters['score']) !== '') {
+        $scoreText = trim((string)$gridFilters['score']);
+        if (ctype_digit($scoreText)) {
+            $scoreSql = '((l.email IS NOT NULL AND l.email<>\'\')*20+(l.phone IS NOT NULL AND l.phone<>\'\')*20+(l.consumo_cliente IS NOT NULL AND l.consumo_cliente<>\'\')*15+(l.estimativa_projeto_kwh IS NOT NULL AND l.estimativa_projeto_kwh<>\'\')*10+(CHAR_LENGTH(COALESCE(l.notes,\'\'))>40)*10+(l.source IS NOT NULL AND l.source<>\'\')*10)';
+            $where[] = "$scoreSql = ?";
+            $params[] = (int)$scoreText;
+        }
+    }
+    if (isset($gridFilters['valor']) && trim((string)$gridFilters['valor']) !== '') {
+        $value = trim((string)$gridFilters['valor']);
+        $where[] = 'CAST(COALESCE(l.orcamento_value,0) AS CHAR) LIKE ?';
+        $params[] = '%' . $value . '%';
     }
     foreach (['criado'=>'COALESCE(l.data_inicio,l.created_at)','ultimo_contato'=>'l.ultimo_contato'] as $key=>$column) {
         $range=$gridFilters[$key]??null; if(!is_array($range)) continue;

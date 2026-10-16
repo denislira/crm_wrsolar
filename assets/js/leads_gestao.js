@@ -2262,7 +2262,9 @@
                 // build input depending on key
                 if (key === 'status') {
                     // Multi-select checkboxes para status
-                    const uniqueStatuses = [...new Set(allLeads.map(l=>getStageName(l.stage_id)).filter(s=>s))].sort();
+                    // Status options must come from the complete stages catalog,
+                    // not from the records loaded on the current table page.
+                    const uniqueStatuses = [...new Set((STAGES || []).map(s => s.name || s.stage_name).filter(s=>s))].sort();
                     const currentFilters = Array.isArray(GRID_FILTERS[key]) ? GRID_FILTERS[key] : (GRID_FILTERS[key] ? [GRID_FILTERS[key]] : []);
                     
                     // Quick action buttons (Select All / Clear All)
