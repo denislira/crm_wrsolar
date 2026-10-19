@@ -34,7 +34,10 @@ if (is_array($gridFilters)) {
     if (!empty($gridFilters['status'])) {
         $statuses=is_array($gridFilters['status'])?$gridFilters['status']:[$gridFilters['status']];
         $statuses=array_values(array_filter(array_map('strval',$statuses)));
-        if($statuses){$where[]='EXISTS(SELECT 1 FROM funil_stages fs WHERE fs.id=l.stage_id AND fs.stage_name IN ('.implode(',',array_fill(0,count($statuses),'?')).'))'; array_push($params,...$statuses);}
+        if($statuses){
+            $ids=array_values(array_filter($statuses,static fn($status)=>ctype_digit($status)));
+            if($ids){$where[]='l.stage_id IN ('.implode(',',array_fill(0,count($ids),'?')).')'; array_push($params,...array_map('intval',$ids));}
+        }
     }
     // Header filters are applied before pagination, so they search the full dataset.
     if (isset($gridFilters['score']) && trim((string)$gridFilters['score']) !== '') {
@@ -71,7 +74,7 @@ try {
         $sql="SELECT COALESCE(l.stage_id,0) stage_id,COUNT(*) total,COALESCE(SUM(l.orcamento_value),0) value,COALESCE(SUM(CASE WHEN fs.id IS NULL OR fs.include_in_forecast=1 THEN l.orcamento_value ELSE 0 END),0) pipeline_value FROM leads l LEFT JOIN funil_stages fs ON fs.id=l.stage_id WHERE $whereSql GROUP BY COALESCE(l.stage_id,0)";
         $st=$pdo->prepare($sql); $st->execute($params); $stages=$st->fetchAll(PDO::FETCH_ASSOC);
         $total=0; $value=0.0; foreach($stages as $row){$total+=(int)$row['total'];$value+=(float)$row['pipeline_value'];}
-        echo json_encode(['success'=>true,'total'=>$total,'value'=>$value,'stages'=>$stages],JSON_UNESCAPED_UNICODE); exit;
+        echo json_encode(['success'=>true,'total'=>$total,'value'=>$value,'stages'=>$stages],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE|JSON_THROW_ON_ERROR); exit;
     }
     $sortMap=['name'=>'l.name','source'=>'l.source','status'=>'l.status','phone'=>'l.phone','valor'=>'l.orcamento_value','criado'=>'COALESCE(l.data_inicio,l.created_at)','ultimo_contato'=>'l.ultimo_contato'];
     $defaultSort = $mode === 'stage' ? 'l.updated_at' : 'l.created_at';
@@ -80,5 +83,5 @@ try {
     $sql="SELECT $fields FROM leads l WHERE $whereSql ORDER BY $sort $dir, l.id DESC LIMIT $limit OFFSET $offset";
     $st=$pdo->prepare($sql); $st->execute($params); $items=$st->fetchAll(PDO::FETCH_ASSOC);
     foreach($items as &$item){$item['anexos_files']=[];} unset($item);
-    echo json_encode(['success'=>true,'items'=>$items,'page'=>$page,'limit'=>$limit,'total'=>$total,'pages'=>(int)ceil($total/$limit),'has_more'=>$offset+count($items)<$total],JSON_UNESCAPED_UNICODE);
-} catch(Throwable $e) { http_response_code(500); echo json_encode(['success'=>false,'error'=>'Falha ao carregar leads']); }
+    echo json_encode(['success'=>true,'items'=>$items,'page'=>$page,'limit'=>$limit,'total'=>$total,'pages'=>(int)ceil($total/$limit),'has_more'=>$offset+count($items)<$total],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE|JSON_THROW_ON_ERROR);
+} catch(Throwable $e) { error_log('leads_paged: '.$e->getMessage()); http_response_code(500); echo json_encode(['success'=>false,'error'=>'Falha ao carregar leads']); }
