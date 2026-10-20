@@ -24,6 +24,9 @@ include_once 'includes/settings_storage.php';
   <script>
     (function () {
       try {
+        if (sessionStorage.getItem('wrcrm.navigationLoading') === '1') {
+          document.documentElement.classList.add('wrcrm-navigation-loading');
+        }
         var darkMode = localStorage.getItem('theme.mode') === 'dark' || localStorage.getItem('darkMode') === '1';
         if (!darkMode) return;
         document.documentElement.setAttribute('data-theme', 'dark');
@@ -586,6 +589,11 @@ include_once 'includes/settings_storage.php';
     object-position: center;
     border: 2px solid rgba(11, 106, 193, .18);
     background: #eef4fa;
+  }
+
+  /* Avoid flashing the logged-in user's photo while a new page is being painted. */
+  html.wrcrm-navigation-loading .navbar-user-greeting {
+    visibility: hidden !important;
   }
 
   @media (max-width: 767.98px) {

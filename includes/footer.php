@@ -13,9 +13,13 @@
           try {
             const targetPath = new URL(href, window.location.href).pathname;
             if (targetPath !== window.location.pathname) {
+              sessionStorage.setItem('wrcrm.navigationLoading', '1');
+              document.documentElement.classList.add('wrcrm-navigation-loading');
               overlay.classList.add('active');
             }
           } catch (err) {
+            sessionStorage.setItem('wrcrm.navigationLoading', '1');
+            document.documentElement.classList.add('wrcrm-navigation-loading');
             overlay.classList.add('active');
           }
         });
@@ -24,11 +28,21 @@
       // Hide loading when page fully loaded
       window.addEventListener('load', function() {
         overlay.classList.remove('active');
+        sessionStorage.removeItem('wrcrm.navigationLoading');
+        document.documentElement.classList.remove('wrcrm-navigation-loading');
+      });
+
+      // Restored pages may come from the browser's back-forward cache.
+      window.addEventListener('pageshow', function() {
+        sessionStorage.removeItem('wrcrm.navigationLoading');
+        document.documentElement.classList.remove('wrcrm-navigation-loading');
       });
       
       // Fallback: hide after 5 seconds in case something goes wrong
       setTimeout(function() {
         overlay.classList.remove('active');
+        sessionStorage.removeItem('wrcrm.navigationLoading');
+        document.documentElement.classList.remove('wrcrm-navigation-loading');
       }, 5000);
     })();
     
