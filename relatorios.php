@@ -1731,6 +1731,8 @@ body.theme-dark .funnel-visual-shell,body.dark-mode .funnel-visual-shell{color:#
 @media(max-width:860px){.funnel-visual-shell{padding:1.25rem .9rem}.funnel-visual-overview{width:100%;gap:11px}.funnel-visual-overview>i{font-size:1.45rem}.funnel-visual-overview>strong{font-size:1.1rem}.funnel-visual-overview>p{font-size:.8rem}.funnel-visual-grid{grid-template-columns:1fr 1fr;align-items:stretch}.funnel-visual-center{grid-column:1/-1;grid-row:1}.funnel-visual-waiting,.funnel-visual-loss{grid-row:2}.funnel-visual-step{width:var(--step-width)}}
 @media(max-width:575px){.funnel-visual-title h2{font-size:1.8rem}.funnel-visual-overview{display:grid;grid-template-columns:auto 1fr;min-height:auto;text-align:left}.funnel-visual-overview>span{display:none}.funnel-visual-overview>p{grid-column:2}.funnel-visual-grid{grid-template-columns:1fr;gap:1rem}.funnel-visual-center,.funnel-visual-waiting,.funnel-visual-loss{grid-column:1;grid-row:auto}.funnel-visual-center{order:1}.funnel-visual-waiting{order:2}.funnel-visual-loss{order:3}.funnel-visual-step{width:100%;min-height:72px;grid-template-columns:42px minmax(0,1fr) 75px;gap:9px;padding:8px 18px;clip-path:polygon(0 0,100% 0,96% 100%,4% 100%)}.funnel-visual-step-icon{width:38px;height:38px;font-size:1rem}.funnel-visual-step-metric{padding-left:10px}.funnel-visual-step-metric b{font-size:1.2rem}}
 .funnel-visual-overview{margin-bottom:2rem}.funnel-visual-waiting::after{display:none}
+.funnel-visual-overview{width:min(600px,65%)}
+.funnel-visual-overview{width:clamp(520px,38vw,760px)}
 .funnel-visual-connectors{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;overflow:visible}.funnel-visual-title,.funnel-visual-overview,.funnel-visual-grid{position:relative;z-index:4}.funnel-connector-path{fill:none;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;filter:url(#funnelArrowGlow);opacity:.9}.funnel-connector-path.waiting{stroke:url(#funnelArrowWaiting)}.funnel-connector-path.center{stroke:url(#funnelArrowCenter);stroke-width:4.2}.funnel-connector-path.loss{stroke:url(#funnelArrowLoss)}.funnel-connector-origin{vector-effect:non-scaling-stroke;stroke-width:3;filter:url(#funnelArrowGlow)}.funnel-connector-origin.waiting{fill:#fff7e6;stroke:#f59e0b}.funnel-connector-origin.center{fill:#eef8ff;stroke:#1687e8}.funnel-connector-origin.loss{fill:#fff0f1;stroke:#e62d36}body.theme-dark .funnel-visual-connectors,body.dark-mode .funnel-visual-connectors{opacity:.88}@media(max-width:860px){.funnel-visual-connectors{display:none}}
 .funnel-stage-wrapper:nth-child(1) { animation-delay: 0.1s; }
 .funnel-stage-wrapper:nth-child(2) { animation-delay: 0.2s; }
@@ -3887,11 +3889,11 @@ function renderIllustratedFunnel() {
                 <filter id="funnelArrowGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
             </defs>
             <circle class="funnel-connector-origin waiting" cx="205" cy="350" r="5"/>
-            <path class="funnel-connector-path waiting" d="M205 350 C190 275 270 205 430 145" marker-end="url(#funnelArrowWaitingHead)"/>
+            <path class="funnel-connector-path waiting" d="M205 350 C190 250 245 145 335 76" marker-end="url(#funnelArrowWaitingHead)"/>
             <circle id="funnelCenterOrigin" class="funnel-connector-origin center" cx="600" cy="355" r="5"/>
-            <path id="funnelCenterConnector" class="funnel-connector-path center" d="M600 355 C600 275 600 175 600 104" marker-end="url(#funnelArrowCenterHead)"/>
+            <path id="funnelCenterConnector" class="funnel-connector-path center" d="M600 355 C600 275 600 155 600 54" marker-end="url(#funnelArrowCenterHead)"/>
             <circle class="funnel-connector-origin loss" cx="995" cy="315" r="5"/>
-            <path class="funnel-connector-path loss" d="M995 315 C1010 250 930 205 770 145" marker-end="url(#funnelArrowLossHead)"/>
+            <path class="funnel-connector-path loss" d="M995 315 C1010 235 955 145 865 76" marker-end="url(#funnelArrowLossHead)"/>
         </svg>
         <header class="funnel-visual-title"><h2>Total do Funil <strong>${formatNumber(total)}</strong></h2><p>Visão geral do fluxo de leads no período</p></header>
         <div id="funnelVisualOverview" class="funnel-visual-overview">
