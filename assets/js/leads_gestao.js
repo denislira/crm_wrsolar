@@ -218,7 +218,17 @@
         if (CURRENT_CIDADE_FILTER) p.set('city', CURRENT_CIDADE_FILTER);
         if (CURRENT_DATE_FROM) p.set('date_from', CURRENT_DATE_FROM);
         if (CURRENT_DATE_TO) p.set('date_to', CURRENT_DATE_TO);
-        if (GRID_FILTERS && Object.keys(GRID_FILTERS).length) p.set('grid_filters', JSON.stringify(GRID_FILTERS));
+        if (GRID_FILTERS && Object.keys(GRID_FILTERS).length) {
+            const filters = {...GRID_FILTERS};
+            if (filters.status) {
+                const selected = Array.isArray(filters.status) ? filters.status : [filters.status];
+                filters.status = selected.map(value => {
+                    const stage = STAGES.find(s => s.name === value || String(s.id) === String(value));
+                    return stage ? String(stage.id) : value;
+                });
+            }
+            p.set('grid_filters', JSON.stringify(filters));
+        }
         return p;
     }
 
@@ -2264,7 +2274,7 @@
                     // Multi-select checkboxes para status
                     // Status options must come from the complete stages catalog,
                     // not from the records loaded on the current table page.
-                    const uniqueStatuses = [...new Set((STAGES || []).map(s => s.name || s.stage_name).filter(s=>s))].sort();
+                    const uniqueStatuses = (STAGES || []).filter(s => s.name && String(s.id) !== '0');
                     const currentFilters = Array.isArray(GRID_FILTERS[key]) ? GRID_FILTERS[key] : (GRID_FILTERS[key] ? [GRID_FILTERS[key]] : []);
                     
                     // Quick action buttons (Select All / Clear All)
@@ -2303,13 +2313,13 @@
                         const checkbox = document.createElement('input');
                         checkbox.type = 'checkbox';
                         checkbox.className = 'form-check-input';
-                        checkbox.value = s;
-                        checkbox.id = 'status-filter-' + s.replace(/\s+/g, '-');
-                        checkbox.checked = currentFilters.includes(s);
+                        checkbox.value = String(s.id);
+                        checkbox.id = 'status-filter-' + s.id;
+                        checkbox.checked = currentFilters.includes(String(s.id)) || currentFilters.includes(s.name);
                         const label = document.createElement('label');
                         label.className = 'form-check-label';
                         label.htmlFor = checkbox.id;
-                        label.textContent = s;
+                        label.textContent = s.name;
                         label.style.cursor = 'pointer';
                         wrapper.appendChild(checkbox);
                         wrapper.appendChild(label);
@@ -2392,7 +2402,7 @@
                     const f = GRID_FILTERS[k]; if (f === null || f === undefined || f === '') continue;
                     if (k === 'status') {
                         const statusArray = Array.isArray(f) ? f : (f ? [f] : []);
-                        if (statusArray.length > 0 && !statusArray.includes(getStageName(lead.stage_id))) return false;
+                        if (statusArray.length > 0 && !statusArray.some(status => String(status) === String(lead.stage_id) || status === getStageName(lead.stage_id))) return false;
                     } else if (k === 'criado' || k === 'ultimo_contato') {
                         const dt = (k === 'criado') ? (lead.data_inicio || lead.created_at || lead.createdAt || lead.created) : (lead.ultimo_contato);
                         if (!dt) return false;
