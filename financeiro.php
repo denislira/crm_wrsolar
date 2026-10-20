@@ -10,6 +10,8 @@ checkAccessOrRedirect('financeiro');
 
 $syncNotice = '';
 $syncError = '';
+$manualNotice = '';
+$manualError = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['action'] ?? '') === 'sincronizar_concluidos') {
     try {
         fin_check_token();
@@ -27,6 +29,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['action'] ?? '') ==
         $syncError = 'Não foi possível sincronizar os leads concluídos: ' . $e->getMessage();
         error_log('Financeiro backfill web: ' . $e->getMessage());
     }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['action'] ?? '') === 'adicionar_cliente') {
+    try {
+        fin_check_token();
+        $clientName = trim((string)($_POST['client_name'] ?? ''));
+        $amount = fin_number($_POST['valor_negociado'] ?? '');
+        $payment = trim((string)($_POST['forma_pagamento'] ?? ''));
+        if ($clientName === '' || $amount === null || $amount <= 0 || $payment === '') throw new InvalidArgumentException('Informe cliente, valor da venda e forma de pagamento.');
+        $stmt = $pdo->prepare('INSERT INTO financeiro_vendas (owner_user_id, origem, status, client_name, cpf_cnpj, phone, email, cidade, vendedor, valor_negociado, forma_pagamento, data_venda, observacoes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([(int)$_SESSION['user_id'], 'manual', 'aguardando_conferencia', $clientName, trim((string)($_POST['cpf_cnpj'] ?? '')) ?: null, trim((string)($_POST['phone'] ?? '')) ?: null, trim((string)($_POST['email'] ?? '')) ?: null, trim((string)($_POST['cidade'] ?? '')) ?: null, trim((string)($_POST['vendedor'] ?? '')) ?: null, $amount, $payment, trim((string)($_POST['data_venda'] ?? '')) ?: null, trim((string)($_POST['observacoes'] ?? '')) ?: null]);
+        $manualNotice = 'Cliente adicionado ao Financeiro e enviado para conferência.';
+    } catch (Throwable $e) { $manualError = $e->getMessage(); }
 }
 
 $tableExists = false;
@@ -108,6 +123,8 @@ include __DIR__ . '/includes/sidebar.php';
     <?php if (!$tableExists): ?>
       <div class="alert alert-warning">A base do Financeiro ainda não foi instalada. Execute a migração <code>database/create_financeiro_base.sql</code>.</div>
     <?php else: ?>
+      <div class="d-flex justify-content-end mb-3"><button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#adicionarClienteFinanceiro">+ Adicionar cliente</button></div>
+      <div class="collapse mb-4 <?= $manualError ? 'show' : '' ?>" id="adicionarClienteFinanceiro"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><strong>Adicionar cliente ao Financeiro</strong><div class="small text-muted">O cadastro será criado como “Aguardando conferência” e poderá ser revisado antes do aceite.</div></div><form method="post" class="card-body row g-3"><input type="hidden" name="action" value="adicionar_cliente"><input type="hidden" name="csrf" value="<?= financeiro_h(fin_token()) ?>"><div class="col-md-6"><label class="form-label">Cliente *</label><input class="form-control" name="client_name" required maxlength="255"></div><div class="col-md-3"><label class="form-label">CPF / CNPJ</label><input class="form-control" name="cpf_cnpj" maxlength="20"></div><div class="col-md-3"><label class="form-label">Telefone</label><input class="form-control" name="phone" maxlength="50"></div><div class="col-md-4"><label class="form-label">E-mail</label><input class="form-control" type="email" name="email" maxlength="255"></div><div class="col-md-4"><label class="form-label">Cidade</label><input class="form-control" name="cidade" maxlength="255"></div><div class="col-md-4"><label class="form-label">Vendedor / indicador</label><input class="form-control" name="vendedor" maxlength="255"></div><div class="col-md-3"><label class="form-label">Valor negociado *</label><input class="form-control" name="valor_negociado" inputmode="decimal" placeholder="R$ 0,00" required></div><div class="col-md-3"><label class="form-label">Forma de pagamento *</label><input class="form-control" name="forma_pagamento" maxlength="255" required></div><div class="col-md-3"><label class="form-label">Data da venda</label><input class="form-control" type="date" name="data_venda"></div><div class="col-12"><label class="form-label">Observações</label><textarea class="form-control" name="observacoes" rows="2"></textarea></div><div class="col-12 d-flex justify-content-end gap-2"><button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#adicionarClienteFinanceiro">Cancelar</button><button class="btn btn-primary">Adicionar cliente</button></div></form></div></div>
       <div class="row g-3 mb-4">
         <div class="col-sm-6 col-xl"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">Vendas cadastradas</div><div class="fs-3 fw-bold"><?= $totals['total'] ?></div></div></div></div>
         <div class="col-sm-6 col-xl"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">Aguardando conferência</div><div class="fs-3 fw-bold text-primary"><?= $totals['aguardando_conferencia'] ?></div></div></div></div>

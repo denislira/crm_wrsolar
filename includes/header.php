@@ -38,7 +38,9 @@ include_once 'includes/settings_storage.php';
           '.navbar{background:#0b1220 !important;border-bottom:1px solid rgba(255,255,255,0.06) !important;}',
           '.app-sidebar{background:linear-gradient(180deg,#071427 0%, #0b1220 100%) !important;color:#e6eef8 !important;}',
           '.page-loading-overlay{background:rgba(7,10,16,0.94) !important;}',
-          '.btn-outline-secondary{background:transparent !important;border-color:rgba(255,255,255,0.12) !important;color:#e6eef8 !important;}'
+          '.btn-outline-secondary{background:transparent !important;border-color:rgba(255,255,255,0.12) !important;color:#e6eef8 !important;}',
+          'html.wrcrm-navigation-loading .navbar-user-greeting{visibility:hidden !important;}',
+          '.navbar-user-avatar{width:40px !important;height:40px !important;max-width:40px !important;max-height:40px !important;display:block !important;border-radius:50%;object-fit:cover;}'
         ].join('');
         document.head.appendChild(style);
       } catch (e) {

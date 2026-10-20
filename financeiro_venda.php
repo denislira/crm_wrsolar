@@ -225,7 +225,41 @@ body.theme-dark .fin-sale-section,
 body.theme-dark .fin-sale-page #fin-sale-form > .card-header,
 body.theme-dark .fin-sale-page #fin-sale-form fieldset,
 body.theme-dark .fin-side-card .card-header {
-  background: rgba(255,255,255,.03);
+  background: rgba(255,255,255,.03) !important;
+}
+
+body.theme-dark .fin-sale-page .fin-field .form-control,
+body.theme-dark .fin-sale-page #fin-sale-form .form-control,
+body.theme-dark .fin-sale-page #fin-sale-form .form-select {
+  background: rgba(15,23,42,.72) !important;
+  color: #e6eef8 !important;
+  border-color: rgba(255,255,255,.14) !important;
+}
+
+body.theme-dark .fin-sale-page .fin-field .form-control[readonly],
+body.theme-dark .fin-sale-page #fin-sale-form .form-control[readonly] {
+  background: rgba(255,255,255,.08) !important;
+  color: #cbd5e1 !important;
+}
+
+body.theme-dark .fin-sale-page #fin-sale-form fieldset legend,
+body.theme-dark .fin-sale-page #fin-sale-form label,
+body.theme-dark .fin-sale-page .fin-sale-section legend {
+  color: #dbeafe !important;
+}
+
+body.theme-dark .fin-sale-page .card,
+body.theme-dark .fin-sale-page .card-body,
+body.theme-dark .fin-sale-page .card-header,
+body.theme-dark .fin-sale-page .table,
+body.theme-dark .fin-sale-page .table > :not(caption) > * > * {
+  background-color: transparent;
+  color: #e6eef8;
+  border-color: rgba(255,255,255,.1);
+}
+
+body.theme-dark .fin-sale-page .card {
+  background-color: rgba(255,255,255,.04) !important;
 }
 body.theme-dark .fin-sale-form-header strong,
 body.theme-dark .fin-sale-page #fin-sale-form > .card-header strong,
