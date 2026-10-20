@@ -2025,6 +2025,31 @@
         closePanel(); await fetchLeads();
     }
 
+    async function openWhatsappConversation(lead) {
+        const phone = String(lead.phone || '').replace(/\D/g, '');
+        if (!phone) return alert('Este lead não possui telefone válido.');
+        const chatUrl = 'whatsapp_conversa.php?phone=' + encodeURIComponent(phone) + '&name=' + encodeURIComponent(lead.name || 'WhatsApp');
+        const chatWindow = window.open(chatUrl, 'wrcrm_whatsapp_' + phone, 'width=430,height=760,resizable=yes,scrollbars=no');
+        if (chatWindow) { chatWindow.focus(); return; }
+        let modal = document.getElementById('whatsappConversationModal');
+        if (!modal) {
+            modal = document.createElement('div'); modal.id = 'whatsappConversationModal'; modal.className = 'modal fade'; modal.tabIndex = -1;
+            modal.innerHTML = `<div class="modal-dialog modal-dialog-scrollable modal-dialog-end"><div class="modal-content whatsapp-chat-modal"><div class="modal-header"><div><h5 class="modal-title mb-0"><i class="fa-brands fa-whatsapp text-success me-2"></i><span class="wa-chat-name"></span></h5><small class="text-muted wa-chat-phone"></small></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body wa-chat-messages"></div><div class="modal-footer"><form class="w-100 d-flex gap-2 wa-chat-form"><input class="form-control wa-chat-input" maxlength="4096" placeholder="Digite uma mensagem..." autocomplete="off"><button class="btn btn-success" type="submit" title="Enviar"><i class="fa fa-paper-plane"></i></button></form></div></div></div>`;
+            document.body.appendChild(modal);
+            modal.querySelector('.wa-chat-form').addEventListener('submit', async (e) => {
+                e.preventDefault(); const input = modal.querySelector('.wa-chat-input'); const text = input.value.trim(); if (!text) return;
+                const btn = e.submitter; if (btn) btn.disabled = true;
+                try { const fd = new FormData(); fd.append('phone', modal.dataset.phone); fd.append('message', text); const res = await fetch('api/wa_conversation.php', {method:'POST', body:fd}); const data = await res.json(); if (!res.ok || !data.success) throw new Error(data.message || 'Falha ao enviar'); input.value=''; await loadWhatsappConversation(modal); } catch (err) { alert(err.message); } finally { if (btn) btn.disabled = false; }
+            });
+        }
+        modal.dataset.phone = phone; modal.querySelector('.wa-chat-name').textContent = lead.name || 'WhatsApp'; modal.querySelector('.wa-chat-phone').textContent = lead.phone || phone;
+        await loadWhatsappConversation(modal); bootstrap.Modal.getOrCreateInstance(modal).show();
+    }
+    async function loadWhatsappConversation(modal) {
+        const box = modal.querySelector('.wa-chat-messages'); box.innerHTML = '<div class="text-muted text-center">Carregando conversa...</div>';
+        try { const res = await fetch('api/wa_conversation.php?phone=' + encodeURIComponent(modal.dataset.phone)); const data = await res.json(); const rows = data.messages || []; box.innerHTML = rows.length ? rows.map(m => `<div class="wa-chat-bubble ${m.direction === 'out' ? 'out' : 'in'}">${escapeText(m.message_text)}<small>${escapeText(m.sent_at || '')}</small></div>`).join('') : '<div class="text-muted text-center py-5">Nenhuma mensagem de texto registrada.</div>'; box.scrollTop = box.scrollHeight; } catch(e) { box.innerHTML = '<div class="text-danger">Não foi possível carregar a conversa.</div>'; }
+    }
+
     function loadArchivedWhatsappModal() {
         const box = document.getElementById('archivedWhatsappList'); if (!box) return;
         box.innerHTML = '<div class="text-muted">Carregando...</div>';
@@ -2097,6 +2122,9 @@
         const quickActions = document.createElement('div');
         quickActions.className = 'lead-card-actions';
         if (isWhatsappInboxLead(lead)) {
+            const chatBtn = document.createElement('button'); chatBtn.className = 'btn btn-sm btn-outline-success ms-1 whatsapp-chat-btn'; chatBtn.type = 'button'; chatBtn.innerHTML = '<i class="fa-regular fa-comment-dots"></i>'; chatBtn.title = 'Ver conversa';
+            chatBtn.addEventListener('click', async (e) => { e.stopPropagation(); await openWhatsappConversation(lead); });
+            quickActions.appendChild(chatBtn);
             const archiveBtn = document.createElement('button'); archiveBtn.className = 'btn btn-sm btn-outline-secondary ms-1 whatsapp-archive-btn'; archiveBtn.type = 'button'; archiveBtn.innerHTML = '<i class="fa fa-box-archive"></i>'; archiveBtn.title = 'Arquivar WhatsApp';
             archiveBtn.addEventListener('click', async (e) => { e.stopPropagation(); try { await archiveWhatsappLead(lead); } catch (err) { alert(err.message || 'Erro ao arquivar WhatsApp.'); } });
             quickActions.appendChild(archiveBtn);

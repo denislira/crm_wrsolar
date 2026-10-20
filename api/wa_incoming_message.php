@@ -9,6 +9,14 @@ function wa_incoming_json(array $payload, int $status = 200): void {
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);
     exit;
 }
+function wa_incoming_ensure_message_table(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_messages (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY, phone_normalized VARCHAR(40) NOT NULL,
+        message_id VARCHAR(255) DEFAULT NULL, direction ENUM('in','out') NOT NULL,
+        message_text TEXT NOT NULL, sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY ux_whatsapp_message (phone_normalized, message_id), KEY idx_whatsapp_phone_date (phone_normalized, sent_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
 
 function wa_incoming_digits($value): string {
     return preg_replace('/\D+/', '', (string)$value);
@@ -314,6 +322,15 @@ $senderJid = trim((string)($payload['sender_jid'] ?? ''));
 $participantAlt = trim((string)($payload['participant_alt'] ?? ''));
 $idType = trim((string)($payload['id_tipo'] ?? $payload['id_type'] ?? ''));
 $mode = (string)($cfg['lead_capture_mode'] ?? 'new_only');
+$messageId = trim((string)($payload['message_id'] ?? ($payload['id'] ?? '')));
+$messageId = $messageId !== '' ? mb_substr($messageId, 0, 255) : ('incoming_' . hash('sha256', $phone . '|' . $text . '|' . microtime(true)));
+if ($text !== '') {
+    try {
+        wa_incoming_ensure_message_table($pdo);
+        $msgStmt = $pdo->prepare("INSERT IGNORE INTO whatsapp_messages (phone_normalized, message_id, direction, message_text) VALUES (?, ?, 'in', ?)");
+        $msgStmt->execute([$phone, $messageId, mb_substr($text, 0, 10000)]);
+    } catch (Throwable $ignored) {}
+}
 $phoneJid = str_ends_with($remoteJid, '@s.whatsapp.net') ? $remoteJid : (str_ends_with($remoteJidAlt, '@s.whatsapp.net') ? $remoteJidAlt : '');
 if ($phoneJid !== '') $phone = wa_incoming_digits(explode('@', $phoneJid, 2)[0]);
 

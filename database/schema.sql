@@ -372,3 +372,25 @@ CREATE TABLE IF NOT EXISTS whatsapp_click_events (
   event VARCHAR(255) DEFAULT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS whatsapp_archived_contacts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  phone_normalized VARCHAR(40) NOT NULL,
+  lead_id INT DEFAULT NULL,
+  lead_name VARCHAR(255) DEFAULT NULL,
+  archived_by INT DEFAULT NULL,
+  archived_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY ux_whatsapp_archived_phone (phone_normalized),
+  KEY idx_whatsapp_archived_lead (lead_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  phone_normalized VARCHAR(40) NOT NULL,
+  message_id VARCHAR(255) DEFAULT NULL,
+  direction ENUM('in','out') NOT NULL,
+  message_text TEXT NOT NULL,
+  sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY ux_whatsapp_message (phone_normalized, message_id),
+  KEY idx_whatsapp_phone_date (phone_normalized, sent_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
