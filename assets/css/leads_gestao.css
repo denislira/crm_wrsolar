@@ -1372,6 +1372,7 @@ body.theme-dark #leadsTableContainer table.table-hover tbody tr:hover {
 
 #stalledToggle.active,
 #toggleSemStatusBtn.active,
+#toggleWhatsappBtn.active,
 #toggleAnunciosBtn.active {
     color: #fff !important;
     background-color: var(--blue-700,var(--bs-primary)) !important;
@@ -1379,6 +1380,7 @@ body.theme-dark #leadsTableContainer table.table-hover tbody tr:hover {
 }
 #stalledToggle.active:hover,
 #toggleSemStatusBtn.active:hover,
+#toggleWhatsappBtn.active:hover,
 #toggleAnunciosBtn.active:hover {
     color: #fff !important;
     background-color: var(--blue-900,var(--bs-primary)) !important;
