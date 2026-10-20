@@ -2016,6 +2016,30 @@
         modal.addEventListener('hidden.bs.modal', () => modal.remove());
     }
 
+    async function archiveWhatsappLead(lead) {
+        if (!confirm('Arquivar este contato do WhatsApp? Novas mensagens deste número não voltarão para a coluna WhatsApp.')) return;
+        const fd = new FormData(); fd.append('id', lead.id);
+        const res = await fetch(apiBase + '?action=archive_whatsapp', { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || 'Não foi possível arquivar.');
+        closePanel(); await fetchLeads();
+    }
+
+    function loadArchivedWhatsappModal() {
+        const box = document.getElementById('archivedWhatsappList'); if (!box) return;
+        box.innerHTML = '<div class="text-muted">Carregando...</div>';
+        fetch(apiBase + '?action=list_archived_whatsapp').then(r => r.json()).then(data => {
+            const rows = Array.isArray(data.rows) ? data.rows : [];
+            if (!rows.length) { box.innerHTML = '<div class="text-muted p-3">Nenhum contato arquivado.</div>'; return; }
+            box.innerHTML = rows.map(row => `<div class="list-group-item d-flex justify-content-between align-items-center gap-2"><div><strong>${escapeText(row.lead_name || 'Sem nome')}</strong><div class="small text-muted">${escapeText(row.phone_normalized || '')} · Arquivado em ${escapeText(row.archived_at || '')}</div></div><button type="button" class="btn btn-sm btn-outline-primary" data-unarchive-whatsapp="${row.id}">Desarquivar</button></div>`).join('');
+            box.querySelectorAll('[data-unarchive-whatsapp]').forEach(btn => btn.addEventListener('click', async () => {
+                const fd = new FormData(); fd.append('id', btn.dataset.unarchiveWhatsapp);
+                const res = await fetch(apiBase + '?action=unarchive_whatsapp', { method: 'POST', body: fd });
+                if (res.ok) { loadArchivedWhatsappModal(); await fetchLeads(); } else alert('Não foi possível desarquivar.');
+            }));
+        }).catch(() => { box.innerHTML = '<div class="text-danger">Não foi possível carregar os arquivados.</div>'; });
+    }
+
     function makeCard(lead, stageObj){
         const el = document.createElement('div'); el.className='lead-card'; el.draggable = true; el.dataset.id = lead.id;
         const isProjectLocked = leadHasProject(lead);
@@ -2072,6 +2096,11 @@
         left.appendChild(title);
         const quickActions = document.createElement('div');
         quickActions.className = 'lead-card-actions';
+        if (isWhatsappInboxLead(lead)) {
+            const archiveBtn = document.createElement('button'); archiveBtn.className = 'btn btn-sm btn-outline-secondary ms-1'; archiveBtn.type = 'button'; archiveBtn.innerHTML = '<i class="fa fa-box-archive"></i>'; archiveBtn.title = 'Arquivar WhatsApp';
+            archiveBtn.addEventListener('click', async (e) => { e.stopPropagation(); try { await archiveWhatsappLead(lead); } catch (err) { alert(err.message || 'Erro ao arquivar WhatsApp.'); } });
+            quickActions.appendChild(archiveBtn);
+        }
         
         // Add create project button in the header if stage allows it
         if (stageObj) {
@@ -4883,5 +4912,7 @@
 
     const emptyTrashBtn = $('#emptyTrashBtn');
     if (emptyTrashBtn) emptyTrashBtn.addEventListener('click', emptyTrash);
+    const archivedWhatsappModal = document.getElementById('archivedWhatsappModal');
+    if (archivedWhatsappModal) archivedWhatsappModal.addEventListener('show.bs.modal', loadArchivedWhatsappModal);
 
 })();

@@ -316,6 +316,17 @@ $idType = trim((string)($payload['id_tipo'] ?? $payload['id_type'] ?? ''));
 $mode = (string)($cfg['lead_capture_mode'] ?? 'new_only');
 $phoneJid = str_ends_with($remoteJid, '@s.whatsapp.net') ? $remoteJid : (str_ends_with($remoteJidAlt, '@s.whatsapp.net') ? $remoteJidAlt : '');
 if ($phoneJid !== '') $phone = wa_incoming_digits(explode('@', $phoneJid, 2)[0]);
+
+// Contacts archived from the WhatsApp column must not create/reopen Kanban leads.
+if ($phone !== '' && wa_incoming_table_exists($pdo, 'whatsapp_archived_contacts')) {
+    $archivedVariants = wa_incoming_phone_variants($phone);
+    $placeholders = implode(',', array_fill(0, count($archivedVariants), '?'));
+    $archivedStmt = $pdo->prepare("SELECT id FROM whatsapp_archived_contacts WHERE phone_normalized IN ($placeholders) LIMIT 1");
+    $archivedStmt->execute($archivedVariants);
+    if ($archivedStmt->fetchColumn()) {
+        wa_incoming_json(['success' => true, 'created' => false, 'reason' => 'whatsapp_archived']);
+    }
+}
 if (str_ends_with($remoteJid, '@lid') && $phoneJid === '') $phone = '';
 $hasRealPhone = strlen($phone) >= 10 && strlen($phone) <= 15;
 

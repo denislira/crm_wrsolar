@@ -112,6 +112,7 @@ include 'includes/header.php';
                     <button id="bulkUncheckBtn" class="btn btn-sm btn-outline-secondary d-none" title="Desmarcar todos"><i class="fa fa-times"></i></button>
                     <button id="toggleSemStatusBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Sem Status">Sem Status</button>
                     <button id="toggleWhatsappBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna WhatsApp">WhatsApp</button>
+                    <button id="archivedWhatsappBtn" class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#archivedWhatsappModal" title="Ver WhatsApps arquivados"><i class="fa fa-box-archive me-1"></i>Arquivados</button>
                     <button id="toggleAnunciosBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Anúncios">Anúncios</button>
                     <button id="toggleIndicadosBtn" class="btn btn-sm btn-outline-secondary" title="Mostrar/Ocultar coluna Indicações">Indicações</button>
                     <button id="bulkActionsBtn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#bulkModal">Ações em massa</button>
@@ -195,6 +196,14 @@ include 'includes/header.php';
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div id="archivedWhatsappModal" class="modal fade" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title"><i class="fa fa-box-archive me-2"></i>WhatsApps arquivados</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button></div>
+                    <div class="modal-body"><div id="archivedWhatsappList" class="list-group"><div class="text-muted">Carregando...</div></div></div>
+                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button></div>
+                </div></div>
             </div>
 
             <!-- Lista / Grade alternativa -->

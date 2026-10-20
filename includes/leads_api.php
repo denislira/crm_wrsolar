@@ -51,6 +51,34 @@ require_once __DIR__ . '/permissions.php';
 require_once __DIR__ . '/email_notifications.php';
 require_once __DIR__ . '/financeiro_crm_sync.php';
 
+function wa_archive_normalize_phone($value): string {
+    return preg_replace('/\D+/', '', (string)$value) ?: '';
+}
+function wa_archive_ensure_table(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_archived_contacts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        phone_normalized VARCHAR(40) NOT NULL,
+        lead_id INT DEFAULT NULL,
+        lead_name VARCHAR(255) DEFAULT NULL,
+        archived_by INT DEFAULT NULL,
+        archived_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY ux_whatsapp_archived_phone (phone_normalized),
+        KEY idx_whatsapp_archived_lead (lead_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+function wa_archive_is_archived(PDO $pdo, string $phone): bool {
+    $phone = wa_archive_normalize_phone($phone); if ($phone === '') return false;
+    wa_archive_ensure_table($pdo);
+    $variants = [$phone];
+    if (strlen($phone) === 13 && substr($phone, 0, 4) === '55' && $phone[4] === '9') $variants[] = substr($phone, 0, 4) . substr($phone, 5);
+    if (strlen($phone) === 12 && substr($phone, 0, 4) === '55') $variants[] = substr($phone, 0, 4) . '9' . substr($phone, 4);
+    foreach (array_unique($variants) as $variant) {
+        $stmt = $pdo->prepare('SELECT 1 FROM whatsapp_archived_contacts WHERE phone_normalized = ? LIMIT 1');
+        $stmt->execute([$variant]); if ($stmt->fetchColumn()) return true;
+    }
+    return false;
+}
+
 // Ensure FS_NAME_COL default (some installs use 'stage_name' column)
 if (!isset($FS_NAME_COL) || !$FS_NAME_COL) {
     $FS_NAME_COL = 'name';
@@ -208,6 +236,28 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
         exit;
     }
 
+    if ($action === 'archive_whatsapp') {
+        $leadId = (int)($_POST['id'] ?? 0);
+        $stmt = $pdo->prepare('SELECT id, name, phone, source, status FROM leads WHERE id = ? AND deleted = 0 LIMIT 1');
+        $stmt->execute([$leadId]); $lead = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$lead || strtolower((string)$lead['source']) !== 'whatsapp' && strtolower((string)$lead['status']) !== 'whatsapp') { http_response_code(404); echo json_encode(['error' => 'Lead WhatsApp não encontrado']); exit; }
+        $phone = wa_archive_normalize_phone($lead['phone']);
+        if ($phone === '') { http_response_code(422); echo json_encode(['error' => 'Este lead não possui telefone válido']); exit; }
+        wa_archive_ensure_table($pdo);
+        $ins = $pdo->prepare('INSERT INTO whatsapp_archived_contacts (phone_normalized, lead_id, lead_name, archived_by) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE lead_id=VALUES(lead_id), lead_name=VALUES(lead_name), archived_by=VALUES(archived_by), archived_at=NOW()');
+        $ins->execute([$phone, $leadId, $lead['name'], $userId]);
+        echo json_encode(['success' => true]); exit;
+    }
+    if ($action === 'list_archived_whatsapp') {
+        wa_archive_ensure_table($pdo);
+        $rows = $pdo->query('SELECT id, phone_normalized, lead_id, lead_name, archived_at FROM whatsapp_archived_contacts ORDER BY archived_at DESC')->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode(['success' => true, 'rows' => $rows]); exit;
+    }
+    if ($action === 'unarchive_whatsapp') {
+        $id = (int)($_POST['id'] ?? 0); wa_archive_ensure_table($pdo);
+        $stmt = $pdo->prepare('DELETE FROM whatsapp_archived_contacts WHERE id = ?'); $stmt->execute([$id]);
+        echo json_encode(['success' => true]); exit;
+    }
     if ($action === 'list') {
         $hasProjetosTable = false;
         try {
@@ -235,6 +285,16 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
             $stmt = $pdo->prepare('SELECT leads.id, leads.user_id, leads.name, leads.cidade, leads.email, leads.phone, leads.cpf_cnpj, leads.source, leads.status, leads.stage_id, leads.notes, leads.consumo_cliente, leads.estimativa_projeto_kwh, leads.orcamento_value, leads.envio_proposta, leads.ultimo_contato, leads.forma_pagamento, leads.anexos_filename, leads.anexos_mimetype, leads.created_at, leads.data_inicio, leads.updated_at, leads.deleted, leads.deleted_at, ' . $photoSelect . ', ' . $projectFlagSql . ' FROM leads' . $projectJoinSql . ' WHERE leads.deleted = 0 ORDER BY leads.created_at DESC');
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            try {
+                wa_archive_ensure_table($pdo);
+                $archived = $pdo->query('SELECT phone_normalized FROM whatsapp_archived_contacts')->fetchAll(PDO::FETCH_COLUMN);
+                $archivedSet = array_fill_keys(array_map('strval', $archived), true);
+                $rows = array_values(array_filter($rows, static function($row) use ($archivedSet) {
+                    $source = strtolower((string)($row['source'] ?? '')); $status = strtolower((string)($row['status'] ?? ''));
+                    if ($source !== 'whatsapp' && $status !== 'whatsapp') return true;
+                    return !isset($archivedSet[wa_archive_normalize_phone($row['phone'] ?? '')]);
+                }));
+            } catch (Throwable $ignored) {}
         } catch (Exception $e) {
             // fallback if error
             $rows = [];
