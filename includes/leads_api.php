@@ -982,6 +982,17 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
         exit;
     }
 
+    if ($action === 'empty_trash') {
+        if (!hasPermission('delete_leads_permanent') && !$isAdmin) {
+            throw new Exception('Lead not found or insufficient permissions to delete permanently');
+        }
+
+        $stmt = $pdo->prepare('DELETE FROM leads WHERE deleted=1');
+        $stmt->execute();
+        echo json_encode(['ok' => true, 'deleted' => $stmt->rowCount()]);
+        exit;
+    }
+
     if ($action === 'update_status') {
         if (empty($data['id']) || !isset($data['status'])) { throw new Exception('Missing id or status'); }
 

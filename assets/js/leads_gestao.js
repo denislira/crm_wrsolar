@@ -520,6 +520,12 @@
     function renderTrashedTable(leads){
         const tbody = $('#trashedTableBody');
         if (!tbody) return;
+        const count = $('#trashedModalCount');
+        if (count) count.textContent = leads.length;
+        if (!leads.length) {
+            tbody.innerHTML = '<tr><td colspan="6"><div class="trash-empty"><div class="trash-empty-icon"><i class="fa fa-check"></i></div><div class="fw-semibold text-dark">A lixeira está vazia</div><small>Leads excluídos aparecerão aqui.</small></div></td></tr>';
+            return;
+        }
         tbody.innerHTML = leads.map(l => `
             <tr>
                 <td>${escapeText(l.name)}</td>
@@ -582,6 +588,37 @@
         } catch (err) {
             console.error(err);
             alert('Erro ao excluir lead');
+        }
+    }
+
+    async function emptyTrash(){
+        const confirmed = confirm('Tem certeza que deseja excluir permanentemente TODOS os leads da lixeira? Esta ação não pode ser desfeita.');
+        if (!confirmed) return;
+
+        const btn = $('#emptyTrashBtn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin me-1" aria-hidden="true"></i>Excluindo...'; }
+        try {
+            // The leads API requires a non-empty POST body, even when the action
+            // itself does not need any additional parameters.
+            const formData = new FormData();
+            formData.append('action', 'empty_trash');
+            const res = await fetch(apiBase + '?action=empty_trash', { method: 'POST', body: formData });
+            if (!res.ok) {
+                let message = 'Erro ao esvaziar a lixeira';
+                try { const data = await res.json(); if (data.error) message = data.error; } catch (e) {}
+                if (message.includes('insufficient permissions')) {
+                    message = 'Você não tem permissão para excluir leads permanentemente.';
+                }
+                alert(message);
+                return;
+            }
+            await loadTrashedModal();
+            updateTrashedCount();
+        } catch (err) {
+            console.error(err);
+            alert('Erro ao esvaziar a lixeira');
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-trash-alt me-1" aria-hidden="true"></i>Excluir tudo permanentemente'; }
         }
     }
 
@@ -4843,5 +4880,8 @@
     // Make functions global for onclick
     window.restoreLead = restoreLead;
     window.deletePermanent = deletePermanent;
+
+    const emptyTrashBtn = $('#emptyTrashBtn');
+    if (emptyTrashBtn) emptyTrashBtn.addEventListener('click', emptyTrash);
 
 })();

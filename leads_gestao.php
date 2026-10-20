@@ -252,16 +252,43 @@ include 'includes/header.php';
     </div>
 
     <!-- Modal: Lixeira de Leads -->
+    <style>
+        #trashedModal .modal-dialog { max-width: 980px; }
+        #trashedModal .modal-content { border: 0; border-radius: 18px; overflow: hidden; background: var(--surface, #fff); box-shadow: 0 24px 70px rgba(15, 23, 42, .22); }
+        #trashedModal .modal-header { padding: 1.25rem 1.5rem; background: linear-gradient(135deg, var(--blue-900, var(--primary-700, #172554)), var(--blue-700, var(--primary-500, #1d4ed8))) !important; }
+        #trashedModal .modal-title { display: flex; align-items: center; gap: .7rem; font-weight: 700; letter-spacing: -.01em; }
+        #trashedModal .trash-title-icon { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; background: rgba(255,255,255,.16); }
+        #trashedModal .modal-body { padding: 1.25rem 1.5rem; background: var(--muted, #f8fafc); }
+        #trashedModal .trash-intro { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; padding: .9rem 1rem; border: 1px solid rgba(100,116,139,.2); border-radius: 14px; background: var(--surface, #fff); color: var(--text-900, #0f1724); }
+        #trashedModal .trash-intro small { color: var(--text-700, #64748b); }
+        #trashedModal .trash-count { color: var(--blue-700, var(--primary-500, #1d4ed8)); font-weight: 800; }
+        #trashedModal .trash-table-wrap { overflow: hidden; border: 1px solid rgba(100,116,139,.2); border-radius: 14px; background: var(--surface, #fff); }
+        #trashedModal table { margin: 0; }
+        #trashedModal thead th { padding: .85rem .9rem; border-bottom: 1px solid rgba(100,116,139,.2); background: var(--muted, #f8fafc); color: var(--text-700, #64748b); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+        #trashedModal tbody td { padding: .85rem .9rem; vertical-align: middle; border-color: rgba(100,116,139,.12); color: var(--text-900, #0f1724); }
+        #trashedModal tbody tr:hover { background: color-mix(in srgb, var(--blue-700, #1d4ed8) 5%, var(--surface, #fff)); }
+        #trashedModal .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid rgba(100,116,139,.2); background: var(--surface, #fff); }
+        #trashedModal #emptyTrashBtn { border-radius: 10px; font-weight: 600; }
+        #trashedModal .trash-empty { padding: 3rem 1rem; text-align: center; color: var(--text-700, #64748b); }
+        #trashedModal .trash-empty-icon { width: 56px; height: 56px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: .8rem; border-radius: 50%; background: color-mix(in srgb, var(--blue-700, #1d4ed8) 12%, transparent); color: var(--blue-700, var(--primary-500, #4338ca)); font-size: 1.35rem; }
+        #trashedModal .trash-empty .text-dark { color: var(--text-900, #0f1724) !important; }
+        @media (max-width: 576px) { #trashedModal .modal-body, #trashedModal .modal-header, #trashedModal .modal-footer { padding-left: 1rem; padding-right: 1rem; } #trashedModal .trash-intro { align-items: flex-start; flex-direction: column; } }
+    </style>
     <div id="trashedModal" class="modal fade" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Lixeira de Leads</h5>
+                    <h5 class="modal-title"><span class="trash-title-icon"><i class="fa fa-trash-alt"></i></span> Lixeira de Leads</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                 </div>
                 <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                    <div class="trash-intro">
+                        <div><strong>Leads removidos</strong><br><small>Restaure um registro ou exclua-o definitivamente.</small></div>
+                        <span class="trash-count"><span id="trashedModalCount">0</span> registros</span>
+                    </div>
                     <div id="trashedTableContainer">
-                        <table class="table table-striped table-sm">
+                        <div class="trash-table-wrap">
+                        <table class="table table-sm">
                             <thead>
                                 <tr>
                                     <th>Nome</th>
@@ -276,9 +303,13 @@ include 'includes/header.php';
                                 <tr><td colspan="6" class="text-muted">Carregando...</td></tr>
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" id="emptyTrashBtn" class="btn btn-danger me-auto">
+                        <i class="fa fa-trash-alt me-1" aria-hidden="true"></i>Excluir tudo permanentemente
+                    </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                 </div>
             </div>
