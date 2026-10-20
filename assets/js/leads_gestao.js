@@ -2028,7 +2028,8 @@
     async function openWhatsappConversation(lead) {
         const phone = String(lead.phone || '').replace(/\D/g, '');
         if (!phone) return alert('Este lead não possui telefone válido.');
-        const chatUrl = 'whatsapp_conversa.php?phone=' + encodeURIComponent(phone) + '&name=' + encodeURIComponent(lead.name || 'WhatsApp');
+        const avatar = (lead.whatsapp_profile_image && /^uploads\/whatsapp\/empresa_\d+\/leads\/lead_\d+\/profile\.(jpg|png|webp)$/.test(lead.whatsapp_profile_image)) ? lead.whatsapp_profile_image : '';
+        const chatUrl = 'whatsapp_conversa.php?phone=' + encodeURIComponent(phone) + '&name=' + encodeURIComponent(lead.name || 'WhatsApp') + (avatar ? '&avatar=' + encodeURIComponent(avatar) : '');
         const chatWindow = window.open(chatUrl, 'wrcrm_whatsapp_' + phone, 'width=430,height=760,resizable=yes,scrollbars=no');
         if (chatWindow) { chatWindow.focus(); return; }
         let modal = document.getElementById('whatsappConversationModal');
