@@ -11,6 +11,15 @@ $page = max(1, (int)($_GET['page'] ?? 1));
 $limit = min(100, max(10, (int)($_GET['limit'] ?? 25)));
 $offset = ($page - 1) * $limit;
 $where = ['l.deleted = 0']; $params = [];
+$archivedTable = false;
+try {
+    $archivedCheck = $pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'whatsapp_archived_contacts'");
+    $archivedTable = (bool)$archivedCheck->fetchColumn();
+} catch (Throwable $ignored) {}
+if ($archivedTable) {
+    $normalizedPhone = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(l.phone,''),' ',''),'-',''),'(',''),')',''),'+','')";
+    $where[] = "NOT EXISTS (SELECT 1 FROM whatsapp_archived_contacts wac WHERE wac.phone_normalized = {$normalizedPhone})";
+}
 $search = trim((string)($_GET['search'] ?? ''));
 if ($search !== '') { $where[] = '(l.name LIKE ? OR l.email LIKE ? OR l.phone LIKE ? OR l.source LIKE ? OR l.cidade LIKE ?)'; $like='%'.$search.'%'; array_push($params,$like,$like,$like,$like,$like); }
 $city = trim((string)($_GET['city'] ?? ''));

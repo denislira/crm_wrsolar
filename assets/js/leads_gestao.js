@@ -2097,7 +2097,7 @@
         const quickActions = document.createElement('div');
         quickActions.className = 'lead-card-actions';
         if (isWhatsappInboxLead(lead)) {
-            const archiveBtn = document.createElement('button'); archiveBtn.className = 'btn btn-sm btn-outline-secondary ms-1'; archiveBtn.type = 'button'; archiveBtn.innerHTML = '<i class="fa fa-box-archive"></i>'; archiveBtn.title = 'Arquivar WhatsApp';
+            const archiveBtn = document.createElement('button'); archiveBtn.className = 'btn btn-sm btn-outline-secondary ms-1 whatsapp-archive-btn'; archiveBtn.type = 'button'; archiveBtn.innerHTML = '<i class="fa fa-box-archive"></i>'; archiveBtn.title = 'Arquivar WhatsApp';
             archiveBtn.addEventListener('click', async (e) => { e.stopPropagation(); try { await archiveWhatsappLead(lead); } catch (err) { alert(err.message || 'Erro ao arquivar WhatsApp.'); } });
             quickActions.appendChild(archiveBtn);
         }
