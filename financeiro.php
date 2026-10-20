@@ -4,7 +4,30 @@ if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/permissions.php';
+require_once __DIR__ . '/includes/financeiro_lib.php';
+require_once __DIR__ . '/includes/financeiro_crm_sync.php';
 checkAccessOrRedirect('financeiro');
+
+$syncNotice = '';
+$syncError = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['action'] ?? '') === 'sincronizar_concluidos') {
+    try {
+        fin_check_token();
+        $syncStmt = $pdo->query("SELECT l.id
+            FROM leads l
+            INNER JOIN funil_stages fs ON fs.id = l.stage_id
+            WHERE COALESCE(l.deleted, 0) = 0
+              AND (COALESCE(fs.is_conversion, 0) = 1 OR COALESCE(fs.final_type, 'none') = 'won')");
+        $syncLeadIds = $syncStmt->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($syncLeadIds as $syncLeadId) {
+            financeiro_sincronizar_lead_ganho($pdo, (int)$syncLeadId);
+        }
+        $syncNotice = 'Sincronização concluída. Leads processados: ' . count($syncLeadIds) . '.';
+    } catch (Throwable $e) {
+        $syncError = 'Não foi possível sincronizar os leads concluídos: ' . $e->getMessage();
+        error_log('Financeiro backfill web: ' . $e->getMessage());
+    }
+}
 
 $tableExists = false;
 $vendas = [];
@@ -79,6 +102,9 @@ include __DIR__ . '/includes/sidebar.php';
     </div>
     <?php $financeiroView = 'entradas'; include __DIR__ . '/includes/financeiro_nav.php'; ?>
 
+    <?php if ($syncNotice): ?><div class="alert alert-success"><?= financeiro_h($syncNotice) ?></div><?php endif; ?>
+    <?php if ($syncError): ?><div class="alert alert-danger"><?= financeiro_h($syncError) ?></div><?php endif; ?>
+
     <?php if (!$tableExists): ?>
       <div class="alert alert-warning">A base do Financeiro ainda não foi instalada. Execute a migração <code>database/create_financeiro_base.sql</code>.</div>
     <?php else: ?>
@@ -90,6 +116,7 @@ include __DIR__ . '/includes/sidebar.php';
       </div>
 
       <form method="get" class="row g-2 mb-3"><div class="col-md-6"><input class="form-control" name="q" value="<?= financeiro_h($search) ?>" placeholder="Buscar cliente, CPF/CNPJ ou telefone"></div><div class="col-md-3"><select class="form-select" name="status"><option value="pendentes" <?= $statusFilter==='pendentes'?'selected':'' ?>>Pendentes</option><option value="aceito" <?= $statusFilter==='aceito'?'selected':'' ?>>Aceitas</option><option value="todos" <?= $statusFilter==='todos'?'selected':'' ?>>Todas</option></select></div><div class="col-md-3"><button class="btn btn-outline-primary">Filtrar</button></div></form>
+      <form method="post" class="mb-3" onsubmit="return confirm('Sincronizar todos os leads em Venda concluída agora?');"><input type="hidden" name="action" value="sincronizar_concluidos"><input type="hidden" name="csrf" value="<?= financeiro_h(fin_token()) ?>"><button class="btn btn-outline-secondary" type="submit">Sincronizar leads concluídos</button></form>
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
           <strong>Fila de conferência</strong>
