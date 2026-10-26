@@ -535,6 +535,7 @@
     });
 
     clearBtn.addEventListener('click', async () => {
+      if (!window.confirm('Limpar o meu histórico do Assistente? As mensagens serão ocultadas, mas preservadas no banco.')) return;
       try {
         await fetch('api/ai_chat.php?action=clear', { method: 'POST' });
       } catch (e) {}

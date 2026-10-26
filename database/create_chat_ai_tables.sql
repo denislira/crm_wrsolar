@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS ai_chat_messages (
   message TEXT NOT NULL,
   data_context JSON DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  archived_at DATETIME DEFAULT NULL,
   INDEX idx_ai_chat_user_created (user_id, created_at),
+  INDEX idx_ai_chat_user_archived (user_id, archived_at, id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

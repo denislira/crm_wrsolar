@@ -13,6 +13,17 @@ require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../includes/ai_settings.php';
 require_once __DIR__ . '/../includes/ai_crm_tools.php';
 
+// Keep chat cleanup reversible for existing installations.
+try {
+    $columnCheck = $pdo->query("SHOW COLUMNS FROM ai_chat_messages LIKE 'archived_at'");
+    if (!$columnCheck || !$columnCheck->fetch(PDO::FETCH_ASSOC)) {
+        $pdo->exec("ALTER TABLE ai_chat_messages ADD COLUMN archived_at DATETIME NULL DEFAULT NULL AFTER created_at");
+        $pdo->exec("ALTER TABLE ai_chat_messages ADD INDEX idx_ai_chat_user_archived (user_id, archived_at, id)");
+    }
+} catch (Throwable $e) {
+    // Keep the API response explicit if the chat table is unavailable.
+}
+
 function wrcrm_ai_chat_json(array $payload): void
 {
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);
@@ -23,14 +34,14 @@ $userId = (int)$_SESSION['user_id'];
 $action = $_GET['action'] ?? $_POST['action'] ?? 'ask';
 
 if ($action === 'history') {
-    $stmt = $pdo->prepare("SELECT role, message, created_at FROM ai_chat_messages WHERE user_id = ? ORDER BY id DESC LIMIT 20");
+    $stmt = $pdo->prepare("SELECT role, message, created_at FROM ai_chat_messages WHERE user_id = ? AND archived_at IS NULL ORDER BY id DESC LIMIT 20");
     $stmt->execute([$userId]);
     $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
     wrcrm_ai_chat_json(['success' => true, 'messages' => $rows]);
 }
 
 if ($action === 'clear') {
-    $stmt = $pdo->prepare("DELETE FROM ai_chat_messages WHERE user_id = ?");
+    $stmt = $pdo->prepare("UPDATE ai_chat_messages SET archived_at = NOW() WHERE user_id = ? AND archived_at IS NULL");
     $stmt->execute([$userId]);
     wrcrm_ai_chat_json(['success' => true, 'message' => 'Histórico limpo']);
 }
@@ -68,7 +79,7 @@ $context['usuario_logado'] = [
 $pdo->prepare("INSERT INTO ai_chat_messages (user_id, role, message, data_context) VALUES (?, 'user', ?, ?)")
     ->execute([$userId, $question, json_encode($context, JSON_UNESCAPED_UNICODE)]);
 
-$historyStmt = $pdo->prepare("SELECT role, message FROM ai_chat_messages WHERE user_id = ? ORDER BY id DESC LIMIT 8");
+$historyStmt = $pdo->prepare("SELECT role, message FROM ai_chat_messages WHERE user_id = ? AND archived_at IS NULL ORDER BY id DESC LIMIT 8");
 $historyStmt->execute([$userId]);
 $historyRows = array_reverse($historyStmt->fetchAll(PDO::FETCH_ASSOC));
 $historyText = '';
