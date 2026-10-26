@@ -631,7 +631,7 @@ body.theme-dark .lead-panel-control:hover,body.dark-mode .lead-panel-control:hov
 }
 #leadModal .lead-modal-content .modal-header{
   background:linear-gradient(135deg,rgba(37,99,235,0.12),rgba(20,184,166,0.10));
-  padding:18px 24px;
+  padding:10px 16px;
   border-bottom:1px solid rgba(37,99,235,0.14);
   font-weight:700;
 }
@@ -640,8 +640,8 @@ body.theme-dark .lead-panel-control:hover,body.dark-mode .lead-panel-control:hov
   font-weight:800;
 }
 #leadModal .lead-modal-content .modal-title i{
-  width:34px;
-  height:34px;
+  width:30px;
+  height:30px;
   border-radius:10px;
   display:inline-flex;
   align-items:center;
@@ -651,15 +651,19 @@ body.theme-dark .lead-panel-control:hover,body.dark-mode .lead-panel-control:hov
   box-shadow:0 10px 22px rgba(37,99,235,0.22);
 }
 #leadModal .lead-modal-content .modal-body{
-  padding:22px;
+  padding:14px 16px;
   background:
     radial-gradient(circle at 8% 10%,rgba(37,99,235,0.06),transparent 28%),
     radial-gradient(circle at 96% 18%,rgba(16,185,129,0.06),transparent 30%);
 }
 #leadModal .lead-modal-content .modal-footer{
-  padding:16px 24px;
+  padding:8px 16px;
   background:rgba(255,255,255,0.78);
   border-top:1px solid rgba(37,99,235,0.12);
+}
+#leadModal .lead-modal-content .modal-footer .btn{
+  padding-top:6px;
+  padding-bottom:6px;
 }
 #leadModal .lead-modal-content .card{
   border:1px solid rgba(37,99,235,0.14);
@@ -668,13 +672,17 @@ body.theme-dark .lead-panel-control:hover,body.dark-mode .lead-panel-control:hov
   background:rgba(255,255,255,0.92);
   box-shadow:0 14px 34px rgba(15,23,42,0.08);
 }
+#leadModal .lead-modal-content .card-body{
+  padding:12px;
+}
 #leadModal .lead-modal-content .col-lg-5 .card{
   border-top-color:#14b8a6;
 }
 #leadModal .lead-modal-content .form-control,
 #leadModal .lead-modal-content .form-select{
   border-radius:11px;
-  padding:10px 12px;
+  padding:7px 10px;
+  min-height:38px;
   border:1.5px solid #b8d4f2;
   background-color:#fbfdff;
   box-shadow:0 1px 0 rgba(15,23,42,0.02);
@@ -710,8 +718,9 @@ body.theme-dark .lead-panel-control:hover,body.dark-mode .lead-panel-control:hov
 }
 #leadModal .lead-modal-content label{
   font-weight:600;
-  font-size:.9rem;
+  font-size:.82rem;
   color:#284462;
+  margin-bottom:4px;
 }
 #leadModal .lead-modal-content .form-text{
   color:#64748b;
@@ -763,7 +772,13 @@ body.theme-dark .lead-panel-control:hover,body.dark-mode .lead-panel-control:hov
 #leadModal .mb-3:has(#anexos-dropzone) > label{margin-bottom:.25rem !important;}
 #leadModal #anexos-dropzone + input + .d-flex{margin-top:.2rem !important;}
 #leadModal textarea.form-control{
-  min-height:116px;
+  min-height:88px;
+}
+#leadModal .lead-modal-content .mb-3{
+  margin-bottom:.65rem !important;
+}
+#leadModal .lead-modal-content .row > [class*="col-"]{
+  margin-bottom:.65rem !important;
 }
 #leadModal .modal-footer .btn-primary,
 #leadModal #leadSaveBtn,
