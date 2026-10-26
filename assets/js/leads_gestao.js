@@ -1258,13 +1258,15 @@
     // user preference whether to show Indicações column (persisted)
     let INDICADOS_SHOWN = (localStorage.getItem('showIndicados') !== '0');
     let WHATSAPP_SHOWN = (localStorage.getItem('showWhatsappLeads') !== '0');
-    function isWhatsappInboxLead(lead) {
+    function isWhatsappLead(lead) {
         const source = normalizeText(lead && lead.source);
         const status = normalizeText(lead && lead.status);
         const phone = String((lead && lead.phone) || '').toLowerCase();
+        return source === 'whatsapp' || status === 'whatsapp' || phone.indexOf('wa_lid:') === 0;
+    }
+    function isWhatsappInboxLead(lead) {
         const noStage = lead && (lead.stage_id == null || Number(lead.stage_id) === 0);
-        const fromWhatsapp = source === 'whatsapp' || status === 'whatsapp' || phone.indexOf('wa_lid:') === 0;
-        return noStage && fromWhatsapp;
+        return noStage && isWhatsappLead(lead);
     }
     async function fetchStages(){
         try{
@@ -2122,13 +2124,15 @@
         left.appendChild(title);
         const quickActions = document.createElement('div');
         quickActions.className = 'lead-card-actions';
-        if (isWhatsappInboxLead(lead)) {
+        if (isWhatsappLead(lead)) {
             const chatBtn = document.createElement('button'); chatBtn.className = 'btn btn-sm btn-outline-success ms-1 whatsapp-chat-btn'; chatBtn.type = 'button'; chatBtn.innerHTML = '<i class="fa-regular fa-comment-dots"></i>'; chatBtn.title = 'Ver conversa';
             chatBtn.addEventListener('click', async (e) => { e.stopPropagation(); await openWhatsappConversation(lead); });
             quickActions.appendChild(chatBtn);
-            const archiveBtn = document.createElement('button'); archiveBtn.className = 'btn btn-sm btn-outline-secondary ms-1 whatsapp-archive-btn'; archiveBtn.type = 'button'; archiveBtn.innerHTML = '<i class="fa fa-box-archive"></i>'; archiveBtn.title = 'Arquivar WhatsApp';
-            archiveBtn.addEventListener('click', async (e) => { e.stopPropagation(); try { await archiveWhatsappLead(lead); } catch (err) { alert(err.message || 'Erro ao arquivar WhatsApp.'); } });
-            quickActions.appendChild(archiveBtn);
+            if (isWhatsappInboxLead(lead)) {
+                const archiveBtn = document.createElement('button'); archiveBtn.className = 'btn btn-sm btn-outline-secondary ms-1 whatsapp-archive-btn'; archiveBtn.type = 'button'; archiveBtn.innerHTML = '<i class="fa fa-box-archive"></i>'; archiveBtn.title = 'Arquivar WhatsApp';
+                archiveBtn.addEventListener('click', async (e) => { e.stopPropagation(); try { await archiveWhatsappLead(lead); } catch (err) { alert(err.message || 'Erro ao arquivar WhatsApp.'); } });
+                quickActions.appendChild(archiveBtn);
+            }
         }
         
         // Add create project button in the header if stage allows it

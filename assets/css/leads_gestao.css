@@ -724,7 +724,8 @@ body.theme-dark .lead-panel-control:hover,body.dark-mode .lead-panel-control:hov
 #leadModal #anexos-dropzone{
   border:2px dashed #60a5fa !important;
   border-radius:14px !important;
-  padding:22px !important;
+  padding:6px 10px !important;
+  min-height:0;
   text-align:center;
   cursor:pointer;
   transition:border-color .2s ease,background .2s ease,transform .2s ease,box-shadow .2s ease;
@@ -739,11 +740,28 @@ body.theme-dark .lead-panel-control:hover,body.dark-mode .lead-panel-control:hov
 }
 #leadModal #anexos-dropzone .fa-cloud-upload{
   color:#2563eb !important;
+  font-size:1rem;
+  margin:0 !important;
+}
+#leadModal #anexos-dropzone .text-muted.small{
+  line-height:1.15;
+  font-size:.7rem;
+}
+#leadModal #anexos-dropzone .form-text{
+  margin-top:1px !important;
+  line-height:1.1;
+  font-size:.58rem;
 }
 #leadModal #anexos-file-names{
   color:#0f766e;
   font-weight:600;
+  margin-top:2px !important;
+  line-height:1.1;
+  font-size:.7rem;
 }
+#leadModal .mb-3:has(#anexos-dropzone){margin-bottom:.5rem !important;}
+#leadModal .mb-3:has(#anexos-dropzone) > label{margin-bottom:.25rem !important;}
+#leadModal #anexos-dropzone + input + .d-flex{margin-top:.2rem !important;}
 #leadModal textarea.form-control{
   min-height:116px;
 }
