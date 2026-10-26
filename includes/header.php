@@ -18,6 +18,11 @@ include_once 'includes/settings_storage.php';
   <link rel="stylesheet" href="assets/css/bootstrap.min.css">
   <link href="assets/css/inter.css" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/fontawesome.min.css" />
+  <!-- Keep the navbar avatar constrained even before external CSS finishes loading. -->
+  <style>
+    .navbar-user-avatar{width:40px;height:40px;max-width:40px;max-height:40px;display:block;flex:0 0 40px;border-radius:50%;object-fit:cover;object-position:center;}
+    html.wrcrm-navigation-loading .navbar-user-greeting{visibility:hidden !important;}
+  </style>
   <!-- Site theme (overrides and design system) -->
   <link rel="stylesheet" href="assets/css/theme.css">
   <link rel="stylesheet" href="assets/css/leads_gestao.css">
@@ -223,7 +228,7 @@ include_once 'includes/settings_storage.php';
           $navbarAvatar = htmlspecialchars($navbarAvatar, ENT_QUOTES, 'UTF-8');
         ?>
         <div class="me-auto d-none d-md-flex align-items-center gap-2 text-dark navbar-user-greeting">
-          <img src="<?php echo $navbarAvatar; ?>" class="navbar-user-avatar" alt="Foto de perfil de <?php echo $displayName; ?>">
+          <img src="<?php echo $navbarAvatar; ?>" class="navbar-user-avatar" width="40" height="40" decoding="async" alt="Foto de perfil de <?php echo $displayName; ?>" style="width:40px;height:40px;max-width:40px;max-height:40px;object-fit:cover;border-radius:50%;">
           <span class="d-flex flex-column lh-sm"><strong><?php echo $displayName; ?></strong><?php if (!empty($_SESSION['role_name'])): ?><small class="text-muted"><?php echo htmlspecialchars($_SESSION['role_name'], ENT_QUOTES, 'UTF-8'); ?></small><?php endif; ?></span>
         </div>
         <?php if (isset($reqHost) && ($reqHost === 'localhost' || $reqHost === '127.0.0.1')): ?>
