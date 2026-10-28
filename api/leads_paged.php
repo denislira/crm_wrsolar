@@ -74,7 +74,11 @@ if ($mode === 'stage') {
     elseif (ctype_digit($stage)) { $where[]='l.stage_id = ?'; $params[]=(int)$stage; }
 }
 $whereSql = implode(' AND ', $where);
-$fields = 'l.id,l.user_id,l.name,l.cidade,l.email,l.phone,l.cpf_cnpj,l.source,l.status,l.stage_id,l.notes,l.consumo_cliente,l.estimativa_projeto_kwh,l.orcamento_value,l.envio_proposta,l.ultimo_contato,l.forma_pagamento,l.created_at,l.data_inicio,l.updated_at,EXISTS(SELECT 1 FROM projetos p WHERE p.lead_id=l.id) AS has_project,(SELECT COUNT(*) FROM leads_attachments a WHERE a.lead_id=l.id) AS anexos_count';
+$waPhoneExpr = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(l.phone,''),' ',''),'-',''),'(',''),')',''),'+','')";
+$hasWhatsappMessages = false;
+try { $hasWhatsappMessages = (bool)$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'whatsapp_messages'")->fetchColumn(); } catch (Throwable $ignored) {}
+$waConversationField = $hasWhatsappMessages ? ',EXISTS(SELECT 1 FROM whatsapp_messages wm WHERE wm.phone_normalized = ' . $waPhoneExpr . ') AS has_whatsapp_conversation' : ',0 AS has_whatsapp_conversation';
+$fields = 'l.id,l.user_id,l.name,l.cidade,l.email,l.phone,l.cpf_cnpj,l.source,l.status,l.stage_id,l.notes,l.consumo_cliente,l.estimativa_projeto_kwh,l.orcamento_value,l.envio_proposta,l.ultimo_contato,l.forma_pagamento,l.created_at,l.data_inicio,l.updated_at,EXISTS(SELECT 1 FROM projetos p WHERE p.lead_id=l.id) AS has_project,(SELECT COUNT(*) FROM leads_attachments a WHERE a.lead_id=l.id) AS anexos_count' . $waConversationField;
 $photoColumn = $pdo->query("SHOW COLUMNS FROM leads LIKE 'whatsapp_profile_image'");
 $fields .= $photoColumn->fetch() ? ',l.whatsapp_profile_image' : ',NULL AS whatsapp_profile_image';
 

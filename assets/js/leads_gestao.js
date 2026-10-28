@@ -1262,7 +1262,11 @@
         const source = normalizeText(lead && lead.source);
         const status = normalizeText(lead && lead.status);
         const phone = String((lead && lead.phone) || '').toLowerCase();
-        return source === 'whatsapp' || status === 'whatsapp' || phone.indexOf('wa_lid:') === 0;
+        return source === 'whatsapp' || status === 'whatsapp' || phone.indexOf('wa_lid:') === 0 || Number(lead && lead.has_whatsapp_conversation) === 1;
+    }
+    function hasWhatsappContactPhone(lead) {
+        const digits = String((lead && lead.phone) || '').replace(/\D/g, '');
+        return digits.length >= 10 && digits.length <= 15;
     }
     function isWhatsappInboxLead(lead) {
         const noStage = lead && (lead.stage_id == null || Number(lead.stage_id) === 0);
@@ -2124,7 +2128,7 @@
         left.appendChild(title);
         const quickActions = document.createElement('div');
         quickActions.className = 'lead-card-actions';
-        if (isWhatsappLead(lead)) {
+        if (isWhatsappLead(lead) || hasWhatsappContactPhone(lead)) {
             const chatBtn = document.createElement('button'); chatBtn.className = 'btn btn-sm btn-outline-success ms-1 whatsapp-chat-btn'; chatBtn.type = 'button'; chatBtn.innerHTML = '<i class="fa-regular fa-comment-dots"></i>'; chatBtn.title = 'Ver conversa';
             chatBtn.addEventListener('click', async (e) => { e.stopPropagation(); await openWhatsappConversation(lead); });
             quickActions.appendChild(chatBtn);

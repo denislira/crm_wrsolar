@@ -285,6 +285,23 @@ function _mark_lead_as_sql_for_stage($pdo, $leadId, $stageId, $userId = null) {
             $stmt = $pdo->prepare('SELECT leads.id, leads.user_id, leads.name, leads.cidade, leads.email, leads.phone, leads.cpf_cnpj, leads.source, leads.status, leads.stage_id, leads.notes, leads.consumo_cliente, leads.estimativa_projeto_kwh, leads.orcamento_value, leads.envio_proposta, leads.ultimo_contato, leads.forma_pagamento, leads.anexos_filename, leads.anexos_mimetype, leads.created_at, leads.data_inicio, leads.updated_at, leads.deleted, leads.deleted_at, ' . $photoSelect . ', ' . $projectFlagSql . ' FROM leads' . $projectJoinSql . ' WHERE leads.deleted = 0 ORDER BY leads.created_at DESC');
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // A fonte pode ser alterada manualmente sem que o lead deixe de ter
+            // uma conversa WhatsApp. Exponha essa informação para a interface,
+            // usando o histórico persistido como vínculo estável.
+            try {
+                $waPhones = $pdo->query('SELECT DISTINCT phone_normalized FROM whatsapp_messages')->fetchAll(PDO::FETCH_COLUMN);
+                $waPhoneSet = [];
+                foreach ($waPhones as $waPhone) {
+                    $normalized = wa_archive_normalize_phone($waPhone);
+                    if ($normalized !== '') $waPhoneSet[$normalized] = true;
+                }
+                foreach ($rows as &$row) {
+                    $row['has_whatsapp_conversation'] = isset($waPhoneSet[wa_archive_normalize_phone($row['phone'] ?? '')]) ? 1 : 0;
+                }
+                unset($row);
+            } catch (Throwable $ignored) {
+                // Instalações sem a tabela de mensagens continuam funcionando.
+            }
             try {
                 wa_archive_ensure_table($pdo);
                 $archived = $pdo->query('SELECT phone_normalized FROM whatsapp_archived_contacts')->fetchAll(PDO::FETCH_COLUMN);
