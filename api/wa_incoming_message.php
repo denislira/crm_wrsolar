@@ -324,12 +324,18 @@ $idType = trim((string)($payload['id_tipo'] ?? $payload['id_type'] ?? ''));
 $mode = (string)($cfg['lead_capture_mode'] ?? 'new_only');
 $messageId = trim((string)($payload['message_id'] ?? ($payload['id'] ?? '')));
 $messageId = $messageId !== '' ? mb_substr($messageId, 0, 255) : ('incoming_' . hash('sha256', $phone . '|' . $text . '|' . microtime(true)));
+$fromMe = filter_var($payload['from_me'] ?? false, FILTER_VALIDATE_BOOLEAN);
 if ($text !== '') {
     try {
         wa_incoming_ensure_message_table($pdo);
-        $msgStmt = $pdo->prepare("INSERT IGNORE INTO whatsapp_messages (phone_normalized, message_id, direction, message_text) VALUES (?, ?, 'in', ?)");
-        $msgStmt->execute([$phone, $messageId, mb_substr($text, 0, 10000)]);
+        $direction = $fromMe ? 'out' : 'in';
+        $msgStmt = $pdo->prepare("INSERT IGNORE INTO whatsapp_messages (phone_normalized, message_id, direction, message_text) VALUES (?, ?, ?, ?)");
+        $msgStmt->execute([$phone, $messageId, $direction, mb_substr($text, 0, 10000)]);
     } catch (Throwable $ignored) {}
+}
+// Mensagem enviada pela própria conta não deve criar nem reabrir lead.
+if ($fromMe) {
+    wa_incoming_json(['success' => true, 'created' => false, 'direction' => 'out', 'message_id' => $messageId]);
 }
 $phoneJid = str_ends_with($remoteJid, '@s.whatsapp.net') ? $remoteJid : (str_ends_with($remoteJidAlt, '@s.whatsapp.net') ? $remoteJidAlt : '');
 if ($phoneJid !== '') $phone = wa_incoming_digits(explode('@', $phoneJid, 2)[0]);

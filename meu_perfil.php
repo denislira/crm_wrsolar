@@ -1130,6 +1130,13 @@ include __DIR__ . '/includes/sidebar.php';
     .profile-insight-card, .profile-security-card { min-width:0; padding:1.2rem; border:1px solid #e3ebf4; border-radius:18px; background:#fff; box-shadow:0 7px 24px rgba(15,23,42,.055); }
     .profile-insight-card h4, .profile-security-card h4 { margin:0; color:#172033; font-size:.95rem; font-weight:800; }
     .profile-insight-card p, .profile-security-card p { margin:.3rem 0 .9rem; color:#64748b; font-size:.78rem; }
+    body:not(.theme-dark) .profile-page .profile-insight-card h4 {
+        color: #172033 !important;
+    }
+    body:not(.theme-dark) .profile-page .profile-insight-card p,
+    body:not(.theme-dark) .profile-page .profile-insight-metric span {
+        color: #475569 !important;
+    }
     .profile-chart-frame { position:relative; height:220px; }
     .profile-chart-frame canvas { width:100% !important; height:100% !important; }
     .profile-insight-metric { display:flex; align-items:baseline; gap:.5rem; margin-bottom:.8rem; }
@@ -1150,6 +1157,24 @@ include __DIR__ . '/includes/sidebar.php';
     .profile-page .profile-panel-count { border: 0; background: #f1f5f9; color: #526074; }
     .profile-page .profile-list-item { padding: .85rem 1.1rem; }
     .profile-page .profile-list-item:hover { background: #f8fafc; }
+    body.theme-dark .profile-page .profile-panel-header {
+        background: #142638 !important;
+        border-bottom-color: rgba(255,255,255,.10) !important;
+    }
+    body.theme-dark .profile-page .profile-panel-title {
+        color: #f3f7fb !important;
+    }
+    body.theme-dark .profile-page .profile-panel-icon {
+        background: rgba(255,255,255,.08) !important;
+        color: #b9d7ff !important;
+    }
+    body.theme-dark .profile-page .profile-panel-count {
+        background: rgba(255,255,255,.08) !important;
+        color: #cbd5e1 !important;
+    }
+    body.theme-dark .profile-page .profile-list-item:hover {
+        background: rgba(255,255,255,.05) !important;
+    }
     .profile-page .profile-load-more { border: 0; background: #eef5ff; color: var(--profile-accent); }
     .profile-page .profile-load-more:hover { background: var(--profile-accent); color: #fff; }
     .profile-page .profile-loading-state,
@@ -1160,6 +1185,11 @@ include __DIR__ . '/includes/sidebar.php';
     .profile-page .profile-item-icon {
         width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center;
         border-radius: 11px; background: #f1f5f9; color: var(--profile-accent);
+    }
+    body.theme-dark .profile-page .profile-item-icon {
+        background: rgba(255,255,255,.08) !important;
+        border: 1px solid rgba(255,255,255,.12) !important;
+        color: #b9d7ff !important;
     }
     body.theme-dark .profile-page { background: #0b1220; }
     body.theme-dark .profile-avatar-column { background:rgba(255,255,255,.035); border-color:rgba(255,255,255,.09); }

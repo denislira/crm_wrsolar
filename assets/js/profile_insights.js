@@ -59,7 +59,7 @@
 
             const dark = document.body.classList.contains('theme-dark');
             const gridColor = dark ? 'rgba(226,232,240,.12)' : 'rgba(71,85,105,.1)';
-            const textColor = dark ? '#cbd5e1' : '#64748b';
+            const textColor = dark ? '#cbd5e1' : '#475569';
             const common = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } } };
 
             if (leadTotal === 0) emptyChart('profileLeadsTrendChart', 'Nenhum lead criado neste período.');

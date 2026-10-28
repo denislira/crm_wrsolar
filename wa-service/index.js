@@ -244,7 +244,19 @@ function extractMessageText(message) {
   if (message.extendedTextMessage && message.extendedTextMessage.text) return String(message.extendedTextMessage.text);
   if (message.imageMessage && message.imageMessage.caption) return String(message.imageMessage.caption);
   if (message.videoMessage && message.videoMessage.caption) return String(message.videoMessage.caption);
+  if (message.imageMessage) return '[Imagem]';
+  if (message.videoMessage) return '[Vídeo]';
+  if (message.audioMessage) return '[Áudio]';
+  if (message.documentMessage) return '[Documento]';
+  if (message.stickerMessage) return '[Figurinha]';
   return '';
+}
+
+function isTechnicalMessage(message) {
+  return Boolean(message && (
+    message.protocolMessage ||
+    message.senderKeyDistributionMessage
+  ));
 }
 
 async function postIncomingMessage(payload) {
@@ -433,9 +445,10 @@ async function startSocket({ fresh = false, reason = 'start' } = {}) {
       const messages = event && Array.isArray(event.messages) ? event.messages : [];
       messages.forEach((msg) => {
         try {
-          if (!msg || !msg.key || msg.key.fromMe) return;
+          if (!msg || !msg.key) return;
           const remoteJid = msg.key.remoteJid || '';
           if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid === 'status@broadcast') return;
+          if (isTechnicalMessage(msg.message || {})) return;
           const remoteJidAlt = msg.key.remoteJidAlt || '';
           const phoneJid = remoteJid.endsWith('@s.whatsapp.net') ? remoteJid
             : (remoteJidAlt.endsWith('@s.whatsapp.net') ? remoteJidAlt : '');
@@ -444,6 +457,7 @@ async function startSocket({ fresh = false, reason = 'start' } = {}) {
           const payload = {
             phone,
             text,
+            from_me: Boolean(msg.key.fromMe),
             push_name: msg.pushName || '',
             message_id: msg.key.id || '',
             timestamp: msg.messageTimestamp || null,
