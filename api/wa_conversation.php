@@ -32,9 +32,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $placeholders = implode(',', array_fill(0, count($variants), '?'));
     $st = $pdo->prepare("SELECT id, direction, message_text, media_kind, media_mime, media_filename, media_path IS NOT NULL AS has_media, sent_at FROM whatsapp_messages WHERE phone_normalized IN ($placeholders) ORDER BY sent_at ASC, id ASC LIMIT 500"); $st->execute($variants);
     $messages = $st->fetchAll(PDO::FETCH_ASSOC);
+    $messages = array_values(array_filter($messages, static function (array $message): bool {
+        return trim((string)($message['message_text'] ?? '')) !== '[reactionMessage]';
+    }));
+    $legacyLabels = [
+        '[imageMessage]' => 'Imagem antiga: o arquivo não foi armazenado',
+        '[audioMessage]' => 'Áudio antigo: o arquivo não foi armazenado',
+        '[videoMessage]' => 'Vídeo antigo: o arquivo não foi armazenado',
+        '[documentMessage]' => 'Documento antigo: o arquivo não foi armazenado',
+        '[stickerMessage]' => 'Figurinha antiga: o arquivo não foi armazenado',
+    ];
     foreach ($messages as &$message) {
         $message['media_url'] = !empty($message['has_media']) ? 'api/wa_media.php?id=' . (int)$message['id'] : null;
         $message['media_name'] = $message['media_filename'];
+        $legacyText = trim((string)($message['message_text'] ?? ''));
+        if (isset($legacyLabels[$legacyText])) $message['message_text'] = $legacyLabels[$legacyText];
         unset($message['media_path'], $message['has_media']);
     }
     unset($message);
