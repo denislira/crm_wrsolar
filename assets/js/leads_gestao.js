@@ -2603,9 +2603,56 @@
                 try { tr.classList.toggle('selected', !!chk.checked); } catch(_){ }
                 updateBulkDeleteVisibility();
             });
-            const nameTd = document.createElement('td'); nameTd.textContent = (lead.name || '(sem nome)').length > 20 ? (lead.name || '(sem nome)').substring(0, 20) + '...' : (lead.name || '(sem nome)');
-            const compTd = document.createElement('td'); compTd.textContent = lead.source || lead.client_name || lead.company || '—';
-            const statusTd = document.createElement('td'); statusTd.textContent = getStageName(lead.stage_id) || '';
+            const nameTd = document.createElement('td');
+            const leadName = (lead.name || '(sem nome)');
+            const initials = leadName.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part.charAt(0).toUpperCase()).join('') || '?';
+            const nameWrap = document.createElement('div');
+            nameWrap.className = 'list-name-wrap';
+            const avatar = document.createElement('span');
+            avatar.className = 'list-name-avatar';
+            avatar.textContent = initials;
+            const nameText = document.createElement('span');
+            nameText.textContent = leadName.length > 20 ? leadName.substring(0, 20) + '...' : leadName;
+            nameWrap.appendChild(avatar);
+            nameWrap.appendChild(nameText);
+            nameTd.appendChild(nameWrap);
+            nameTd.title = leadName;
+
+            const sourceLabel = lead.source || lead.client_name || lead.company || '—';
+            const compTd = document.createElement('td');
+            const sourceBadge = document.createElement('span');
+            sourceBadge.className = 'list-source-badge';
+            const sourceText = normalizeText(lead.source || lead.origem || '');
+            sourceBadge.textContent = sourceLabel;
+            sourceBadge.title = sourceLabel;
+            compTd.appendChild(sourceBadge);
+
+            const statusTd = document.createElement('td');
+            const stage = STAGES.find(s => String(s.id) === String(lead.stage_id)) || null;
+            const isWhatsappRow = typeof isWhatsappInboxLead === 'function' && isWhatsappInboxLead(lead);
+            const hasStage = lead.stage_id !== null && lead.stage_id !== undefined && Number(lead.stage_id) !== 0;
+            const statusLabel = isWhatsappRow ? 'WhatsApp' : (hasStage ? (stage?.name || getStageName(lead.stage_id) || 'Sem status') : 'Sem status');
+            const statusBadge = document.createElement('span');
+            statusBadge.className = 'list-status-badge';
+            statusBadge.textContent = statusLabel;
+            statusBadge.title = statusLabel;
+            const stageColor = isWhatsappRow ? '#25d366' : (stage?.color || stage?.card_color || '#94a3b8');
+            statusBadge.style.setProperty('--list-status-color', stageColor);
+            statusBadge.style.borderColor = stageColor;
+            statusBadge.style.color = stageColor;
+            statusBadge.style.backgroundColor = '#ffffff';
+            statusBadge.style.backgroundImage = 'linear-gradient(color-mix(in srgb, ' + stageColor + ' 13%, #ffffff), color-mix(in srgb, ' + stageColor + ' 13%, #ffffff))';
+            statusTd.appendChild(statusBadge);
+
+            if (isWhatsappRow || sourceText === 'whatsapp') {
+                tr.classList.add('list-row-whatsapp');
+            } else if (sourceText.includes('anuncio') || sourceText.includes('ads')) {
+                tr.classList.add('list-row-anuncio');
+            } else if (sourceText.includes('indic')) {
+                tr.classList.add('list-row-indicacao');
+            } else if (!hasStage) {
+                tr.classList.add('list-row-sem-status');
+            }
             const phoneTd = document.createElement('td'); phoneTd.textContent = lead.phone || '';
             const valTd = document.createElement('td'); valTd.textContent = toCurrency(lead.orcamento_value || lead.proposal_value || lead.estimativa_projeto_kwh || lead.value || 0);
             const scoreTd = document.createElement('td'); scoreTd.innerHTML = '<span class="badge-score ' + (lead.score>=80?'hot':(lead.score>=50?'warm':'cold')) + '">' + (lead.score||0) + '</span>';
@@ -2625,6 +2672,13 @@
                 openPanel(lead.id);
             });
             actTd.appendChild(openBtn);
+
+            const inactiveDays = typeof leadUpdatedDaysAgo === 'function' ? leadUpdatedDaysAgo(lead) : null;
+            if (inactiveDays !== null && inactiveDays !== Infinity && inactiveDays >= (Number(localStorage.getItem('stalledDays') || 7))) {
+                tr.classList.add('list-row-stalled');
+                updatedTd.title = 'Sem movimentação há ' + inactiveDays + ' dias';
+                updatedTd.innerHTML += ' <i class="fa-solid fa-triangle-exclamation text-warning" title="Sem movimentação há ' + inactiveDays + ' dias" aria-label="Lead parado"></i>';
+            }
 
             // Acesso rápido à conversa do WhatsApp também no modo lista.
             if (typeof hasWhatsappContactPhone === 'function' && hasWhatsappContactPhone(lead)) {
