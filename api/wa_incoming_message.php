@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/wa_baileys_api.php';
 require_once __DIR__ . '/../includes/email_notifications.php';
+require_once __DIR__ . '/../includes/whatsapp_message_store.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -10,12 +11,7 @@ function wa_incoming_json(array $payload, int $status = 200): void {
     exit;
 }
 function wa_incoming_ensure_message_table(PDO $pdo): void {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_messages (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY, phone_normalized VARCHAR(40) NOT NULL,
-        message_id VARCHAR(255) DEFAULT NULL, direction ENUM('in','out') NOT NULL,
-        message_text TEXT NOT NULL, sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY ux_whatsapp_message (phone_normalized, message_id), KEY idx_whatsapp_phone_date (phone_normalized, sent_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    wa_messages_ensure_table($pdo);
 }
 
 function wa_incoming_digits($value): string {
@@ -308,16 +304,14 @@ if (!is_array($payload)) {
 
 wa_incoming_debug_notify($pdo, $payload);
 
-if (empty($cfg['auto_create_leads'])) {
-    wa_incoming_json(['success' => true, 'created' => false, 'reason' => 'auto_create_disabled']);
-}
-
 $phone = wa_incoming_digits($payload['telefone'] ?? $payload['phone'] ?? $payload['from'] ?? '');
 $text = trim((string)($payload['mensagem'] ?? $payload['text'] ?? $payload['message'] ?? ''));
 $pushName = trim((string)($payload['push_name'] ?? $payload['nome'] ?? $payload['name'] ?? ''));
 $profilePictureUrl = trim((string)($payload['profile_picture_url'] ?? $payload['photo'] ?? $payload['picture'] ?? ''));
 $remoteJid = trim((string)($payload['remote_jid'] ?? ''));
 $remoteJidAlt = trim((string)($payload['remote_jid_alt'] ?? ''));
+$phoneJid = str_ends_with($remoteJid, '@s.whatsapp.net') ? $remoteJid : (str_ends_with($remoteJidAlt, '@s.whatsapp.net') ? $remoteJidAlt : '');
+if ($phoneJid !== '') $phone = wa_incoming_digits(explode('@', $phoneJid, 2)[0]);
 $senderJid = trim((string)($payload['sender_jid'] ?? ''));
 $participantAlt = trim((string)($payload['participant_alt'] ?? ''));
 $idType = trim((string)($payload['id_tipo'] ?? $payload['id_type'] ?? ''));
@@ -325,20 +319,24 @@ $mode = (string)($cfg['lead_capture_mode'] ?? 'new_only');
 $messageId = trim((string)($payload['message_id'] ?? ($payload['id'] ?? '')));
 $messageId = $messageId !== '' ? mb_substr($messageId, 0, 255) : ('incoming_' . hash('sha256', $phone . '|' . $text . '|' . microtime(true)));
 $fromMe = filter_var($payload['from_me'] ?? false, FILTER_VALIDATE_BOOLEAN);
-if ($text !== '') {
+$mediaKinds = ['image', 'audio', 'video', 'document', 'sticker'];
+$mediaKind = in_array(($payload['media_kind'] ?? ''), $mediaKinds, true) ? $payload['media_kind'] : null;
+if ($text !== '' || $mediaKind !== null) {
     try {
         wa_incoming_ensure_message_table($pdo);
         $direction = $fromMe ? 'out' : 'in';
-        $msgStmt = $pdo->prepare("INSERT IGNORE INTO whatsapp_messages (phone_normalized, message_id, direction, message_text) VALUES (?, ?, ?, ?)");
-        $msgStmt->execute([$phone, $messageId, $direction, mb_substr($text, 0, 10000)]);
+        $mediaMime = trim((string)($payload['media_mime'] ?? ''));
+        $msgStmt = $pdo->prepare("INSERT IGNORE INTO whatsapp_messages (phone_normalized, message_id, direction, message_text, media_kind, media_mime) VALUES (?, ?, ?, ?, ?, ?)");
+        $msgStmt->execute([$phone, $messageId, $direction, mb_substr($text, 0, 10000), $mediaKind, $mediaMime !== '' ? mb_substr($mediaMime, 0, 100) : null]);
     } catch (Throwable $ignored) {}
 }
 // Mensagem enviada pela própria conta não deve criar nem reabrir lead.
 if ($fromMe) {
     wa_incoming_json(['success' => true, 'created' => false, 'direction' => 'out', 'message_id' => $messageId]);
 }
-$phoneJid = str_ends_with($remoteJid, '@s.whatsapp.net') ? $remoteJid : (str_ends_with($remoteJidAlt, '@s.whatsapp.net') ? $remoteJidAlt : '');
-if ($phoneJid !== '') $phone = wa_incoming_digits(explode('@', $phoneJid, 2)[0]);
+if (empty($cfg['auto_create_leads'])) {
+    wa_incoming_json(['success' => true, 'created' => false, 'reason' => 'auto_create_disabled']);
+}
 
 // Contacts archived from the WhatsApp column must not create/reopen Kanban leads.
 if ($phone !== '' && wa_incoming_table_exists($pdo, 'whatsapp_archived_contacts')) {

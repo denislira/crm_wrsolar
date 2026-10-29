@@ -4,13 +4,41 @@ header('Content-Type: application/json; charset=utf-8');
 if (empty($_SESSION['user_id'])) { http_response_code(401); echo json_encode(['success'=>false,'message'=>'Não autorizado']); exit; }
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/wa_baileys_api.php';
-function wa_conv_table(PDO $pdo): void { $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_messages (id BIGINT AUTO_INCREMENT PRIMARY KEY, phone_normalized VARCHAR(40) NOT NULL, message_id VARCHAR(255) DEFAULT NULL, direction ENUM('in','out') NOT NULL, message_text TEXT NOT NULL, sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY ux_whatsapp_message (phone_normalized,message_id), KEY idx_whatsapp_phone_date (phone_normalized,sent_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"); }
+require_once __DIR__ . '/../includes/whatsapp_message_store.php';
+function wa_conv_phone_variants(string $phone): array {
+    $digits = preg_replace('/\D+/', '', $phone) ?: '';
+    $variants = [$digits];
+    if (str_starts_with($digits, '55') && strlen($digits) > 11) $variants[] = substr($digits, 2);
+    elseif (strlen($digits) >= 10 && strlen($digits) <= 11) $variants[] = '55' . $digits;
+    foreach ($variants as $variant) {
+        $local = str_starts_with($variant, '55') ? substr($variant, 2) : $variant;
+        if (strlen($local) === 11 && $local[2] === '9') {
+            $withoutNine = substr($local, 0, 2) . substr($local, 3);
+            $variants[] = $withoutNine;
+            $variants[] = '55' . $withoutNine;
+        } elseif (strlen($local) === 10 && in_array($local[2], ['6','7','8','9'], true)) {
+            $withNine = substr($local, 0, 2) . '9' . substr($local, 2);
+            $variants[] = $withNine;
+            $variants[] = '55' . $withNine;
+        }
+    }
+    return array_values(array_unique(array_filter($variants)));
+}
 $phone = preg_replace('/\D+/', '', (string)($_REQUEST['phone'] ?? '')) ?: '';
 if (strlen($phone) < 10 || strlen($phone) > 15) { http_response_code(422); echo json_encode(['success'=>false,'message'=>'Telefone inválido']); exit; }
-wa_conv_table($pdo);
+wa_messages_ensure_table($pdo);
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $st = $pdo->prepare('SELECT id, direction, message_text, sent_at FROM whatsapp_messages WHERE phone_normalized = ? ORDER BY sent_at ASC, id ASC LIMIT 500'); $st->execute([$phone]);
-    echo json_encode(['success'=>true,'messages'=>$st->fetchAll(PDO::FETCH_ASSOC)], JSON_UNESCAPED_UNICODE); exit;
+    $variants = wa_conv_phone_variants($phone);
+    $placeholders = implode(',', array_fill(0, count($variants), '?'));
+    $st = $pdo->prepare("SELECT id, direction, message_text, media_kind, media_mime, media_filename, media_path IS NOT NULL AS has_media, sent_at FROM whatsapp_messages WHERE phone_normalized IN ($placeholders) ORDER BY sent_at ASC, id ASC LIMIT 500"); $st->execute($variants);
+    $messages = $st->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($messages as &$message) {
+        $message['media_url'] = !empty($message['has_media']) ? 'api/wa_media.php?id=' . (int)$message['id'] : null;
+        $message['media_name'] = $message['media_filename'];
+        unset($message['media_path'], $message['has_media']);
+    }
+    unset($message);
+    echo json_encode(['success'=>true,'messages'=>$messages], JSON_UNESCAPED_UNICODE); exit;
 }
 $text = trim((string)($_POST['message'] ?? ''));
 if ($text === '' || mb_strlen($text) > 4096) { http_response_code(422); echo json_encode(['success'=>false,'message'=>'Mensagem inválida']); exit; }

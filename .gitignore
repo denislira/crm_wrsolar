@@ -6,6 +6,7 @@ node_modules/
 /public/assets/
 /.vscode/
 /storage/settings.json
+/storage/whatsapp/media/
 /uploads/custom_logo.*
 /uploads/custom_logo_collapsed.*
 /uploads/emails/

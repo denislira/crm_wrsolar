@@ -2053,10 +2053,29 @@
         await loadWhatsappConversation(modal); bootstrap.Modal.getOrCreateInstance(modal).show();
     }
     async function loadWhatsappConversation(modal) {
-        const box = modal.querySelector('.wa-chat-messages'); box.innerHTML = '<div class="text-muted text-center">Carregando conversa...</div>';
-        try { const res = await fetch('api/wa_conversation.php?phone=' + encodeURIComponent(modal.dataset.phone)); const data = await res.json(); const rows = data.messages || []; box.innerHTML = rows.length ? rows.map(m => `<div class="wa-chat-bubble ${m.direction === 'out' ? 'out' : 'in'}">${escapeText(m.message_text)}<small>${escapeText(m.sent_at || '')}</small></div>`).join('') : '<div class="text-muted text-center py-5">Nenhuma mensagem de texto registrada.</div>'; box.scrollTop = box.scrollHeight; } catch(e) { box.innerHTML = '<div class="text-danger">Não foi possível carregar a conversa.</div>'; }
+        const box = modal.querySelector('.wa-chat-messages');
+        box.innerHTML = '<div class="text-muted text-center">Carregando conversa...</div>';
+        try {
+            const res = await fetch('api/wa_conversation.php?phone=' + encodeURIComponent(modal.dataset.phone));
+            const data = await res.json();
+            const rows = data.messages || [];
+            box.innerHTML = rows.length ? rows.map(m => {
+                const url = m.media_url ? `api/wa_media.php?id=${encodeURIComponent(String(m.id))}` : '';
+                const name = escapeText(m.media_name || 'Arquivo recebido');
+                const media = url && (m.media_kind === 'image' || m.media_kind === 'sticker')
+                    ? `<a href="${escapeText(url)}" target="_blank" rel="noopener"><img class="${m.media_kind === 'sticker' ? 'wa-chat-sticker' : ''}" src="${escapeText(url)}" alt="${m.media_kind === 'sticker' ? 'Figurinha recebida' : 'Imagem recebida'}" loading="lazy"></a>`
+                    : (url && m.media_kind === 'audio' ? `<audio controls preload="metadata" src="${escapeText(url)}"></audio>`
+                        : (url && m.media_kind === 'video' ? `<video controls preload="metadata" src="${escapeText(url)}"></video>`
+                            : (url && m.media_kind === 'document' ? `<a class="wa-chat-attachment" href="${escapeText(url)}"><i class="fa-regular fa-file-lines"></i><span>${name}</span></a>` : '')));
+                const text = String(m.message_text || '');
+                const unavailable = !media && m.media_kind ? 'Mídia não disponível' : '';
+                return `<div class="wa-chat-bubble ${m.direction === 'out' ? 'out' : 'in'}">${media}${escapeText(text || unavailable)}<small>${escapeText(m.sent_at || '')}</small></div>`;
+            }).join('') : '<div class="text-muted text-center py-5">Nenhuma mensagem registrada.</div>';
+            box.scrollTop = box.scrollHeight;
+        } catch (e) {
+            box.innerHTML = '<div class="text-danger">Não foi possível carregar a conversa.</div>';
+        }
     }
-
     function loadArchivedWhatsappModal() {
         const box = document.getElementById('archivedWhatsappList'); if (!box) return;
         box.innerHTML = '<div class="text-muted">Carregando...</div>';

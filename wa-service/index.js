@@ -4,6 +4,7 @@ const https = require('https');
 const path = require('path');
 const pino = require('pino');
 const baileys = require('@adiwajshing/baileys');
+const downloadMediaMessage = baileys.downloadMediaMessage;
 
 const makeWASocket = baileys && baileys.default ? baileys.default : baileys;
 const initAuthCreds = baileys.initAuthCreds;
@@ -88,6 +89,8 @@ const INTERNAL_SECRET = process.env.BAILEYS_INTERNAL_SECRET || '';
 const EMPRESA_TOKEN = process.env.BAILEYS_EMPRESA_TOKEN || 'wrcrm-9999';
 const CLIENT_KEY = process.env.BAILEYS_CLIENT_KEY || '';
 const INCOMING_WEBHOOK_URL = process.env.BAILEYS_INCOMING_WEBHOOK_URL || 'http://127.0.0.1/WRCRM/api/wa_incoming_message.php';
+const INCOMING_MEDIA_URL = process.env.BAILEYS_INCOMING_MEDIA_URL || INCOMING_WEBHOOK_URL.replace(/wa_incoming_message\.php(?=\?|$)/, 'wa_media_ingest.php');
+const MAX_INCOMING_MEDIA_BYTES = 7 * 1024 * 1024;
 const SEND_INTERVAL_MS = Math.max(1000, Number(process.env.WA_SEND_INTERVAL_MS || 8000));
 const SEND_JITTER_MS = Math.max(0, Number(process.env.WA_SEND_JITTER_MS || 3000));
 
@@ -238,15 +241,33 @@ async function processSendQueue() {
   }
 }
 
+function unwrapMessageContent(message) {
+  let content = message || {};
+  for (let i = 0; i < 5; i += 1) {
+    const wrapper = content.ephemeralMessage || content.viewOnceMessage || content.viewOnceMessageV2
+      || content.viewOnceMessageV2Extension || content.documentWithCaptionMessage;
+    if (!wrapper || !wrapper.message) break;
+    content = wrapper.message;
+  }
+  return content;
+}
+
+function getIncomingMedia(content) {
+  if (content.imageMessage) return { kind: 'image', message: content.imageMessage };
+  if (content.audioMessage) return { kind: 'audio', message: content.audioMessage };
+  return null;
+}
+
 function extractMessageText(message) {
+  message = unwrapMessageContent(message);
   if (!message) return '';
   if (message.conversation) return String(message.conversation);
   if (message.extendedTextMessage && message.extendedTextMessage.text) return String(message.extendedTextMessage.text);
   if (message.imageMessage && message.imageMessage.caption) return String(message.imageMessage.caption);
   if (message.videoMessage && message.videoMessage.caption) return String(message.videoMessage.caption);
-  if (message.imageMessage) return '[Imagem]';
+  if (message.imageMessage) return '';
   if (message.videoMessage) return '[Vídeo]';
-  if (message.audioMessage) return '[Áudio]';
+  if (message.audioMessage) return '';
   if (message.documentMessage) return '[Documento]';
   if (message.stickerMessage) return '[Figurinha]';
   return '';
@@ -260,7 +281,7 @@ function isTechnicalMessage(message) {
 }
 
 async function postIncomingMessage(payload) {
-  if (!INCOMING_WEBHOOK_URL) return;
+  if (!INCOMING_WEBHOOK_URL) return false;
   const body = JSON.stringify(payload);
   const target = new URL(INCOMING_WEBHOOK_URL);
   const transport = target.protocol === 'https:' ? https : http;
@@ -284,12 +305,46 @@ async function postIncomingMessage(payload) {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         logger.warn({ status: res.statusCode }, 'Webhook de mensagem recebida retornou erro');
       }
-      resolve();
+      resolve(res.statusCode >= 200 && res.statusCode < 300);
     });
-    req.on('timeout', () => { req.destroy(); resolve(); });
-    req.on('error', (err) => { logger.warn({ err }, 'Falha ao enviar mensagem recebida ao WRCRM'); resolve(); });
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', (err) => { logger.warn({ err }, 'Falha ao enviar mensagem recebida ao WRCRM'); resolve(false); });
     req.write(body);
     req.end();
+  });
+}
+
+async function postIncomingMedia(phone, messageId, kind, mimetype, buffer) {
+  if (!INCOMING_MEDIA_URL || !buffer || buffer.length > MAX_INCOMING_MEDIA_BYTES) return false;
+  const target = new URL(INCOMING_MEDIA_URL);
+  const transport = target.protocol === 'https:' ? https : http;
+  return new Promise((resolve) => {
+    const req = transport.request({
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || (target.protocol === 'https:' ? 443 : 80),
+      path: target.pathname + target.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': buffer.length,
+        'X-Internal-Secret': INTERNAL_SECRET,
+        'X-WA-Phone': phone,
+        'X-WA-Message-Id': messageId,
+        'X-WA-Kind': kind,
+        'X-WA-Mime': mimetype
+      },
+      timeout: 30000
+    }, (res) => {
+      res.resume();
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        logger.warn({ status: res.statusCode, kind, messageId }, 'Webhook de mídia retornou erro');
+      }
+      resolve(res.statusCode >= 200 && res.statusCode < 300);
+    });
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', (err) => { logger.warn({ err, kind, messageId }, 'Falha ao enviar mídia ao WRCRM'); resolve(false); });
+    req.end(buffer);
   });
 }
 
@@ -453,16 +508,21 @@ async function startSocket({ fresh = false, reason = 'start' } = {}) {
           const phoneJid = remoteJid.endsWith('@s.whatsapp.net') ? remoteJid
             : (remoteJidAlt.endsWith('@s.whatsapp.net') ? remoteJidAlt : '');
           const phone = phoneJid ? phoneJid.split('@')[0].replace(/\D/g, '') : '';
-          const text = extractMessageText(msg.message || {});
+          const messageContent = unwrapMessageContent(msg.message || {});
+          const text = extractMessageText(messageContent);
+          const media = getIncomingMedia(messageContent);
+          const messageId = msg.key.id || `wa_${Date.now()}_${Math.random().toString(16).slice(2)}`;
           const payload = {
             phone,
             text,
             from_me: Boolean(msg.key.fromMe),
             push_name: msg.pushName || '',
-            message_id: msg.key.id || '',
+            message_id: messageId,
             timestamp: msg.messageTimestamp || null,
             remote_jid: remoteJid,
-            remote_jid_alt: remoteJidAlt
+            remote_jid_alt: remoteJidAlt,
+            media_kind: media ? media.kind : '',
+            media_mime: media && media.message.mimetype ? media.message.mimetype : ''
           };
           (async () => {
             if (sock && typeof sock.profilePictureUrl === 'function') {
@@ -475,7 +535,26 @@ async function startSocket({ fresh = false, reason = 'start' } = {}) {
                 // O contato pode ocultar a foto ou nao ter imagem.
               }
             }
-            await postIncomingMessage(payload);
+            const saved = await postIncomingMessage(payload);
+            if (!saved || !media || typeof downloadMediaMessage !== 'function') return;
+            const declaredSize = Number(media.message.fileLength || 0);
+            if (declaredSize > MAX_INCOMING_MEDIA_BYTES) {
+              logger.warn({ messageId, size: declaredSize }, 'Mídia acima do limite configurado');
+              return;
+            }
+            try {
+              const buffer = await downloadMediaMessage(msg, 'buffer', {}, {
+                logger,
+                reuploadRequest: sock.updateMediaMessage
+              });
+              if (Buffer.isBuffer(buffer) && buffer.length <= MAX_INCOMING_MEDIA_BYTES) {
+                await postIncomingMedia(phone, messageId, media.kind, media.message.mimetype || '', buffer);
+              } else {
+                logger.warn({ messageId, size: buffer && buffer.length }, 'Mídia vazia ou acima do limite');
+              }
+            } catch (err) {
+              logger.warn({ err, messageId, kind: media.kind }, 'Falha ao baixar mídia do WhatsApp');
+            }
           })().catch(err => logger.warn({ err }, 'Erro assincrono no webhook de entrada'));
         } catch (err) {
           logger.warn({ err }, 'Falha ao processar mensagem recebida');
