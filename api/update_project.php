@@ -47,7 +47,7 @@ if ($id <= 0) {
     exit;
 }
 
-$allowed = ['client_name','address','proposal_value','projeto','status','contract','closed_date','due_days','client_status','payment_method_id','payment_type','payment_status','logistics_tracking_code','logistics_delivery_date','inspection_photos','technical_checklist','docs_checklist','doc_attachments'];
+$allowed = ['client_name','address','proposal_value','projeto','kit_details','status','contract','closed_date','due_days','client_status','payment_method_id','payment_type','payment_status','logistics_tracking_code','logistics_delivery_date','inspection_photos','technical_checklist','docs_checklist','doc_attachments'];
 $sets = [];
 $params = [];
 $removedAttachmentPaths = [];
@@ -95,6 +95,15 @@ foreach ($allowed as $f) {
         }
         $params[] = ($val === '' ? null : $val);
     }
+}
+
+$kitDetails = [];
+foreach (['kwh_mes','kwp','caracteristicas_kit','quant_paineis','paineis_w','marca_paineis','inversor_w','marca_inversor','estrutura','acessorios','imoveis_adicionais'] as $kitKey) {
+    if (isset($_POST['kit_'.$kitKey])) $kitDetails[$kitKey] = trim((string)$_POST['kit_'.$kitKey]);
+}
+if ($kitDetails) {
+    $sets[] = 'kit_details = ?';
+    $params[] = json_encode($kitDetails, JSON_UNESCAPED_UNICODE);
 }
 
 if (isset($_POST['payment_method_id'])) {

@@ -46,20 +46,6 @@ function fin_fields(): array {
         'email'=>['E-MAIL','text'], 'local'=>['LOCAL','text'], 'bairro'=>['BAIRRO','text'],
         'cidade'=>['CIDADE','text'], 'localizacao'=>['LOCALIZAÇÃO FIXA','text'],
       ],
-      'Kit e projeto' => [
-        'kwh_mes'=>['KWH/M','number'], 'kwp'=>['KWP','number'], 'caracteristicas_kit'=>['CARACTERÍSTICAS DO KIT','text'],
-        'quant_paineis'=>['QUANT. PAINÉIS','number'], 'paineis_w'=>['PAINÉIS (W)','number'],
-        'marca_paineis'=>['MARCA DOS PAINÉIS','text'], 'inversor_w'=>['INVERSOR (W)','text'],
-        'marca_inversor'=>['MARCA DO INVERSOR','text'], 'estrutura'=>['ESTRUTURA','text'],
-        'acessorios'=>['ACESSÓRIOS','text'], 'imoveis_adicionais'=>['IMÓVEIS ADICIONAIS BENEFICIADOS','text'],
-      ],
-      'Custos e venda' => [
-        'preco_wp'=>['PREÇO (WP)','calculated'], 'custo_acessorios'=>['CUSTO (ACESSÓRIOS)','money'],
-        'custo_kit'=>['CUSTO (KIT)','money'], 'custo_total'=>['CUSTO TOTAL','calculated'],
-        'valor_venda'=>['VALOR VENDA','money'], 'lucro_bruto'=>['LUCRO BRUTO','calculated'],
-        'margem_bruta'=>['MARGEM BRUTA','calculated'], 'observacao'=>['OBSERVAÇÃO','textarea'],
-        'vendedor_indicador'=>['VENDEDOR / INDICADOR','text'], 'comissao'=>['COMISSÃO','money'],
-      ],
       'Pagamento' => [
         'forma_pagamento'=>['FORMA DE PAGAMENTO','text'], 'forma_negociacao'=>['FORMA DA NEGOCIÇÃO','text'],
         'pago_direto'=>['VALOR PAGO: ESPÉCIE / TRANSFERÊNCIA / PIX','calculated'],
@@ -69,9 +55,23 @@ function fin_fields(): array {
         'pago_bens'=>['VALOR PAGO: BENS','calculated'],
         'valor_receber'=>['VALOR A RECEBER','calculated'],
       ],
+      'Kit e projeto' => [
+        'kwh_mes'=>['KWH/M','number'], 'kwp'=>['KWP','number'], 'caracteristicas_kit'=>['CARACTERÍSTICAS DO KIT','text'],
+        'quant_paineis'=>['QUANT. PAINÉIS','number'], 'paineis_w'=>['PAINÉIS (W)','number'],
+        'marca_paineis'=>['MARCA DOS PAINÉIS','text'], 'inversor_w'=>['INVERSOR (W)','text'],
+        'marca_inversor'=>['MARCA DO INVERSOR','text'], 'estrutura'=>['ESTRUTURA','text'],
+        'acessorios'=>['ACESSÓRIOS','text'], 'imoveis_adicionais'=>['IMÓVEIS ADICIONAIS BENEFICIADOS','text'],
+      ],
       'Notas fiscais' => [
         'data_nf_entrada'=>['DATA NF ENTRADA','date'], 'nf_entrada'=>['NF ENTRADA','text'],
         'nf_saida'=>['NF SAÍDA - NORMAL','text'], 'data_nf_saida'=>['DATA NF SAÍDA','date'],
+      ],
+      'Custos e venda' => [
+        'preco_wp'=>['PREÇO (WP)','calculated'], 'custo_acessorios'=>['CUSTO (ACESSÓRIOS)','money'],
+        'custo_kit'=>['CUSTO (KIT)','money'], 'custo_total'=>['CUSTO TOTAL','calculated'],
+        'valor_venda'=>['VALOR VENDA','money'], 'lucro_bruto'=>['LUCRO BRUTO','calculated'],
+        'margem_bruta'=>['MARGEM BRUTA','calculated'], 'observacao'=>['OBSERVAÇÃO','textarea'],
+        'vendedor_indicador'=>['VENDEDOR / INDICADOR','text'], 'comissao'=>['COMISSÃO','money'],
       ],
       'Execução e monitoramento' => [
         'dados_projeto'=>['DADOS DO PROJETO','date'], 'entrega_kit'=>['ENTREGA DO KIT','date'],

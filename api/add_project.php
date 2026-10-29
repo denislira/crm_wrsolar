@@ -78,6 +78,10 @@ $technical_checklist = isset($_POST['technical_checklist']) ? trim($_POST['techn
 $technical_checklist = $technical_checklist === '' ? null : $technical_checklist;
 $docs_checklist = isset($_POST['docs_checklist']) ? trim($_POST['docs_checklist']) : null;
 $docs_checklist = $docs_checklist === '' ? null : $docs_checklist;
+$kitDetails = [];
+foreach (['kwh_mes','kwp','caracteristicas_kit','quant_paineis','paineis_w','marca_paineis','inversor_w','marca_inversor','estrutura','acessorios','imoveis_adicionais'] as $kitKey) {
+    $kitDetails[$kitKey] = trim((string)($_POST['kit_'.$kitKey] ?? ''));
+}
 
 // Debug log
 error_log("add_project.php - Recebido lead_id: " . print_r($_POST['lead_id'] ?? 'NOT SET', true));
@@ -137,7 +141,7 @@ try {
         }
     }
 
-    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, projeto, due_days, client_status, payment_method_id, payment_type, payment_status, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+    $stmt = $pdo->prepare('INSERT INTO projetos (user_id, client_name, address, proposal_value, status, lead_id, closed_date, contract, projeto, kit_details, due_days, client_status, payment_method_id, payment_type, payment_status, logistics_tracking_code, logistics_delivery_date, inspection_photos, technical_checklist, docs_checklist, doc_attachments, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
     $stmt->execute([
         $_SESSION['user_id'],
         $client_name,
@@ -148,6 +152,7 @@ try {
         $closed_date ?: null,
         $contract,
         $projeto,
+        json_encode($kitDetails, JSON_UNESCAPED_UNICODE),
         $due_days,
         $client_status,
         $payment_method_id,

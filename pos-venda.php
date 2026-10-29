@@ -6,6 +6,8 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
 require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/project_kit_schema.php';
+ensureProjectKitDetailsColumn($pdo);
 require_once __DIR__ . '/includes/permissions.php';
 require_once __DIR__ . '/includes/movements.php';
 
@@ -586,6 +588,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     p.address AS proj_address,
                     p.proposal_value,
                     p.projeto AS project_kwh,
+                    p.kit_details,
                     p.payment_type,
                     p.payment_status,
                     p.contract,
@@ -849,6 +852,7 @@ $projetoSelect = [
     'p.address AS proj_address',
     'p.proposal_value',
     'p.projeto AS project_kwh',
+    'p.kit_details',
     'p.id AS proj_id',
     'l.id AS lead_id',
     'l.name AS lead_name',
@@ -983,7 +987,7 @@ $total = count($posVendas);
 $conversaoRecorrencia = $total > 0 ? round(($assinantesAtivos / $total) * 100) : 0;
 
 // Fetch all eligible projects for the "Add" modal select
-$projStmt = $pdo->prepare("SELECT p.id, p.client_name, p.projeto, p.proposal_value, p.address AS proj_address, l.id AS lead_id, l.phone AS lead_phone, l.email AS lead_email, l.cpf_cnpj AS lead_cpf
+$projStmt = $pdo->prepare("SELECT p.id, p.client_name, p.projeto, p.proposal_value, p.kit_details, p.address AS proj_address, p.contract, l.id AS lead_id, l.phone AS lead_phone, l.email AS lead_email, l.cpf_cnpj AS lead_cpf
     FROM projetos p
     LEFT JOIN leads l ON l.id = p.lead_id
     WHERE p.user_id=? AND p.status IN ('Fechado','Finalizado','Homologado','Concluído','Concluido')
@@ -1199,16 +1203,47 @@ body.theme-dark .pv-kpi-row .fw-bold {
     border-color: var(--bs-primary);
     box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb), .25);
 }
-#pvModal .nav-pills .nav-link {
-    border-radius: 999px;
-    padding: .7rem 1.1rem;
+#pvModal .pv-modal-tabs-wrap { padding-top: .65rem; }
+#pvModal #pvModalTabs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: .25rem;
+    padding: .3rem;
+    margin-bottom: .85rem !important;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    border: 1px solid #dce5ef;
+    border-radius: 11px;
+    background: #f1f5f9;
+}
+#pvModal #pvModalTabs .nav-item { flex: 1 0 auto; min-width: max-content; }
+#pvModal #pvModalTabs .nav-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    width: 100%;
+    min-height: 42px;
+    padding: .55rem .85rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: #526278;
+    font-size: .9rem;
     font-weight: 600;
-    color: #334155;
+    line-height: 1.15;
+    white-space: nowrap;
+    transition: background-color .16s ease, color .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
-#pvModal .nav-pills .nav-link.active {
-    background-color: var(--bs-primary);
-    color: #fff;
+#pvModal #pvModalTabs .nav-link:hover { background: rgba(255,255,255,.72); color: #174e7a; }
+#pvModal #pvModalTabs .nav-link.active {
+    border-color: #d7e3ef;
+    background: #fff;
+    color: #075b9a;
+    box-shadow: 0 1px 3px rgba(15,23,42,.12);
 }
+#pvModal #pvModalTabs .nav-link i { font-size: .88rem; opacity: .85; }
+#pvModal #pvModalTabs .nav-link:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 1px; }
 #pvModal .modal-header,
 #pvFieldsModal .modal-header,
 #pvStagesModal .modal-header,
@@ -1255,13 +1290,10 @@ body.theme-dark #pvModal .modal-header {
 body.theme-dark #pvModal .modal-header {
     background: linear-gradient(135deg, var(--blue-700), var(--blue-900)) !important;
 }
-body.theme-dark #pvModal .nav-pills .nav-link {
-    color: #cbd5e1 !important;
-}
-body.theme-dark #pvModal .nav-pills .nav-link.active {
-    background-color: rgba(var(--bs-primary-rgb),0.9) !important;
-    color: #fff !important;
-}
+body.theme-dark #pvModal #pvModalTabs { background: #111f32; border-color: rgba(255,255,255,.12); }
+body.theme-dark #pvModal #pvModalTabs .nav-link { color: #b7c5d6 !important; }
+body.theme-dark #pvModal #pvModalTabs .nav-link:hover { background: rgba(255,255,255,.06); color: #e6eef8 !important; }
+body.theme-dark #pvModal #pvModalTabs .nav-link.active { background: #173d5e !important; border-color: rgba(96,165,250,.35); color: #f1f7ff !important; box-shadow: 0 1px 4px rgba(0,0,0,.28); }
 body.theme-dark #pvModal .form-control,
 body.theme-dark #pvModal .form-select,
 body.theme-dark #pvModal textarea {
@@ -1564,7 +1596,7 @@ body.dark-mode .pv-details-close {
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="px-4">
+      <div class="px-4 pv-modal-tabs-wrap">
         <ul class="nav nav-pills nav-justified gap-2 mb-3" id="pvModalTabs" role="tablist">
           <li class="nav-item" role="presentation">
             <button class="nav-link active" id="pvTabCliente" data-bs-toggle="pill" data-bs-target="#pvTabPanelCliente" type="button" role="tab">Cliente</button>
@@ -1630,7 +1662,7 @@ body.dark-mode .pv-details-close {
                 <select class="form-select" id="pvProjectSelect">
                   <option value="">— Selecione o projeto —</option>
                   <?php foreach ($projetosDisponiveis as $prj): ?>
-                                        <option value="<?= $prj['id'] ?>" data-lead-id="<?= htmlspecialchars((string)($prj['lead_id'] ?? ''), ENT_QUOTES) ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>" data-proposal="<?= htmlspecialchars((string)($prj['proposal_value'] ?? ''), ENT_QUOTES) ?>" data-phone="<?= htmlspecialchars((string)($prj['lead_phone'] ?? ''), ENT_QUOTES) ?>" data-email="<?= htmlspecialchars((string)($prj['lead_email'] ?? ''), ENT_QUOTES) ?>" data-cpf="<?= htmlspecialchars((string)($prj['lead_cpf'] ?? ''), ENT_QUOTES) ?>" data-address="<?= htmlspecialchars((string)($prj['proj_address'] ?? ''), ENT_QUOTES) ?>" data-contract="<?= htmlspecialchars((string)($prj['contract'] ?? ''), ENT_QUOTES) ?>">
+                                        <option value="<?= $prj['id'] ?>" data-lead-id="<?= htmlspecialchars((string)($prj['lead_id'] ?? ''), ENT_QUOTES) ?>" data-name="<?= htmlspecialchars($prj['client_name'],ENT_QUOTES) ?>" data-kwh="<?= htmlspecialchars((string)($prj['projeto'] ?? ''), ENT_QUOTES) ?>" data-proposal="<?= htmlspecialchars((string)($prj['proposal_value'] ?? ''), ENT_QUOTES) ?>" data-phone="<?= htmlspecialchars((string)($prj['lead_phone'] ?? ''), ENT_QUOTES) ?>" data-email="<?= htmlspecialchars((string)($prj['lead_email'] ?? ''), ENT_QUOTES) ?>" data-cpf="<?= htmlspecialchars((string)($prj['lead_cpf'] ?? ''), ENT_QUOTES) ?>" data-address="<?= htmlspecialchars((string)($prj['proj_address'] ?? ''), ENT_QUOTES) ?>" data-contract="<?= htmlspecialchars((string)($prj['contract'] ?? ''), ENT_QUOTES) ?>" data-kit-details="<?= htmlspecialchars((string)($prj['kit_details'] ?? ''), ENT_QUOTES) ?>">
                       <?= htmlspecialchars($prj['client_name']) ?>
                     </option>
                   <?php endforeach; ?>
@@ -1659,6 +1691,12 @@ body.dark-mode .pv-details-close {
               <div class="col-md-6">
                 <label class="form-label fw-semibold">Marca</label>
                 <input type="text" name="marca" id="pvMarca" class="form-control" placeholder="Digite a marca">
+              </div>
+              <div class="col-12">
+                <details class="border rounded p-3 bg-light">
+                  <summary class="fw-semibold">Dados do kit do projeto</summary>
+                  <div id="pvKitDetails" class="row g-3 mt-1"></div>
+                </details>
               </div>
               <div class="col-12">
                 <div class="border rounded p-3 bg-light">
@@ -2890,6 +2928,7 @@ Valor: ${escapeHtml(formatCurrencyBRL(pv.plan_value))}</textarea>
         $('pvEquipment').value = pv.equipment || '';
         $('pvKit').value = pv.kit || '';
         $('pvMarca').value = pv.marca || '';
+        renderPvKitDetails(pv.kit_details);
         populateClientTypeSelect(pv.client_type || '');
         populateClientStatusSelect(pv.client_status || 'Assinante');
         $('pvStage').value = pv.stage || '';
@@ -2903,6 +2942,7 @@ Valor: ${escapeHtml(formatCurrencyBRL(pv.plan_value))}</textarea>
                 renderPvEditAttachments(payload);
                 // populate project_notes from payload (server-side joined field)
                 $('pvProjectNotes').value = payload.details.project_notes || pv.project_notes || '';
+                renderPvKitDetails(payload.details.kit_details);
                 // load indicações for this pos-venda into the Indicações tab
                 loadReferralsForPv(pv.id);
             }
@@ -3594,12 +3634,20 @@ Valor: ${escapeHtml(formatCurrencyBRL(pv.plan_value))}</textarea>
         $('pvEquipment').value = '';
         $('pvKit').value = '';
         $('pvMarca').value = '';
+        $('pvKitDetails').innerHTML = '';
         populateClientTypeSelect();
         populateClientStatusSelect('Assinante');
         $('pvStage').value = '';
         $('pvModalTitle').textContent = 'Novo Registro Pós-venda';
         bsModal('pvModal').show();
     });
+
+    function renderPvKitDetails(rawDetails) {
+        const labels = {kwh_mes:'KWh/M', kwp:'KWP', caracteristicas_kit:'Características do kit', quant_paineis:'Quantidade de painéis', paineis_w:'Painéis (W)', marca_paineis:'Marca dos painéis', inversor_w:'Inversor (W)', marca_inversor:'Marca do inversor', estrutura:'Estrutura', acessorios:'Acessórios', imoveis_adicionais:'Imóveis adicionais beneficiados'};
+        let details = {};
+        try { details = typeof rawDetails === 'string' ? JSON.parse(rawDetails || '{}') : (rawDetails || {}); } catch (e) {}
+        $('pvKitDetails').innerHTML = Object.entries(labels).map(([key, label]) => `<div class="col-md-4"><label class="form-label small">${label}</label><input class="form-control form-control-sm" value="${escapeHtml(String(details[key] || ''))}" readonly></div>`).join('');
+    }
 
     // project select → populate client fields
     $('pvProjectSelect').addEventListener('change', ()=>{
@@ -3608,6 +3656,7 @@ Valor: ${escapeHtml(formatCurrencyBRL(pv.plan_value))}</textarea>
         $('pvLeadId').value = opt?.dataset?.leadId || '';
         $('pvClientName').value = opt?.dataset?.name || '';
         $('pvProjectKwh').value = opt?.dataset?.kwh || '';
+        renderPvKitDetails(opt?.dataset?.kitDetails || '{}');
         setProjectProposalInputFromValue(opt?.dataset?.proposal || '');
         $('pvProjectNotes').value = opt?.dataset?.contract || '';
         if (!$('pvCpf').value && opt?.dataset?.cpf) {

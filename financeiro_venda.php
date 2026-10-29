@@ -5,10 +5,13 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 require_once __DIR__.'/includes/config.php';
 require_once __DIR__.'/includes/permissions.php';
 require_once __DIR__.'/includes/financeiro_lib.php';
+require_once __DIR__.'/includes/project_kit_schema.php';
+ensureProjectKitDetailsColumn($pdo);
 checkAccessOrRedirect('financeiro');
 $id=(int)($_GET['id'] ?? $_POST['id'] ?? 0);
 if ($id<1) { header('Location: financeiro.php'); exit; }
 $userId=(int)$_SESSION['user_id'];
+$projectKitKeys=['kwh_mes','kwp','caracteristicas_kit','quant_paineis','paineis_w','marca_paineis','inversor_w','marca_inversor','estrutura','acessorios','imoveis_adicionais'];
 $error='';
 if ($_SERVER['REQUEST_METHOD']==='POST') {
   try {
@@ -22,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
       $previous=fin_detail($pdo,$id); $fields=$previous;
       foreach(fin_field_map() as $key=>$definition) {
         if ($definition[1]==='calculated') continue;
+        if (!empty($sale['project_id']) && in_array($key,$projectKitKeys,true)) continue;
         $raw=trim((string)($_POST['campos'][$key]??''));
         if (in_array($definition[1],['money','number'],true)) {
           $value=fin_number($raw);
@@ -30,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         else $value=$raw!==''?mb_substr($raw,0,10000):null;
         $fields[$key]=$value;
       }
-      if ((float)($fields['quant_paineis']??0)>0 && (float)($fields['paineis_w']??0)>0) {
+      if (empty($sale['project_id']) && (float)($fields['quant_paineis']??0)>0 && (float)($fields['paineis_w']??0)>0) {
         $fields['kwp']=round((float)$fields['quant_paineis']*(float)$fields['paineis_w']/1000,3);
         $fields['kwh_mes']=round($fields['kwp']/8*1000,2);
       }
@@ -86,11 +90,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $pdo->commit(); header('Location: financeiro_venda.php?id='.$id); exit;
   } catch(Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); $error=$e->getMessage(); }
 }
-$stmt=$pdo->prepare('SELECT fv.*,p.status AS project_status,p.projeto AS project_size,p.address AS project_address,p.logistics_delivery_date,p.closed_date AS project_closed_date,p.contract AS project_contract,pv.id AS pos_venda_id,pv.installation_date,pv.next_maintenance,pv.warranty_end,pv.last_checkup,pv.kit AS pos_kit,pv.marca AS pos_marca,pv.equipment AS pos_equipment,pv.address AS pos_address,pv.phone AS pos_phone,pv.email AS pos_email,pv.cpf AS pos_cpf,pv.birth_date AS pos_birth_date,pv.project_notes AS pos_project_notes FROM financeiro_vendas fv LEFT JOIN projetos p ON p.id=fv.project_id LEFT JOIN pos_venda pv ON pv.project_id=p.id WHERE fv.id=?');
+$stmt=$pdo->prepare('SELECT fv.*,p.status AS project_status,p.projeto AS project_size,p.kit_details AS project_kit_details,p.address AS project_address,p.logistics_delivery_date,p.closed_date AS project_closed_date,p.contract AS project_contract,pv.id AS pos_venda_id,pv.installation_date,pv.next_maintenance,pv.warranty_end,pv.last_checkup,pv.kit AS pos_kit,pv.marca AS pos_marca,pv.equipment AS pos_equipment,pv.address AS pos_address,pv.phone AS pos_phone,pv.email AS pos_email,pv.cpf AS pos_cpf,pv.birth_date AS pos_birth_date,pv.project_notes AS pos_project_notes FROM financeiro_vendas fv LEFT JOIN projetos p ON p.id=fv.project_id LEFT JOIN pos_venda pv ON pv.project_id=p.id WHERE fv.id=?');
 $stmt->execute([$id]); $sale=$stmt->fetch(PDO::FETCH_ASSOC);
 if (!$sale) { header('Location: financeiro.php'); exit; }
 $fields=fin_detail($pdo,$id);
 $fields+=['cliente'=>$sale['client_name'],'cpf_cnpj'=>$sale['cpf_cnpj'],'telefone'=>$sale['phone'],'email'=>$sale['email'],'cidade'=>$sale['cidade'],'vendedor_indicador'=>$sale['vendedor'],'valor_venda'=>$sale['valor_negociado'],'forma_pagamento'=>$sale['forma_pagamento'],'observacao'=>$sale['observacoes']];
+$projectKitDetails=json_decode((string)($sale['project_kit_details']??''),true);
+if (!is_array($projectKitDetails)) $projectKitDetails=[];
 foreach ([
   'cpf_cnpj' => $sale['pos_cpf'] ?? null,
   'telefone' => $sale['pos_phone'] ?? null,
@@ -110,6 +116,13 @@ foreach ([
 ] as $key => $fallback) {
   if (($fields[$key] ?? null) === null || trim((string)$fields[$key]) === '') {
     $fields[$key] = $fallback;
+  }
+}
+if (!empty($sale['project_id'])) {
+  foreach ($projectKitKeys as $key) {
+    $value=$projectKitDetails[$key] ?? null;
+    if (($value===null || trim((string)$value)==='') && $key==='kwh_mes') $value=$sale['project_size'] ?? null;
+    $fields[$key]=$value;
   }
 }
 $totals=fin_sale_totals($pdo,$id,$fields,(float)($fields['valor_venda']??$sale['valor_negociado']??0));
@@ -281,11 +294,11 @@ body.theme-dark .fin-sale-page #fin-sale-form .form-control {
   <div class="col-sm-6 col-xl-3"><div class="card border-0 shadow-sm"><div class="card-body"><small class="text-muted">Recebido · saldo</small><div class="h4 mb-0"><?= fin_money($totals['received']) ?> / <?= fin_money($totals['balance']) ?></div></div></div></div>
  </div>
  <div class="row g-3"><div class="col-xl-9"><form method="post" id="fin-sale-form" class="card border-0 shadow-sm"><input type="hidden" name="csrf" value="<?= fin_h(fin_token()) ?>"><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="salvar"><div class="card-header bg-white"><strong>Cadastro da venda · campos da planilha de controle</strong></div><div class="card-body">
- <?php foreach(fin_fields() as $groupName=>$group): ?><fieldset class="mb-4"><legend class="h6 border-bottom pb-2 mb-3"><?= fin_h($groupName) ?></legend><div class="row g-3">
- <?php foreach($group as $key=>$def): $value=$fields[$key]??null; $type=$def[1]; if($type==='calculated'){ $value=match($key){'custo_total'=>$totals['cost'],'lucro_bruto'=>$totals['profit'],'margem_bruta'=>$totals['margin']===null?'':number_format($totals['margin'],2,',','.'),'valor_receber'=>$totals['balance'],'preco_wp'=>$totals['price_wp'],'pago_direto'=>$totals['methods']['direct'],'pago_cartao'=>$totals['methods']['card'],'pago_bens'=>$totals['methods']['goods'],'pago_fornecedor'=>$totals['methods']['supplier'],'pago_integrador'=>$totals['methods']['integrator'],'tempo_execucao'=>$totals['execution'],default=>''}; } ?>
+ <?php foreach(fin_fields() as $groupName=>$group): ?><fieldset class="mb-4"><legend class="h6 border-bottom pb-2 mb-3"><?= fin_h($groupName) ?></legend><?php if($groupName==='Kit e projeto' && !empty($sale['project_id'])): ?><div class="small text-muted mb-3">Dados sincronizados do Projeto #<?= (int)$sale['project_id'] ?>. Edite-os na tela de Projetos.</div><?php endif; ?><div class="row g-3">
+ <?php foreach($group as $key=>$def): $value=$fields[$key]??null; $type=$def[1]; $isProjectKitField=!empty($sale['project_id'])&&in_array($key,$projectKitKeys,true); if($type==='calculated'){ $value=match($key){'custo_total'=>$totals['cost'],'lucro_bruto'=>$totals['profit'],'margem_bruta'=>$totals['margin']===null?'':number_format($totals['margin'],2,',','.'),'valor_receber'=>$totals['balance'],'preco_wp'=>$totals['price_wp'],'pago_direto'=>$totals['methods']['direct'],'pago_cartao'=>$totals['methods']['card'],'pago_bens'=>$totals['methods']['goods'],'pago_fornecedor'=>$totals['methods']['supplier'],'pago_integrador'=>$totals['methods']['integrator'],'tempo_execucao'=>$totals['execution'],default=>''}; } ?>
  <div class="col-md-6 col-lg-4"><label class="form-label small fw-semibold" for="f_<?= fin_h($key) ?>"><?= fin_h($def[0]) ?></label>
  <?php if($type==='textarea'): ?><textarea id="f_<?= fin_h($key) ?>" class="form-control" name="campos[<?= fin_h($key) ?>]" rows="2"><?= fin_h($value) ?></textarea></div>
- <?php else: ?><input id="f_<?= fin_h($key) ?>" class="form-control <?= $type==='calculated'?'bg-light':'' ?>" <?= $type==='calculated'?'readonly':'' ?> <?= $type==='calculated'?'':'name="campos['.fin_h($key).']"' ?> type="<?= $type==='date'?'date':'text' ?>" inputmode="<?= in_array($type,['money','number'],true)?'decimal':'text' ?>" value="<?= fin_h($type==='date' && $value?substr((string)$value,0,10):$value) ?>"></div>
+ <?php else: ?><input id="f_<?= fin_h($key) ?>" class="form-control <?= ($type==='calculated'||$isProjectKitField)?'bg-light':'' ?>" <?= ($type==='calculated'||$isProjectKitField)?'readonly':'' ?> <?= $type==='calculated'?'':'name="campos['.fin_h($key).']"' ?> type="<?= $type==='date'?'date':'text' ?>" inputmode="<?= in_array($type,['money','number'],true)?'decimal':'text' ?>" value="<?= fin_h($type==='date' && $value?substr((string)$value,0,10):$value) ?>"></div>
  <?php endif; endforeach; ?></div></fieldset><?php endforeach; ?>
  <div class="alert alert-info small">A senha de monitoramento da planilha não é armazenada. Valores recebidos e saldo vêm das baixas registradas.</div>
  <button class="btn btn-primary" type="submit">Salvar dados da venda</button></div></form></div>

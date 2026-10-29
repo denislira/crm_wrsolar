@@ -10,6 +10,8 @@ if (!isset($_SESSION['user_id'])) {
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/permissions.php';
 require_once __DIR__ . '/includes/project_post_sale_automation.php';
+require_once __DIR__ . '/includes/project_kit_schema.php';
+ensureProjectKitDetailsColumn($pdo);
 
 checkAccessOrRedirect('projetos');
 
@@ -331,11 +333,42 @@ include 'includes/header.php';
             .modal-footer { background: #f8fbff; border-top: none; }
             .modal-content .form-control,
             .modal-content .form-select,
-            .modal-content textarea.form-control { border-radius: .9rem; border: 1px solid #dbe4f0; background: #ffffff; box-shadow: inset 0 1px 2px rgba(15,23,42,0.04); }
+            .modal-content textarea.form-control { border-radius: .9rem; border: 1px solid #b8c7d9; background: #ffffff; box-shadow: inset 0 1px 2px rgba(15,23,42,0.04); }
             .modal-content .form-label { font-weight: 600; color: #334155; }
             .modal-content .btn-primary { background: var(--blue-700); border-color: var(--blue-700); }
             .modal-content .btn-primary:hover { background: var(--blue-900); border-color: var(--blue-900); }
+            .kit-details-panel { border: 1px solid #dbe4f0; border-radius: .9rem; padding: .85rem 1rem 1rem; background: #f8fbff; }
+            .kit-details-panel summary { cursor: pointer; color: var(--blue-900); font-weight: 700; list-style: none; }
+            .kit-details-panel summary::-webkit-details-marker { display: none; }
+            .kit-details-panel summary::after { content: "\f078"; font-family: 'Font Awesome 5 Free'; font-weight: 900; float: right; transition: transform .2s; }
+            .kit-details-panel[open] summary::after { transform: rotate(180deg); }
             .modal-content .btn-secondary { background: #e2e8f0; color: #102a43; border-color: #cbd5e1; }
+            #modalProjeto .modal-dialog { max-width: 1440px; width: calc(100vw - 3rem); }
+            #modalProjeto .modal-dialog { height: auto; max-height: calc(100vh - 2rem); margin-top: 1rem; margin-bottom: 1rem; }
+            #modalProjeto .modal-content { max-height: calc(100vh - 2rem); }
+            #modalProjeto .modal-body { max-height: calc(100vh - 9rem); overflow-y: auto; min-height: 0; scrollbar-gutter: stable; }
+            #modalProjeto .modal-body::after { content: ''; display: block; height: .25rem; }
+            #modalProjeto .modal-body { padding: 1.5rem 1.75rem; }
+            #modalProjeto .project-modal-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(440px, .9fr); gap: 1.25rem; align-items: start; }
+            #modalProjeto .project-third-column { grid-column: 2; min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+            #modalProjeto .project-main-fields { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, .9fr); gap: .9rem 1rem; }
+            #modalProjeto .project-main-fields .project-field { min-width: 0; }
+            #modalProjeto .project-main-fields .project-field-wide { grid-column: 1 / -1; }
+            #modalProjeto .project-side-tabs { min-width: 0; padding: 1rem; border: 1px solid #cbdcf2; border-radius: 1rem; background: linear-gradient(160deg, #eef6ff 0%, #f8fbff 62%, #f1f8f7 100%); box-shadow: 0 12px 28px rgba(30, 64, 110, .08); }
+            #modalProjeto .project-side-tabs .nav-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 0; gap: .4rem; }
+            #modalProjeto .project-side-tabs .nav-item { min-width: 0; }
+            #modalProjeto .project-side-tabs .nav-link { width: 100%; min-height: 44px; padding: .55rem .5rem; text-align: center; border: 1px solid rgba(148, 163, 184, .25); border-radius: .65rem; background: rgba(255,255,255,.72); color: #47617d; white-space: normal; line-height: 1.2; transition: background .18s, color .18s, border-color .18s, box-shadow .18s; }
+            #modalProjeto .project-side-tabs .nav-link:hover { background: #fff; border-color: #93c5fd; color: #1455a3; }
+            #modalProjeto .project-side-tabs .nav-link.active { background: #145da8; border-color: #145da8; color: #fff; box-shadow: 0 5px 14px rgba(20, 93, 168, .22); }
+            #modalProjeto .project-side-tabs .tab-content { padding: 1rem 0 0 !important; border: 0 !important; background: transparent !important; }
+            #modalProjeto .project-side-tabs .tab-pane .row { --bs-gutter-x: .75rem; }
+            #modalProjeto .project-side-tabs .kit-details-panel .row { --bs-gutter-x: .75rem; }
+            #modalProjeto .project-side-tabs .kit-details-panel { max-height: 42vh; overflow-y: auto; }
+            #modalProjeto .project-kit-column { min-width: 0; }
+            #modalProjeto .form-label { margin-bottom: .4rem; }
+            #modalProjeto .form-control, #modalProjeto .form-select { min-height: 44px; }
+            #modalProjeto .kit-details-panel { margin-top: .25rem; padding: 1rem 1.1rem 1.15rem; }
+            #modalProjeto .kit-details-panel .row { margin-top: .15rem; }
             body.theme-dark .modal-content,
             body.theme-dark .modal-body,
             body.theme-dark .modal-footer {
@@ -353,7 +386,7 @@ include 'includes/header.php';
             body.theme-dark .modal-content textarea.form-control {
                 background: rgba(255,255,255,0.06) !important;
                 color: #e6eef8 !important;
-                border-color: rgba(255,255,255,0.12) !important;
+                border-color: rgba(190,210,232,0.32) !important;
                 box-shadow: none !important;
             }
             body.theme-dark .modal-content .form-control:focus,
@@ -374,6 +407,19 @@ include 'includes/header.php';
             body.theme-dark .modal-content .btn-primary {
                 background: #2563eb !important;
                 border-color: #1d4ed8 !important;
+            }
+            body.theme-dark #modalProjeto .project-side-tabs { background: linear-gradient(160deg, #14283c, #102131 68%, #142b2d); border-color: rgba(147,197,253,.18); box-shadow: 0 12px 28px rgba(0,0,0,.2); }
+            body.theme-dark #modalProjeto .project-side-tabs .nav-link { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.10); color: #b9c9da; }
+            body.theme-dark #modalProjeto .project-side-tabs .nav-link:hover { background: rgba(147,197,253,.10); border-color: rgba(147,197,253,.35); color: #e5f1ff; }
+            body.theme-dark #modalProjeto .project-side-tabs .nav-link.active { background: #1769aa; border-color: #2585c7; color: #fff; }
+            @media (max-width: 768px) {
+                #modalProjeto .project-modal-grid { grid-template-columns: 1fr; }
+                #modalProjeto .project-third-column { grid-column: 1; }
+                #modalProjeto .project-main-fields { grid-template-columns: 1fr; }
+                #modalProjeto .project-main-fields .project-field-wide { grid-column: auto; }
+                #modalProjeto .project-side-tabs .nav-tabs { grid-template-columns: 1fr; }
+                #modalProjeto .project-side-tabs .nav-link { text-align: left; padding: .5rem .65rem; }
+                #modalProjeto .modal-body { padding: 1rem; }
             }
             .file-dropzone {
                 position: relative;
@@ -751,7 +797,7 @@ include 'includes/header.php';
 <?php include 'includes/footer.php'; ?>
 
 <div class="modal fade" id="modalProjeto" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Projeto</h5>
@@ -760,28 +806,29 @@ include 'includes/header.php';
             <form id="formProjeto">
                 <div class="modal-body">
                     <input type="hidden" name="id" id="proj_id">
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
+                    <div class="project-modal-grid">
+                      <section class="project-main-fields">
+                        <div class="project-field">
                             <label class="form-label">Cliente</label>
                             <input class="form-control" name="client_name" id="proj_client_name" required>
                         </div>
-                        <div class="col-md-4">
+                        <div class="project-field">
                             <label class="form-label">Valor Proposta</label>
                             <input class="form-control" name="proposal_value" id="proj_proposal_value" placeholder="0,00">
                         </div>
-                        <div class="col-md-4">
+                        <div class="project-field">
                             <label class="form-label">Kwh (projeto)</label>
                             <input class="form-control" name="projeto" id="proj_projeto" placeholder="Ex: 4500">
                         </div>
-                        <div class="col-md-4">
+                        <div class="project-field">
                             <label class="form-label">Endereço</label>
                             <input class="form-control" name="address" id="proj_address">
                         </div>
-                        <div class="col-md-4">
+                        <div class="project-field">
                             <label class="form-label">Telefone do Lead</label>
                             <input type="text" class="form-control" id="proj_lead_phone" readonly>
                         </div>
-                        <div class="col-md-4">
+                        <div class="project-field">
                             <label class="form-label">Status</label>
                             <select class="form-select" name="status" id="proj_status">
                                 <?php foreach ($kanbanStages as $stageOption): ?>
@@ -789,7 +836,7 @@ include 'includes/header.php';
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="project-field">
                             <label class="form-label">Forma de Pagamento</label>
                             <div class="input-group">
                                 <select class="form-select" name="payment_method_id" id="proj_payment_type">
@@ -798,7 +845,7 @@ include 'includes/header.php';
                                 <button type="button" class="btn btn-outline-primary" id="btnAddPaymentType" title="Cadastrar forma de pagamento">+</button>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="project-field">
                             <label class="form-label">Status do Pagamento</label>
                             <select class="form-select" name="payment_status" id="proj_payment_status">
                                 <option value="">Automático</option>
@@ -806,11 +853,11 @@ include 'includes/header.php';
                                 <option value="Pago">Pago</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="project-field">
                             <label class="form-label">Data de fechamento</label>
                             <input type="date" class="form-control" name="closed_date" id="proj_closed_date">
                         </div>
-                        <div class="col-md-4">
+                        <div class="project-field">
                             <label class="form-label">Prazo (dias)</label>
                             <select class="form-select" name="due_days" id="proj_due_days">
                                 <option value="30">30 dias</option>
@@ -818,12 +865,13 @@ include 'includes/header.php';
                                 <option value="90">90 dias</option>
                             </select>
                         </div>
-                        <div class="col-12">
+                        <div class="project-field project-field-wide">
                             <label class="form-label">Contrato / Observações</label>
                             <textarea class="form-control" name="contract" id="proj_contract" rows="3"></textarea>
                         </div>
-                    </div>
-
+                      </section>
+                      <div class="project-third-column">
+                      <aside class="project-side-tabs">
                     <ul class="nav nav-tabs" id="projetoTabs" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="tab-logistica" data-bs-toggle="tab" data-bs-target="#content-logistica" type="button" role="tab">Logística</button>
@@ -871,6 +919,24 @@ include 'includes/header.php';
                             </div>
                         </div>
                     </div>
+                    </aside>
+                    <div class="project-kit-column">
+                    <details class="kit-details-panel">
+                        <summary><i class="fas fa-solar-panel me-2"></i>Kit e projeto</summary>
+                        <div class="row g-3 pt-3">
+                            <?php foreach ([
+                                'kwh_mes'=>'KWh/M','kwp'=>'KWP','caracteristicas_kit'=>'Características do kit',
+                                'quant_paineis'=>'Quantidade de painéis','paineis_w'=>'Painéis (W)','marca_paineis'=>'Marca dos painéis',
+                                'inversor_w'=>'Inversor (W)','marca_inversor'=>'Marca do inversor','estrutura'=>'Estrutura',
+                                'acessorios'=>'Acessórios','imoveis_adicionais'=>'Imóveis adicionais beneficiados'
+                            ] as $kitKey=>$kitLabel): ?>
+                                <div class="col-12"><label class="form-label"><?= htmlspecialchars($kitLabel) ?></label><input class="form-control kit-detail-field" name="kit_<?= htmlspecialchars($kitKey) ?>" data-kit-key="<?= htmlspecialchars($kitKey) ?>"></div>
+                            <?php endforeach; ?>
+                        </div>
+                    </details>
+                    </div>
+                      </div>
+                    </div>
 
                     <input type="hidden" name="technical_checklist" id="proj_technical_checklist">
                     <input type="hidden" name="docs_checklist" id="proj_docs_checklist">
@@ -890,6 +956,10 @@ include 'includes/header.php';
     (function(){
         const modalEl = document.getElementById('modalProjeto');
         const bsModal = new bootstrap.Modal(modalEl);
+        modalEl.addEventListener('shown.bs.modal', () => {
+            const body = modalEl.querySelector('.modal-body');
+            if (body) body.scrollTop = 0;
+        });
 
         const btnExcluirProjeto = document.getElementById('btnExcluirProjeto');
         const toggleTopInfoBtn = document.getElementById('toggleTopInfo');
@@ -1348,6 +1418,9 @@ include 'includes/header.php';
                     document.getElementById('proj_due_days').value = (p.due_days ? p.due_days : 30);
                     document.getElementById('proj_contract').value = p.contract || '';
                     document.getElementById('proj_projeto').value = p.projeto || '';
+                    let kitDetails = {};
+                    try { kitDetails = typeof p.kit_details === 'string' ? JSON.parse(p.kit_details || '{}') : (p.kit_details || {}); } catch (e) {}
+                    document.querySelectorAll('.kit-detail-field').forEach(field => { field.value = kitDetails[field.dataset.kitKey] || ''; });
                     await loadPaymentMethodsSelect(p.payment_method_id || p.payment_type || '');
                     document.getElementById('proj_payment_status').value = p.payment_status || '';
                     document.getElementById('proj_logistics_tracking_code').value = p.logistics_tracking_code || '';
