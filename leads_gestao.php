@@ -441,6 +441,7 @@ include 'includes/header.php';
                                                 <div class="lead-modal-actions-inline d-flex gap-2 mb-2">
                                                     <button id="leadModalReminderBtn" type="button" class="btn btn-outline-info lead-modal-action-btn d-none" title="Criar lembrete" aria-label="Criar lembrete"><i class="fa fa-clock"></i></button>
                                                     <button id="leadModalTaskBtn" type="button" class="btn btn-outline-warning lead-modal-action-btn d-none" title="Criar tarefa" aria-label="Criar tarefa"><i class="fa fa-tasks"></i></button>
+                                                    <button id="leadModalWhatsappBtn" type="button" class="btn btn-outline-success lead-modal-action-btn d-none" title="Abrir WhatsApp" aria-label="Abrir WhatsApp"><i class="fa-brands fa-whatsapp"></i></button>
                                                 </div>
                                             </div>
                                         </div>

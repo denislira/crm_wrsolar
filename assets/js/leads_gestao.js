@@ -3200,7 +3200,8 @@
                 alert('Erro ao mover lead para lixeira');
             }
         });
-        const whatsappBtn = document.createElement('a'); whatsappBtn.className='btn btn-sm btn-outline-success'; whatsappBtn.href = lead.phone? 'https://wa.me/'+lead.phone.replace(/\D/g,''):'#'; whatsappBtn.target='_blank'; whatsappBtn.innerHTML='<i class="fa-brands fa-whatsapp"></i>'; whatsappBtn.title='WhatsApp';
+        const whatsappBtn = document.createElement('button'); whatsappBtn.className='btn btn-sm btn-outline-success'; whatsappBtn.type='button'; whatsappBtn.innerHTML='<i class="fa-brands fa-whatsapp"></i>'; whatsappBtn.title='Abrir WhatsApp';
+        whatsappBtn.addEventListener('click', async () => { await openWhatsappConversation(lead); });
         const proposalBtn = document.createElement('button'); proposalBtn.className='btn btn-sm btn-primary'; proposalBtn.type='button'; proposalBtn.innerHTML='<i class="fa fa-paper-plane"></i>'; proposalBtn.title='Enviar proposta';
         proposalBtn.classList.add('d-none');
         btns.appendChild(reminderBtn); btns.appendChild(taskBtn); btns.appendChild(editBtn); btns.appendChild(deleteBtn); btns.appendChild(whatsappBtn); btns.appendChild(proposalBtn);
@@ -3592,6 +3593,7 @@
         const fileNames = document.getElementById('anexos-file-names'); if (fileNames) fileNames.innerHTML = '';
         const modalReminderBtn = document.getElementById('leadModalReminderBtn');
         const modalTaskBtn = document.getElementById('leadModalTaskBtn');
+        const modalWhatsappBtn = document.getElementById('leadModalWhatsappBtn');
         if (modalReminderBtn) {
             modalReminderBtn.classList.remove('d-none');
             modalReminderBtn.onclick = () => openReminderForLead(lead.id || '');
@@ -3599,6 +3601,10 @@
         if (modalTaskBtn) {
             modalTaskBtn.classList.remove('d-none');
             modalTaskBtn.onclick = () => openTaskForLead(lead);
+        }
+        if (modalWhatsappBtn) {
+            modalWhatsappBtn.classList.toggle('d-none', !String(lead.phone || '').trim());
+            modalWhatsappBtn.onclick = () => openWhatsappConversation(lead);
         }
         // render existing attachments UI
         try { renderExistingAttachments(lead); } catch(e){ console.warn('Failed rendering attachments', e); }
@@ -3736,7 +3742,7 @@
             if (idEl) idEl.value = '';
             const fileInput = document.getElementById('lead-anexos'); if (fileInput) fileInput.value = '';
             const fileNames = document.getElementById('anexos-file-names'); if (fileNames) fileNames.innerHTML = '';
-            ['leadModalReminderBtn','leadModalTaskBtn'].forEach(id => {
+            ['leadModalReminderBtn','leadModalTaskBtn','leadModalWhatsappBtn'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (btn) { btn.classList.add('d-none'); btn.onclick = null; }
             });
