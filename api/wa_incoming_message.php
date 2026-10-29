@@ -413,22 +413,8 @@ try {
     if ($userId <= 0) $userId = 1;
 
     $name = $pushName !== '' ? $pushName : ('WhatsApp ' . ($hasRealPhone ? $phone : 'sem numero real'));
-    $notes = [];
-    $notes[] = 'Lead criado automaticamente a partir de conversa recebida no WhatsApp.';
-    if (!$hasRealPhone) $notes[] = 'Criado em modo livre sem telefone real. Identificador tecnico salvo em phone: ' . $phone;
-    if (!empty($existing['id'])) $notes[] = 'Novo atendimento criado por retorno no WhatsApp. Lead anterior: #' . (int)$existing['id'];
-    if ($text !== '') $notes[] = 'Primeira mensagem: ' . mb_substr($text, 0, 1000);
-    if ($profilePictureUrl !== '') $notes[] = 'Foto WhatsApp: ' . mb_substr($profilePictureUrl, 0, 500);
-    if ($remoteJid !== '') $notes[] = 'Remote JID: ' . mb_substr($remoteJid, 0, 120);
-    if ($remoteJidAlt !== '') $notes[] = 'Remote JID Alt: ' . mb_substr($remoteJidAlt, 0, 120);
-    if ($senderJid !== '') $notes[] = 'Sender JID: ' . mb_substr($senderJid, 0, 120);
-    if ($participantAlt !== '') $notes[] = 'Participant Alt: ' . mb_substr($participantAlt, 0, 120);
-    if ($idType !== '') $notes[] = 'Tipo ID WhatsApp: ' . mb_substr($idType, 0, 40);
-    if (!empty($payload['message_id'])) $notes[] = 'Message ID: ' . $payload['message_id'];
-    $notes[] = 'Recebido em: ' . date('Y-m-d H:i:s');
-
-    $stmt = $pdo->prepare("INSERT INTO leads (user_id, name, phone, source, status, stage_id, initial_stage_id, notes, created_at, updated_at) VALUES (?, ?, ?, 'WhatsApp', 'WhatsApp', NULL, NULL, ?, NOW(), NOW())");
-    $stmt->execute([$userId, $name, $phone, implode("\n", $notes)]);
+    $stmt = $pdo->prepare("INSERT INTO leads (user_id, name, phone, source, status, stage_id, initial_stage_id, notes, created_at, updated_at) VALUES (?, ?, ?, 'WhatsApp', 'WhatsApp', NULL, NULL, '', NOW(), NOW())");
+    $stmt->execute([$userId, $name, $phone]);
     $leadId = (int)$pdo->lastInsertId();
     $localProfileImage = '';
 
