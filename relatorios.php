@@ -747,6 +747,23 @@ if ($activeTab === 'consultores') try {
 // Tasks per user (if team_tasks table exists)
 $usersTasks = [];
 if ($activeTab === 'consultores') try {
+        // Compatibilidade entre schemas: instalações antigas usam created_at;
+        // o schema atual usa criado_em.
+        $taskDateCol = null;
+        try {
+            $taskColsStmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'team_tasks'");
+            $taskCols = $taskColsStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (in_array('criado_em', $taskCols, true)) {
+                $taskDateCol = 'criado_em';
+            } elseif (in_array('created_at', $taskCols, true)) {
+                $taskDateCol = 'created_at';
+            }
+        } catch (Exception $e) { /* tabela/coluna opcional */ }
+
+        if (!$taskDateCol) {
+            throw new RuntimeException('A tabela team_tasks não possui uma coluna de data reconhecida.');
+        }
+
         $tasksQuery = "
                 SELECT 
                         u.id,
@@ -755,7 +772,7 @@ if ($activeTab === 'consultores') try {
                         SUM(CASE WHEN t.status = 'concluida' OR t.status = 'completed' THEN 1 ELSE 0 END) as tarefas_concluidas
                 FROM users u
                 LEFT JOIN team_tasks t ON t.responsavel_id = u.id
-                    AND t.created_at >= ? AND t.created_at <= ?
+                    AND t.{$taskDateCol} >= ? AND t.{$taskDateCol} <= ?
                 GROUP BY u.id, u.username
                 HAVING total_tarefas > 0
                 ORDER BY tarefas_concluidas DESC, total_tarefas DESC
@@ -765,6 +782,7 @@ if ($activeTab === 'consultores') try {
         $tasksStmt->execute([$fStartStr, $fEndStr]);
         $usersTasks = $tasksStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { 
+        error_log('[relatorios][consultores][tarefas] ' . $e->getMessage());
         $usersTasks = []; 
 }
 
@@ -1291,6 +1309,7 @@ if ($activeTab === 'consultores_externos') try {
         }
     }
 } catch (Exception $e) {
+    error_log('[relatorios][consultores_externos] ' . $e->getMessage());
     $externalConsultantsInsights = ['Nao foi possivel gerar a analise de consultores externos.'];
 }
 
@@ -1466,6 +1485,7 @@ if ($activeTab === 'anuncios') try {
     $adsSummary['conv_7d'] = $adsSummary['clicks_7d'] > 0 ? round(($adsSummary['leads_7d'] / $adsSummary['clicks_7d']) * 100, 2) : 0;
     $adsSummary['conv_30d'] = $adsSummary['clicks_30d'] > 0 ? round(($adsSummary['leads_30d'] / $adsSummary['clicks_30d']) * 100, 2) : 0;
 } catch (Exception $e) {
+    error_log('[relatorios][anuncios] ' . $e->getMessage());
     $adsWarnings[] = 'Nao foi possivel carregar metricas de anuncios: ' . $e->getMessage();
 }
 

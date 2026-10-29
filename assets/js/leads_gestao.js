@@ -2626,6 +2626,22 @@
             });
             actTd.appendChild(openBtn);
 
+            // Acesso rápido à conversa do WhatsApp também no modo lista.
+            if (typeof hasWhatsappContactPhone === 'function' && hasWhatsappContactPhone(lead)) {
+                const whatsappBtn = document.createElement('button');
+                whatsappBtn.className = 'btn btn-sm btn-outline-success p-1 ms-1';
+                whatsappBtn.type = 'button';
+                whatsappBtn.innerHTML = '<i class="fa-brands fa-whatsapp" aria-hidden="true"></i>';
+                whatsappBtn.title = 'Abrir WhatsApp';
+                whatsappBtn.setAttribute('aria-label', 'Abrir WhatsApp');
+                whatsappBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await openWhatsappConversation(lead);
+                });
+                actTd.appendChild(whatsappBtn);
+            }
+
             tr.appendChild(chkTd); tr.appendChild(nameTd); tr.appendChild(compTd); tr.appendChild(statusTd); tr.appendChild(phoneTd); tr.appendChild(valTd); tr.appendChild(scoreTd); tr.appendChild(createdTd); tr.appendChild(updatedTd); tr.appendChild(actTd);
             tbody.appendChild(tr);
         });
